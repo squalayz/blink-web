@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +58,7 @@ export default function RootLayout({
             {children}
           </ErrorBoundary>
         </Providers>
+        <Analytics />
       </body>
     </html>
   );
