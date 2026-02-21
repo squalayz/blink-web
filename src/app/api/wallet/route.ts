@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // ── Collect deposit fee (10%) ──
+  // ── Collect deposit fee (5%) ──
   // Called by frontend after detecting new deposit balance increase
   if (action === "deposit_fee") {
     const { deposit_amount } = body;
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No wallet found" }, { status: 404 });
     }
 
-    // Send 10% to platform wallet 0xEe9D...c280
+    // Send 5% to platform wallet 0xEe9D...c280
     const result = await collectDepositFee(user.wallet_encrypted_key, deposit_amount);
 
     if (result.success) {
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
         fee: result.fee,
         net: result.net,
         feeTxHash: result.feeTxHash,
-        message: `Deposited ${deposit_amount} ETH. 10% fee (${result.fee.toFixed(4)} ETH) collected. ${result.net.toFixed(4)} ETH credited.`,
+        message: `Deposited ${deposit_amount} ETH. 5% fee (${result.fee.toFixed(4)} ETH) collected. ${result.net.toFixed(4)} ETH credited.`,
       });
     } else {
       return NextResponse.json({ error: "Fee collection failed. Funds remain in your wallet." }, { status: 500 });

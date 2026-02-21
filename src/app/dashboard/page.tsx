@@ -1293,7 +1293,7 @@ export default function Dashboard(){
               {wallet?.has_wallet?(
                 <div>
                   <div style={{fontSize:11,color:C.muted,marginBottom:8}}>Send ETH on <strong>Base network</strong> to fund your agent. This is YOUR wallet — you own the keys.</div>
-                  <div style={{fontSize:11,padding:"8px 12px",background:`${C.warn}10`,border:`1px solid ${C.warn}33`,borderRadius:8,marginBottom:10,color:C.warn}}>10% platform fee on deposits. 1% fee on all trades. These fees keep the mesh running.</div>
+                  <div style={{fontSize:11,padding:"8px 12px",background:`${C.warn}10`,border:`1px solid ${C.warn}33`,borderRadius:8,marginBottom:10,color:C.warn}}>5% platform fee on deposits. 1% fee on all trades. These fees keep the mesh running.</div>
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
                     <code style={{flex:1,fontSize:11,color:C.cyan,wordBreak:"break-all",fontFamily:"monospace",background:C.bg,padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`}}>{wallet.wallet_address}</code>
                     <button onClick={()=>{navigator.clipboard?.writeText(wallet.wallet_address);}} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 10px",cursor:"pointer",color:C.muted,fontSize:11,display:"flex",alignItems:"center",gap:4,flexShrink:0}}><Copy size={11}/>Copy</button>
@@ -1321,7 +1321,7 @@ export default function Dashboard(){
                     </div>
                   )}
 
-                  <div style={{fontSize:10,color:C.dim,marginTop:10,display:"flex",alignItems:"center",gap:4}}><Shield size={10}/>Non-custodial. Your keys, your crypto. 10% deposit fee · 1% trade fee. Platform wallet receives fees only.</div>
+                  <div style={{fontSize:10,color:C.dim,marginTop:10,display:"flex",alignItems:"center",gap:4}}><Shield size={10}/>Non-custodial. Your keys, your crypto. 5% deposit fee · 1% trade fee. Platform wallet receives fees only.</div>
                 </div>
               ):(
                 <div style={{textAlign:"center",padding:20}}>

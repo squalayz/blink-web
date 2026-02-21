@@ -2,7 +2,7 @@
 // MishMesh.ai — Per-User Wallet System (Non-Custodial)
 //
 // FEE STRUCTURE — ALL FEES GO TO PLATFORM WALLET:
-//   Deposit fee:  10%  (user deposits 0.1 ETH → 0.01 to platform, 0.09 credited)
+//   Deposit fee:  5%  (user deposits 0.1 ETH → 0.005 to platform, 0.095 credited)
 //   Trade fee:    1%   per trade (buy AND sell, not just profits)
 //   Withdraw fee: 0%   (no additional fee on withdrawals)
 //   Pro tier:     0.005  ETH/month
@@ -20,7 +20,7 @@ const PLATFORM_FEE_WALLET = "0xEe9D166D9620af58248F5A7b4e86d3177E96c280";
 
 // ═══ Fee Constants ═══
 export const FEES = {
-  DEPOSIT_PCT: 0.10,        // 10% on all deposits
+  DEPOSIT_PCT: 0.05,        // 5% on all deposits
   TRADE_PCT: 0.01,          // 1% per trade (buy AND sell)
   PRO_MONTHLY: 0.005,       // 0.005 ETH/month
   BUSINESS_MONTHLY: 0.015,  // 0.015 ETH/month
@@ -120,9 +120,9 @@ export async function sendFeeToPlatform(
 }
 
 // ══════════════════════════════════════════════════════════════
-// DEPOSIT FEE — 10%
+// DEPOSIT FEE — 5%
 // Called after user sends ETH to their wallet.
-// Immediately sends 10% to platform wallet.
+// Immediately sends 5% to platform wallet.
 // Returns net amount credited to user.
 // ══════════════════════════════════════════════════════════════
 
