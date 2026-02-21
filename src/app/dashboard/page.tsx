@@ -1303,7 +1303,7 @@ export default function Dashboard(){
                 <div style={{display:"flex",gap:8}}>
                   {(["conservative","balanced","degen"] as const).map(level=>{
                     const labels={conservative:"Conservative",balanced:"Balanced",degen:"Degen"};
-                    const descs={conservative:"Hold ETH only. No trading.",balanced:"5% in trades. Moderate growth.",degen:"20% in trades. Maximum growth."};
+                    const descs={conservative:"1% of portfolio traded.",balanced:"5% of portfolio traded.",degen:"20% of portfolio traded."};
                     const colors={conservative:C.match,balanced:C.warn,degen:C.hot};
                     const active=wallet?.risk_level===level;
                     return(<button key={level} onClick={()=>updateWalletSettings({risk_level:level})} style={{flex:1,background:active?`${colors[level]}15`:C.s2,border:`1px solid ${active?colors[level]+"44":C.border}`,borderRadius:10,padding:12,cursor:"pointer",textAlign:"left"}}>
