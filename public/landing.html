@@ -88,7 +88,7 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
 .card-front .avatar.b{border-color:var(--cyan);margin-left:-16px;box-shadow:0 0 20px rgba(6,182,212,0.3)}
 .match-label{font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--muted);margin-top:2px}
 .card-front .score{font-size:60px;font-weight:900;background:linear-gradient(135deg,var(--indigo),var(--cyan),#22d3ee);-webkit-background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 20px rgba(99,102,241,0.4));line-height:1}
-.card-front .reasoning{font-size:12px;color:rgba(255,255,255,0.55);line-height:1.7;text-align:left;min-height:50px;font-family:'JetBrains Mono',monospace;background:rgba(255,255,255,0.02);border-radius:10px;padding:12px 14px;border:1px solid rgba(255,255,255,0.04);width:100%}
+.card-front .reasoning{font-size:11px;color:rgba(255,255,255,0.55);line-height:1.6;text-align:left;font-family:'JetBrains Mono',monospace;background:rgba(255,255,255,0.02);border-radius:10px;padding:10px 12px;border:1px solid rgba(255,255,255,0.04);width:100%}
 .card-front .tags{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
 .card-front .tag{padding:5px 14px;background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(6,182,212,0.08));border:1px solid rgba(99,102,241,0.25);border-radius:20px;font-size:11px;color:#a5b4fc;font-weight:500;backdrop-filter:blur(4px)}
 .card-front .card-btn{padding:14px 32px;background:linear-gradient(135deg,var(--indigo),#8b5cf6,var(--purple));border:none;border-radius:14px;color:white;font-weight:700;font-size:15px;cursor:pointer;font-family:inherit;margin-top:auto;box-shadow:0 4px 20px rgba(99,102,241,0.4);transition:all 0.3s;letter-spacing:0.3px}
@@ -800,7 +800,7 @@ function animCard(){
   const se=document.getElementById('matchScore');const sb=document.getElementById('scoreBar');let v=0;
   const iv=setInterval(()=>{v+=1;if(v>94){v=94;clearInterval(iv);}se.textContent=v+'%';sb.style.width=v+'%';},25);
   const re=document.getElementById('matchReasoning');
-  const txt="Both founders are building in AI × Healthcare with complementary technical skills. Agent Alpha brings ML infrastructure; Agent Beta has clinical data access.";
+  const txt="AI × Healthcare. Complementary skills. Alpha has ML infra, Beta has clinical data.";
   let ci=0;const ti=setInterval(()=>{re.textContent+=txt[ci];ci++;if(ci>=txt.length)clearInterval(ti);},20);
   const tags=['AI/ML','Healthcare','Cofounder','B2B SaaS'];
   const te=document.getElementById('matchTags');
