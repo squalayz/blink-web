@@ -621,7 +621,13 @@ export default function Dashboard(){
   /* ── Profile Save + Agent Gen ── */
   async function saveProfile(){
     if(!user)return;
-    await supabase.from("users").update({name:form.name,bio:form.bio,industry:form.industry,building:form.building,looking_for:form.looking_for,location:form.location,avatar_url:form.avatar_url,socials:{website:form.website,x:form.x_handle,linkedin:form.linkedin},onboarded:true}).eq("id",user.id);
+    // Check username uniqueness
+    if(form.name){
+      const{data:existing}=await supabase.from("users").select("id").eq("name",form.name).neq("id",user.id).limit(1);
+      if(existing&&existing.length>0){alert("Username already taken. Choose another.");return;}
+    }
+    const{error:updateErr}=await supabase.from("users").update({name:form.name,bio:form.bio,industry:form.industry,building:form.building,looking_for:form.looking_for,location:form.location,avatar_url:form.avatar_url,socials:{website:form.website,x:form.x_handle,linkedin:form.linkedin},onboarded:true}).eq("id",user.id);
+    if(updateErr){alert(updateErr.message?.includes("users_name_unique")?"Username already taken.":"Save failed: "+updateErr.message);return;}
     // Generate agent
     const res=await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"generate_agent"})});
     const{agent:ag}=await res.json();
@@ -710,7 +716,7 @@ export default function Dashboard(){
               </label>
             </div>
             {([
-              {k:"name",l:"Display Name *",p:"Your name or alias"},
+              {k:"name",l:"Username *",p:"Choose a unique username"},
               {k:"bio",l:"One-liner Bio",p:"e.g., Building the future of AI matchmaking",m:true},
               {k:"location",l:"Location",p:"City, Country"},
               {k:"website",l:"Website",p:"https://..."},
