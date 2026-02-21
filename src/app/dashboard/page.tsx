@@ -654,6 +654,8 @@ export default function Dashboard(){
     }
     setOnboarding(false);
     setUser((u:any)=>({...u,onboarded:true}));
+    // Trigger instant match scan for this user (don't await — runs in background)
+    fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"scan"})}).catch(()=>{});
     // Award first badge
     await supabase.from("badges").upsert({user_id:user.id,badge_type:"first_agent",badge_name:"Agent Deployed",badge_description:"Launched your first AI agent"},{onConflict:"user_id,badge_type"});
   }

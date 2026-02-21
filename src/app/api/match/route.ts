@@ -170,6 +170,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, txHash: payResult.txHash });
     }
 
+    // ── Instant scan — triggered on signup, runs matching for this user ──
+    if (action === "scan") {
+      // Fire and forget — don't block the response
+      const { runAutonomousMatching } = await import("@/lib/matching");
+      runAutonomousMatching().catch((e: any) => console.error("Scan error:", e));
+      return NextResponse.json({ ok: true, message: "Scan triggered" });
+    }
+
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (err: any) {
     console.error("Match API error:", err);
