@@ -942,7 +942,7 @@ export default function Dashboard(){
       {showWalletDrop&&<div onClick={()=>setShowWalletDrop(false)} style={{position:"fixed",inset:0,zIndex:998}}/>}
       {/* ── Nav ── */}
       <nav style={{padding:"4px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setView("mesh")}>
+        <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>window.location.href="/"}>
           <MMLogo size={32}/><span style={{fontWeight:700,fontSize:15}}>MishMesh</span><TierBadge tier={user?.tier||"free"}/>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:14}}>
