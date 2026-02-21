@@ -41,10 +41,10 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
 #hero .ctas{display:flex;gap:16px;justify-content:flex-start;margin-top:24px;opacity:0}
 #hero .social-proof{font-size:12px;color:#6b6b80;margin-top:16px;letter-spacing:0.5px;opacity:0}
 /* Orbs */
-.orb-stage{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:1}
+.orb-stage{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:1}
 .float-orb{position:absolute;border-radius:50%;will-change:transform;pointer-events:none;transition:filter 0.3s}
-.float-orb.a{width:18px;height:18px;background:radial-gradient(circle at 45% 40%,#a855f7 0%,#7c3aed 40%,rgba(99,102,241,0.5) 70%,transparent 90%);box-shadow:0 0 12px 4px rgba(124,58,237,0.4)}
-.float-orb.b{width:16px;height:16px;background:radial-gradient(circle at 45% 40%,#22d3ee 0%,#06b6d4 40%,rgba(6,182,212,0.5) 70%,transparent 90%);box-shadow:0 0 12px 4px rgba(6,182,212,0.4)}
+.float-orb.a{width:90px;height:90px;background:radial-gradient(circle at 45% 40%,#a855f7 0%,#7c3aed 25%,rgba(99,102,241,0.4) 55%,transparent 75%);box-shadow:0 0 40px 15px rgba(124,58,237,0.25)}
+.float-orb.b{width:80px;height:80px;background:radial-gradient(circle at 45% 40%,#22d3ee 0%,#06b6d4 25%,rgba(6,182,212,0.4) 55%,transparent 75%);box-shadow:0 0 40px 15px rgba(6,182,212,0.25)}
 .float-orb.buzzing{animation:orb-buzz 60ms infinite}
 @keyframes orb-buzz{0%{transform:translate(var(--ox),var(--oy)) scale(1)}25%{transform:translate(calc(var(--ox) + 1.5px),calc(var(--oy) - 1px)) scale(1.03)}50%{transform:translate(calc(var(--ox) - 1px),calc(var(--oy) + 1.5px)) scale(0.97)}75%{transform:translate(calc(var(--ox) + 0.5px),calc(var(--oy) + 0.5px)) scale(1.02)}100%{transform:translate(var(--ox),var(--oy)) scale(1)}}
 .orb-dot{position:absolute;border-radius:50%;pointer-events:none;will-change:transform,opacity}
@@ -265,7 +265,7 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
   #hero .ctas{justify-content:center}
   #hero .sub{margin-left:auto;margin-right:auto}
   #hero .social-proof{text-align:center}
-  .float-orb.a{width:14px;height:14px}.float-orb.b{width:12px;height:12px}
+  .float-orb.a{width:60px;height:60px}.float-orb.b{width:55px;height:55px}
   .btn-primary,.btn-ghost{padding:14px 24px;font-size:14px}
   #matchcard .card-wrapper{width:300px;height:440px}
   .agent-card{width:140px;padding:18px 12px}
@@ -356,6 +356,10 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
 
 <!-- S1: HERO -->
 <section id="hero">
+  <div class="orb-stage" id="orbStage">
+    <div class="float-orb a" id="orbA"></div>
+    <div class="float-orb b" id="orbB"></div>
+  </div>
   <div class="section-inner" style="position:relative;z-index:2">
     <div class="hero-left">
       <div class="agent-text" id="agentText"></div>
@@ -604,24 +608,25 @@ function initOrbs(){
   const stage=document.getElementById('orbStage');
   if(!stage)return;
   const aEl=document.getElementById('orbA'),bEl=document.getElementById('orbB');
-  if(!aEl||!bEl)return;
-  // Small space next to the word — orbs orbit gently
-  const W=()=>Math.max(stage.offsetWidth,60),H=()=>Math.max(stage.offsetHeight,40);
-  const a={x:20,y:12,r:9,el:aEl};
-  const b={x:40,y:28,r:8,el:bEl};
-  const wa={fx:0.0008+Math.random()*0.0003,fy:0.0006+Math.random()*0.0003,px:Math.random()*1000,py:Math.random()*1000,ax:18,ay:12};
-  const wb={fx:0.0007+Math.random()*0.0003,fy:0.0009+Math.random()*0.0003,px:Math.random()*1000,py:Math.random()*1000,ax:16,ay:10};
-  const anchorA={x:18,y:14};
-  const anchorB={x:42,y:26};
+  const W=()=>stage.offsetWidth,H=()=>stage.offsetHeight;
+  // Orb state
+  const a={x:W()*0.7,y:H()*0.35,r:45,el:aEl};
+  const b={x:W()*0.3,y:H()*0.65,r:40,el:bEl};
+  // Smooth wandering with sin waves at different frequencies
+  const wa={fx:0.0004+Math.random()*0.0002,fy:0.0003+Math.random()*0.0002,px:Math.random()*1000,py:Math.random()*1000,ax:W()*0.22,ay:H()*0.18};
+  const wb={fx:0.00035+Math.random()*0.0002,fy:0.00045+Math.random()*0.0002,px:Math.random()*1000,py:Math.random()*1000,ax:W()*0.2,ay:H()*0.16};
+  // Center anchors — orbs wander around these points
+  const anchorA={x:W()*0.68,y:H()*0.38};
+  const anchorB={x:W()*0.35,y:H()*0.62};
   let touching=false,buzzStart=0,dotTimer=0;
   // Gentle nudge velocity for post-touch drift
   let nudgeAx=0,nudgeAy=0,nudgeBx=0,nudgeBy=0;
 
   function emitDots(mx,my){
-    const n=window.innerWidth<768?3:5;
+    const n=window.innerWidth<768?4:8;
     for(let i=0;i<n;i++){
       const d=document.createElement('div');d.className='orb-dot';
-      const sz=1.5+Math.random()*2;const ang=Math.random()*Math.PI*2;const spd=0.3+Math.random()*0.5;
+      const sz=2+Math.random()*3;const ang=Math.random()*Math.PI*2;const spd=0.4+Math.random()*0.8;
       const col=Math.random()>0.5?'rgba(168,85,247,0.8)':'rgba(34,211,238,0.8)';
       d.style.cssText=`width:${sz}px;height:${sz}px;background:${col};left:${mx}px;top:${my}px;opacity:0.9;box-shadow:0 0 4px ${col}`;
       stage.appendChild(d);
@@ -662,7 +667,7 @@ function initOrbs(){
       // After 800-1500ms of buzzing, gently push apart
       if(t-buzzStart>800+Math.random()*700){
         const nx=dx/(dist||1),ny=dy/(dist||1);
-        nudgeAx=-nx*12;nudgeAy=-ny*12;nudgeBx=nx*12;nudgeBy=ny*12;
+        nudgeAx=-nx*40;nudgeAy=-ny*40;nudgeBx=nx*40;nudgeBy=ny*40;
         touching=false;aEl.classList.remove('buzzing');bEl.classList.remove('buzzing');
       }
     }else{
@@ -707,17 +712,11 @@ function showHL(){
     });
     h1.appendChild(lineEl);
   });
-  // Cycling gradient word on line 3 with orbs
-  const line3=document.createElement('span');line3.className='line';line3.style.position='relative';
+  // Cycling gradient word on line 3
+  const line3=document.createElement('span');line3.className='line';
   const gw=document.createElement('span');gw.className='word';gw.id='cycleWord';
   gw.style.background='linear-gradient(135deg,#6366f1,#06b6d4)';gw.style.WebkitBackgroundClip='text';gw.style.WebkitTextFillColor='transparent';
-  gw.textContent=cycleWords[0];line3.appendChild(gw);
-  // Add orb container next to the word
-  const orbWrap=document.createElement('span');orbWrap.id='orbStage';orbWrap.className='orb-stage';
-  orbWrap.style.cssText='position:relative;display:inline-block;width:60px;height:40px;vertical-align:middle;margin-left:8px;overflow:visible';
-  orbWrap.innerHTML='<div class="float-orb a" id="orbA"></div><div class="float-orb b" id="orbB"></div>';
-  line3.appendChild(orbWrap);h1.appendChild(line3);
-  setTimeout(initOrbs,200);
+  gw.textContent=cycleWords[0];line3.appendChild(gw);h1.appendChild(line3);
   setTimeout(()=>{gw.style.transition='all 0.35s cubic-bezier(0.16,1,0.3,1)';gw.style.opacity='1';gw.style.transform='translateY(0)';gw.style.filter='blur(0)';},100*wordIdx);
   let ci=0;
   cycleTimer=setInterval(()=>{ci=(ci+1)%cycleWords.length;gw.style.transition='opacity 0.3s, transform 0.3s';gw.style.opacity='0';gw.style.transform='translateY(-8px)';
@@ -943,7 +942,7 @@ function initNavbar(){
 
 addEventListener('DOMContentLoaded',()=>{
   init3D();requestAnimationFrame(anim);
-  initNavbar();
+  initNavbar();initOrbs();
   setTimeout(()=>document.getElementById('preload').classList.add('gone'),500);
   setTimeout(initScroll,100);
 });
