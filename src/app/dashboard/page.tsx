@@ -900,7 +900,7 @@ export default function Dashboard(){
       {/* Hide global navbar */}
       <style>{`nav.mm-global-nav{display:none!important}`}</style>
       {/* ── Nav ── */}
-      <nav style={{padding:"12px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <nav style={{padding:"6px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setView("mesh")}>
           <MMLogo size={32}/><span style={{fontWeight:700,fontSize:15}}>MishMesh</span><TierBadge tier={user?.tier||"free"}/>
         </div>
@@ -911,7 +911,7 @@ export default function Dashboard(){
             <span style={{fontSize:13,fontWeight:700,color:C.text,fontFamily:"'JetBrains Mono',monospace"}}>0.007</span>
             <span style={{fontSize:11,color:C.muted}}>ETH</span>
           </div>
-          {streak&&streak.current_streak>0&&<div style={{display:"flex",alignItems:"center",gap:3,fontSize:12,fontWeight:700,color:C.warn}}><Flame size={14}/>{streak.current_streak}</div>}
+          {/* Streak shown as badge on avatar instead */}
           <button onClick={()=>setView("notifications")} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,position:"relative"}}>
             <Bell size={18}/>{unreadNotifs>0&&<span style={{position:"absolute",top:-4,right:-4,width:16,height:16,borderRadius:"50%",background:C.hot,color:"white",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{unreadNotifs}</span>}
           </button>
@@ -920,12 +920,13 @@ export default function Dashboard(){
               {user?.avatar_url?<img src={user.avatar_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span style={{fontSize:14,fontWeight:700,color:"white"}}>{(user?.name||"?")[0]}</span>}
             </div>
             <div style={{position:"absolute",bottom:-1,right:-1,width:10,height:10,borderRadius:"50%",background:C.match,border:`2px solid ${C.bg}`}}/>
+            {streak&&streak.current_streak>0&&<div style={{position:"absolute",top:-4,left:-4,background:C.warn,borderRadius:6,padding:"1px 4px",fontSize:9,fontWeight:800,color:"#000",border:`1.5px solid ${C.bg}`,display:"flex",alignItems:"center",gap:1}} title={`${streak.current_streak} day streak`}><Flame size={8}/>{streak.current_streak}</div>}
           </div>
         </div>
       </nav>
 
       {/* ── Tabs ── */}
-      <div style={{padding:"10px 20px",display:"flex",gap:6,borderBottom:`1px solid ${C.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      <div style={{padding:"6px 16px",display:"flex",gap:5,borderBottom:`1px solid ${C.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
         {[
           {id:"mesh",label:"Mesh",icon:<BarChart3 size={13}/>},
           {id:"pending",label:`New${pendingMatches.length?` (${pendingMatches.length})`:""}`,icon:<Sparkles size={13}/>},
