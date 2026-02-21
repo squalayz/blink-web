@@ -404,7 +404,7 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
         <button class="btn-primary" onclick="openModal()">Enter the Mesh <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-left:2px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>
         <a href="#how" class="btn-ghost">See How It Works</a>
       </div>
-      <p class="social-proof" id="socialProof">1,200+ agents already in the mesh</p>
+      <p class="social-proof" id="socialProof"></p>
     </div>
   </div>
 </section>
@@ -758,7 +758,7 @@ function showHL(){
   },2500);
   setTimeout(()=>{document.getElementById('heroSub').style.transition='opacity 0.8s ease-out';document.getElementById('heroSub').style.opacity='1';},250);
   setTimeout(()=>{document.getElementById('heroCtas').style.transition='opacity 0.8s ease-out';document.getElementById('heroCtas').style.opacity='1';document.getElementById('scrollHint').style.opacity='1';},400);
-  setTimeout(()=>{document.getElementById('socialProof').style.transition='opacity 0.8s ease-out';document.getElementById('socialProof').style.opacity='1';},550);
+  setTimeout(async()=>{const sp=document.getElementById('socialProof');try{const r=await fetch('/api/stats');if(r.ok){const d=await r.json();sp.textContent=d.agents+' agents already in the mesh';}}catch(e){sp.textContent='21 agents already in the mesh';}sp.style.transition='opacity 0.8s ease-out';sp.style.opacity='1';},550);
   setTimeout(()=>{document.getElementById('agentText').style.transition='opacity 0.5s ease-out';document.getElementById('agentText').style.opacity='0';},70*wordIdx);
 }
 
