@@ -391,7 +391,7 @@ export default function Dashboard(){
     const{data:sk}=await supabase.from("streaks").select("*").eq("user_id",uid).single();
     setStreak(sk);
 
-    await Promise.all([loadMatches(uid),loadDiscovery(uid),loadNotifications(uid),loadBadges(uid),loadLeaderboard(),loadChallenges(uid),loadReport(uid)]);
+    await Promise.all([loadMatches(uid),loadDiscovery(uid),loadNotifications(uid),loadBadges(uid),loadLeaderboard(),loadChallenges(uid),loadReport(uid),loadWallet()]);
     setLoading(false);
 
     // Realtime notifications
@@ -932,7 +932,7 @@ export default function Dashboard(){
           <div style={{position:"relative"}}>
             <div onClick={()=>setShowWalletDrop(p=>!p)} style={{cursor:"pointer",display:"flex",alignItems:"center",gap:6,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"6px 14px"}}>
               <div style={{width:8,height:8,borderRadius:"50%",background:C.match,boxShadow:`0 0 6px ${C.match}`}}/>
-              <span style={{fontSize:13,fontWeight:700,color:C.text,fontFamily:"'JetBrains Mono',monospace"}}>{wallet?.balance_eth?.toFixed(4)||"0.007"}</span>
+              <span style={{fontSize:13,fontWeight:700,color:C.text,fontFamily:"'JetBrains Mono',monospace"}}>{wallet?.balance_eth != null ? wallet.balance_eth.toFixed(4) : "..."}</span>
               <span style={{fontSize:11,color:C.muted}}>ETH</span>
             </div>
             {showWalletDrop&&(

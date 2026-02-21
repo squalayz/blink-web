@@ -97,8 +97,7 @@ export async function POST(req: NextRequest) {
       const { address: tradingAddr, encryptedKey } = generateWallet();
       await supabaseAdmin.from("users").update({
         wallet_encrypted_key: encryptedKey,
-        // Don't overwrite wallet_address — that's their identity wallet
-        // trading_wallet_address is for autonomous trading
+        trading_wallet_address: tradingAddr,
       }).eq("id", userId);
     }
 

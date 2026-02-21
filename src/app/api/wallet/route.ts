@@ -218,17 +218,20 @@ export async function GET(req: NextRequest) {
   const userId = sessionUser.id;
 
   const [userRes, balRes, tradesRes, withdrawRes, depositRes] = await Promise.all([
-    supabaseAdmin.from("users").select("wallet_address, tier, tier_expires_at").eq("id", userId).single(),
+    supabaseAdmin.from("users").select("wallet_address, trading_wallet_address, tier, tier_expires_at").eq("id", userId).single(),
     supabaseAdmin.from("agent_balances").select("*").eq("user_id", userId).single(),
     supabaseAdmin.from("trading_history").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(10),
     supabaseAdmin.from("withdrawals").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(5),
     supabaseAdmin.from("deposits").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(5),
   ]);
 
-  const walletAddress = userRes.data?.wallet_address;
+  // Use trading wallet for balance (not identity/MetaMask wallet)
+  const tradingWallet = userRes.data?.trading_wallet_address;
+  const identityWallet = userRes.data?.wallet_address;
+  const walletAddress = tradingWallet || identityWallet;
   let onChainBalance = 0;
-  if (walletAddress) {
-    onChainBalance = await getWalletBalance(walletAddress);
+  if (tradingWallet) {
+    onChainBalance = await getWalletBalance(tradingWallet);
   }
 
   const agentBal = balRes.data;
