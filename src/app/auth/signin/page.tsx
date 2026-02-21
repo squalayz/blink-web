@@ -126,23 +126,38 @@ export default function SignInPage() {
 
         {/* ═══ CHOOSE (main screen) ═══ */}
         {step === "choose" && (
-          <div style={{ background: C.s2, border: `1px solid rgba(255,255,255,0.06)`, borderRadius: 20, padding: "36px 32px", textAlign: "center" }}>
-            <div style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.12em", color: C.muted, marginBottom: 8, fontWeight: 600 }}> Enter the Mesh</div>
-            <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 24, color: C.text }}>Connect Your Wallet</h2>
+          <div style={{ background: C.s2, border: `1px solid rgba(255,255,255,0.06)`, borderRadius: 20, padding: "32px 24px", textAlign: "center" }}>
+            <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.12em", color: C.muted, marginBottom: 8, fontWeight: 600 }}>Enter the Mesh</div>
+            <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 20, color: C.text }}>Connect Your Wallet</h2>
 
             {/* Connect Wallet (RainbowKit) */}
             <button onClick={() => { setSiweAttempted(false); setError(""); openConnectModal?.(); }} style={{
-              width: "100%", padding: 16, borderRadius: 14, border: "none",
+              width: "100%", padding: 18, borderRadius: 14, border: "none",
               background: `linear-gradient(135deg, ${C.indigo}, ${C.purple})`,
               color: "white", fontSize: 16, fontWeight: 700, cursor: "pointer",
               fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-              transition: "all 0.2s", marginBottom: 12,
+              transition: "all 0.2s", marginBottom: 10, minHeight: 56,
+              WebkitTapHighlightColor: "transparent",
             }}>
-              <span style={{ fontSize: 20 }}></span>
               Connect Wallet
             </button>
 
-            <div style={{ color: C.dim, fontSize: 13, margin: "16px 0", display: "flex", alignItems: "center", gap: 12 }}>
+            {/* Mobile: Open in MetaMask deep link */}
+            {typeof window !== "undefined" && /iPhone|iPad|Android/i.test(navigator.userAgent) && (
+              <a href={`https://metamask.app.link/dapp/${typeof window !== "undefined" ? window.location.host : "mishmesh.ai"}/auth/signin`}
+                style={{
+                  display: "flex", width: "100%", padding: 16, borderRadius: 14,
+                  border: `1px solid rgba(245,158,11,0.3)`, background: "rgba(245,158,11,0.08)",
+                  color: "#f59e0b", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                  fontFamily: "inherit", alignItems: "center", justifyContent: "center", gap: 10,
+                  textDecoration: "none", marginBottom: 10, minHeight: 52,
+                  WebkitTapHighlightColor: "transparent",
+                }}>
+                Open in MetaMask App
+              </a>
+            )}
+
+            <div style={{ color: C.dim, fontSize: 12, margin: "14px 0", display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
               <span>or</span>
               <span style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
@@ -152,28 +167,28 @@ export default function SignInPage() {
             <button onClick={handleCreateWallet} style={{
               width: "100%", padding: 16, borderRadius: 14,
               border: `1px solid rgba(255,255,255,0.1)`, background: "transparent",
-              color: C.text, fontSize: 16, fontWeight: 600, cursor: "pointer",
+              color: C.text, fontSize: 15, fontWeight: 600, cursor: "pointer",
               fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-              transition: "all 0.2s",
+              transition: "all 0.2s", minHeight: 52,
+              WebkitTapHighlightColor: "transparent",
             }}>
-              <span style={{ fontSize: 20 }}></span>
               Create New Wallet
             </button>
 
-            <p style={{ fontSize: 13, color: C.dim, marginTop: 20, lineHeight: 1.5 }}>
+            <p style={{ fontSize: 12, color: C.dim, marginTop: 16, lineHeight: 1.5 }}>
               No wallet? No problem. We'll create one for you in 2 seconds.
             </p>
 
             {error && (
-              <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 10, background: "rgba(255,45,85,0.1)", border: "1px solid rgba(255,45,85,0.2)", color: C.hot, fontSize: 13 }}>
+              <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, background: "rgba(255,45,85,0.1)", border: "1px solid rgba(255,45,85,0.2)", color: C.hot, fontSize: 13 }}>
                 {error}
               </div>
             )}
 
             {/* Social connections info */}
-            <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-              <p style={{ fontSize: 12, color: C.dim }}>
-                After signing in, connect 𝕏, Instagram, or email in <strong style={{ color: C.muted }}>Settings → Connected Accounts</strong> for enhanced profiles and notifications.
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+              <p style={{ fontSize: 11, color: C.dim }}>
+                After signing in, connect 𝕏, Instagram, or email in <strong style={{ color: C.muted }}>Profile</strong> for enhanced notifications.
               </p>
             </div>
           </div>
@@ -181,10 +196,11 @@ export default function SignInPage() {
 
         {/* ═══ SIGNING ═══ */}
         {step === "signing" && (
-          <div style={{ background: C.s2, border: `1px solid rgba(255,255,255,0.06)`, borderRadius: 20, padding: "48px 32px", textAlign: "center" }}>
+          <div style={{ background: C.s2, border: `1px solid rgba(255,255,255,0.06)`, borderRadius: 20, padding: "40px 24px", textAlign: "center" }}>
             <div style={{ width: 48, height: 48, borderRadius: "50%", border: `3px solid ${C.indigo}`, borderTopColor: "transparent", margin: "0 auto 20px", animation: "spin 1s linear infinite" }} />
             <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Sign the message</h3>
-            <p style={{ fontSize: 14, color: C.muted }}>Confirm in your wallet to prove ownership. No gas fees.</p>
+            <p style={{ fontSize: 14, color: C.muted, marginBottom: 4 }}>Confirm in your wallet to prove ownership. No gas fees.</p>
+            <p style={{ fontSize: 12, color: C.dim }}>Check your wallet app if the popup doesn't appear.</p>
             <button onClick={() => { disconnect(); setStep("choose"); }} style={{
               marginTop: 20, padding: "8px 20px", border: `1px solid rgba(255,255,255,0.1)`,
               borderRadius: 8, background: "transparent", color: C.muted, fontSize: 13,
