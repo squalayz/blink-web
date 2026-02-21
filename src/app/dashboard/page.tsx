@@ -904,12 +904,23 @@ export default function Dashboard(){
         <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setView("mesh")}>
           <MMLogo size={32}/><span style={{fontWeight:700,fontSize:15}}>MishMesh</span><TierBadge tier={user?.tier||"free"}/>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:14}}>
+          {/* Wallet balance */}
+          <div onClick={()=>setView("wallet")} style={{cursor:"pointer",display:"flex",alignItems:"center",gap:6,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"6px 14px"}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:C.match,boxShadow:`0 0 6px ${C.match}`}}/>
+            <span style={{fontSize:13,fontWeight:700,color:C.text,fontFamily:"'JetBrains Mono',monospace"}}>0.007</span>
+            <span style={{fontSize:11,color:C.muted}}>ETH</span>
+          </div>
           {streak&&streak.current_streak>0&&<div style={{display:"flex",alignItems:"center",gap:3,fontSize:12,fontWeight:700,color:C.warn}}><Flame size={14}/>{streak.current_streak}</div>}
           <button onClick={()=>setView("notifications")} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,position:"relative"}}>
             <Bell size={18}/>{unreadNotifs>0&&<span style={{position:"absolute",top:-4,right:-4,width:16,height:16,borderRadius:"50%",background:C.hot,color:"white",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{unreadNotifs}</span>}
           </button>
-          <div style={{cursor:"pointer"}} onClick={()=>setView("profile")}><Avatar name={user?.name||"?"} size={28} url={user?.avatar_url}/></div>
+          <div style={{cursor:"pointer",position:"relative"}} onClick={()=>setView("profile")}>
+            <div style={{width:36,height:36,borderRadius:"50%",border:`2px solid ${C.match}`,boxShadow:`0 0 10px ${C.match}44, 0 0 20px ${C.match}22`,overflow:"hidden",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {user?.avatar_url?<img src={user.avatar_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span style={{fontSize:14,fontWeight:700,color:"white"}}>{(user?.name||"?")[0]}</span>}
+            </div>
+            <div style={{position:"absolute",bottom:-1,right:-1,width:10,height:10,borderRadius:"50%",background:C.match,border:`2px solid ${C.bg}`}}/>
+          </div>
         </div>
       </nav>
 
