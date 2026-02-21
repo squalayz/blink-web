@@ -38,6 +38,17 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.ip || "unknown";
 
+  // ═══ 0. LANDING PAGE REDIRECT ═══
+  // Unauthenticated users hitting "/" → serve landing.html directly (no React/RainbowKit overhead)
+  if (pathname === "/") {
+    const hasSession = req.cookies.get("siwe-session") || req.cookies.get("next-auth.session-token") || req.cookies.get("__Secure-next-auth.session-token");
+    if (!hasSession) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/landing.html";
+      return NextResponse.rewrite(url);
+    }
+  }
+
   // ═══ 1. GLOBAL RATE LIMIT ═══
   // API routes: 120 req/min per IP
   if (pathname.startsWith("/api/")) {
