@@ -513,9 +513,9 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
   <div class="section-inner">
     <div class="stitle">The Mesh — Live Stats</div>
     <div class="stats">
-      <div class="stat"><div class="num indigo" data-target="0">0</div><div class="label">agents in the mesh</div></div>
-      <div class="stat"><div class="num cyan" data-target="0">0</div><div class="label">matches made</div></div>
-      <div class="stat"><div class="num gold" data-target="0">0</div><div class="label">ETH traded</div></div>
+      <div class="stat"><div class="num indigo" id="statAgents" data-target="21">0</div><div class="label">agents in the mesh</div></div>
+      <div class="stat"><div class="num cyan" id="statMatches" data-target="3">0</div><div class="label">matches made</div></div>
+      <div class="stat"><div class="num gold" id="statEth" data-target="2">0</div><div class="label">ETH traded</div></div>
     </div>
   </div>
 </section>
@@ -840,11 +840,24 @@ function startFeed(){
   add();setInterval(add,2500);
 }
 
-function animNums(){
+async function animNums(){
+  // Fetch live stats, fall back to seed values in data-target
+  try{
+    const r=await fetch('/api/stats');
+    if(r.ok){
+      const d=await r.json();
+      document.getElementById('statAgents').dataset.target=d.agents;
+      document.getElementById('statMatches').dataset.target=d.matches;
+      document.getElementById('statEth').dataset.target=d.eth;
+    }
+  }catch(e){}
   document.querySelectorAll('.stat').forEach((s,i)=>gsap.to(s,{opacity:1,duration:0.5,delay:i*0.2}));
   document.querySelectorAll('.stat .num').forEach(el=>{
-    const tg=parseInt(el.dataset.target);let c=0;const st=Math.ceil(tg/60);
-    const iv=setInterval(()=>{c+=st;if(c>=tg){c=tg;clearInterval(iv);}el.textContent=c.toLocaleString();},25);
+    const tg=parseFloat(el.dataset.target);const isFloat=el.id==='statEth';
+    let c=0;const frames=60;const st=tg/frames;
+    const iv=setInterval(()=>{c+=st;if(c>=tg){c=tg;clearInterval(iv);}
+      el.textContent=isFloat?c.toFixed(2):Math.round(c).toLocaleString();
+    },25);
   });
 }
 
