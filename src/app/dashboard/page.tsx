@@ -350,6 +350,9 @@ export default function Dashboard(){
   const[aiTestResult,setAiTestResult]=useState<any>(null);
 
   const[form,setForm]=useState({name:"",bio:"",industry:"",building:"",looking_for:"",location:"",website:"",x_handle:"",linkedin:"",avatar_url:"",agent_style:"professional",agent_instructions:""});
+  const[obStep,setObStep]=useState(1);
+  const obSteps=[{n:1,l:"Profile"},{n:2,l:"Industry & Goals"},{n:3,l:"AI Brain"},{n:4,l:"Personality"}];
+  const obCanNext=obStep===1?!!form.name:obStep===2?!!(form.building&&form.looking_for):true;
 
   /* ── Auth + Load ── */
   useEffect(()=>{checkAuth();},[]);
@@ -650,69 +653,183 @@ export default function Dashboard(){
   );
 
   /* ══════════════════════════════════════════
-     ONBOARDING
+     ONBOARDING — 4-step wizard
      ══════════════════════════════════════════ */
+
   if(onboarding)return(
     <div style={{minHeight:"100vh",background:C.bg,padding:20}}>
-      <div style={{maxWidth:520,margin:"0 auto",paddingTop:40}}>
-        <div style={{textAlign:"center",marginBottom:40}}>
-          <MMLogo size={64}/>
-          <h1 style={{fontSize:28,fontWeight:800,marginTop:16}}>Create Your Profile</h1>
-          <p style={{color:C.muted,marginTop:8,fontSize:14}}>Your AI agent launches the moment you finish.</p>
-          <p style={{color:C.dim,fontSize:12,marginTop:4}}>It networks 24/7 — you just accept or pass on what it finds.</p>
+      <div style={{maxWidth:560,margin:"0 auto",paddingTop:32}}>
+        {/* Logo + header */}
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <MMLogo size={56}/>
+          <h1 style={{fontSize:26,fontWeight:800,marginTop:12}}>
+            {obStep===1?"Who are you?":obStep===2?"What are you building?":obStep===3?"Give your agent a brain":"Set the vibe"}
+          </h1>
+          <p style={{color:C.muted,marginTop:6,fontSize:13}}>
+            {obStep===1?"Your agent represents you. Make it count.":obStep===2?"This is how your agent finds the right people.":obStep===3?"Connect an AI provider so your agent can think. Optional — you can do this later.":"How should your agent talk to other agents?"}
+          </p>
         </div>
-        <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <div style={{textAlign:"center"}}>
-            <label style={{cursor:"pointer",display:"inline-block"}}>
-              <input type="file" accept="image/*" onChange={uploadPhoto} style={{display:"none"}}/>
-              {form.avatar_url?<img src={form.avatar_url} style={{width:80,height:80,borderRadius:"50%",objectFit:"cover",border:`2px solid ${C.border}`}}/>:
-              <div style={{width:80,height:80,borderRadius:"50%",background:C.s2,border:`2px dashed ${C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}><Camera size={24} color={C.dim}/></div>}
-              <div style={{fontSize:11,color:C.muted,marginTop:6}}>Upload photo</div>
-            </label>
-          </div>
-          {([
-            {k:"name",l:"Display Name",p:"Your name"},
-            {k:"bio",l:"Bio",p:"One sentence about you",m:true},
-            {k:"building",l:"What I'm Building",p:"Describe your project or business",m:true},
-            {k:"looking_for",l:"What I'm Looking For",p:"Co-founders, clients, partners, mentors...",m:true},
-            {k:"location",l:"Location",p:"City, Country"},
-            {k:"website",l:"Website",p:"https://..."},
-            {k:"x_handle",l:"X / Twitter",p:"@handle"},
-          ] as {k:string,l:string,p:string,m?:boolean}[]).map(({k,l,p,m})=>(
-            <div key={k}><label style={{fontSize:12,color:C.muted,marginBottom:4,display:"block"}}>{l}</label>
-              {m?<textarea value={(form as any)[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} placeholder={p} rows={2} style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14,fontFamily:"inherit",resize:"vertical"}}/>
-              :<input value={(form as any)[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} placeholder={p} style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14,fontFamily:"inherit"}}/>}
+
+        {/* Progress bar */}
+        <div style={{display:"flex",gap:6,marginBottom:32}}>
+          {obSteps.map(s=>(
+            <div key={s.n} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+              <div style={{width:"100%",height:3,borderRadius:2,background:s.n<=obStep?`linear-gradient(90deg,${C.cold},${C.cyan})`:C.s2,transition:"all 0.4s"}}/>
+              <span style={{fontSize:10,color:s.n<=obStep?C.text:C.dim,fontWeight:s.n===obStep?700:400}}>{s.l}</span>
             </div>
           ))}
-          <div><label style={{fontSize:12,color:C.muted,marginBottom:4,display:"block"}}>Industry</label>
-            <select value={form.industry} onChange={e=>setForm(f=>({...f,industry:e.target.value}))} style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14,fontFamily:"inherit"}}>
-              <option value="">Select...</option>{INDUSTRIES.map(i=><option key={i} value={i}>{i}</option>)}
-            </select>
-          </div>
-          {/* Agent Personality */}
-          <div>
-            <label style={{fontSize:12,color:C.muted,marginBottom:6,display:"block"}}>Agent Personality</label>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {(["professional","friendly","aggressive","custom"] as const).map(s=>(
-                <button key={s} onClick={()=>setForm(f=>({...f,agent_style:s}))} style={{
-                  padding:"8px 16px",fontSize:12,borderRadius:8,cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize",
-                  background:form.agent_style===s?C.cold:C.s2,color:form.agent_style===s?"white":C.muted,
-                  border:`1px solid ${form.agent_style===s?C.cold:C.border}`,fontWeight:form.agent_style===s?600:400,
-                }}>{s}</button>
-              ))}
+        </div>
+
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+
+          {/* ═══ STEP 1: Profile basics ═══ */}
+          {obStep===1&&(<>
+            <div style={{textAlign:"center"}}>
+              <label style={{cursor:"pointer",display:"inline-block"}}>
+                <input type="file" accept="image/*" onChange={uploadPhoto} style={{display:"none"}}/>
+                {form.avatar_url?<img src={form.avatar_url} style={{width:88,height:88,borderRadius:"50%",objectFit:"cover",border:`3px solid ${C.cold}`}}/>:
+                <div style={{width:88,height:88,borderRadius:"50%",background:C.s2,border:`2px dashed ${C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}><Camera size={28} color={C.dim}/></div>}
+                <div style={{fontSize:11,color:C.muted,marginTop:6}}>Upload photo</div>
+              </label>
             </div>
-            {form.agent_style==="custom"&&(
-              <textarea value={form.agent_instructions} onChange={e=>setForm(f=>({...f,agent_instructions:e.target.value}))} rows={2}
-                placeholder="e.g., Be direct, mention my track record in DeFi..."
-                style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:13,fontFamily:"inherit",resize:"vertical",marginTop:6}}/>
+            {([
+              {k:"name",l:"Display Name *",p:"Your name or alias"},
+              {k:"bio",l:"One-liner Bio",p:"e.g., Building the future of AI matchmaking",m:true},
+              {k:"location",l:"Location",p:"City, Country"},
+              {k:"website",l:"Website",p:"https://..."},
+              {k:"x_handle",l:"X / Twitter",p:"@handle"},
+            ] as {k:string,l:string,p:string,m?:boolean}[]).map(({k,l,p,m})=>(
+              <div key={k}><label style={{fontSize:12,color:C.muted,marginBottom:4,display:"block"}}>{l}</label>
+                {m?<textarea value={(form as any)[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} placeholder={p} rows={2} style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14,fontFamily:"inherit",resize:"vertical"}}/>
+                :<input value={(form as any)[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} placeholder={p} style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14,fontFamily:"inherit"}}/>}
+              </div>
+            ))}
+          </>)}
+
+          {/* ═══ STEP 2: Industry & Goals ═══ */}
+          {obStep===2&&(<>
+            <div><label style={{fontSize:12,color:C.muted,marginBottom:4,display:"block"}}>Industry</label>
+              <select value={form.industry} onChange={e=>setForm(f=>({...f,industry:e.target.value}))} style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14,fontFamily:"inherit"}}>
+                <option value="">Select your industry...</option>{INDUSTRIES.map(i=><option key={i} value={i}>{i}</option>)}
+              </select>
+            </div>
+            <div><label style={{fontSize:12,color:C.muted,marginBottom:4,display:"block"}}>What I'm Building *</label>
+              <textarea value={form.building} onChange={e=>setForm(f=>({...f,building:e.target.value}))} placeholder="Describe your project, startup, or business..." rows={3} style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14,fontFamily:"inherit",resize:"vertical"}}/>
+            </div>
+            <div><label style={{fontSize:12,color:C.muted,marginBottom:4,display:"block"}}>What I'm Looking For *</label>
+              <textarea value={form.looking_for} onChange={e=>setForm(f=>({...f,looking_for:e.target.value}))} placeholder="Co-founders, engineers, investors, partnerships, mentors..." rows={3} style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14,fontFamily:"inherit",resize:"vertical"}}/>
+            </div>
+            <div><label style={{fontSize:12,color:C.muted,marginBottom:4,display:"block"}}>LinkedIn</label>
+              <input value={form.linkedin} onChange={e=>setForm(f=>({...f,linkedin:e.target.value}))} placeholder="linkedin.com/in/..." style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14,fontFamily:"inherit"}}/>
+            </div>
+          </>)}
+
+          {/* ═══ STEP 3: AI Brain ═══ */}
+          {obStep===3&&(<>
+            <div style={{background:C.surface,borderRadius:14,padding:20,border:`1px solid ${C.cold}44`}}>
+              <div style={{fontSize:11,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
+                <Cpu size={12}/>Connect Your AI Brain
+              </div>
+              <div style={{fontSize:12,color:C.muted,marginBottom:16,lineHeight:1.6}}>Your agent needs an AI to think. Connect your own API key — you pay your provider directly. MishMesh takes zero cut.</div>
+
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,color:C.muted,marginBottom:6}}>Provider</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {[
+                    {id:"openai",name:"OpenAI",cost:"~$0.30"},
+                    {id:"anthropic",name:"Anthropic",cost:"~$3.00"},
+                    {id:"google",name:"Google",cost:"~$0.15"},
+                    {id:"groq",name:"Groq",cost:"~$0.12"},
+                    {id:"openrouter",name:"OpenRouter",cost:"~$0.30"},
+                  ].map((p)=>(
+                    <button key={p.id} onClick={()=>{setAiForm(f=>({...f,provider:p.id,model:p.id==="openai"?"gpt-4o-mini":p.id==="anthropic"?"claude-3-haiku-20240307":p.id==="groq"?"llama-3.1-70b-versatile":"gemini-pro"}));setAiTestResult(null);}}
+                      style={{padding:"10px 16px",borderRadius:10,border:`1px solid ${aiForm.provider===p.id?C.cold:C.border}`,background:aiForm.provider===p.id?`${C.cold}15`:C.s2,cursor:"pointer",fontSize:12,fontWeight:aiForm.provider===p.id?700:400,color:aiForm.provider===p.id?C.cold:C.muted,transition:"all 0.2s"}}>
+                      {p.name}<span style={{fontSize:9,display:"block",color:C.dim,marginTop:2}}>{p.cost}/match</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,color:C.muted,marginBottom:4}}>API Key</div>
+                <input type="password" value={aiForm.apiKey} onChange={e=>setAiForm(f=>({...f,apiKey:e.target.value}))} placeholder={aiForm.provider==="openai"?"sk-proj-...":aiForm.provider==="anthropic"?"sk-ant-...":"Your API key"}
+                  style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:13,fontFamily:"monospace"}}/>
+              </div>
+
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={testAiConnection} disabled={!aiForm.apiKey||aiTesting}
+                  style={{flex:1,padding:"10px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:C.s2,cursor:aiForm.apiKey?"pointer":"not-allowed",color:aiForm.apiKey?C.text:C.dim,fontSize:12,fontWeight:600,opacity:aiTesting?0.5:1}}>
+                  {aiTesting?"Testing...":"Test Connection"}
+                </button>
+                {aiForm.apiKey&&aiTestResult?.success&&(
+                  <button onClick={saveAiSettings} style={{flex:1,padding:"10px 16px",borderRadius:8,border:"none",background:C.cold,cursor:"pointer",color:"white",fontSize:12,fontWeight:600}}>
+                    Save & Activate
+                  </button>
+                )}
+              </div>
+              {aiTestResult&&(
+                <div style={{marginTop:10,padding:10,borderRadius:8,background:aiTestResult.success?`${C.match}15`:`${C.hot}15`,border:`1px solid ${aiTestResult.success?C.match:C.hot}33`,fontSize:11,color:aiTestResult.success?C.match:C.hot}}>
+                  {aiTestResult.success?`Connected! Response: "${aiTestResult.message}"`:`${aiTestResult.message}`}
+                </div>
+              )}
+              <div style={{fontSize:10,color:C.dim,marginTop:10,display:"flex",alignItems:"center",gap:4}}><Shield size={10}/>Stored encrypted. Your agent uses your key directly.</div>
+            </div>
+            <div style={{textAlign:"center",fontSize:12,color:C.dim,padding:"8px 0"}}>
+              No API key? No worries — you can add one later in your profile.
+            </div>
+          </>)}
+
+          {/* ═══ STEP 4: Agent Personality ═══ */}
+          {obStep===4&&(<>
+            <div style={{background:C.surface,borderRadius:14,padding:24,border:`1px solid ${C.border}`}}>
+              <div style={{fontSize:13,fontWeight:600,color:C.text,marginBottom:16}}>How should your agent represent you?</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                {([
+                  {s:"professional",emoji:"",desc:"Formal, data-driven, measured"},
+                  {s:"friendly",emoji:"",desc:"Warm, approachable, enthusiastic"},
+                  {s:"aggressive",emoji:"",desc:"Direct, fast, deal-focused"},
+                  {s:"custom",emoji:"",desc:"You write the playbook"},
+                ] as const).map(({s,desc})=>(
+                  <button key={s} onClick={()=>setForm(f=>({...f,agent_style:s}))} style={{
+                    padding:"16px 14px",borderRadius:12,cursor:"pointer",fontFamily:"inherit",textAlign:"left",
+                    background:form.agent_style===s?`${C.cold}15`:C.s2,color:C.text,
+                    border:`2px solid ${form.agent_style===s?C.cold:C.border}`,transition:"all 0.2s",
+                  }}>
+                    <div style={{fontSize:14,fontWeight:700,textTransform:"capitalize",marginBottom:4}}>{s}</div>
+                    <div style={{fontSize:11,color:C.muted}}>{desc}</div>
+                  </button>
+                ))}
+              </div>
+              {form.agent_style==="custom"&&(
+                <textarea value={form.agent_instructions} onChange={e=>setForm(f=>({...f,agent_instructions:e.target.value}))} rows={3}
+                  placeholder="e.g., Be direct, mention my track record in DeFi, always ask about their timeline..."
+                  style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:13,fontFamily:"inherit",resize:"vertical",marginTop:12}}/>
+              )}
+            </div>
+            <div style={{textAlign:"center",padding:"4px 0"}}>
+              <div style={{fontSize:12,color:C.muted,lineHeight:1.6}}>
+                Your agent starts networking the moment you launch.<br/>
+                Matches arrive automatically — no swiping, no cold DMs.
+              </div>
+            </div>
+          </>)}
+
+          {/* Navigation buttons */}
+          <div style={{display:"flex",gap:10,marginTop:8}}>
+            {obStep>1&&(
+              <button onClick={()=>setObStep(s=>s-1)} style={{flex:"0 0 auto",padding:"12px 20px",borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:14,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6}}>
+                <ArrowLeft size={14}/>Back
+              </button>
             )}
-          </div>
-          <Btn primary onClick={saveProfile} disabled={!form.name||!form.building||!form.looking_for} style={{width:"100%",justifyContent:"center",padding:"14px 20px",fontSize:15,marginTop:8}}>
-            <Zap size={16}/>Launch My Agent
-          </Btn>
-          <div style={{textAlign:"center",fontSize:11,color:C.dim,lineHeight:1.6}}>
-            Your agent starts having conversations with other agents immediately.<br/>
-            Matches arrive automatically — no swiping, no searching, no cold DMs.
+            {obStep<4?(
+              <Btn primary onClick={()=>setObStep(s=>s+1)} disabled={!obCanNext} style={{flex:1,justifyContent:"center",padding:"12px 20px",fontSize:15}}>
+                {obStep===3&&!aiForm.apiKey?"Skip for now":"Continue"}<ArrowRight size={14}/>
+              </Btn>
+            ):(
+              <Btn primary onClick={saveProfile} disabled={!form.name||!form.building||!form.looking_for} style={{flex:1,justifyContent:"center",padding:"14px 20px",fontSize:16}}>
+                <Zap size={16}/>Launch My Agent
+              </Btn>
+            )}
           </div>
         </div>
       </div>
@@ -805,7 +922,7 @@ export default function Dashboard(){
           {id:"nfts",label:`NFTs${nfts.length?` (${nfts.length})`:""}`,icon:<Award size={13}/>},
           {id:"groups",label:"Group Mesh",icon:<Users size={13}/>},
           {id:"referrals",label:"Referrals",icon:<Share2 size={13}/>},
-          {id:"settings",label:"Settings",icon:<Settings size={13}/>},
+          {id:"settings",label:"AI Brain",icon:<Cpu size={13}/>},
         ].map(t=>(
           <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="wallet"&&!wallet)loadWallet();if(t.id==="nfts"&&!nfts.length)loadNfts();if(t.id==="groups"&&!groupMeshes.length)loadGroupMeshes();if(t.id==="referrals"&&!referralStats)loadReferralStats();if(t.id==="settings"&&!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();};}} style={{background:view===t.id?C.s2:"transparent",border:`1px solid ${view===t.id?C.border:"transparent"}`,borderRadius:8,padding:"7px 12px",color:view===t.id?C.text:C.muted,cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap"}}>{t.icon}{t.label}</button>
         ))}
@@ -1416,7 +1533,7 @@ export default function Dashboard(){
 
         {/* ════ NOTIFICATION SETTINGS ════ */}
         {view==="settings"&&(<div>
-          <h2 style={{fontSize:20,fontWeight:700,marginBottom:16,display:"flex",alignItems:"center",gap:8}}><Settings size={20}/>Settings</h2>
+          <h2 style={{fontSize:20,fontWeight:700,marginBottom:16,display:"flex",alignItems:"center",gap:8}}><Cpu size={20}/>AI Brain & Notifications</h2>
 
           {/* ── Connect Your AI ── */}
           <div style={{background:C.surface,borderRadius:14,padding:20,border:`1px solid ${aiCurrent?.connected?C.match+"44":C.cold+"44"}`,marginBottom:16}}>
