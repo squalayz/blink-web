@@ -640,7 +640,13 @@ export default function Dashboard(){
     const file=e.target.files?.[0]; if(!file||!user)return;
     const path=`${user.id}/${Date.now()}-${file.name}`;
     const{error}=await supabase.storage.from("avatars").upload(path,file);
-    if(!error){const{data:{publicUrl}}=supabase.storage.from("avatars").getPublicUrl(path); setForm(f=>({...f,avatar_url:publicUrl}));}
+    if(!error){
+      const{data:{publicUrl}}=supabase.storage.from("avatars").getPublicUrl(path);
+      setForm(f=>({...f,avatar_url:publicUrl}));
+      setUser((u:any)=>({...u,avatar_url:publicUrl}));
+      // Persist to DB immediately
+      await supabase.from("users").update({avatar_url:publicUrl}).eq("id",user.id);
+    }
   }
 
   async function signOut(){await fetch("/api/auth/siwe/logout",{method:"POST"}); router.push("/");}
