@@ -920,7 +920,7 @@ export default function Dashboard(){
               {user?.avatar_url?<img src={user.avatar_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span style={{fontSize:14,fontWeight:700,color:"white"}}>{(user?.name||"?")[0]}</span>}
             </div>
             <div style={{position:"absolute",bottom:-1,right:-1,width:10,height:10,borderRadius:"50%",background:C.match,border:`2px solid ${C.bg}`}}/>
-            {streak&&streak.current_streak>0&&<div style={{position:"absolute",top:-4,left:-4,background:C.warn,borderRadius:6,padding:"1px 4px",fontSize:9,fontWeight:800,color:"#000",border:`1.5px solid ${C.bg}`,display:"flex",alignItems:"center",gap:1}} title={`${streak.current_streak} day streak`}><Flame size={8}/>{streak.current_streak}</div>}
+            {streak&&streak.current_streak>0&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:C.warn,borderRadius:6,padding:"1px 5px",fontSize:9,fontWeight:800,color:"#000",border:`1.5px solid ${C.bg}`,display:"flex",alignItems:"center",gap:1,whiteSpace:"nowrap"}} title={`${streak.current_streak} day streak`}><Flame size={8}/>{streak.current_streak}</div>}
           </div>
         </div>
       </nav>
