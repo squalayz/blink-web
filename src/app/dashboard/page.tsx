@@ -958,7 +958,7 @@ export default function Dashboard(){
       </nav>
 
       {/* ── Tabs ── */}
-      <div style={{padding:"6px 16px",display:"flex",gap:5,borderBottom:`1px solid ${C.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      <div style={{padding:"8px 16px 10px",display:"flex",gap:6,borderBottom:`1px solid ${C.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",msOverflowStyle:"none"}}>
         {[
           {id:"mesh",label:"Mesh",icon:<BarChart3 size={13}/>},
           {id:"pending",label:`New${pendingMatches.length?` (${pendingMatches.length})`:""}`,icon:<Sparkles size={13}/>},
@@ -971,7 +971,23 @@ export default function Dashboard(){
           {id:"referrals",label:"Referrals",icon:<Share2 size={13}/>},
           {id:"settings",label:"AI Brain",icon:<Cpu size={13}/>},
         ].map(t=>(
-          <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="wallet"&&!wallet)loadWallet();if(t.id==="nfts"&&!nfts.length)loadNfts();if(t.id==="groups"&&!groupMeshes.length)loadGroupMeshes();if(t.id==="referrals"&&!referralStats)loadReferralStats();if(t.id==="settings"&&!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();};}} style={{background:view===t.id?C.s2:"transparent",border:`1px solid ${view===t.id?C.border:"transparent"}`,borderRadius:8,padding:"7px 12px",color:view===t.id?C.text:C.muted,cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap"}}>{t.icon}{t.label}</button>
+          <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="wallet"&&!wallet)loadWallet();if(t.id==="nfts"&&!nfts.length)loadNfts();if(t.id==="groups"&&!groupMeshes.length)loadGroupMeshes();if(t.id==="referrals"&&!referralStats)loadReferralStats();if(t.id==="settings"&&!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();};}} style={{
+            background:view===t.id?"linear-gradient(135deg, rgba(99,102,241,0.15), rgba(6,182,212,0.1))":"transparent",
+            border:view===t.id?`1px solid rgba(99,102,241,0.3)`:`1px solid transparent`,
+            borderRadius:20,
+            padding:"8px 14px",
+            color:view===t.id?C.text:C.muted,
+            cursor:"pointer",
+            fontSize:12,
+            fontWeight:view===t.id?600:400,
+            fontFamily:"inherit",
+            display:"flex",
+            alignItems:"center",
+            gap:5,
+            whiteSpace:"nowrap",
+            transition:"all 0.25s ease",
+            boxShadow:view===t.id?"0 2px 12px rgba(99,102,241,0.15), inset 0 1px 0 rgba(255,255,255,0.05)":"none",
+          }}>{t.icon}{t.label}</button>
         ))}
       </div>
 
