@@ -128,56 +128,22 @@ export default function SignInPage() {
         {step === "choose" && (
           <div style={{ background: C.s2, border: `1px solid rgba(255,255,255,0.06)`, borderRadius: 20, padding: "32px 24px", textAlign: "center" }}>
             <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.12em", color: C.muted, marginBottom: 8, fontWeight: 600 }}>Enter the Mesh</div>
-            <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 20, color: C.text }}>Connect Your Wallet</h2>
+            <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8, color: C.text }}>Create Your Account</h2>
+            <p style={{ fontSize: 13, color: C.dim, marginBottom: 24, lineHeight: 1.5 }}>
+              We'll generate a secure wallet for you instantly.<br/>No extensions. No downloads. Just click.
+            </p>
 
-            {/* Connect Wallet (RainbowKit) */}
-            <button onClick={() => { setSiweAttempted(false); setError(""); openConnectModal?.(); }} style={{
+            {/* Create Wallet — primary CTA */}
+            <button onClick={handleCreateWallet} style={{
               width: "100%", padding: 18, borderRadius: 14, border: "none",
               background: `linear-gradient(135deg, ${C.indigo}, ${C.purple})`,
-              color: "white", fontSize: 16, fontWeight: 700, cursor: "pointer",
+              color: "white", fontSize: 17, fontWeight: 700, cursor: "pointer",
               fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-              transition: "all 0.2s", marginBottom: 10, minHeight: 56,
+              transition: "all 0.2s", minHeight: 56,
               WebkitTapHighlightColor: "transparent",
             }}>
-              Connect Wallet
+              Create Account
             </button>
-
-            {/* Mobile: Open in MetaMask deep link */}
-            {typeof window !== "undefined" && /iPhone|iPad|Android/i.test(navigator.userAgent) && (
-              <a href={`https://metamask.app.link/dapp/${typeof window !== "undefined" ? window.location.host : "mishmesh.ai"}/auth/signin`}
-                style={{
-                  display: "flex", width: "100%", padding: 16, borderRadius: 14,
-                  border: `1px solid rgba(245,158,11,0.3)`, background: "rgba(245,158,11,0.08)",
-                  color: "#f59e0b", fontSize: 14, fontWeight: 600, cursor: "pointer",
-                  fontFamily: "inherit", alignItems: "center", justifyContent: "center", gap: 10,
-                  textDecoration: "none", marginBottom: 10, minHeight: 52,
-                  WebkitTapHighlightColor: "transparent",
-                }}>
-                Open in MetaMask App
-              </a>
-            )}
-
-            <div style={{ color: C.dim, fontSize: 12, margin: "14px 0", display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
-              <span>or</span>
-              <span style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
-            </div>
-
-            {/* Create New Wallet */}
-            <button onClick={handleCreateWallet} style={{
-              width: "100%", padding: 16, borderRadius: 14,
-              border: `1px solid rgba(255,255,255,0.1)`, background: "transparent",
-              color: C.text, fontSize: 15, fontWeight: 600, cursor: "pointer",
-              fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-              transition: "all 0.2s", minHeight: 52,
-              WebkitTapHighlightColor: "transparent",
-            }}>
-              Create New Wallet
-            </button>
-
-            <p style={{ fontSize: 12, color: C.dim, marginTop: 16, lineHeight: 1.5 }}>
-              No wallet? No problem. We'll create one for you in 2 seconds.
-            </p>
 
             {error && (
               <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, background: "rgba(255,45,85,0.1)", border: "1px solid rgba(255,45,85,0.2)", color: C.hot, fontSize: 13 }}>
@@ -185,12 +151,27 @@ export default function SignInPage() {
               </div>
             )}
 
-            {/* Social connections info */}
-            <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-              <p style={{ fontSize: 11, color: C.dim }}>
-                After signing in, connect 𝕏, Instagram, or email in <strong style={{ color: C.muted }}>Profile</strong> for enhanced notifications.
-              </p>
+            <div style={{ color: C.dim, fontSize: 12, margin: "20px 0 14px", display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
+              <span>already have a wallet?</span>
+              <span style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
             </div>
+
+            {/* Connect existing wallet — secondary */}
+            <button onClick={() => { setSiweAttempted(false); setError(""); openConnectModal?.(); }} style={{
+              width: "100%", padding: 14, borderRadius: 14,
+              border: `1px solid rgba(255,255,255,0.1)`, background: "transparent",
+              color: C.muted, fontSize: 14, fontWeight: 600, cursor: "pointer",
+              fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              transition: "all 0.2s", minHeight: 48,
+              WebkitTapHighlightColor: "transparent",
+            }}>
+              Connect Existing Wallet
+            </button>
+
+            <p style={{ fontSize: 10, color: C.dim, marginTop: 16, lineHeight: 1.5 }}>
+              Your wallet is your identity. We never have access to your funds.
+            </p>
           </div>
         )}
 
