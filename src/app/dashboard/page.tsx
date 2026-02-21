@@ -355,29 +355,28 @@ export default function Dashboard(){
   useEffect(()=>{checkAuth();},[]);
 
   async function checkAuth(){
-    const{data:{session}}=await supabase.auth.getSession();
-    if(!session){router.push("/auth/signin");return;}
-    const uid=session.user.id;
+    // Use our custom SIWE session instead of Supabase auth
+    const sessionRes=await fetch("/api/auth/siwe/session");
+    const sessionData=await sessionRes.json();
+    if(!sessionData.user){router.push("/auth/signin");return;}
+    const uid=sessionData.user.id;
 
     const{data:profile}=await supabase.from("users").select("*").eq("id",uid).single();
-    const meta=session.user.user_metadata||{};
 
     if(!profile?.onboarded){
-      setUser({...session.user,...profile});
-      // Load agent personality
-      const{data:agentP}=await supabase.from("agent_profiles").select("agent_style,agent_instructions").eq("user_id",profile.id).single();
-      setForm({name:profile?.name||meta.full_name||meta.name||"",bio:profile?.bio||"",industry:profile?.industry||"",building:profile?.building||"",looking_for:profile?.looking_for||"",location:profile?.location||"",website:profile?.socials?.website||"",x_handle:profile?.socials?.x||"",linkedin:profile?.socials?.linkedin||"",avatar_url:profile?.avatar_url||meta.avatar_url||"",agent_style:agentP?.agent_style||"professional",agent_instructions:agentP?.agent_instructions||""});
+      setUser({...sessionData.user,...profile});
+      const{data:agentP}=await supabase.from("agent_profiles").select("agent_style,agent_instructions").eq("user_id",uid).single();
+      setForm({name:profile?.name||"",bio:profile?.bio||"",industry:profile?.industry||"",building:profile?.building||"",looking_for:profile?.looking_for||"",location:profile?.location||"",website:profile?.socials?.website||"",x_handle:profile?.socials?.x||"",linkedin:profile?.socials?.linkedin||"",avatar_url:profile?.avatar_url||"",agent_style:agentP?.agent_style||"professional",agent_instructions:agentP?.agent_instructions||""});
       setOnboarding(true); setLoading(false); return;
     }
 
-    setUser({...session.user,...profile});
-    const{data:agentP2}=await supabase.from("agent_profiles").select("agent_style,agent_instructions").eq("user_id",profile.id).single();
+    setUser({...sessionData.user,...profile});
+    const{data:agentP2}=await supabase.from("agent_profiles").select("agent_style,agent_instructions").eq("user_id",uid).single();
     setForm({name:profile.name,bio:profile.bio,industry:profile.industry,building:profile.building,looking_for:profile.looking_for,location:profile.location,website:profile.socials?.website||"",x_handle:profile.socials?.x||"",linkedin:profile.socials?.linkedin||"",avatar_url:profile.avatar_url||"",agent_style:agentP2?.agent_style||"professional",agent_instructions:agentP2?.agent_instructions||""});
 
     const{data:ag}=await supabase.from("agent_profiles").select("*").eq("user_id",uid).single();
     setAgent(ag);
 
-    // Update streak
     try{await supabase.rpc("update_streak",{uid});}catch{}
     const{data:sk}=await supabase.from("streaks").select("*").eq("user_id",uid).single();
     setStreak(sk);
@@ -631,7 +630,7 @@ export default function Dashboard(){
     if(!error){const{data:{publicUrl}}=supabase.storage.from("avatars").getPublicUrl(path); setForm(f=>({...f,avatar_url:publicUrl}));}
   }
 
-  async function signOut(){await supabase.auth.signOut(); router.push("/");}
+  async function signOut(){await fetch("/api/auth/siwe/logout",{method:"POST"}); router.push("/");}
 
   /* ── Helpers ── */
   const getOther=(m:any)=>m.user_a===user?.id?m.user_b_profile:m.user_a_profile;
