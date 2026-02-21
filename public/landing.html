@@ -73,12 +73,12 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
 
 #matchcard{perspective:1200px;-webkit-perspective:1200px}
 #matchcard .card-wrapper{width:380px;max-width:90vw;height:500px;margin:0 auto;position:relative;transform-style:preserve-3d;-webkit-transform-style:preserve-3d;transform:rotateY(180deg);will-change:transform}
-#matchcard .card-face{position:absolute;inset:0;border-radius:20px;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;will-change:transform;transform:translateZ(0)}
+#matchcard .card-face{position:absolute;inset:0;border-radius:20px;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;will-change:transform;-webkit-transform:translateZ(0);transform:translateZ(0)}
 .card-back{background:linear-gradient(135deg,#0a0a18,#111128);border:1px solid rgba(99,102,241,0.2);display:flex;align-items:center;justify-content:center;flex-direction:column}
 .card-back .q{font-size:80px;font-weight:900;background:linear-gradient(135deg,var(--indigo),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:q-pulse 2s infinite}
 @keyframes q-pulse{0%,100%{opacity:0.4;transform:scale(0.95)}50%{opacity:1;transform:scale(1.05)}}
 .card-back .card-label{font-size:13px;color:var(--muted);margin-top:12px;letter-spacing:0.1em;text-transform:uppercase}
-.card-front{background:linear-gradient(160deg,#0d0d1a,#111125);border:1px solid rgba(99,102,241,0.15);transform:rotateY(180deg) translateZ(1px);-webkit-transform:rotateY(180deg) translateZ(1px);padding:28px;display:flex;flex-direction:column;align-items:center;gap:16px}
+.card-front{background:#0d0d1a;border:1px solid rgba(99,102,241,0.15);transform:rotateY(180deg) translateZ(2px);-webkit-transform:rotateY(180deg) translateZ(2px);padding:28px;display:flex;flex-direction:column;align-items:center;gap:16px}
 .card-front .avatars{display:flex;margin-top:8px}
 .card-front .avatar{width:64px;height:64px;border-radius:50%;border:3px solid var(--indigo)}
 .card-front .avatar.b{border-color:var(--cyan);margin-left:-12px}
@@ -442,7 +442,7 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
         <div class="score" id="matchScore">0%</div>
         <div style="width:100%;height:4px;border-radius:2px;background:var(--dim);overflow:hidden;margin:-8px 0 4px"><div id="scoreBar" style="height:100%;width:0%;border-radius:2px;background:linear-gradient(90deg,var(--indigo),var(--cyan));transition:width 1.5s ease-out"></div></div>
         <div class="reasoning" id="matchReasoning"></div>
-        <div style="font-size:11px;color:var(--dim);text-align:left;width:100%;margin-top:2px;font-style:italic" id="matchDetail"></div>
+        <div style="font-size:11px;color:var(--dim);text-align:left;width:100%;margin-top:2px;font-style:italic;opacity:0" id="matchDetail"></div>
         <div class="tags" id="matchTags"></div>
         <button class="card-btn">Start Conversation →</button>
       </div>
@@ -769,7 +769,7 @@ function initScroll(){
   ['step1','step2','step3','step4','step5'].forEach(id=>{
     gsap.fromTo('#'+id,{opacity:0,y:50},{opacity:1,y:0,duration:0.8,scrollTrigger:{trigger:'#'+id,start:'top 75%',toggleActions:'play none none reverse'}});
   });
-  gsap.to('#cardWrapper',{rotateY:0,force3D:true,scrollTrigger:{trigger:'#matchcard',start:'center 50%',end:'center 20%',scrub:0.5}});
+  gsap.to('#cardWrapper',{rotateY:0,force3D:true,scrollTrigger:{trigger:'#matchcard',start:'center 60%',end:'center 30%',scrub:0.3,onComplete:()=>{document.querySelector('.card-back').style.visibility='hidden';},onReverseComplete:()=>{document.querySelector('.card-back').style.visibility='visible';}}});
   ScrollTrigger.create({trigger:'#matchcard',start:'center 45%',onEnter:animCard,once:true});
   ScrollTrigger.create({trigger:'#brain',start:'top 70%',onEnter:animBrain,once:true});
   ScrollTrigger.create({trigger:'#wallet',start:'top 60%',onEnter:animWallet,once:true});
