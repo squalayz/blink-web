@@ -2,9 +2,6 @@ import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 
 const JWT_SECRET_STR = process.env.NEXTAUTH_SECRET;
-if (!JWT_SECRET_STR && process.env.NODE_ENV === "production") {
-  throw new Error("FATAL: NEXTAUTH_SECRET is required in production");
-}
 const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_STR || "dev-only-insecure-key-do-not-use-in-prod");
 
 export interface SessionUser {

@@ -47,10 +47,13 @@ export default function Home() {
     );
   }
 
-  // Render landing page inline
-  // In production, replace this with your full landing page component
-  // or serve the static HTML from public/landing.html
-  return <iframe src="/landing.html" style={{ width: "100%", height: "100vh", border: "none" }} />;
+  // Render landing page inline via iframe — fill entire viewport, hide nav
+  return (
+    <>
+      <style>{`nav, header { display: none !important; } body { overflow: hidden; }`}</style>
+      <iframe src="/landing.html" style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", border: "none", zIndex: 9999 }} />
+    </>
+  );
 }
 
 function MMLogo({ size = 44 }: { size?: number }) {
