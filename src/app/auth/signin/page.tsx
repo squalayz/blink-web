@@ -24,14 +24,17 @@ export default function SignInPage() {
   const [error, setError] = useState("");
   const [newWallet, setNewWallet] = useState<{ address: string; privateKey: string } | null>(null);
   const [keyCopied, setKeyCopied] = useState(false);
+  const [siweAttempted, setSiweAttempted] = useState(false);
 
-  // ── Auto-trigger SIWE when wallet connects ──
+  // ── SIWE sign-in flow ──
   const handleSIWE = useCallback(async (addr: string) => {
     setStep("signing");
     setError("");
+    setSiweAttempted(true);
     try {
       // 1. Get nonce
       const nonceRes = await fetch("/api/auth/siwe/nonce");
+      if (!nonceRes.ok) throw new Error("Failed to get nonce");
       const { nonce } = await nonceRes.json();
 
       // 2. Create SIWE message
@@ -60,20 +63,23 @@ export default function SignInPage() {
       if (!verifyRes.ok) throw new Error(data.error || "Verification failed");
 
       setStep("done");
-      // Redirect based on onboarding status
       setTimeout(() => router.push(data.isNewUser ? "/dashboard?onboard=1" : "/dashboard"), 800);
     } catch (err: any) {
-      setError(err.shortMessage || err.message || "Sign-in failed. Try again.");
+      const msg = err.shortMessage || err.message || "Sign-in failed. Try again.";
+      // User rejected = don't retry, just show error
+      setError(msg);
       setStep("choose");
+      // Disconnect so they can cleanly retry
+      disconnect();
     }
-  }, [signMessageAsync, router]);
+  }, [signMessageAsync, router, disconnect]);
 
-  // Watch for wallet connection
+  // Watch for wallet connection — only auto-trigger ONCE
   useEffect(() => {
-    if (isConnected && address && step === "choose") {
+    if (isConnected && address && step === "choose" && !siweAttempted) {
       handleSIWE(address);
     }
-  }, [isConnected, address, step, handleSIWE]);
+  }, [isConnected, address, step, siweAttempted, handleSIWE]);
 
   // ── Create fresh wallet ──
   async function handleCreateWallet() {
@@ -125,7 +131,7 @@ export default function SignInPage() {
             <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 24, color: C.text }}>Connect Your Wallet</h2>
 
             {/* Connect Wallet (RainbowKit) */}
-            <button onClick={() => openConnectModal?.()} style={{
+            <button onClick={() => { setSiweAttempted(false); setError(""); openConnectModal?.(); }} style={{
               width: "100%", padding: 16, borderRadius: 14, border: "none",
               background: `linear-gradient(135deg, ${C.indigo}, ${C.purple})`,
               color: "white", fontSize: 16, fontWeight: 700, cursor: "pointer",

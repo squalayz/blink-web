@@ -41,7 +41,7 @@ export function middleware(req: NextRequest) {
   // ═══ 0. LANDING PAGE REDIRECT ═══
   // Unauthenticated users hitting "/" → serve landing.html directly (no React/RainbowKit overhead)
   if (pathname === "/") {
-    const hasSession = req.cookies.get("siwe-session") || req.cookies.get("next-auth.session-token") || req.cookies.get("__Secure-next-auth.session-token");
+    const hasSession = req.cookies.get("mm-session") || req.cookies.get("siwe-session") || req.cookies.get("next-auth.session-token") || req.cookies.get("__Secure-next-auth.session-token");
     if (!hasSession) {
       const url = req.nextUrl.clone();
       url.pathname = "/landing.html";
