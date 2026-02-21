@@ -658,6 +658,7 @@ export default function Dashboard(){
 
   if(onboarding)return(
     <div style={{minHeight:"100vh",background:C.bg,padding:20}}>
+      <style>{`nav.mm-global-nav{display:none!important}`}</style>
       <div style={{maxWidth:560,margin:"0 auto",paddingTop:32}}>
         {/* Logo + header */}
         <div style={{textAlign:"center",marginBottom:32}}>
@@ -896,6 +897,8 @@ export default function Dashboard(){
      ══════════════════════════════════════════ */
   return(
     <div style={{minHeight:"100vh",background:C.bg}}>
+      {/* Hide global navbar */}
+      <style>{`nav.mm-global-nav{display:none!important}`}</style>
       {/* ── Nav ── */}
       <nav style={{padding:"12px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setView("mesh")}>
@@ -1783,7 +1786,12 @@ export default function Dashboard(){
             </div>
 
             <div style={{display:"flex",gap:10,marginTop:10,flexWrap:"wrap"}}>
-              <Btn primary onClick={async()=>{await saveProfile();await supabase.from("agent_profiles").update({agent_style:form.agent_style,agent_instructions:form.agent_instructions}).eq("user_id",user?.id);}}><Check size={14}/>Save Changes</Btn>
+              <Btn primary onClick={async()=>{
+                if(!user)return;
+                const{error}=await supabase.from("users").update({name:form.name,bio:form.bio,industry:form.industry,building:form.building,looking_for:form.looking_for,location:form.location,avatar_url:form.avatar_url,socials:{website:form.website,x:form.x_handle,linkedin:form.linkedin}}).eq("id",user.id);
+                await supabase.from("agent_profiles").update({agent_style:form.agent_style,agent_instructions:form.agent_instructions}).eq("user_id",user.id);
+                if(!error)alert("Profile saved!");
+              }}><Check size={14}/>Save Changes</Btn>
               <Btn ghost onClick={()=>window.open(`/agent/${user?.id}`,"_blank")}><ExternalLink size={14}/>Public Profile</Btn>
               <Btn ghost onClick={()=>{const url=`https://mishmesh.ai/agent/${form.x_handle||user?.id}`;navigator.clipboard?.writeText(url);}}><Copy size={14}/>Copy Profile Link</Btn>
               <Btn danger onClick={signOut}><LogOut size={14}/>Sign Out</Btn>

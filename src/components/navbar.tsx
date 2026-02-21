@@ -94,7 +94,7 @@ export default function NavBar() {
 
   return (
     <>
-      <nav style={{
+      <nav className="mm-global-nav" style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 500,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: scrolled ? "10px 24px" : "14px 24px",
@@ -184,6 +184,10 @@ export default function NavBar() {
                         color: C.text, fontSize: 13, fontWeight: 600, textAlign: "center", textDecoration: "none",
                       }}>View Wallet</a>
                     </div>
+                    <button onClick={async()=>{await fetch("/api/auth/siwe/logout",{method:"POST"});window.location.href="/";}} style={{
+                      width:"100%",padding:10,borderRadius:10,border:`1px solid rgba(255,50,85,0.3)`,background:"transparent",
+                      color:"#FF2D55",fontSize:12,fontWeight:600,cursor:"pointer",marginTop:10,fontFamily:"inherit",
+                    }}>Disconnect Wallet</button>
                   </div>
                 )}
               </div>
