@@ -72,7 +72,7 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
 #how .step-sub{font-size:clamp(13px,1.4vw,16px);color:var(--muted);margin-top:12px;max-width:500px;margin-left:auto;margin-right:auto}
 
 #matchcard{perspective:1200px;-webkit-perspective:1200px}
-#matchcard .card-wrapper{width:380px;max-width:90vw;height:520px;margin:0 auto;position:relative;transform-style:preserve-3d;-webkit-transform-style:preserve-3d;transform:rotateY(180deg);will-change:transform}
+#matchcard .card-wrapper{width:380px;max-width:90vw;height:600px;margin:0 auto;position:relative;transform-style:preserve-3d;-webkit-transform-style:preserve-3d;transform:rotateY(180deg);will-change:transform}
 #matchcard .card-wrapper.flipped{animation:card-float 4s ease-in-out infinite}
 @keyframes card-float{0%,100%{transform:rotateY(0) translateY(0)}50%{transform:rotateY(0) translateY(-8px)}}
 #matchcard .card-face{position:absolute;inset:0;border-radius:20px;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;will-change:transform;-webkit-transform:translateZ(0);transform:translateZ(0)}
@@ -292,7 +292,7 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
   /* Perf: reduce blur on mobile */
   .feed-card,.modal,.mobile-bottom-cta,.navbar.scrolled{backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
   /* Match card */
-  #matchcard .card-wrapper{width:300px;height:440px}
+  #matchcard .card-wrapper{width:310px;height:540px}
   .card-face{padding:24px 18px}
   /* Sections */
   .stitle{font-size:14px!important}
@@ -802,7 +802,7 @@ function animCard(){
   const re=document.getElementById('matchReasoning');
   const txt="Both founders are building in AI × Healthcare with complementary technical skills. Agent Alpha brings ML infrastructure; Agent Beta has clinical data access.";
   let ci=0;const ti=setInterval(()=>{re.textContent+=txt[ci];ci++;if(ci>=txt.length)clearInterval(ti);},20);
-  const tags=['AI/ML','Healthcare','Cofounder','Technical','B2B SaaS','Series A','API Integration'];
+  const tags=['AI/ML','Healthcare','Cofounder','B2B SaaS'];
   const te=document.getElementById('matchTags');
   tags.forEach((tg,i)=>{setTimeout(()=>{const el=document.createElement('span');el.className='tag';el.textContent=tg;el.style.animation='feed-slide 0.3s ease-out';te.appendChild(el);},800+i*120);});
 }
