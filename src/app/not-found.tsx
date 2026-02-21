@@ -7,7 +7,7 @@ export default function NotFound() {
       display: "flex", alignItems: "center", justifyContent: "center",
     }}>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 72, marginBottom: 12 }}>🌐</div>
+        <div style={{ fontSize: 72, marginBottom: 12 }}></div>
         <h1 style={{ fontSize: 28, fontWeight: 900, color: "#fafafa", marginBottom: 8 }}>404</h1>
         <p style={{ fontSize: 15, color: "#a1a1aa", marginBottom: 24 }}>This page doesn't exist in the mesh.</p>
         <Link href="/" style={{

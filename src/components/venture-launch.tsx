@@ -9,8 +9,8 @@ const C = {
 
 const ROLE_ICONS: Record<string, string> = {
   "Technical Lead": "🔧", "Mobile Developer": "📱", "Backend Developer": "⚙️",
-  "Design Lead": "🎨", "UI/UX Designer": "🎨", "Growth Lead": "📈",
-  "Growth Marketer": "📈", "Domain Expert": "🧠", "Nutrition / Health Expert": "🥗",
+  "Design Lead": "", "UI/UX Designer": "", "Growth Lead": "",
+  "Growth Marketer": "", "Domain Expert": "", "Nutrition / Health Expert": "🥗",
   "Content Creator": "✍️", "Sales Lead": "💼", "default": "👤",
 };
 
@@ -148,7 +148,7 @@ export default function VentureLaunch({ onComplete }: { onComplete?: (ventureId:
       {phase === "idea" && (
         <div style={{ animation: "vl-in 0.3s ease-out" }}>
           <div style={{ textAlign: "center", marginBottom: 24 }}>
-            <span style={{ fontSize: 40, display: "block", marginBottom: 8 }}>⚡</span>
+            <span style={{ fontSize: 40, display: "block", marginBottom: 8 }}></span>
             <h2 style={{ fontSize: 24, fontWeight: 900, marginBottom: 4 }}>Launch a Venture</h2>
             <p style={{ fontSize: 14, color: C.muted }}>Describe your idea. Your agent handles the rest.</p>
           </div>
@@ -222,7 +222,7 @@ export default function VentureLaunch({ onComplete }: { onComplete?: (ventureId:
               flex: 2, padding: 12, borderRadius: 10, border: "none",
               background: `linear-gradient(135deg, ${C.match}, ${C.cyan})`,
               color: "white", fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
-            }}>{loading ? "Starting..." : "🚀 Start Assembly"}</button>
+            }}>{loading ? "Starting..." : " Start Assembly"}</button>
           </div>
         </div>
       )}
@@ -231,7 +231,7 @@ export default function VentureLaunch({ onComplete }: { onComplete?: (ventureId:
       {phase === "assembling" && (
         <div style={{ animation: "vl-in 0.3s ease-out" }}>
           <div style={{ textAlign: "center", marginBottom: 20 }}>
-            <div style={{ fontSize: 24, marginBottom: 8, animation: "vl-pulse 2s infinite" }}>🔍</div>
+            <div style={{ fontSize: 24, marginBottom: 8, animation: "vl-pulse 2s infinite" }}></div>
             <h3 style={{ fontSize: 18, fontWeight: 800 }}>Assembly in Progress</h3>
             <p style={{ fontSize: 13, color: C.muted }}>Your agent is recruiting. Candidates appear as they're found.</p>
           </div>
@@ -298,7 +298,7 @@ export default function VentureLaunch({ onComplete }: { onComplete?: (ventureId:
               background: `linear-gradient(135deg, ${C.gold}, ${C.match})`,
               color: "white", fontSize: 16, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
               animation: "vl-glow 2s infinite",
-            }}>🎉 Team Assembled — View Venture →</button>
+            }}> Team Assembled — View Venture →</button>
           )}
         </div>
       )}

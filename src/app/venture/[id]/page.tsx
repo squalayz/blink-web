@@ -120,7 +120,7 @@ export default function VentureDetailPage() {
               color: tab === t ? C.text : C.muted,
               fontSize: 13, fontWeight: tab === t ? 700 : 500,
               cursor: "pointer", fontFamily: "inherit", textTransform: "capitalize",
-            }}>{t === "plan" ? "📄 Plan" : t === "chat" ? "💬 Chat" : t === "invest" ? "⚡ Fund" : "Overview"}</button>
+            }}>{t === "plan" ? "📄 Plan" : t === "chat" ? " Chat" : t === "invest" ? " Fund" : "Overview"}</button>
           ))}
         </div>
 
@@ -130,7 +130,7 @@ export default function VentureDetailPage() {
             {/* Agent's Pitch */}
             {plan.why_this_team && (
               <div style={{ padding: "14px 16px", borderRadius: 12, background: `${C.gold}08`, border: `1px solid ${C.gold}15`, marginBottom: 16 }}>
-                <div style={{ fontSize: 12, color: C.gold, fontWeight: 700, marginBottom: 6 }}>🤖 Agent's Pitch</div>
+                <div style={{ fontSize: 12, color: C.gold, fontWeight: 700, marginBottom: 6 }}> Agent's Pitch</div>
                 <p style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>{plan.why_this_team}</p>
               </div>
             )}
@@ -272,7 +272,7 @@ export default function VentureDetailPage() {
               width: "100%", padding: 14, borderRadius: 12, border: "none",
               background: `linear-gradient(135deg, ${C.gold}, ${C.match})`,
               color: "white", fontSize: 16, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
-            }}>⚡ Invest {investAmount} ETH</button>
+            }}> Invest {investAmount} ETH</button>
 
             <p style={{ fontSize: 10, color: C.dim, textAlign: "center", marginTop: 8 }}>
               Investment is tracked on-chain. Returns distributed automatically via smart contract.

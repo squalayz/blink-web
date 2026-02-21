@@ -59,7 +59,7 @@ export default function LineagePage() {
         {/* ═══ HEADER ═══ */}
         <div style={{ marginBottom: 28 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-            <h1 style={{ fontSize: 28, fontWeight: 900, color: C.text, margin: 0 }}>🧬 Bloodline</h1>
+            <h1 style={{ fontSize: 28, fontWeight: 900, color: C.text, margin: 0 }}> Bloodline</h1>
             <div style={{
               display: "flex", gap: 2,
             }}>
@@ -83,10 +83,10 @@ export default function LineagePage() {
           marginBottom: 24,
         }}>
           {[
-            { label: "Total Fusions", value: totalFusions, icon: "🧬" },
-            { label: "Active", value: activeFusions, icon: "⚡", color: C.green },
-            { label: "Deepest Gen", value: `Gen ${maxGeneration}`, icon: "🔬", color: GEN_COLORS[Math.min(maxGeneration - 1, 4)] },
-            { label: "Avg Performance", value: avgPerformance, icon: "📊" },
+            { label: "Total Fusions", value: totalFusions, icon: "" },
+            { label: "Active", value: activeFusions, icon: "", color: C.green },
+            { label: "Deepest Gen", value: `Gen ${maxGeneration}`, icon: "", color: GEN_COLORS[Math.min(maxGeneration - 1, 4)] },
+            { label: "Avg Performance", value: avgPerformance, icon: "" },
           ].map((stat, i) => (
             <div key={i} style={{
               background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
@@ -115,10 +115,10 @@ export default function LineagePage() {
             textAlign: "center", padding: 64, borderRadius: 16,
             border: `2px dashed ${C.border}`, background: `${C.violet}04`,
           }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🧬</div>
+            <div style={{ fontSize: 48, marginBottom: 16 }}></div>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 6 }}>No bloodline yet</h2>
             <p style={{ fontSize: 14, color: C.muted, marginBottom: 20, maxWidth: 360, margin: "0 auto 20px" }}>
-              Match with someone and click <strong style={{ color: C.violet }}>⚡ Fuse</strong> to create your first Fusion Agent. Then watch your bloodline grow.
+              Match with someone and click <strong style={{ color: C.violet }}> Fuse</strong> to create your first Fusion Agent. Then watch your bloodline grow.
             </p>
             <button onClick={() => router.push("/dashboard")} style={{
               padding: "12px 28px", borderRadius: 10, border: "none",
@@ -165,7 +165,7 @@ export default function LineagePage() {
                   border: `2px solid ${GEN_COLORS[Math.min((selectedNode.generation || 1) - 1, 4)]}44`,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 20,
-                }}>⚡</div>
+                }}></div>
                 <div>
                   <h3 style={{ fontSize: 16, fontWeight: 800, color: C.text, margin: "0 0 2px" }}>{selectedNode.name}</h3>
                   <div style={{ display: "flex", gap: 6 }}>

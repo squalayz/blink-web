@@ -64,7 +64,7 @@ export default function DashboardVenturesPage() {
             background: `linear-gradient(135deg, ${C.indigo}, ${C.purple})`,
             color: "white", fontSize: 14, fontWeight: 800, cursor: "pointer",
             fontFamily: "inherit", whiteSpace: "nowrap",
-          }}>⚡ Launch a Venture</button>
+          }}> Launch a Venture</button>
         </div>
 
         {/* Tabs */}
@@ -82,7 +82,7 @@ export default function DashboardVenturesPage() {
             marginLeft: "auto", padding: "8px 16px", borderRadius: 8,
             border: `1px solid ${C.dim}`, background: "transparent",
             color: C.muted, fontSize: 12, cursor: "pointer", fontFamily: "inherit",
-          }}>🔍 Explore All</button>
+          }}> Explore All</button>
         </div>
 
         {/* Loading */}
@@ -99,7 +99,7 @@ export default function DashboardVenturesPage() {
             textAlign: "center", padding: 48, borderRadius: 16,
             border: `2px dashed ${C.dim}`, background: `${C.indigo}04`,
           }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>{tab === "mine" ? "🚀" : "💰"}</div>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>{tab === "mine" ? "" : ""}</div>
             <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>
               {tab === "mine" ? "No ventures yet" : "No investments yet"}
             </h3>
@@ -112,7 +112,7 @@ export default function DashboardVenturesPage() {
               padding: "12px 28px", borderRadius: 10, border: "none",
               background: `linear-gradient(135deg, ${C.indigo}, ${C.purple})`,
               color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-            }}>{tab === "mine" ? "Launch a Venture ⚡" : "Explore Ventures →"}</button>
+            }}>{tab === "mine" ? "Launch a Venture " : "Explore Ventures →"}</button>
           </div>
         )}
 

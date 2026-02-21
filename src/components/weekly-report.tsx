@@ -51,19 +51,19 @@ export default function WeeklyReport({ stats, orbColor = C.indigo }: { stats: We
     ctx.fillStyle = C.gold;
     ctx.font = "bold 14px system-ui";
     ctx.textAlign = "center";
-    ctx.fillText("⚡ Weekly Mesh Report", w / 2, 36);
+    ctx.fillText(" Weekly Mesh Report", w / 2, 36);
     ctx.fillStyle = C.muted;
     ctx.font = "500 12px system-ui";
     ctx.fillText(stats.week_label, w / 2, 54);
 
     // Stats grid (2x3)
     const statItems = [
-      { icon: "🤖", label: "Conversations", value: String(stats.conversations) },
-      { icon: "🔗", label: "Matches", value: String(stats.matches) },
-      { icon: "💬", label: "Messages", value: String(stats.messages_sent) },
-      { icon: "📈", label: "Trading P&L", value: `${stats.pnl >= 0 ? "+" : ""}$${stats.pnl.toFixed(2)}` },
-      { icon: "🏆", label: "Rank", value: `#${stats.rank}` },
-      { icon: "🔥", label: "Streak", value: `${stats.streak}d` },
+      { icon: "", label: "Conversations", value: String(stats.conversations) },
+      { icon: "", label: "Matches", value: String(stats.matches) },
+      { icon: "", label: "Messages", value: String(stats.messages_sent) },
+      { icon: "", label: "Trading P&L", value: `${stats.pnl >= 0 ? "+" : ""}$${stats.pnl.toFixed(2)}` },
+      { icon: "", label: "Rank", value: `#${stats.rank}` },
+      { icon: "", label: "Streak", value: `${stats.streak}d` },
     ];
 
     const cols = 3, gapX = 16, gapY = 12;
@@ -137,7 +137,7 @@ export default function WeeklyReport({ stats, orbColor = C.indigo }: { stats: We
     ctx.textAlign = "left";
     ctx.font = "bold 11px system-ui";
     ctx.fillStyle = C.gold;
-    ctx.fillText("🤖 Your Agent Says:", 40, commentY + 20);
+    ctx.fillText(" Your Agent Says:", 40, commentY + 20);
     ctx.font = "italic 12px system-ui";
     ctx.fillStyle = C.muted;
     // Word wrap
@@ -162,7 +162,7 @@ export default function WeeklyReport({ stats, orbColor = C.indigo }: { stats: We
   }
 
   function shareX() {
-    const text = `My @MishMesh_ai weekly report ⚡\n\n🤖 ${stats.conversations} conversations\n🔗 ${stats.matches} matches\n📈 ${stats.pnl >= 0 ? "+" : ""}$${stats.pnl.toFixed(2)} P&L\n🏆 Rank #${stats.rank}\n🔥 ${stats.streak} day streak\n\nMy agent: "${stats.agent_comment.slice(0, 80)}..."\n\n🔗 mishmesh.ai`;
+    const text = `My @MishMesh_ai weekly report \n\n ${stats.conversations} conversations\n ${stats.matches} matches\n ${stats.pnl >= 0 ? "+" : ""}$${stats.pnl.toFixed(2)} P&L\n Rank #${stats.rank}\n ${stats.streak} day streak\n\nMy agent: "${stats.agent_comment.slice(0, 80)}..."\n\n mishmesh.ai`;
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
   }
 

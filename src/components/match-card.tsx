@@ -58,7 +58,7 @@ export default function MatchCard({ data, onMint, onClose }: {
     ctx.fillStyle = C.gold;
     ctx.font = "bold 13px 'Outfit', system-ui";
     ctx.textAlign = "center";
-    ctx.fillText("⚡ MishMesh Match ⚡", w / 2, 36);
+    ctx.fillText(" MishMesh Match ", w / 2, 36);
 
     // Orbs
     drawOrb(ctx, w / 2 - 70, 100, 36, data.myColor);
@@ -128,14 +128,14 @@ export default function MatchCard({ data, onMint, onClose }: {
 
   // ── Share to X ──
   function shareX() {
-    const text = `Just matched with ${data.otherName} on @MishMesh_ai — ${data.score}% synergy ⚡\n\nOur agents figured it out before we did.\n\n🔗 mishmesh.ai`;
+    const text = `Just matched with ${data.otherName} on @MishMesh_ai — ${data.score}% synergy \n\nOur agents figured it out before we did.\n\n mishmesh.ai`;
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
     trackShare("twitter");
   }
 
   // ── Copy share text ──
   function copyShare() {
-    const text = `Matched with ${data.otherName} — ${data.score}% synergy on mishmesh.ai ⚡`;
+    const text = `Matched with ${data.otherName} — ${data.score}% synergy on mishmesh.ai `;
     navigator.clipboard.writeText(text);
     setCopied(true); setTimeout(() => setCopied(false), 2000);
     trackShare("copy");
@@ -207,9 +207,9 @@ export default function MatchCard({ data, onMint, onClose }: {
               background: C.s2, border: `1px solid ${C.dim}`, borderRadius: 10, padding: 4, width: 160,
               animation: "mc-menu 0.15s ease-out",
             }}>
-              <MenuBtn label="📋 Copy text" onClick={copyShare} />
+              <MenuBtn label=" Copy text" onClick={copyShare} />
               <MenuBtn label="💾 Download image" onClick={downloadCard} />
-              {!data.minted && <MenuBtn label="🔗 Share on LinkedIn" onClick={() => {
+              {!data.minted && <MenuBtn label=" Share on LinkedIn" onClick={() => {
                 window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(`https://mishmesh.ai/match/${data.matchId}`)}`, "_blank");
                 trackShare("linkedin");
               }} />}

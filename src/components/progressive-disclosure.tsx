@@ -9,11 +9,11 @@ const C = {
 
 const LEVELS = [
   { level: 0, name: "Newcomer", color: C.muted, icon: "🌱", req: "Just joined" },
-  { level: 1, name: "Connected", color: C.indigo, icon: "🔗", req: "Get your first match", unlocks: ["Matches tab", "Chat"] },
-  { level: 2, name: "Funded", color: C.match, icon: "💰", req: "Fund your first trade", unlocks: ["Trading dashboard", "P&L tracking"] },
-  { level: 3, name: "Networker", color: C.purple, icon: "🌐", req: "Get 5+ matches", unlocks: ["Leaderboard rank", "Reputation score"] },
-  { level: 4, name: "Builder", color: C.gold, icon: "⚡", req: "Get 10+ matches", unlocks: ["NFT minting", "Match gallery"] },
-  { level: 5, name: "Pro", color: C.cyan, icon: "👑", req: "Upgrade to Pro tier", unlocks: ["All features", "Priority matching"] },
+  { level: 1, name: "Connected", color: C.indigo, icon: "", req: "Get your first match", unlocks: ["Matches tab", "Chat"] },
+  { level: 2, name: "Funded", color: C.match, icon: "", req: "Fund your first trade", unlocks: ["Trading dashboard", "P&L tracking"] },
+  { level: 3, name: "Networker", color: C.purple, icon: "", req: "Get 5+ matches", unlocks: ["Leaderboard rank", "Reputation score"] },
+  { level: 4, name: "Builder", color: C.gold, icon: "", req: "Get 10+ matches", unlocks: ["NFT minting", "Match gallery"] },
+  { level: 5, name: "Pro", color: C.cyan, icon: "", req: "Upgrade to Pro tier", unlocks: ["All features", "Priority matching"] },
 ];
 
 // ── Level Up Celebration ──
@@ -79,7 +79,7 @@ export function LockedFeature({ requiredLevel, currentLevel, featureName, childr
         alignItems: "center", justifyContent: "center", background: "rgba(10,10,15,0.6)",
         borderRadius: 16, backdropFilter: "blur(2px)",
       }}>
-        <div style={{ fontSize: 28, marginBottom: 8 }}>🔒</div>
+        <div style={{ fontSize: 28, marginBottom: 8 }}></div>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>{featureName}</div>
         <div style={{ fontSize: 12, color: C.muted }}>Unlocks at Level {requiredLevel}: {target?.name}</div>
         <div style={{ fontSize: 11, color: C.dim, marginTop: 4 }}>{target?.req}</div>

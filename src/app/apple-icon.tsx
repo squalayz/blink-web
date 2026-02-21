@@ -16,7 +16,7 @@ export default function AppleIcon() {
         background: 'linear-gradient(135deg, #0a0a0f, #1a1a2e)',
         borderRadius: 40,
       }}>
-        🧬
+        
       </div>
     ),
     { ...size }

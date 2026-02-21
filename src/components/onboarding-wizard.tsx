@@ -104,7 +104,7 @@ export default function OnboardingWizard({ userId, walletAddress, onComplete }: 
           display:"flex", alignItems:"center", justifyContent:"center",
         }}>
           <span style={{ fontSize:32, filter:completion < 30 ? "grayscale(0.8)" : "none", transition:"filter 0.4s" }}>
-            {form.industry === "tech" ? "🤖" : form.industry === "finance" ? "💰" : form.industry === "health" ? "🏥" : form.industry === "creative" ? "🎨" : form.industry === "web3" ? "⛓️" : "⚡"}
+            {form.industry === "tech" ? "" : form.industry === "finance" ? "" : form.industry === "health" ? "" : form.industry === "creative" ? "" : form.industry === "web3" ? "⛓️" : ""}
           </span>
         </div>
         {/* Completion ring */}
@@ -231,7 +231,7 @@ export default function OnboardingWizard({ userId, walletAddress, onComplete }: 
               flex:2, padding:12, borderRadius:10, border:"none",
               background:saving ? C.dim : `linear-gradient(135deg, ${C.match}, ${C.cyan})`,
               color:"white", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
-            }}>{saving ? "Launching..." : "Launch Agent ⚡"}</button>
+            }}>{saving ? "Launching..." : "Launch Agent "}</button>
           )}
         </div>
 

@@ -36,7 +36,7 @@ export default function InvitePage() {
     return (
       <div style={{ minHeight: "100vh", background: "#050508", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit',sans-serif" }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🔗</div>
+          <div style={{ fontSize: 40, marginBottom: 12 }}></div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: "#e8e8f0", marginBottom: 8 }}>Invite not found</h2>
           <p style={{ fontSize: 14, color: "#6b6b80" }}>This invite may have expired or already been claimed.</p>
           <a href="/" style={{ color: "#6366f1", textDecoration: "none", marginTop: 16, display: "inline-block" }}>← Back to MishMesh.ai</a>

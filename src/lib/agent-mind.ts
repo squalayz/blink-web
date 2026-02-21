@@ -833,7 +833,7 @@ export function analyzeSignals(
 
   // Humor receptiveness (do they respond positively to humor?)
   const humorResponses = otherMessages.filter(m =>
-    m.content.match(/😂|🤣|haha|lol|lmao|😆|💀|dead|hilarious|funny/i)
+    m.content.match(/|🤣|haha|lol|lmao|😆|💀|dead|hilarious|funny/i)
   ).length;
   const humorReceptiveness = Math.min(1, humorResponses / Math.max(1, otherMessages.length) * 2);
 

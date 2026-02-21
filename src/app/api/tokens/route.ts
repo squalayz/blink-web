@@ -291,7 +291,7 @@ export async function POST(req: NextRequest) {
       for (const uid of [launch.founder_a_user_id, launch.founder_b_user_id]) {
         await supabase.from("notifications").insert({
           user_id: uid, type: "token_live",
-          message: `🚀 ${launch.token_name} ($${launch.token_symbol}) is LIVE! Liquidity: ${totalLiq.toFixed(4)} ETH`,
+          message: ` ${launch.token_name} ($${launch.token_symbol}) is LIVE! Liquidity: ${totalLiq.toFixed(4)} ETH`,
           metadata: JSON.stringify({ launch_id }),
         });
       }

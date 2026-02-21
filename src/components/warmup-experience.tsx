@@ -85,8 +85,8 @@ export default function WarmupExperience({ userName, userIndustry, orbColor, onF
   }
 
   const eventIcon: Record<string, string> = {
-    scanning: "🔍", analyzing: "🧠", found: "✨",
-    initiating: "🤝", conversation: "💬", match_hint: "⚡",
+    scanning: "", analyzing: "", found: "",
+    initiating: "", conversation: "", match_hint: "",
   };
   const eventColor: Record<string, string> = {
     scanning: C.cyan, analyzing: C.purple, found: C.gold,
@@ -159,7 +159,7 @@ export default function WarmupExperience({ userName, userIndustry, orbColor, onF
       }}>
         {events.length === 0 && (
           <div style={{ textAlign: "center", padding: 20 }}>
-            <div style={{ fontSize: 24, marginBottom: 8, animation: "warmup-pulse 1.5s infinite" }}>📡</div>
+            <div style={{ fontSize: 24, marginBottom: 8, animation: "warmup-pulse 1.5s infinite" }}></div>
             <div style={{ fontSize: 13, color: C.muted }}>Sending first radar ping...</div>
           </div>
         )}

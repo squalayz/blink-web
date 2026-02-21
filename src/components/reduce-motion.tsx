@@ -86,7 +86,7 @@ export function ReduceMotionToggle() {
       padding: "10px 0", borderBottom: `1px solid ${C.dim}`,
     }}>
       <div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#e8e8f0" }}>♿ Reduce Motion</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#e8e8f0" }}> Reduce Motion</div>
         <div style={{ fontSize: 11, color: C.muted }}>Replace animations with simple fades</div>
       </div>
       <button onClick={() => setReduceMotion(!reduceMotion)} style={{
@@ -124,7 +124,7 @@ export function OfflineBanner() {
       padding: "6px 16px", background: `${C.warn}15`, borderBottom: `1px solid ${C.warn}33`,
       textAlign: "center", fontSize: 12, color: C.warn, fontWeight: 600,
     }}>
-      📡 You're offline. Showing last known data. Updating when reconnected...
+       You're offline. Showing last known data. Updating when reconnected...
     </div>
   );
 }

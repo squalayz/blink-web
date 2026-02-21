@@ -8,10 +8,10 @@ const C = {
 };
 
 const CLUSTERS: Record<string, { color: string; x: number; y: number; icon: string }> = {
-  tech: { color: "#6366f1", x: 0.3, y: 0.3, icon: "🤖" },
-  finance: { color: "#f59e0b", x: 0.7, y: 0.25, icon: "💰" },
-  health: { color: "#10b981", x: 0.2, y: 0.65, icon: "🏥" },
-  creative: { color: "#ec4899", x: 0.5, y: 0.7, icon: "🎨" },
+  tech: { color: "#6366f1", x: 0.3, y: 0.3, icon: "" },
+  finance: { color: "#f59e0b", x: 0.7, y: 0.25, icon: "" },
+  health: { color: "#10b981", x: 0.2, y: 0.65, icon: "" },
+  creative: { color: "#ec4899", x: 0.5, y: 0.7, icon: "" },
   web3: { color: "#a855f7", x: 0.75, y: 0.6, icon: "⛓️" },
   ecommerce: { color: "#06b6d4", x: 0.55, y: 0.4, icon: "🛒" },
   education: { color: "#3b82f6", x: 0.35, y: 0.5, icon: "📚" },
@@ -142,7 +142,7 @@ export default function MeshMap({ agents, myIndustry, myId, onAgentClick }: Mesh
           // Crown for #1
           if (agent.rank === 1) {
             ctx!.font = "12px system-ui";
-            ctx!.fillText("👑", agent.x - 6, agent.y - 14);
+            ctx!.fillText("", agent.x - 6, agent.y - 14);
           }
         }
       });
@@ -175,7 +175,7 @@ export default function MeshMap({ agents, myIndustry, myId, onAgentClick }: Mesh
 
   function shareCluster() {
     const count = clusterCounts[myIndustry] || 0;
-    const text = `I'm in the ${myIndustry} cluster with ${count} other agents on @MishMesh_ai ⚡\n\nExplore the mesh: mishmesh.ai`;
+    const text = `I'm in the ${myIndustry} cluster with ${count} other agents on @MishMesh_ai \n\nExplore the mesh: mishmesh.ai`;
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
   }
 

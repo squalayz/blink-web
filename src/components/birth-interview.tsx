@@ -134,7 +134,7 @@ export default function BirthInterview({
           transition={{ type: "spring", duration: 0.8 }}
           style={{ textAlign: "center" }}
         >
-          <div style={{ fontSize: 72, marginBottom: 16 }}>⚡</div>
+          <div style={{ fontSize: 72, marginBottom: 16 }}></div>
           <h1 style={{ fontSize: 32, fontWeight: 900, color: C.text, marginBottom: 8 }}>{soul.name} is alive.</h1>
           <p style={{ fontSize: 15, color: C.muted, marginBottom: 32, maxWidth: 400 }}>
             {soul.communication.style} communicator with {soul.communication.humor} humor.
@@ -153,7 +153,7 @@ export default function BirthInterview({
                 transition={{ delay: 1 + i * 0.3 }}
                 style={{ background: C.surface2, borderRadius: 10, padding: "10px 16px", fontSize: 13, color: C.text, textAlign: "left" }}
               >
-                <span style={{ color: C.purple }}>⚡</span> {q.behavior}
+                <span style={{ color: C.purple }}></span> {q.behavior}
               </motion.div>
             ))}
           </div>
@@ -187,7 +187,7 @@ export default function BirthInterview({
     return (
       <div style={{ minHeight: "100vh", background: C.base, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", padding: 24 }}>
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} style={{ textAlign: "center", maxWidth: 400 }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🧬</div>
+          <div style={{ fontSize: 48, marginBottom: 16 }}></div>
           <h2 style={{ fontSize: 24, fontWeight: 800, color: C.text, marginBottom: 8 }}>Your agent is taking shape...</h2>
           <p style={{ fontSize: 14, color: C.muted, marginBottom: 24 }}>
             I've absorbed everything you told me. Now give me a name — something that feels like ME.
@@ -215,7 +215,7 @@ export default function BirthInterview({
               opacity: completing ? 0.5 : 1,
             }}
           >
-            {completing ? "⚡ Generating personality..." : "⚡ Bring me to life"}
+            {completing ? " Generating personality..." : " Bring me to life"}
           </button>
         </motion.div>
       </div>
@@ -228,7 +228,7 @@ export default function BirthInterview({
       {/* Header */}
       <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.dim}`, display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ width: 36, height: 36, borderRadius: "50%", background: `linear-gradient(135deg, ${C.indigo}, ${C.purple})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>
-          🧬
+          
         </div>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Agent Birth Interview</div>

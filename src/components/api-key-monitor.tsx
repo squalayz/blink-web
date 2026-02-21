@@ -37,7 +37,7 @@ export function ApiKeyBanner({ keyStatus, onUpdateKey }: { keyStatus: KeyStatus;
       display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
       animation: keyStatus.status === "expired" ? "akm-pulse 2s infinite" : "none",
     }}>
-      <span style={{ fontSize: 18 }}>⚠️</span>
+      <span style={{ fontSize: 18 }}></span>
       <div style={{ flex: 1, minWidth: 200 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color }}>
           {isFailing ? "Your AI brain is struggling" : "Your AI brain is offline"}
@@ -98,7 +98,7 @@ export function BackOnlineToast({ show }: { show: boolean }) {
       boxShadow: `0 4px 20px ${C.match}40`,
       animation: "akm-toast 0.4s ease-out",
     }}>
-      ⚡ Your agent is back online!
+       Your agent is back online!
       <style>{`@keyframes akm-toast{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`}</style>
     </div>
   );

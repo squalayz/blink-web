@@ -12,10 +12,10 @@ const C = {
 };
 
 const SORTS = [
-  { label: "🔥 Trending", value: "volume" },
+  { label: " Trending", value: "volume" },
   { label: "🆕 Newest", value: "newest" },
   { label: "👥 Most Holders", value: "holders" },
-  { label: "💰 Highest Price", value: "price" },
+  { label: " Highest Price", value: "price" },
 ];
 
 export default function MarketplacePage() {
@@ -97,7 +97,7 @@ export default function MarketplacePage() {
             padding: "7px 16px", borderRadius: 8, border: `1px solid ${C.border}`,
             background: "transparent", color: C.gold, fontSize: 13, fontWeight: 700,
             cursor: "pointer", fontFamily: "inherit",
-          }}>🏆 Leaderboard</button>
+          }}> Leaderboard</button>
         </div>
       </div>
 
@@ -122,7 +122,7 @@ export default function MarketplacePage() {
             textAlign: "center", padding: 64, borderRadius: 16,
             border: `2px dashed ${C.border}`, background: `${C.violet}04`,
           }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🚀</div>
+            <div style={{ fontSize: 48, marginBottom: 16 }}></div>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 6 }}>
               {search ? `No tokens matching "${search}"` : "No tokens yet"}
             </h2>
@@ -136,7 +136,7 @@ export default function MarketplacePage() {
         {featured.length > 0 && (
           <div style={{ marginBottom: 28 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-              <span style={{ fontSize: 14, fontWeight: 800, color: C.gold }}>🔥 Hot</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: C.gold }}> Hot</span>
               <div style={{ height: 1, flex: 1, background: `${C.gold}22` }} />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>

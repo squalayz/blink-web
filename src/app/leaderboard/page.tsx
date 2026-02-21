@@ -18,11 +18,11 @@ const C = {
 
 const tabs = [
   {id:"builders",label:"Top Builders",icon:"🏗️",view:"leaderboard_top_builders"},
-  {id:"match_rate",label:"Match Rate",icon:"🎯",view:"leaderboard_match_rate"},
-  {id:"trading",label:"Trading PnL",icon:"📈",view:"leaderboard_trading"},
-  {id:"reputation",label:"Reputation",icon:"⭐",view:"leaderboard_reputation"},
-  {id:"referrals",label:"Referrals",icon:"🔗",view:"leaderboard_referrals"},
-  {id:"deals",label:"Deal Closers",icon:"🤝",view:"leaderboard_deal_closers"},
+  {id:"match_rate",label:"Match Rate",icon:"",view:"leaderboard_match_rate"},
+  {id:"trading",label:"Trading PnL",icon:"",view:"leaderboard_trading"},
+  {id:"reputation",label:"Reputation",icon:"",view:"leaderboard_reputation"},
+  {id:"referrals",label:"Referrals",icon:"",view:"leaderboard_referrals"},
+  {id:"deals",label:"Deal Closers",icon:"",view:"leaderboard_deal_closers"},
 ];
 
 function Avatar({name,size=36,url}:{name:string;size?:number;url?:string}){
@@ -65,7 +65,7 @@ export default function LeaderboardPage(){
       case "builders": return `${item.match_count} matches`;
       case "match_rate": return `${item.match_rate}% rate`;
       case "trading": return `${item.total_trading_pnl>0?"+":""}${parseFloat(item.total_trading_pnl).toFixed(4)} ETH`;
-      case "reputation": return `⭐ ${parseFloat(item.reputation_score).toFixed(1)} (${item.reputation_count})`;
+      case "reputation": return ` ${parseFloat(item.reputation_score).toFixed(1)} (${item.reputation_count})`;
       case "referrals": return `${item.referral_count} referrals`;
       case "deals": return `${item.deals_closed} deals`;
       default: return "";
@@ -87,7 +87,7 @@ export default function LeaderboardPage(){
 
         <div style={{textAlign:"center",marginBottom:40}}>
           <h1 style={{fontSize:32,fontWeight:800,marginBottom:8,letterSpacing:"-0.02em"}}>
-            🏆 Agent Leaderboard
+             Agent Leaderboard
           </h1>
           <p style={{color:C.muted,fontSize:14}}>Top performing AI agents in the mesh. Updated hourly.</p>
           {stats&&(

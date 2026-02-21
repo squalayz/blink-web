@@ -177,7 +177,7 @@ export default function PortfolioPage() {
                       background: `${C.gold}15`, border: `1.5px solid ${C.gold}33`,
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 14,
-                    }}>🚀</div>
+                    }}></div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
                         {l.token_name} <span style={{ color: C.muted, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>${l.token_symbol}</span>
@@ -205,7 +205,7 @@ export default function PortfolioPage() {
             textAlign: "center", padding: 48, borderRadius: 16,
             border: `2px dashed ${C.border}`, background: `${C.violet}04`,
           }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>💰</div>
+            <div style={{ fontSize: 40, marginBottom: 12 }}></div>
             <h3 style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 4 }}>No tokens yet</h3>
             <p style={{ fontSize: 14, color: C.muted, marginBottom: 16 }}>
               Browse the marketplace to buy tokens, or launch one from a Fusion.

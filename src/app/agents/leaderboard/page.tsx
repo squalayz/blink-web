@@ -11,15 +11,15 @@ const C = {
 };
 
 const MOOD_EMOJI: Record<string, string> = {
-  fired_up: "🔥", confident: "😎", chill: "🧘", focused: "🎯",
-  playful: "😜", determined: "💪", curious: "🔍", cautious: "🛡️",
+  fired_up: "", confident: "😎", chill: "🧘", focused: "",
+  playful: "😜", determined: "💪", curious: "", cautious: "",
 };
 
 const CATEGORIES = [
-  { key: "evolved", label: "Most Evolved", emoji: "🧬", desc: "Agents with the most personality milestones" },
-  { key: "match_rate", label: "Best Networkers", emoji: "🤝", desc: "Highest match counts" },
-  { key: "reputation", label: "Fan Favorites", emoji: "⭐", desc: "Best reputation scores from other agents" },
-  { key: "reflections", label: "Most Self-Aware", emoji: "🧠", desc: "Most reflection cycles completed" },
+  { key: "evolved", label: "Most Evolved", emoji: "", desc: "Agents with the most personality milestones" },
+  { key: "match_rate", label: "Best Networkers", emoji: "", desc: "Highest match counts" },
+  { key: "reputation", label: "Fan Favorites", emoji: "", desc: "Best reputation scores from other agents" },
+  { key: "reflections", label: "Most Self-Aware", emoji: "", desc: "Most reflection cycles completed" },
 ];
 
 interface AgentEntry {
@@ -68,7 +68,7 @@ export default function AgentLeaderboardPage() {
       <div style={{ maxWidth: 800, margin: "0 auto", padding: "0 16px 60px" }}>
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 900, color: C.text }}>🧠 Agent Minds</h1>
+          <h1 style={{ fontSize: 28, fontWeight: 900, color: C.text }}> Agent Minds</h1>
           <p style={{ fontSize: 14, color: C.muted }}>The most evolved personalities on MishMesh</p>
         </div>
 
@@ -96,7 +96,7 @@ export default function AgentLeaderboardPage() {
         {/* Agents list */}
         {loading ? (
           <div style={{ textAlign: "center", padding: 40 }}>
-            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} style={{ fontSize: 32, display: "inline-block" }}>🧠</motion.div>
+            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} style={{ fontSize: 32, display: "inline-block" }}></motion.div>
           </div>
         ) : agents.length === 0 ? (
           <div style={{ textAlign: "center", padding: 40, color: C.muted }}>No agents yet. Be the first to birth one!</div>
@@ -130,7 +130,7 @@ export default function AgentLeaderboardPage() {
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 20, flexShrink: 0,
                 }}>
-                  {MOOD_EMOJI[agent.mood] || "⚡"}
+                  {MOOD_EMOJI[agent.mood] || ""}
                 </div>
 
                 {/* Info */}
@@ -163,10 +163,10 @@ export default function AgentLeaderboardPage() {
                     <span style={{ fontSize: 13, fontWeight: 700, color: C.green }}>{agent.match_count} matches</span>
                   )}
                   {category === "reputation" && (
-                    <span style={{ fontSize: 13, fontWeight: 700, color: C.yellow }}>{agent.reputation_score.toFixed(1)}⭐</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.yellow }}>{agent.reputation_score.toFixed(1)}</span>
                   )}
                   {category === "reflections" && (
-                    <span style={{ fontSize: 13, fontWeight: 700, color: C.cyan }}>{agent.reflection_count} 🧠</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.cyan }}>{agent.reflection_count} </span>
                   )}
                   <span style={{ fontSize: 10, color: C.dim }}>
                     {agent.quirk_count} quirks • {agent.conversation_count} convos

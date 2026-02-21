@@ -60,7 +60,7 @@ export default function StreakWidget() {
       <span style={{
         fontSize: isHot ? 20 : 16,
         animation: isHot ? "streak-fire 0.5s infinite alternate" : "none",
-      }}>🔥</span>
+      }}></span>
 
       {/* Counter */}
       <div>
@@ -77,7 +77,7 @@ export default function StreakWidget() {
         <span style={{ fontSize: 14, marginLeft: 2 }} title="Dedicated Builder — 30 day streak">🏅</span>
       )}
       {streak.badge === "consistent" && (
-        <span style={{ fontSize: 14, marginLeft: 2 }} title="Consistent — 7 day streak">⭐</span>
+        <span style={{ fontSize: 14, marginLeft: 2 }} title="Consistent — 7 day streak"></span>
       )}
 
       {/* Celebration overlay */}
@@ -87,7 +87,7 @@ export default function StreakWidget() {
           background: `${C.gold}15`, animation: "streak-celebrate 0.3s ease-out",
         }}>
           <span style={{ fontSize: 13, fontWeight: 800, color: C.gold }}>
-            {streak.reward === "free_boost" ? "🎉 Free Boost!" : "🏅 Badge Earned!"}
+            {streak.reward === "free_boost" ? " Free Boost!" : "🏅 Badge Earned!"}
           </span>
         </div>
       )}
@@ -110,7 +110,7 @@ export function StreakBadge({ streak, badge }: { streak: number; badge?: string 
       background: streak >= 7 ? `${C.gold}15` : `rgba(255,255,255,0.04)`,
       color: streak >= 7 ? C.gold : C.muted,
     }}>
-      🔥 {streak}d
+       {streak}d
       {badge === "dedicated_builder" && " 🏅"}
     </span>
   );

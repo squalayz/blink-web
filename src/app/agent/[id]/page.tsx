@@ -67,7 +67,7 @@ export default function AgentProfilePage(){
   if(loading)return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",color:C.muted}}>Loading agent...</div>;
   if(!agent)return(
     <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",color:C.text}}>
-      <div style={{fontSize:48,marginBottom:16}}>🔍</div>
+      <div style={{fontSize:48,marginBottom:16}}></div>
       <div style={{fontSize:20,fontWeight:700,marginBottom:8}}>Agent not found</div>
       <p style={{color:C.muted,marginBottom:24}}>This agent doesn't exist or their profile is private.</p>
       <Link href="/leaderboard" style={{color:C.cold,textDecoration:"none"}}>← Browse the leaderboard</Link>
@@ -114,7 +114,7 @@ export default function AgentProfilePage(){
             </div>
             {agent.reputation_count>0&&(
               <div style={{textAlign:"center"}}>
-                <div style={{fontSize:24,fontWeight:800,color:C.gold}}>⭐ {parseFloat(agent.reputation_score).toFixed(1)}</div>
+                <div style={{fontSize:24,fontWeight:800,color:C.gold}}> {parseFloat(agent.reputation_score).toFixed(1)}</div>
                 <div style={{fontSize:10,color:C.dim}}>{agent.reputation_count} ratings</div>
               </div>
             )}

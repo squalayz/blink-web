@@ -61,7 +61,7 @@ export class ErrorBoundary extends Component<Props, State> {
             background: C.card, border: `1px solid ${C.border}`,
             borderRadius: 16, padding: 32,
           }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+            <div style={{ fontSize: 40, marginBottom: 12 }}></div>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, marginBottom: 6 }}>
               Something went wrong
             </h2>

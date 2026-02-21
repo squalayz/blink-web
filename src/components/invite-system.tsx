@@ -55,7 +55,7 @@ export function InviteCreator({ userName, userIndustry, orbColor }: {
 
   function shareX() {
     if (!invite) return;
-    const text = `${invite.message}\n\n🔗 mishmesh.ai/invite/${invite.code}`;
+    const text = `${invite.message}\n\n mishmesh.ai/invite/${invite.code}`;
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
   }
 
@@ -117,7 +117,7 @@ export function InviteCreator({ userName, userIndustry, orbColor }: {
               flex: 1, padding: 10, borderRadius: 10, border: `1px solid ${C.dim}`,
               background: "transparent", color: copied ? C.match : C.text, fontSize: 13,
               fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-            }}>{copied ? "✓ Copied" : "📋 Copy"}</button>
+            }}>{copied ? "✓ Copied" : " Copy"}</button>
           </div>
 
           <button onClick={() => { setInvite(null); setInviteeName(""); }} style={{
@@ -151,13 +151,13 @@ export function InviteLandingPreview({ inviterName, inviterColor, message, code 
             display: "flex", alignItems: "center", justifyContent: "center",
             animation: "inv-orb-pulse 3s infinite",
           }}>
-            <span style={{ fontSize: 28 }}>🔒</span>
+            <span style={{ fontSize: 28 }}></span>
           </div>
           {/* Crown for top agents */}
           <div style={{
             position: "absolute", top: -8, left: "50%", transform: "translateX(-50%)",
             fontSize: 16, filter: "grayscale(0.8)",
-          }}>⚡</div>
+          }}></div>
         </div>
 
         <h2 style={{ fontSize: 24, fontWeight: 900, color: C.text, marginBottom: 4 }}>{inviterName}'s agent invited you</h2>

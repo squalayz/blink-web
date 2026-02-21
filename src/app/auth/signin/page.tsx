@@ -121,7 +121,7 @@ export default function SignInPage() {
         {/* ═══ CHOOSE (main screen) ═══ */}
         {step === "choose" && (
           <div style={{ background: C.s2, border: `1px solid rgba(255,255,255,0.06)`, borderRadius: 20, padding: "36px 32px", textAlign: "center" }}>
-            <div style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.12em", color: C.muted, marginBottom: 8, fontWeight: 600 }}>⚡ Enter the Mesh</div>
+            <div style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: "0.12em", color: C.muted, marginBottom: 8, fontWeight: 600 }}> Enter the Mesh</div>
             <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 24, color: C.text }}>Connect Your Wallet</h2>
 
             {/* Connect Wallet (RainbowKit) */}
@@ -132,7 +132,7 @@ export default function SignInPage() {
               fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
               transition: "all 0.2s", marginBottom: 12,
             }}>
-              <span style={{ fontSize: 20 }}>🦊</span>
+              <span style={{ fontSize: 20 }}></span>
               Connect Wallet
             </button>
 
@@ -150,7 +150,7 @@ export default function SignInPage() {
               fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
               transition: "all 0.2s",
             }}>
-              <span style={{ fontSize: 20 }}>✨</span>
+              <span style={{ fontSize: 20 }}></span>
               Create New Wallet
             </button>
 
@@ -199,9 +199,9 @@ export default function SignInPage() {
         {/* ═══ SHOW PRIVATE KEY ═══ */}
         {step === "showkey" && newWallet && (
           <div style={{ background: C.s2, border: `1px solid rgba(255,255,255,0.06)`, borderRadius: 20, padding: "32px 28px", textAlign: "center" }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>🔑</div>
+            <div style={{ fontSize: 32, marginBottom: 12 }}></div>
             <h3 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6, color: C.text }}>Save Your Private Key</h3>
-            <p style={{ fontSize: 13, color: C.hot, fontWeight: 600, marginBottom: 16 }}>⚠️ This is shown ONCE. Save it now. We cannot recover it.</p>
+            <p style={{ fontSize: 13, color: C.hot, fontWeight: 600, marginBottom: 16 }}> This is shown ONCE. Save it now. We cannot recover it.</p>
 
             {/* Address */}
             <div style={{ background: "rgba(99,102,241,0.08)", borderRadius: 10, padding: "10px 14px", marginBottom: 12, textAlign: "left" }}>
@@ -241,7 +241,7 @@ export default function SignInPage() {
         {/* ═══ DONE ═══ */}
         {step === "done" && (
           <div style={{ background: C.s2, border: `1px solid rgba(255,255,255,0.06)`, borderRadius: 20, padding: "48px 32px", textAlign: "center" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>⚡</div>
+            <div style={{ fontSize: 40, marginBottom: 12 }}></div>
             <h3 style={{ fontSize: 22, fontWeight: 800, color: C.match }}>You're in.</h3>
             <p style={{ fontSize: 14, color: C.muted, marginTop: 8 }}>Entering the mesh...</p>
           </div>

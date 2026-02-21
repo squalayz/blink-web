@@ -32,7 +32,7 @@ export function MatchStoryCard({ story, canPublish, onTogglePublic }: {
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <div style={{ width: 20, height: 20, borderRadius: "50%", background: `radial-gradient(${story.user_a_color}, ${story.user_a_color}66)` }} />
         <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{story.user_a_name}</span>
-        <span style={{ color: C.gold, fontSize: 12 }}>⚡</span>
+        <span style={{ color: C.gold, fontSize: 12 }}></span>
         <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{story.user_b_name}</span>
         <div style={{ width: 20, height: 20, borderRadius: "50%", background: `radial-gradient(${story.user_b_color}, ${story.user_b_color}66)` }} />
         <span style={{ marginLeft: "auto", fontSize: 12, color: C.gold, fontWeight: 800 }}>{story.score}%</span>
@@ -87,7 +87,7 @@ export function RivalryStats({ data }: { data: RivalryData }) {
   return (
     <div style={{ background: C.s2, border: `1px solid ${C.dim}`, borderRadius: 14, padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <span style={{ fontSize: 18 }}>⚔️</span>
+        <span style={{ fontSize: 18 }}></span>
         <span style={{ fontSize: 14, fontWeight: 800, color: C.text }}>Agent Rivalry</span>
       </div>
 
@@ -140,7 +140,7 @@ export function RivalryStats({ data }: { data: RivalryData }) {
           border: `1px solid ${C.hot}15`, fontSize: 12, color: C.hot,
           animation: "rivalry-flash 0.5s ease-out",
         }}>
-          ⚠️ {data.recentPassedBy}'s agent just passed yours on the leaderboard
+           {data.recentPassedBy}'s agent just passed yours on the leaderboard
         </div>
       )}
 

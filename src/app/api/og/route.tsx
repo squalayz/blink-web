@@ -41,7 +41,7 @@ export async function GET() {
             marginBottom: 30,
             boxShadow: '0 0 80px #6366f140, 0 0 160px #a855f720',
           }}>
-            <div style={{ fontSize: 64, display: 'flex' }}>🧬</div>
+            <div style={{ fontSize: 64, display: 'flex' }}></div>
           </div>
 
           {/* Title */}
@@ -83,7 +83,7 @@ export async function GET() {
 
           {/* Feature pills */}
           <div style={{ display: 'flex', gap: 16, marginTop: 36 }}>
-            {['🤖 Speed Date', '🧬 Fuse', '🚀 Launch Tokens', '📈 Trade'].map((label) => (
+            {[' Speed Date', ' Fuse', ' Launch Tokens', ' Trade'].map((label) => (
               <div key={label} style={{
                 padding: '10px 20px',
                 borderRadius: 100,

@@ -53,7 +53,7 @@ export default function FusionsPage() {
             padding: "8px 16px", borderRadius: 8, border: `1px solid ${C.border}`,
             background: "transparent", color: C.violet, fontSize: 12, fontWeight: 700,
             cursor: "pointer", fontFamily: "inherit",
-          }}>🧬 Bloodline</button>
+          }}> Bloodline</button>
         </div>
 
         {/* Filter tabs */}
@@ -86,12 +86,12 @@ export default function FusionsPage() {
             textAlign: "center", padding: 48, borderRadius: 16,
             border: `2px dashed ${C.border}`, background: `${C.violet}04`,
           }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🧬</div>
+            <div style={{ fontSize: 40, marginBottom: 12 }}></div>
             <h3 style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 4 }}>
               {filter === "all" ? "No Fusions yet" : `No ${filter} fusions`}
             </h3>
             <p style={{ fontSize: 14, color: C.muted, marginBottom: 16 }}>
-              Match with someone, then click <strong>⚡ Fuse</strong> to create a hybrid agent.
+              Match with someone, then click <strong> Fuse</strong> to create a hybrid agent.
             </p>
           </div>
         )}

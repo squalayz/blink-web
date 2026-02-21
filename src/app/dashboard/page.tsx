@@ -1422,7 +1422,7 @@ export default function Dashboard(){
           {/* ── Connect Your AI ── */}
           <div style={{background:C.surface,borderRadius:14,padding:20,border:`1px solid ${aiCurrent?.connected?C.match+"44":C.cold+"44"}`,marginBottom:16}}>
             <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:14,display:"flex",alignItems:"center",gap:6}}>
-              <Cpu size={12}/>Connect Your AI {aiCurrent?.connected&&<span style={{color:C.match,fontSize:10}}>✅ Connected</span>}
+              <Cpu size={12}/>Connect Your AI {aiCurrent?.connected&&<span style={{color:C.match,fontSize:10}}> Connected</span>}
             </div>
 
             {aiCurrent?.connected?(
@@ -1491,7 +1491,7 @@ export default function Dashboard(){
                 <div style={{display:"flex",gap:8,marginTop:12}}>
                   <button onClick={testAiConnection} disabled={!aiForm.apiKey||aiTesting}
                     style={{flex:1,padding:"10px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:C.s2,cursor:aiForm.apiKey?"pointer":"not-allowed",color:aiForm.apiKey?C.text:C.dim,fontSize:12,fontWeight:600,opacity:aiTesting?0.5:1}}>
-                    {aiTesting?"Testing...":"⚡ Test Connection"}
+                    {aiTesting?"Testing...":" Test Connection"}
                   </button>
                   <button onClick={saveAiSettings} disabled={!aiForm.apiKey||!aiTestResult?.success}
                     style={{flex:1,padding:"10px 16px",borderRadius:8,border:"none",background:aiTestResult?.success?C.cold:C.s2,cursor:aiTestResult?.success?"pointer":"not-allowed",color:aiTestResult?.success?"white":C.dim,fontSize:12,fontWeight:600}}>
@@ -1502,7 +1502,7 @@ export default function Dashboard(){
                 {/* Test result */}
                 {aiTestResult&&(
                   <div style={{marginTop:10,padding:10,borderRadius:8,background:aiTestResult.success?`${C.match}15`:`${C.hot}15`,border:`1px solid ${aiTestResult.success?C.match:C.hot}33`,fontSize:11,color:aiTestResult.success?C.match:C.hot}}>
-                    {aiTestResult.success?`✅ Connected! Response: "${aiTestResult.message}"`:`❌ ${aiTestResult.message}`}
+                    {aiTestResult.success?` Connected! Response: "${aiTestResult.message}"`:` ${aiTestResult.message}`}
                   </div>
                 )}
 

@@ -8,10 +8,10 @@ const C = {
 };
 
 const TABS = [
-  { label: "🔥 Volume", value: "volume" },
+  { label: " Volume", value: "volume" },
   { label: "👥 Holders", value: "holders" },
-  { label: "💰 Price", value: "price" },
-  { label: "⚡ New & Hot", value: "newest_hot" },
+  { label: " Price", value: "price" },
+  { label: " New & Hot", value: "newest_hot" },
 ];
 
 export default function LeaderboardPage() {
@@ -51,7 +51,7 @@ export default function LeaderboardPage() {
             fontSize: 28, fontWeight: 900, margin: "0 0 4px",
             background: `linear-gradient(135deg, ${C.gold}, #f59e0b)`,
             WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-          }}>🏆 Token Leaderboard</h1>
+          }}> Token Leaderboard</h1>
           <p style={{ fontSize: 14, color: C.muted, margin: 0 }}>Top-performing agent tokens.</p>
         </div>
 
@@ -182,7 +182,7 @@ export default function LeaderboardPage() {
             textAlign: "center", padding: 48, borderRadius: 16,
             border: `2px dashed ${C.border}`,
           }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🏆</div>
+            <div style={{ fontSize: 40, marginBottom: 12 }}></div>
             <h3 style={{ fontSize: 18, fontWeight: 800, color: C.text }}>No tokens yet</h3>
             <p style={{ fontSize: 14, color: C.muted }}>Be the first to launch a token from a Fusion.</p>
           </div>

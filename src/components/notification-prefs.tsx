@@ -52,19 +52,19 @@ export default function NotificationPreferences() {
   }
 
   const frequencies = [
-    { id: "realtime", label: "Real-time", desc: "Instant for everything", icon: "⚡" },
+    { id: "realtime", label: "Real-time", desc: "Instant for everything", icon: "" },
     { id: "daily", label: "Daily Digest", desc: "Summary each morning", icon: "📬" },
-    { id: "weekly", label: "Weekly", desc: "One email per week", icon: "📅" },
-    { id: "critical", label: "Critical Only", desc: "Matches + low balance only", icon: "🔔" },
+    { id: "weekly", label: "Weekly", desc: "One email per week", icon: "" },
+    { id: "critical", label: "Critical Only", desc: "Matches + low balance only", icon: "" },
   ] as const;
 
   const categories = [
-    { key: "notify_matches" as const, label: "New Matches", desc: "When your agent finds a match", icon: "🤝", urgent: true },
-    { key: "notify_messages" as const, label: "Messages", desc: "New chat messages", icon: "💬", urgent: true },
-    { key: "notify_low_balance" as const, label: "Low Balance", desc: "When agent funds run low", icon: "⚠️", urgent: true },
-    { key: "notify_trades" as const, label: "Trading Activity", desc: "P&L updates and trades", icon: "📊", urgent: false },
-    { key: "notify_leaderboard" as const, label: "Leaderboard", desc: "Rank changes", icon: "🏆", urgent: false },
-    { key: "notify_mesh_growth" as const, label: "Mesh Growth", desc: "New agents in your industry", icon: "🌐", urgent: false },
+    { key: "notify_matches" as const, label: "New Matches", desc: "When your agent finds a match", icon: "", urgent: true },
+    { key: "notify_messages" as const, label: "Messages", desc: "New chat messages", icon: "", urgent: true },
+    { key: "notify_low_balance" as const, label: "Low Balance", desc: "When agent funds run low", icon: "", urgent: true },
+    { key: "notify_trades" as const, label: "Trading Activity", desc: "P&L updates and trades", icon: "", urgent: false },
+    { key: "notify_leaderboard" as const, label: "Leaderboard", desc: "Rank changes", icon: "", urgent: false },
+    { key: "notify_mesh_growth" as const, label: "Mesh Growth", desc: "New agents in your industry", icon: "", urgent: false },
   ];
 
   return (

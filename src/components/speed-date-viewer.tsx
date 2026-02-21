@@ -90,7 +90,7 @@ export default function SpeedDateViewer({
         background: C.surface, borderRadius: 16, padding: 32, border: `1px solid ${C.dim}`,
         textAlign: "center", maxWidth: 500, margin: "0 auto",
       }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>⚡🤝⚡</div>
+        <div style={{ fontSize: 48, marginBottom: 16 }}></div>
         <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, marginBottom: 8 }}>Speed Date</h2>
         <p style={{ fontSize: 14, color: C.muted, marginBottom: 24 }}>
           {agentAName} meets {agentBName}. Their AI agents will have a real conversation
@@ -109,7 +109,7 @@ export default function SpeedDateViewer({
             color: "white", border: "none", cursor: "pointer",
           }}
         >
-          ⚡ Start Speed Date
+           Start Speed Date
         </button>
       </div>
     );
@@ -127,7 +127,7 @@ export default function SpeedDateViewer({
           transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
           style={{ fontSize: 48, display: "inline-block", marginBottom: 16 }}
         >
-          ⚡
+          
         </motion.div>
         <p style={{ fontSize: 15, fontWeight: 600, color: C.text }}>Agents are talking...</p>
         <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
@@ -151,7 +151,7 @@ export default function SpeedDateViewer({
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
-            {agentAName} ⚡ {agentBName}
+            {agentAName}  {agentBName}
           </span>
           {result.topics_discussed.length > 0 && (
             <span style={{ fontSize: 11, color: C.muted }}>
@@ -238,7 +238,7 @@ export default function SpeedDateViewer({
               fontSize: 24, fontWeight: 900,
               color: result.outcome === "match" ? C.green : result.outcome === "no_match" ? C.red : C.yellow,
             }}>
-              {result.outcome === "match" ? "🤝 IT'S A MATCH!" : result.outcome === "no_match" ? "❌ No Match" : "🤔 Undecided"}
+              {result.outcome === "match" ? " IT'S A MATCH!" : result.outcome === "no_match" ? " No Match" : "🤔 Undecided"}
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
@@ -276,7 +276,7 @@ function AgentBadge({ name, mood, side }: { name: string; mood?: MoodState; side
         display: "flex", alignItems: "center", justifyContent: "center",
         fontSize: 22, margin: "0 auto 6px",
       }}>
-        {mood ? MOOD_EMOJI[mood] : "⚡"}
+        {mood ? MOOD_EMOJI[mood] : ""}
       </div>
       <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{name}</div>
       {mood && (
@@ -297,7 +297,7 @@ function VerdictCard({ name, verdict, color }: {
       borderLeft: `3px solid ${verdict.wants_match ? C.green : C.red}`,
     }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 4 }}>
-        {name} {verdict.wants_match ? "✅" : "❌"}
+        {name} {verdict.wants_match ? "" : ""}
       </div>
       <div style={{ fontSize: 11, color: C.muted }}>{verdict.reason}</div>
     </div>

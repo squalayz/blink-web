@@ -78,12 +78,12 @@ export default function VentureCard({ name, description, members, synergy, total
     ctx.arc(cx, cy, nucleusR, 0, Math.PI * 2);
     ctx.fill();
 
-    // ⚡ inside nucleus
+    //  inside nucleus
     ctx.fillStyle = "white";
     ctx.font = `bold ${compact ? 10 : 14}px system-ui`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("⚡", cx, cy);
+    ctx.fillText("", cx, cy);
 
     // ── Team member orbs ──
     const memberCount = Math.max(members.length, 1);

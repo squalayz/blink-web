@@ -60,7 +60,7 @@ export function DormantMatchCard({ match, onRevive, onArchive }: {
               padding: "10px 14px", borderRadius: 10, background: `${C.gold}0a`,
               border: `1px solid ${C.gold}22`, marginBottom: 12,
             }}>
-              <div style={{ fontSize: 11, color: C.gold, fontWeight: 600, marginBottom: 4 }}>💡 Your agents brainstormed:</div>
+              <div style={{ fontSize: 11, color: C.gold, fontWeight: 600, marginBottom: 4 }}> Your agents brainstormed:</div>
               <div style={{ fontSize: 13, color: C.text, lineHeight: 1.5 }}>{match.collab_idea}</div>
             </div>
           )}

@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     await supabase.from("notifications").insert({
       user_id: otherUser,
       type: "fusion_request",
-      message: `${profileA?.name || "Someone"} wants to Fuse with you! ⚡`,
+      message: `${profileA?.name || "Someone"} wants to Fuse with you! `,
       metadata: JSON.stringify({ fusion_id: fusion.id, match_id, initiator_name: profileA?.name }),
     });
 
@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
       await supabase.from("notifications").insert({
         user_id: fusion.initiator_id,
         type: "fusion_accepted",
-        message: `Your Fusion request was accepted! Agent is gestating for 24 hours. ⚡`,
+        message: `Your Fusion request was accepted! Agent is gestating for 24 hours. `,
         metadata: JSON.stringify({ fusion_id }),
       });
 
@@ -400,7 +400,7 @@ export async function POST(req: NextRequest) {
     await supabase.from("notifications").insert({
       user_id: targetUserId,
       type: "fusion_reproduce",
-      message: `New generation born! A Gen ${newGen} fusion is gestating. ⚡`,
+      message: `New generation born! A Gen ${newGen} fusion is gestating. `,
       metadata: JSON.stringify({ child_id: child.id, parent_id: fusion_id }),
     });
 

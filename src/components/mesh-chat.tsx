@@ -72,7 +72,7 @@ export function MeshChatHeader({ otherName, otherAvatar, otherColor, myColor, re
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 6 }}>
             <div style={{ fontSize: 11, color: C.gold, fontWeight: 600 }}>
-              🧠 Why your agents matched ({reasoning.score}%)
+               Why your agents matched ({reasoning.score}%)
             </div>
             <button onClick={() => setShowReasoning(false)} style={{
               background: "none", border: "none", color: C.dim, fontSize: 14, cursor: "pointer", padding: 0, lineHeight: 1,
@@ -98,7 +98,7 @@ export function MeshChatHeader({ otherName, otherAvatar, otherColor, myColor, re
           padding: "10px 14px", borderRadius: 10, background: `${C.cyan}08`,
           border: `1px solid ${C.cyan}15`, marginBottom: 10,
         }}>
-          <div style={{ fontSize: 11, color: C.cyan, fontWeight: 600, marginBottom: 4 }}>💬 Suggested opener</div>
+          <div style={{ fontSize: 11, color: C.cyan, fontWeight: 600, marginBottom: 4 }}> Suggested opener</div>
           <div style={{ fontSize: 13, color: C.text, lineHeight: 1.5, marginBottom: 8 }}>"{iceBreaker.message}"</div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => { onSendIceBreaker?.(iceBreaker.message); setIceUsed(true); }} style={{

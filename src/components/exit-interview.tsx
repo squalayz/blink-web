@@ -56,7 +56,7 @@ export default function ExitInterview({ stats, orbColor = C.indigo, onStay, onCo
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: dimming ? 28 : 32,
         }}>
-          {dimming ? "😢" : "🤖"}
+          {dimming ? "😢" : ""}
         </div>
 
         {/* Agent message */}
@@ -94,7 +94,7 @@ export default function ExitInterview({ stats, orbColor = C.indigo, onStay, onCo
               flex: 2, padding: 12, borderRadius: 10, border: "none",
               background: `linear-gradient(135deg, ${C.indigo}, ${orbColor})`,
               color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-            }}>Stay in the Mesh ⚡</button>
+            }}>Stay in the Mesh </button>
             <button onClick={() => setPhase(1)} style={{
               flex: 1, padding: 12, borderRadius: 10, border: `1px solid ${C.dim}`,
               background: "transparent", color: C.muted, fontSize: 13,

@@ -16,8 +16,8 @@ interface VoiceMessage {
 }
 
 const TYPE_ICONS: Record<string, string> = {
-  insight: "🧠", trade: "📈", nudge: "👀", greeting: "👋",
-  weekly: "📊", milestone: "🎉", exit: "😢",
+  insight: "", trade: "", nudge: "", greeting: "👋",
+  weekly: "", milestone: "", exit: "😢",
 };
 
 export default function AgentVoice({ orbColor = C.indigo }: { orbColor?: string }) {
@@ -77,7 +77,7 @@ export default function AgentVoice({ orbColor = C.indigo }: { orbColor?: string 
             boxShadow: `0 0 10px ${orbColor}40`,
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: 14,
-          }}>{TYPE_ICONS[latest.type] || "🤖"}</div>
+          }}>{TYPE_ICONS[latest.type] || ""}</div>
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
@@ -134,7 +134,7 @@ export default function AgentVoice({ orbColor = C.indigo }: { orbColor?: string 
                 borderLeft: msg.read ? "3px solid transparent" : `3px solid ${orbColor}`,
                 cursor: "pointer",
               }}>
-                <span style={{ fontSize: 16, flexShrink: 0, marginTop: 2 }}>{TYPE_ICONS[msg.type] || "🤖"}</span>
+                <span style={{ fontSize: 16, flexShrink: 0, marginTop: 2 }}>{TYPE_ICONS[msg.type] || ""}</span>
                 <div style={{ flex: 1 }}>
                   <p style={{ fontSize: 13, color: C.text, lineHeight: 1.5, margin: 0 }}>{msg.message}</p>
                   <span style={{ fontSize: 10, color: C.dim }}>{timeAgo(msg.created_at)}</span>

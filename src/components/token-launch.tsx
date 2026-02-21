@@ -35,7 +35,7 @@ export function TokenProposeModal({ fusionId, fusionName, onPropose, onClose }: 
         animation: "tl-in 0.25s cubic-bezier(0.16,1,0.3,1)",
       }}>
         <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>🚀</div>
+          <div style={{ fontSize: 36, marginBottom: 8 }}></div>
           <h2 style={{ fontSize: 20, fontWeight: 800, margin: "0 0 4px" }}>Launch Token</h2>
           <p style={{ fontSize: 13, color: C.muted }}>Born from <strong style={{ color: C.violet }}>{fusionName}</strong></p>
         </div>
@@ -85,7 +85,7 @@ export function TokenProposeModal({ fusionId, fusionName, onPropose, onClose }: 
             background: `linear-gradient(135deg, ${C.green}, #16a34a)`,
             color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
             opacity: sending ? 0.6 : 1,
-          }}>{sending ? "Sending..." : "🚀 Propose to Co-Founder"}</button>
+          }}>{sending ? "Sending..." : " Propose to Co-Founder"}</button>
         </div>
 
         <style>{`@keyframes tl-in{from{opacity:0;transform:scale(0.96) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}`}</style>
@@ -119,7 +119,7 @@ export function TokenProposalCard({ launch, isFounderA, userId, onAgree, onUpdat
       padding: 18, maxWidth: 380,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <span style={{ fontSize: 20 }}>🚀</span>
+        <span style={{ fontSize: 20 }}></span>
         <div style={{ flex: 1 }}>
           <span style={{ fontSize: 14, fontWeight: 800, color: C.text }}>Token Launch</span>
           <span style={{
@@ -232,7 +232,7 @@ export function TokenProposalCard({ launch, isFounderA, userId, onAgree, onUpdat
           textAlign: "center", padding: "8px 0", fontSize: 14, fontWeight: 800,
           color: C.green,
         }}>
-          🚀 TOKEN IS LIVE!
+           TOKEN IS LIVE!
           <div style={{ marginTop: 4 }}>
             <a href={`/marketplace/${launch.id}`} style={{ fontSize: 12, color: C.violet }}>View on Marketplace →</a>
           </div>
@@ -261,7 +261,7 @@ export function DeployAnimation({ name, symbol, onClose }: { name: string; symbo
       <div style={{ textAlign: "center", animation: "deploy-in 0.6s cubic-bezier(0.16,1,0.3,1)" }}>
         <div style={{
           fontSize: 72, marginBottom: 16, animation: "deploy-rocket 1s ease-out",
-        }}>🚀</div>
+        }}></div>
         <h1 style={{ fontSize: 32, fontWeight: 900, color: C.gold, marginBottom: 8 }}>
           ${symbol} IS LIVE!
         </h1>

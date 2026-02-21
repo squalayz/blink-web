@@ -122,7 +122,7 @@ export default function FusionDetailPage() {
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 28, flexShrink: 0,
             }}>
-              {fusion.status === "gestating" ? "🥚" : fusion.status === "active" ? "⚡" : "🧬"}
+              {fusion.status === "gestating" ? "🥚" : fusion.status === "active" ? "" : ""}
             </div>
 
             <div style={{ flex: 1 }}>
@@ -175,7 +175,7 @@ export default function FusionDetailPage() {
               color: tab === t ? C.violet : C.muted,
               fontSize: 13, fontWeight: tab === t ? 700 : 500,
               cursor: "pointer", fontFamily: "inherit", textTransform: "capitalize",
-            }}>{t === "dna" ? "🧬 DNA" : t === "chat" ? "💬 Chat" : t === "treasury" ? "💰 Treasury" : "📋 Activity"}</button>
+            }}>{t === "dna" ? " DNA" : t === "chat" ? " Chat" : t === "treasury" ? " Treasury" : " Activity"}</button>
           ))}
         </div>
 
@@ -237,7 +237,7 @@ export default function FusionDetailPage() {
               activity.filter(a => a.type !== "message").map((a, i) => (
                 <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: i < activity.length - 1 ? `1px solid ${C.border}` : "none" }}>
                   <span style={{ fontSize: 16, flexShrink: 0 }}>
-                    {a.type === "status_change" ? "🔄" : a.type === "treasury" ? "💰" : a.type === "reproduce" ? "🧬" : a.type === "dissolve" ? "💨" : a.type === "mutation" ? "🧪" : "📋"}
+                    {a.type === "status_change" ? "" : a.type === "treasury" ? "" : a.type === "reproduce" ? "" : a.type === "dissolve" ? "💨" : a.type === "mutation" ? "" : ""}
                   </span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, color: C.text }}>{formatActivity(a)}</div>
@@ -252,7 +252,7 @@ export default function FusionDetailPage() {
         {/* ═══ DNA TAB ═══ */}
         {tab === "dna" && (
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 20 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 12 }}>🧬 DNA Genome</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 12 }}> DNA Genome</h3>
 
             {/* Skills */}
             <div style={{ marginBottom: 16 }}>
@@ -347,7 +347,7 @@ export default function FusionDetailPage() {
         {/* ═══ MINI LINEAGE ═══ */}
         <div style={{ marginTop: 20, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <h4 style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>🧬 Lineage</h4>
+            <h4 style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}> Lineage</h4>
             <button onClick={() => router.push("/dashboard/lineage")} style={{
               fontSize: 11, color: C.violet, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit",
             }}>Full bloodline →</button>
@@ -373,7 +373,7 @@ export default function FusionDetailPage() {
                 background: `${genColor}33`, border: `2px solid ${genColor}55`,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 18,
-              }}>⚡</div>
+              }}></div>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.text }}>{fusion.name}</div>
             </div>
           </div>
@@ -383,7 +383,7 @@ export default function FusionDetailPage() {
         {fusion.status === "active" && (
           <div style={{ marginTop: 20, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <h4 style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>🚀 Token</h4>
+              <h4 style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}> Token</h4>
             </div>
             {tokenLaunch ? (
               tokenLaunch.status === "LIVE" ? (
@@ -406,7 +406,7 @@ export default function FusionDetailPage() {
                 width: "100%", padding: 14, borderRadius: 10, border: "none",
                 background: `linear-gradient(135deg, ${C.green}, #16a34a)`,
                 color: "white", fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
-              }}>🚀 Launch Token</button>
+              }}> Launch Token</button>
             )}
           </div>
         )}

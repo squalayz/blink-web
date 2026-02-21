@@ -117,7 +117,7 @@ export default function PersonalityPage() {
                   }}
                 >
                   <span style={{ fontSize: 16 }}>
-                    {ms.type === "catchphrase_born" ? "💬" : ms.type === "quirk_retired" ? "🪦" : ms.type === "trait_shift" ? "📈" : "⭐"}
+                    {ms.type === "catchphrase_born" ? "" : ms.type === "quirk_retired" ? "🪦" : ms.type === "trait_shift" ? "" : ""}
                   </span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{ms.title}</div>
@@ -142,7 +142,7 @@ export default function PersonalityPage() {
               background: `linear-gradient(135deg, ${C.indigo}, ${C.purple})`,
               display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0,
             }}>
-              {MOOD_EMOJI[mood.current as MoodState] || "⚡"}
+              {MOOD_EMOJI[mood.current as MoodState] || ""}
             </div>
             <div style={{ flex: 1, minWidth: 200 }}>
               <h1 style={{ fontSize: 24, fontWeight: 900, color: C.text, margin: 0 }}>{soul.name}</h1>
@@ -162,7 +162,7 @@ export default function PersonalityPage() {
           </div>
           {soul.hot_take && (
             <div style={{ marginTop: 12, padding: "8px 12px", background: C.surface2, borderRadius: 8, fontSize: 13, color: C.muted, fontStyle: "italic" }}>
-              🔥 Hot take: "{soul.hot_take}"
+               Hot take: "{soul.hot_take}"
             </div>
           )}
         </motion.div>
@@ -179,7 +179,7 @@ export default function PersonalityPage() {
                 cursor: "pointer", whiteSpace: "nowrap",
               }}
             >
-              {t === "overview" ? "🧠 Overview" : t === "quirks" ? "⚡ Quirks" : t === "evolution" ? "📈 Evolution" : t === "strategy" ? "📋 Playbook" : "💭 Memories"}
+              {t === "overview" ? " Overview" : t === "quirks" ? " Quirks" : t === "evolution" ? " Evolution" : t === "strategy" ? " Playbook" : "💭 Memories"}
             </button>
           ))}
         </div>
@@ -195,7 +195,7 @@ export default function PersonalityPage() {
 
             {/* Catchphrases */}
             <div style={{ background: C.surface, borderRadius: 16, padding: 20, border: `1px solid ${C.dim}` }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 12 }}>💬 Catchphrases</h3>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 12 }}> Catchphrases</h3>
               {data.catchphrases.length === 0 && <p style={{ fontSize: 13, color: C.muted }}>None yet — they'll emerge from experience</p>}
               {data.catchphrases.map((cp, i) => (
                 <div key={i} style={{ marginBottom: 8, padding: "8px 10px", background: C.surface2, borderRadius: 8 }}>
@@ -222,7 +222,7 @@ export default function PersonalityPage() {
 
             {/* Mood History */}
             <div style={{ gridColumn: "1 / -1", background: C.surface, borderRadius: 16, padding: 20, border: `1px solid ${C.dim}` }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 12 }}>🎭 Mood History</h3>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 12 }}> Mood History</h3>
               <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
                 {data.mood_history.map((m, i) => (
                   <div key={i} style={{
@@ -242,7 +242,7 @@ export default function PersonalityPage() {
             {/* Lineage Traits (Fusion agents only) */}
             {data.lineage_traits && (
               <div style={{ gridColumn: "1 / -1", background: C.surface, borderRadius: 16, padding: 20, border: `1px solid ${C.purple}33` }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: C.purple, marginBottom: 12 }}>🧬 Lineage Traits</h3>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: C.purple, marginBottom: 12 }}> Lineage Traits</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   {data.lineage_traits.inherited_from_a.length > 0 && (
                     <div>
@@ -263,7 +263,7 @@ export default function PersonalityPage() {
                 </div>
                 {data.lineage_traits.mutations.length > 0 && (
                   <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: C.yellow, marginBottom: 6 }}>⚡ Mutations</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.yellow, marginBottom: 6 }}> Mutations</div>
                     {data.lineage_traits.mutations.map((t, i) => (
                       <span key={i} style={{ display: "inline-block", fontSize: 11, background: `${C.yellow}22`, color: C.yellow, borderRadius: 6, padding: "2px 8px", marginRight: 6, marginBottom: 4 }}>{t}</span>
                     ))}
@@ -285,7 +285,7 @@ export default function PersonalityPage() {
         {/* ═══ QUIRKS TAB ═══ */}
         {tab === "quirks" && (
           <div>
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 12 }}>⚡ Active Quirks ({data.quirks.length})</h3>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 12 }}> Active Quirks ({data.quirks.length})</h3>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12, marginBottom: 24 }}>
               {data.quirks.map((q, i) => (
                 <motion.div
@@ -300,7 +300,7 @@ export default function PersonalityPage() {
                     When: {q.trigger} • Fires {Math.round(q.frequency * 100)}% of the time
                   </div>
                   <div style={{ display: "flex", gap: 12, fontSize: 11 }}>
-                    <span style={{ color: C.green }}>👍 {Math.round((q.hit_rate || 0.5) * 100)}%</span>
+                    <span style={{ color: C.green }}> {Math.round((q.hit_rate || 0.5) * 100)}%</span>
                     <span style={{ color: C.muted }}>Used {q.usage_count || 0}x</span>
                     <span style={{ color: C.purple }}>{q.origin}</span>
                   </div>
@@ -332,7 +332,7 @@ export default function PersonalityPage() {
         {/* ═══ EVOLUTION TAB ═══ */}
         {tab === "evolution" && (
           <div>
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 16 }}>📈 Evolution Timeline</h3>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 16 }}> Evolution Timeline</h3>
             <div style={{ position: "relative", paddingLeft: 24 }}>
               {/* Vertical line */}
               <div style={{ position: "absolute", left: 8, top: 0, bottom: 0, width: 2, background: C.dim }} />
@@ -356,7 +356,7 @@ export default function PersonalityPage() {
                   <div style={{ background: C.surface, borderRadius: 10, padding: 12, border: `1px solid ${ev.milestone ? C.yellow + "44" : C.dim}` }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
-                        {ev.milestone && "⭐ "}{ev.trait}
+                        {ev.milestone && " "}{ev.trait}
                       </span>
                       <span style={{
                         fontSize: 12, fontWeight: 700,
@@ -382,7 +382,7 @@ export default function PersonalityPage() {
         {tab === "strategy" && (
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: C.text }}>📋 Strategy Playbook</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: C.text }}> Strategy Playbook</h3>
               <button
                 onClick={triggerReflection}
                 disabled={reflecting}
@@ -392,7 +392,7 @@ export default function PersonalityPage() {
                   border: "none", cursor: reflecting ? "default" : "pointer",
                 }}
               >
-                {reflecting ? "🧠 Reflecting..." : "🧠 Trigger Reflection"}
+                {reflecting ? " Reflecting..." : " Trigger Reflection"}
               </button>
             </div>
 
@@ -405,7 +405,7 @@ export default function PersonalityPage() {
                   exit={{ height: 0, opacity: 0 }}
                   style={{ background: `${C.purple}11`, borderRadius: 12, padding: 16, marginBottom: 16, border: `1px solid ${C.purple}33`, overflow: "hidden" }}
                 >
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.purple, marginBottom: 8 }}>🧠 Reflection Complete</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.purple, marginBottom: 8 }}> Reflection Complete</div>
                   <p style={{ fontSize: 13, color: C.text, marginBottom: 8 }}>{reflectionResult.summary}</p>
                   <div style={{ fontSize: 12, color: C.muted }}>
                     Self-rating: {Math.round(reflectionResult.self_rating * 100)}% • Focus: {reflectionResult.improvement_focus}
@@ -460,7 +460,7 @@ export default function PersonalityPage() {
               {data.memory_stats.total} total • Most impactful moments and learned insights
             </p>
 
-            <h4 style={{ fontSize: 13, fontWeight: 700, color: C.yellow, marginBottom: 8 }}>🔥 Most Impactful</h4>
+            <h4 style={{ fontSize: 13, fontWeight: 700, color: C.yellow, marginBottom: 8 }}> Most Impactful</h4>
             {data.memory_stats.highest_emotional.map((m, i) => (
               <MemoryCard key={`high-${i}`} memory={m} />
             ))}
@@ -562,9 +562,9 @@ function RadarChart({ personality }: { personality: Record<string, number> }) {
 // ═══ MEMORY CARD ═══
 function MemoryCard({ memory }: { memory: AgentMemory }) {
   const typeEmoji: Record<string, string> = {
-    interaction: "💬", match_outcome: "🤝", deal_outcome: "💰", learned_rule: "📋",
-    preference: "❤️", observation: "👀", reflection: "🧠", quirk_evolution: "⚡",
-    emotional_moment: "🔥", strategy_update: "📈", inherited: "🧬",
+    interaction: "", match_outcome: "", deal_outcome: "", learned_rule: "",
+    preference: "", observation: "", reflection: "", quirk_evolution: "",
+    emotional_moment: "", strategy_update: "", inherited: "",
   };
 
   return (
@@ -584,7 +584,7 @@ function MemoryCard({ memory }: { memory: AgentMemory }) {
 function LoadingState() {
   return (
     <div style={{ minHeight: "100vh", background: C.base, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} style={{ fontSize: 32 }}>🧠</motion.div>
+      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} style={{ fontSize: 32 }}></motion.div>
     </div>
   );
 }
@@ -592,7 +592,7 @@ function LoadingState() {
 function EmptyState() {
   return (
     <div style={{ minHeight: "100vh", background: C.base, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
-      <div style={{ fontSize: 48, marginBottom: 12 }}>🧬</div>
+      <div style={{ fontSize: 48, marginBottom: 12 }}></div>
       <h2 style={{ fontSize: 20, fontWeight: 700, color: C.text }}>No personality data found</h2>
       <p style={{ fontSize: 14, color: C.muted }}>Complete the birth interview first.</p>
     </div>

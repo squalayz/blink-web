@@ -148,7 +148,7 @@ export default function NavBar() {
                     fontSize: 13, fontWeight: 700, color: threshold.color, transition: "color 0.3s",
                   }}>{bal.eth.toFixed(3)}</span>
                   <span className="mm-bal-unit" style={{ fontSize: 11, color: C.muted, fontWeight: 400 }}>ETH</span>
-                  {threshold.level === "red" && <span style={{ fontSize: 10, animation: "mm-pulse-fast 0.8s infinite" }}>⚠️</span>}
+                  {threshold.level === "red" && <span style={{ fontSize: 10, animation: "mm-pulse-fast 0.8s infinite" }}></span>}
                 </div>
 
                 {/* ── Dropdown ── */}
@@ -210,7 +210,7 @@ export default function NavBar() {
               padding: "10px 22px", borderRadius: 10,
               background: `linear-gradient(135deg,${C.indigo},${C.purple})`,
               color: "white", fontSize: 14, fontWeight: 700, textDecoration: "none",
-            }}>Enter the Mesh ⚡</a>
+            }}>Enter the Mesh </a>
           )}
         </div>
       </nav>

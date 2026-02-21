@@ -170,7 +170,7 @@ export default function TokenDetailPage() {
                   color: tab === t ? C.violet : C.muted,
                   fontSize: 13, fontWeight: tab === t ? 700 : 500,
                   cursor: "pointer", fontFamily: "inherit", textTransform: "capitalize",
-                }}>{t === "chart" ? "📈 Chart" : t === "holders" ? "👥 Holders" : "📋 Trades"}</button>
+                }}>{t === "chart" ? " Chart" : t === "holders" ? "👥 Holders" : " Trades"}</button>
               ))}
             </div>
 

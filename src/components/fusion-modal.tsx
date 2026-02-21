@@ -7,7 +7,7 @@ const C = {
   muted:"#a1a1aa", dim:"#333", violet:"#8b5cf6", green:"#22c55e", red:"#ef4444",
 };
 
-// ═══ INITIATOR MODAL (User A clicks "⚡ Fuse") ═══
+// ═══ INITIATOR MODAL (User A clicks " Fuse") ═══
 export function FuseInitiateModal({ matchId, partnerName, partnerAvatar, myName, compatScore, onSend, onClose }: {
   matchId: string; partnerName: string; partnerAvatar?: string;
   myName: string; compatScore: number; onSend: (goal: string) => void; onClose: () => void;
@@ -26,7 +26,7 @@ export function FuseInitiateModal({ matchId, partnerName, partnerAvatar, myName,
         {/* Two orbs merging */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16 }}>
           <Orb label={myName} color={C.violet} />
-          <div style={{ fontSize: 24, color: C.violet, animation: "fuse-bolt 1s infinite" }}>⚡</div>
+          <div style={{ fontSize: 24, color: C.violet, animation: "fuse-bolt 1s infinite" }}></div>
           <Orb label={partnerName} color={GEN_COLORS[1]} avatar={partnerAvatar} />
         </div>
         <h2 style={{ fontSize: 20, fontWeight: 800, margin: "0 0 4px" }}>Fuse with {partnerName}</h2>
@@ -56,7 +56,7 @@ export function FuseInitiateModal({ matchId, partnerName, partnerAvatar, myName,
         padding: "12px 14px", borderRadius: 10, background: `${C.violet}08`,
         border: `1px solid ${C.violet}15`, marginBottom: 16,
       }}>
-        <div style={{ fontSize: 11, color: C.violet, fontWeight: 700, marginBottom: 6 }}>🧬 Predicted DNA</div>
+        <div style={{ fontSize: 11, color: C.violet, fontWeight: 700, marginBottom: 6 }}> Predicted DNA</div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {["Combined skills from both agents", "Blended personality traits", "Shared treasury wallet", "Round-robin API keys (zero extra cost)"].map(t => (
             <span key={t} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: `${C.violet}15`, color: C.violet }}>{t}</span>
@@ -81,7 +81,7 @@ export function FuseInitiateModal({ matchId, partnerName, partnerAvatar, myName,
           background: `linear-gradient(135deg, ${C.violet}, #a855f7)`,
           color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
           opacity: sending ? 0.6 : 1,
-        }}>{sending ? "Sending..." : "⚡ Send Fusion Request"}</button>
+        }}>{sending ? "Sending..." : " Send Fusion Request"}</button>
       </div>
 
       <style>{`@keyframes fuse-bolt{0%,100%{transform:scale(1);opacity:0.7}50%{transform:scale(1.2);opacity:1}}`}</style>
@@ -122,7 +122,7 @@ export function FuseReceiveModal({ fusionId, initiatorName, initiatorAvatar, myN
           padding: "12px 14px", borderRadius: 10, background: `${C.violet}08`,
           border: `1px solid ${C.violet}15`, marginBottom: 16,
         }}>
-          <div style={{ fontSize: 11, color: C.violet, fontWeight: 700, marginBottom: 4 }}>🎯 Proposed Goal</div>
+          <div style={{ fontSize: 11, color: C.violet, fontWeight: 700, marginBottom: 4 }}> Proposed Goal</div>
           <p style={{ fontSize: 13, color: C.text, margin: 0 }}>{goal}</p>
         </div>
       )}
@@ -144,7 +144,7 @@ export function FuseReceiveModal({ fusionId, initiatorName, initiatorAvatar, myN
           background: `linear-gradient(135deg, ${C.violet}, #a855f7)`,
           color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
           opacity: responding ? 0.6 : 1,
-        }}>{responding ? "..." : "⚡ Accept Fusion"}</button>
+        }}>{responding ? "..." : " Accept Fusion"}</button>
       </div>
     </Modal>
   );

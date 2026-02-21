@@ -16,7 +16,7 @@ export default function Icon() {
         background: 'linear-gradient(135deg, #6366f1, #a855f7)',
         borderRadius: 8,
       }}>
-        🧬
+        
       </div>
     ),
     { ...size }

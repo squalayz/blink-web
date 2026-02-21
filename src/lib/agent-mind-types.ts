@@ -91,8 +91,8 @@ export interface AgentMood {
 }
 
 export const MOOD_EMOJI: Record<MoodState, string> = {
-  fired_up: "🔥", confident: "😎", chill: "🧘", focused: "🎯",
-  playful: "😜", determined: "💪", curious: "🔍", cautious: "🛡️",
+  fired_up: "", confident: "😎", chill: "🧘", focused: "",
+  playful: "😜", determined: "💪", curious: "", cautious: "",
 };
 
 export const MOOD_COLORS: Record<MoodState, string> = {

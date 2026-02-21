@@ -61,7 +61,7 @@ export async function POST() {
     return NextResponse.json({
       ok: true,
       address: walletAddress,
-      privateKey, // ⚠️ SHOWN ONCE — user must save this
+      privateKey, //  SHOWN ONCE — user must save this
       userId: newUser.id,
     });
   } catch (err: any) {

@@ -19,7 +19,7 @@ export function SoundToggle({ enabled, onChange }: { enabled: boolean; onChange:
       padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.04)",
     }}>
       <div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#e8e8f0" }}>🔊 Mesh Sounds</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#e8e8f0" }}> Mesh Sounds</div>
         <div style={{ fontSize: 11, color: "#6b6b80" }}>Ambient hum, match pings, connection clicks</div>
       </div>
       <button onClick={() => { onChange(!enabled); if (!enabled) playMatchPing(); }} style={{
