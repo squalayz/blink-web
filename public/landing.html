@@ -922,6 +922,8 @@ async function fetchAndUpdateBalance(){
   }catch(e){}
 }
 
+let _isAuthed=false;
+
 async function checkAuthAndShowBalance(){
   try{
     const res=await fetch('/api/auth/siwe/session');
@@ -929,11 +931,24 @@ async function checkAuthAndShowBalance(){
     const data=await res.json();
     if(!data||!data.user)return;
     const u=data.user;
+    _isAuthed=true;
     // User is logged in — show balance widget, hide CTA
     document.getElementById('balWidget').classList.add('visible');
     document.getElementById('balSep').style.display='block';
     document.getElementById('navAvatar').classList.add('visible');
     document.getElementById('navCta').style.display='none';
+    // Swap ALL "Enter the Mesh" buttons to go straight to dashboard
+    document.querySelectorAll('.mobile-bottom-cta button, .btn-primary, .submit-btn').forEach(btn=>{
+      if(btn.textContent.includes('Enter the Mesh')){
+        btn.onclick=function(e){e.preventDefault();window.location='/dashboard';};
+      }
+    });
+    // Also swap the hero CTA and any openModal() calls in the page
+    const heroCta=document.querySelector('#hero .btn-primary, #hero button[onclick*="openModal"]');
+    if(heroCta)heroCta.onclick=function(e){e.preventDefault();window.location='/dashboard';};
+    // Mobile bottom CTA
+    const mobBtn=document.querySelector('#mobileBottomCta button');
+    if(mobBtn)mobBtn.onclick=function(e){e.preventDefault();window.location='/dashboard';};
     // Set avatar — wallet-first: show address snippet as fallback
     const av=document.getElementById('navAvatarInner');
     if(u.avatar_url){av.innerHTML=`<img src="${u.avatar_url}" alt="">`;}
@@ -942,6 +957,13 @@ async function checkAuthAndShowBalance(){
     fetchAndUpdateBalance();
     setInterval(fetchAndUpdateBalance,30000);
   }catch(e){}
+}
+
+// Override openModal — if authed, go to dashboard instead
+function openModal(){
+  if(_isAuthed){window.location='/dashboard';return;}
+  document.getElementById('modalOverlay').classList.add('open');
+  document.body.style.overflow='hidden';
 }
 
 function initNavbar(){
