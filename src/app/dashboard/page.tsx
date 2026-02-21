@@ -357,6 +357,7 @@ export default function Dashboard(){
 
   const[form,setForm]=useState({name:"",bio:"",industry:"",building:"",looking_for:"",location:"",website:"",x_handle:"",linkedin:"",avatar_url:"",agent_style:"professional",agent_instructions:""});
   const[obStep,setObStep]=useState(1);
+  const[showWalletDrop,setShowWalletDrop]=useState(false);
   const obSteps=[{n:1,l:"Profile"},{n:2,l:"Industry & Goals"},{n:3,l:"AI Brain"},{n:4,l:"Personality"}];
   const obCanNext=obStep===1?!!form.name:obStep===2?!!(form.building&&form.looking_for):true;
 
@@ -908,17 +909,27 @@ export default function Dashboard(){
     <div style={{minHeight:"100vh",background:C.bg}}>
       {/* Hide global navbar */}
       <style>{`nav.mm-global-nav{display:none!important}`}</style>
+      {showWalletDrop&&<div onClick={()=>setShowWalletDrop(false)} style={{position:"fixed",inset:0,zIndex:998}}/>}
       {/* ── Nav ── */}
       <nav style={{padding:"4px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setView("mesh")}>
           <MMLogo size={32}/><span style={{fontWeight:700,fontSize:15}}>MishMesh</span><TierBadge tier={user?.tier||"free"}/>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:14}}>
-          {/* Wallet balance */}
-          <div onClick={()=>setView("wallet")} style={{cursor:"pointer",display:"flex",alignItems:"center",gap:6,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"6px 14px"}}>
-            <div style={{width:8,height:8,borderRadius:"50%",background:C.match,boxShadow:`0 0 6px ${C.match}`}}/>
-            <span style={{fontSize:13,fontWeight:700,color:C.text,fontFamily:"'JetBrains Mono',monospace"}}>0.007</span>
-            <span style={{fontSize:11,color:C.muted}}>ETH</span>
+          {/* Wallet balance with dropdown */}
+          <div style={{position:"relative"}}>
+            <div onClick={()=>setShowWalletDrop(p=>!p)} style={{cursor:"pointer",display:"flex",alignItems:"center",gap:6,background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"6px 14px"}}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:C.match,boxShadow:`0 0 6px ${C.match}`}}/>
+              <span style={{fontSize:13,fontWeight:700,color:C.text,fontFamily:"'JetBrains Mono',monospace"}}>{wallet?.balance_eth?.toFixed(4)||"0.007"}</span>
+              <span style={{fontSize:11,color:C.muted}}>ETH</span>
+            </div>
+            {showWalletDrop&&(
+              <div style={{position:"absolute",top:"100%",right:0,marginTop:8,background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:12,minWidth:200,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>
+                <div style={{fontSize:10,color:C.dim,marginBottom:8,fontFamily:"monospace",wordBreak:"break-all"}}>{user?.wallet_address?.slice(0,6)}...{user?.wallet_address?.slice(-4)}</div>
+                <button onClick={()=>{setShowWalletDrop(false);setTab("wallet");}} style={{width:"100%",padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.text,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:6,fontFamily:"inherit",textAlign:"left"}}>View Wallet</button>
+                <button onClick={async()=>{setShowWalletDrop(false);await fetch("/api/auth/siwe/logout",{method:"POST"});window.location.href="/";}} style={{width:"100%",padding:"8px 12px",borderRadius:8,border:`1px solid rgba(255,50,85,0.3)`,background:"transparent",color:"#FF2D55",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>Disconnect</button>
+              </div>
+            )}
           </div>
           {/* Streak shown as badge on avatar instead */}
           <button onClick={()=>setView("notifications")} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,position:"relative"}}>
