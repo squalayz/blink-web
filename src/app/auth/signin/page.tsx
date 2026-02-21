@@ -44,7 +44,7 @@ export default function SignInPage() {
         statement: "Sign in to MishMesh.ai",
         uri: window.location.origin,
         version: "1",
-        chainId: 8453, // Base
+        chainId: 1, // Mainnet — signing only, no chain requirement
         nonce,
       });
       const messageStr = message.prepareMessage();
