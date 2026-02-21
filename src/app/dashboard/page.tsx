@@ -423,7 +423,7 @@ export default function Dashboard(){
     try{
       const res=await fetch("/api/wallet");
       const data=await res.json();
-      setWallet(data);
+      if(data&&!data.error)setWallet((prev:any)=>({...prev,...data}));
       setTrades(data.recent_trades||[]);
       setDeposits(data.recent_withdrawals||[]);
       setFuelStats({estimated_days:data.estimated_days});
@@ -454,11 +454,10 @@ export default function Dashboard(){
   }
 
   async function updateWalletSettings(settings:any){
-    // Optimistic update — respond immediately
+    // Optimistic update — respond immediately, don't reload from API
     setWallet((w:any)=>({...w,...settings}));
     try{
       await fetch("/api/wallet",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"settings",...settings})});
-      loadWallet();
     }catch(e){console.error("wallet settings error",e);}
   }
 
