@@ -325,7 +325,7 @@ export default function Dashboard(){
   const[lbTab,setLbTab]=useState("builders");
   const chatEndRef=useRef<HTMLDivElement>(null);
   // Crypto + referrals + notifications state
-  const[wallet,setWallet]=useState<any>(null);
+  const[wallet,setWallet]=useState<any>({risk_level:"conservative",trading_enabled:false});
   const[deposits,setDeposits]=useState<any[]>([]);
   const[trades,setTrades]=useState<any[]>([]);
   const[fuelStats,setFuelStats]=useState<any>(null);
@@ -454,8 +454,12 @@ export default function Dashboard(){
   }
 
   async function updateWalletSettings(settings:any){
-    await fetch("/api/wallet",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"settings",...settings})});
-    loadWallet();
+    // Optimistic update — respond immediately
+    setWallet((w:any)=>({...w,...settings}));
+    try{
+      await fetch("/api/wallet",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"settings",...settings})});
+      loadWallet();
+    }catch(e){console.error("wallet settings error",e);}
   }
 
   async function loadNfts(){
@@ -1314,7 +1318,7 @@ export default function Dashboard(){
                 <div><div style={{fontSize:13,fontWeight:600}}>Autonomous Trading</div><div style={{fontSize:11,color:C.muted}}>Agent trades tokens on Base from your wallet</div></div>
                 <button onClick={()=>{
                   if(wallet?.trading_enabled){updateWalletSettings({trading_enabled:false});}
-                  else{setShowRiskModal(true);setRiskAccepted(false);}
+                  else{updateWalletSettings({trading_enabled:true});}
                 }}
                   style={{width:48,height:26,borderRadius:13,background:wallet?.trading_enabled?C.cold:C.s2,border:`1px solid ${wallet?.trading_enabled?C.cold:C.border}`,cursor:"pointer",position:"relative",transition:"all 0.2s"}}>
                   <div style={{width:20,height:20,borderRadius:"50%",background:"white",position:"absolute",top:2,left:wallet?.trading_enabled?24:2,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.3)"}}/>
