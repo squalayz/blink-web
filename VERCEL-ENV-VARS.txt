@@ -1,0 +1,48 @@
+VERCEL ENVIRONMENT VARIABLES
+============================
+Copy each line into Vercel → Settings → Environment Variables
+Set all to: Production + Preview + Development
+
+NEXT_PUBLIC_SUPABASE_URL=https://kirgpeovueddvqtjxioj.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_Yw_sSR7SI06e0V3mC-5s_w_8GFaaOc8
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpcmdwZW92dWVkZHZxdGp4aW9qIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTYzMjk4MywiZXhwIjoyMDg3MjA4OTgzfQ.bDlDgvsoMWYA8WjA6WOquEDCcJlvhVrmp3MZ4WJZEPc
+OPENAI_API_KEY=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
+  ^ THIS IS ONLY for embeddings (text-embedding-3-small). Users bring their own keys for agent AI.
+TWITTER_CLIENT_ID=hNyHSuiljHKBeLHkx2t0PBpyY
+TWITTER_CLIENT_SECRET=G3snlfsukeq0MDFqT0vZGjx7b4x8mC7HlXVIAeE12oFvbtmWmd
+TELEGRAM_BOT_TOKEN=8517621096:AAFGV4h81Lhsxw7h59_qiJ01W2LN54ek2Y8
+TELEGRAM_BOT_USERNAME=MishMeshAiBot
+TELEGRAM_WEBHOOK_URL=https://mishmesh.ai/api/telegram/webhook
+NEXT_PUBLIC_PLATFORM_FEE_WALLET=0xEe9D166D9620af58248F5A7b4e86d3177E96c280
+  ^ Platform wallet now receives FEES ONLY. User funds stay in per-user wallets.
+NEXT_PUBLIC_BASE_RPC_URL=https://mainnet.base.org
+NEXT_PUBLIC_BASE_CHAIN_ID=8453
+WALLET_ENCRYPTION_KEY=M0MqAC3vV+qEs1SASeaLuLlSPZVEpXmvgGQu1T7ObMU=
+  ^ Used to encrypt user private keys at rest. In production: use AWS KMS or Vault.
+NEXT_PUBLIC_APP_URL=https://mishmesh.ai
+NEXTAUTH_URL=https://mishmesh.ai
+NEXTAUTH_SECRET=M0MqAC3vV+qEs1SASeaLuLlSPZVEpXmvgGQu1T7ObMU=
+CRON_SECRET=wO5imyR6716P3m9mLsuR9VJGVRgvr/Kgs9FOQuRv5do=
+
+
+TWITTER DEV PORTAL SETTINGS
+============================
+Callback URL: https://mishmesh.ai/api/auth/callback/twitter
+Website URL:  https://mishmesh.ai
+
+
+POST-DEPLOY: SET UP TELEGRAM WEBHOOK
+============================
+Run this ONCE after first deploy:
+curl "https://mishmesh.ai/api/telegram/setup?secret=wO5imyR6716P3m9mLsuR9VJGVRgvr/Kgs9FOQuRv5do="
+
+
+⚠️ NOTE ABOUT SUPABASE ANON KEY
+============================
+The anon key "sb_publishable_Yw_sSR7SI06e0V3mC-5s_w_8GFaaOc8" may need to be
+replaced with the real JWT key from:
+  Supabase Dashboard → Settings → API → anon/public key (starts with "eyJ...")
+
+NFT_CONTRACT_ADDRESS=0xYOUR_DEPLOYED_CONTRACT
+NEXT_PUBLIC_NFT_CONTRACT=0xYOUR_DEPLOYED_CONTRACT
+  ^ Deploy MishMeshMatch.sol to Base first, then set this.

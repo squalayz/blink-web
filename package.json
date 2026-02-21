@@ -1,0 +1,48 @@
+{
+  "name": "mishmesh-ai",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "^14.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "@supabase/ssr": "^0.5.0",
+    "next-auth": "^4.24.0",
+    "@next-auth/supabase-adapter": "^0.2.1",
+    "@rainbow-me/rainbowkit": "^2.1.0",
+    "wagmi": "^2.12.0",
+    "viem": "^2.19.0",
+    "@tanstack/react-query": "^5.51.0",
+    "siwe": "^2.3.2",
+    "jose": "^5.6.0",
+    "framer-motion": "^11.5.0",
+    "three": "^0.164.0",
+    "@react-three/fiber": "^8.17.0",
+    "@react-three/drei": "^9.109.0",
+    "lucide-react": "^0.400.0",
+    "sonner": "^1.5.0",
+    "zustand": "^4.5.0",
+    "date-fns": "^3.6.0",
+    "grammy": "^1.21.0",
+    "ethers": "^6.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@types/three": "^0.164.0",
+    "typescript": "^5.5.0",
+    "tailwindcss": "^3.4.0",
+    "postcss": "^8.4.0",
+    "autoprefixer": "^10.4.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.0"
+  }
+}
