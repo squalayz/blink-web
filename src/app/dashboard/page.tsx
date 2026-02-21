@@ -103,9 +103,9 @@ function MeshGraph({matches,userId}:{matches:any[];userId:string}){
     });
 
     // Add ambient particles
-    const particles:N[]=Array.from({length:15},()=>({
-      x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-0.5)*0.4,vy:(Math.random()-0.5)*0.4,
-      color:Math.random()>0.5?C.cold:C.cyan,label:"",r:1.5
+    const particles:N[]=Array.from({length:20},()=>({
+      x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-0.5)*0.5,vy:(Math.random()-0.5)*0.5,
+      color:Math.random()>0.6?C.cold:Math.random()>0.3?C.cyan:C.purple,label:"",r:1+Math.random()*1.5
     }));
 
     let t=0, raf:number;
@@ -129,10 +129,10 @@ function MeshGraph({matches,userId}:{matches:any[];userId:string}){
       // Drift all nodes (including "You")
       nodes.forEach((n,i)=>{
         if(i===0){
-          // "You" orb: gentle floating orbit around center
-          n.x=W/2+Math.sin(t*0.5)*12+Math.sin(t*0.8+2)*6;
-          n.y=H/2+Math.cos(t*0.4)*10+Math.cos(t*0.7+1)*5;
-          n.r=10+Math.sin(t*1.5)*0.8; // subtle pulse
+          // "You" orb: slow wandering lissajous across the canvas
+          n.x=W/2+Math.sin(t*0.25)*W*0.18+Math.sin(t*0.4+1.5)*W*0.08;
+          n.y=H/2+Math.cos(t*0.2)*H*0.2+Math.cos(t*0.35+2)*H*0.06;
+          n.r=12+Math.sin(t*1.2)*1.2; // breathing pulse
         }else{
           n.x+=n.vx+Math.sin(t+i)*0.15;
           n.y+=n.vy+Math.cos(t+i*1.3)*0.15;
@@ -150,15 +150,31 @@ function MeshGraph({matches,userId}:{matches:any[];userId:string}){
       });
 
       // Nodes
-      nodes.forEach(n=>{
-        // Glow
-        const g=ctx!.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r*3);
-        g.addColorStop(0,n.color+"50"); g.addColorStop(1,"transparent");
-        ctx!.beginPath(); ctx!.arc(n.x,n.y,n.r*3,0,Math.PI*2); ctx!.fillStyle=g; ctx!.fill();
-        // Core
-        ctx!.beginPath(); ctx!.arc(n.x,n.y,n.r,0,Math.PI*2); ctx!.fillStyle=n.color; ctx!.fill();
+      nodes.forEach((n,i)=>{
+        // Outer glow (bigger for "You" orb)
+        const glowR=i===0?n.r*5:n.r*3;
+        const g=ctx!.createRadialGradient(n.x,n.y,0,n.x,n.y,glowR);
+        g.addColorStop(0,n.color+"40"); g.addColorStop(0.4,n.color+"15"); g.addColorStop(1,"transparent");
+        ctx!.beginPath(); ctx!.arc(n.x,n.y,glowR,0,Math.PI*2); ctx!.fillStyle=g; ctx!.fill();
+
+        if(i===0){
+          // 3D sphere: dark base
+          const baseG=ctx!.createRadialGradient(n.x-n.r*0.3,n.y-n.r*0.3,n.r*0.1,n.x,n.y,n.r);
+          baseG.addColorStop(0,"#a5b4fc"); baseG.addColorStop(0.5,n.color); baseG.addColorStop(1,"#312e81");
+          ctx!.beginPath(); ctx!.arc(n.x,n.y,n.r,0,Math.PI*2); ctx!.fillStyle=baseG; ctx!.fill();
+          // Specular highlight
+          const specG=ctx!.createRadialGradient(n.x-n.r*0.25,n.y-n.r*0.3,0,n.x-n.r*0.2,n.y-n.r*0.2,n.r*0.6);
+          specG.addColorStop(0,"rgba(255,255,255,0.6)"); specG.addColorStop(0.4,"rgba(255,255,255,0.1)"); specG.addColorStop(1,"transparent");
+          ctx!.beginPath(); ctx!.arc(n.x,n.y,n.r,0,Math.PI*2); ctx!.fillStyle=specG; ctx!.fill();
+          // Rim light
+          ctx!.beginPath(); ctx!.arc(n.x,n.y,n.r,0,Math.PI*2);
+          ctx!.strokeStyle="rgba(165,180,252,0.3)"; ctx!.lineWidth=1.5; ctx!.stroke();
+        }else{
+          // Regular nodes — simple filled
+          ctx!.beginPath(); ctx!.arc(n.x,n.y,n.r,0,Math.PI*2); ctx!.fillStyle=n.color; ctx!.fill();
+        }
         // Label
-        if(n.label){ctx!.font=`${n.r>6?11:9}px system-ui`; ctx!.fillStyle=C.muted; ctx!.textAlign="center"; ctx!.fillText(n.label,n.x,n.y+n.r+12);}
+        if(n.label){ctx!.font=`${i===0?"600 12":"400 9"}px system-ui`; ctx!.fillStyle=i===0?C.text:C.muted; ctx!.textAlign="center"; ctx!.fillText(n.label,n.x,n.y+n.r+14);}
       });
 
       raf=requestAnimationFrame(draw);
