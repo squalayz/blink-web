@@ -900,7 +900,7 @@ export default function Dashboard(){
       {/* Hide global navbar */}
       <style>{`nav.mm-global-nav{display:none!important}`}</style>
       {/* ── Nav ── */}
-      <nav style={{padding:"6px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <nav style={{padding:"4px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setView("mesh")}>
           <MMLogo size={32}/><span style={{fontWeight:700,fontSize:15}}>MishMesh</span><TierBadge tier={user?.tier||"free"}/>
         </div>
@@ -920,7 +920,7 @@ export default function Dashboard(){
               {user?.avatar_url?<img src={user.avatar_url} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<span style={{fontSize:14,fontWeight:700,color:"white"}}>{(user?.name||"?")[0]}</span>}
             </div>
             <div style={{position:"absolute",bottom:-1,right:-1,width:10,height:10,borderRadius:"50%",background:C.match,border:`2px solid ${C.bg}`}}/>
-            {streak&&streak.current_streak>0&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:C.warn,borderRadius:6,padding:"1px 5px",fontSize:9,fontWeight:800,color:"#000",border:`1.5px solid ${C.bg}`,display:"flex",alignItems:"center",gap:1,whiteSpace:"nowrap"}} title={`${streak.current_streak} day streak`}><Flame size={8}/>{streak.current_streak}</div>}
+            {streak&&streak.current_streak>0&&<div style={{position:"absolute",top:-16,left:"50%",transform:"translateX(-50%)",background:C.warn,borderRadius:6,padding:"1px 5px",fontSize:9,fontWeight:800,color:"#000",border:`1.5px solid ${C.bg}`,display:"flex",alignItems:"center",gap:1,whiteSpace:"nowrap"}} title={`${streak.current_streak} day streak`}><Flame size={8}/>{streak.current_streak}</div>}
           </div>
         </div>
       </nav>
