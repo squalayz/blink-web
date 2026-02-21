@@ -126,13 +126,19 @@ function MeshGraph({matches,userId}:{matches:any[];userId:string}){
         ctx!.fillStyle=p.color+"30"; ctx!.fill();
       });
 
-      // Drift match nodes
+      // Drift all nodes (including "You")
       nodes.forEach((n,i)=>{
-        if(i===0)return;
-        n.x+=n.vx+Math.sin(t+i)*0.15;
-        n.y+=n.vy+Math.cos(t+i*1.3)*0.15;
-        if(n.x<30||n.x>W-30)n.vx*=-1;
-        if(n.y<30||n.y>H-30)n.vy*=-1;
+        if(i===0){
+          // "You" orb: gentle floating orbit around center
+          n.x=W/2+Math.sin(t*0.5)*12+Math.sin(t*0.8+2)*6;
+          n.y=H/2+Math.cos(t*0.4)*10+Math.cos(t*0.7+1)*5;
+          n.r=10+Math.sin(t*1.5)*0.8; // subtle pulse
+        }else{
+          n.x+=n.vx+Math.sin(t+i)*0.15;
+          n.y+=n.vy+Math.cos(t+i*1.3)*0.15;
+          if(n.x<30||n.x>W-30)n.vx*=-1;
+          if(n.y<30||n.y>H-30)n.vy*=-1;
+        }
       });
 
       // Edges
