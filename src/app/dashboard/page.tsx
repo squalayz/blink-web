@@ -972,21 +972,21 @@ export default function Dashboard(){
           {id:"settings",label:"AI Brain",icon:<Cpu size={13}/>},
         ].map(t=>(
           <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="wallet"&&!wallet)loadWallet();if(t.id==="nfts"&&!nfts.length)loadNfts();if(t.id==="groups"&&!groupMeshes.length)loadGroupMeshes();if(t.id==="referrals"&&!referralStats)loadReferralStats();if(t.id==="settings"&&!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();};}} style={{
-            background:view===t.id?"linear-gradient(135deg, rgba(99,102,241,0.15), rgba(6,182,212,0.1))":"transparent",
-            border:view===t.id?`1px solid rgba(99,102,241,0.3)`:`1px solid transparent`,
-            borderRadius:20,
-            padding:"8px 14px",
-            color:view===t.id?C.text:C.muted,
+            background:view===t.id?"linear-gradient(135deg, rgba(99,102,241,0.25), rgba(6,182,212,0.15))":"rgba(255,255,255,0.03)",
+            border:view===t.id?`1px solid rgba(99,102,241,0.5)`:`1px solid rgba(255,255,255,0.06)`,
+            borderRadius:22,
+            padding:"9px 16px",
+            color:view===t.id?"#fff":C.muted,
             cursor:"pointer",
             fontSize:12,
-            fontWeight:view===t.id?600:400,
+            fontWeight:view===t.id?700:500,
             fontFamily:"inherit",
             display:"flex",
             alignItems:"center",
-            gap:5,
+            gap:6,
             whiteSpace:"nowrap",
-            transition:"all 0.25s ease",
-            boxShadow:view===t.id?"0 2px 12px rgba(99,102,241,0.15), inset 0 1px 0 rgba(255,255,255,0.05)":"none",
+            transition:"all 0.2s ease",
+            boxShadow:view===t.id?"0 0 16px rgba(99,102,241,0.3), 0 0 4px rgba(6,182,212,0.2)":"none",
           }}>{t.icon}{t.label}</button>
         ))}
       </div>
