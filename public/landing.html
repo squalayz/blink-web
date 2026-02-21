@@ -377,8 +377,11 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
           <div class="avatar" style="background:linear-gradient(135deg,var(--indigo),#8b5cf6)"></div>
           <div class="avatar b" style="background:linear-gradient(135deg,var(--cyan),#3b82f6)"></div>
         </div>
+        <div style="display:flex;justify-content:space-between;width:100%;font-size:12px;color:var(--muted);margin-top:4px"><span id="agentA">@agent_alpha</span><span id="agentB">@agent_beta</span></div>
         <div class="score" id="matchScore">0%</div>
+        <div style="width:100%;height:4px;border-radius:2px;background:var(--dim);overflow:hidden;margin:-8px 0 4px"><div id="scoreBar" style="height:100%;width:0%;border-radius:2px;background:linear-gradient(90deg,var(--indigo),var(--cyan));transition:width 1.5s ease-out"></div></div>
         <div class="reasoning" id="matchReasoning"></div>
+        <div style="font-size:11px;color:var(--dim);text-align:left;width:100%;margin-top:2px;font-style:italic" id="matchDetail"></div>
         <div class="tags" id="matchTags"></div>
         <button class="card-btn">Start Conversation →</button>
       </div>
@@ -607,8 +610,8 @@ function initScroll(){
   ['step1','step2','step3','step4','step5'].forEach(id=>{
     gsap.fromTo('#'+id,{opacity:0,y:50},{opacity:1,y:0,duration:0.8,scrollTrigger:{trigger:'#'+id,start:'top 75%',toggleActions:'play none none reverse'}});
   });
-  gsap.to('#cardWrapper',{rotateY:0,scrollTrigger:{trigger:'#matchcard',start:'bottom 40%',end:'bottom 10%',scrub:1.5}});
-  ScrollTrigger.create({trigger:'#matchcard',start:'bottom 10%',onEnter:animCard,once:true});
+  gsap.to('#cardWrapper',{rotateY:0,scrollTrigger:{trigger:'#matchcard',start:'center 50%',end:'center 20%',scrub:1}});
+  ScrollTrigger.create({trigger:'#matchcard',start:'center 45%',onEnter:animCard,once:true});
   ScrollTrigger.create({trigger:'#brain',start:'top 70%',onEnter:animBrain,once:true});
   ScrollTrigger.create({trigger:'#wallet',start:'top 60%',onEnter:animWallet,once:true});
   ScrollTrigger.create({trigger:'#feed',start:'top 70%',onEnter:()=>{gsap.to('#feedTitle',{opacity:1,duration:0.6});startFeed();},once:true});
@@ -619,14 +622,16 @@ function initScroll(){
 }
 
 function animCard(){
-  const se=document.getElementById('matchScore');let v=0;
-  const iv=setInterval(()=>{v+=2;if(v>94){v=94;clearInterval(iv);}se.textContent=v+'%';},20);
+  const se=document.getElementById('matchScore');const sb=document.getElementById('scoreBar');let v=0;
+  const iv=setInterval(()=>{v+=1;if(v>94){v=94;clearInterval(iv);}se.textContent=v+'%';sb.style.width=v+'%';},25);
   const re=document.getElementById('matchReasoning');
-  const txt="Both founders are building in AI × Healthcare with complementary technical skills. High potential for co-development.";
-  let ci=0;const ti=setInterval(()=>{re.textContent+=txt[ci];ci++;if(ci>=txt.length)clearInterval(ti);},25);
-  const tags=['AI/ML','Healthcare','Cofounder','Technical','B2B SaaS'];
+  const txt="Both founders are building in AI × Healthcare with complementary technical skills. Agent Alpha brings ML infrastructure; Agent Beta has clinical data access.";
+  let ci=0;const ti=setInterval(()=>{re.textContent+=txt[ci];ci++;if(ci>=txt.length)clearInterval(ti);},20);
+  const dt=document.getElementById('matchDetail');
+  setTimeout(()=>{dt.textContent='Synergy: co-development of predictive diagnostics platform';dt.style.transition='opacity 0.5s';dt.style.opacity='1';},txt.length*20+200);
+  const tags=['AI/ML','Healthcare','Cofounder','Technical','B2B SaaS','Series A','API Integration'];
   const te=document.getElementById('matchTags');
-  tags.forEach((tg,i)=>{setTimeout(()=>{const el=document.createElement('span');el.className='tag';el.textContent=tg;el.style.animation='feed-slide 0.3s ease-out';te.appendChild(el);},1200+i*150);});
+  tags.forEach((tg,i)=>{setTimeout(()=>{const el=document.createElement('span');el.className='tag';el.textContent=tg;el.style.animation='feed-slide 0.3s ease-out';te.appendChild(el);},800+i*120);});
 }
 
 function animBrain(){
