@@ -103,6 +103,7 @@ async function getAITradeDecision(
   currentPositions: any[],
   walletBalance: number,
   riskLevel: string,
+  tradingMode: string,
   agentPersonality: string | null,
 ): Promise<TradeDecision> {
   const aiConfig = await getUserAIConfig(userId);
@@ -119,13 +120,26 @@ async function getAITradeDecision(
     ).join("\n")
     : "No open positions.";
 
+  const modeConfig: Record<string,string> = {
+    meme_scout: "MEME SCOUT MODE: Hunt trending meme tokens. Look for explosive volume spikes, social hype, low mcap gems. Buy early, sell at 2-5x. High risk plays only. Avoid tokens over $10M mcap.",
+    blue_chip: "BLUE CHIP MODE: Only trade established Base tokens with >$500k liquidity. Focus on AERO, BRETT, DEGEN, TOSHI, and major DeFi tokens. Conservative entries, take profit at 20-50%.",
+    momentum: "MOMENTUM RIDER MODE: Follow price momentum. Buy tokens with strong 1h AND 24h uptrend. Ride the wave, exit when momentum reverses (1h turns negative). Speed over conviction.",
+    mean_revert: "MEAN REVERSION MODE: Look for oversold tokens — big 24h drops (>30%) with recovering 1h momentum. Buy the dip, sell the bounce at 15-30% recovery. Contrarian plays.",
+    sniper: "NEW LAUNCH SNIPER MODE: Focus on tokens with <24h age and exploding volume. Get in within the first hour of a pump. Extreme risk — max 10% of balance per trade. Take profit fast at 3-10x.",
+    hodl_dca: "AUTO DCA MODE: Dollar-cost average into the top 3 tokens by liquidity each cycle. Split evenly. Never sell — only accumulate. This is a long-term accumulation strategy.",
+  };
   const riskConfig = {
     conservative: "Only ETH. Never trade meme tokens. Hold only.",
     balanced: "Moderate risk. Max 10% per trade. Take profit at 50%. Stop loss at 20%. Prefer tokens with >$100k liquidity.",
     degen: "Aggressive. Max 25% per trade. Diamond hands to 2x. Cut at -30%. High volume momentum plays. Early entries on pumps.",
   }[riskLevel] || "Moderate risk.";
 
+  const modeInstructions = modeConfig[tradingMode] || modeConfig.meme_scout;
+
   const system = `You are an autonomous trading agent on Base L2. You analyze DexScreener data and make trading decisions.
+
+ACTIVE STRATEGY: ${tradingMode.toUpperCase().replace(/_/g," ")}
+${modeInstructions}
 
 RISK PROFILE: ${riskLevel.toUpperCase()}
 ${riskConfig}
@@ -270,9 +284,8 @@ export async function runAutonomousTrading() {
   // Get users with trading enabled
   const { data: agents } = await supabaseAdmin
     .from("agent_balances")
-    .select("user_id, trading_enabled, risk_level, total_trading_pnl, total_fees")
-    .eq("trading_enabled", true)
-    .neq("risk_level", "conservative");
+    .select("user_id, trading_enabled, risk_level, trading_mode, total_trading_pnl, total_fees")
+    .eq("trading_enabled", true);
 
   if (!agents?.length) return;
 
@@ -319,6 +332,7 @@ export async function runAutonomousTrading() {
         positions || [],
         walletBalance,
         agent.risk_level,
+        agent.trading_mode || "meme_scout",
         agentProfile?.soul || null,
       );
 

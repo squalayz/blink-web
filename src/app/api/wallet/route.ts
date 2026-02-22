@@ -91,10 +91,11 @@ export async function POST(req: NextRequest) {
 
   // ── Update settings (risk level, trading toggle) ──
   if (action === "settings") {
-    const { risk_level, trading_enabled } = body;
+    const { risk_level, trading_enabled, trading_mode } = body;
     const updates: any = { user_id: userId };
     if (risk_level) updates.risk_level = risk_level;
     if (trading_enabled !== undefined) updates.trading_enabled = trading_enabled;
+    if (trading_mode) updates.trading_mode = trading_mode;
     updates.updated_at = new Date().toISOString();
     await supabaseAdmin.from("agent_balances").upsert(updates, { onConflict: "user_id" });
     return NextResponse.json({ ok: true });
@@ -334,6 +335,7 @@ export async function GET(req: NextRequest) {
     agent_active: agentBal?.trading_enabled || false,
     trading_enabled: agentBal?.trading_enabled || false,
     risk_level: agentBal?.risk_level || "conservative",
+    trading_mode: agentBal?.trading_mode || "meme_scout",
     total_trading_pnl: agentBal?.total_trading_pnl || 0,
     total_fees_paid: agentBal?.total_fees || 0,
     estimated_days: estDays,
