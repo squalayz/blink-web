@@ -48,8 +48,7 @@ export function middleware(req: NextRequest) {
       url.pathname = "/landing.html";
       return NextResponse.rewrite(url);
     }
-    // Authenticated users hitting "/" → redirect to dashboard
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+    // Authenticated users hitting "/" → let them through (page.tsx handles redirect to dashboard)
   }
 
   // Unauthenticated users hitting protected pages → redirect to signin

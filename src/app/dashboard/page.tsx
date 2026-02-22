@@ -960,7 +960,7 @@ export default function Dashboard(){
       <style>{`nav.mm-global-nav{display:none!important}`}</style>
       {/* Base ETH Banner */}
       <div style={{position:"sticky",top:0,left:0,right:0,zIndex:1000,background:"linear-gradient(90deg,rgba(0,82,255,0.12),rgba(99,102,241,0.10),rgba(6,182,212,0.08))",borderBottom:"1px solid rgba(99,102,241,0.1)",padding:"6px 16px",textAlign:"center",fontSize:10,fontWeight:500,color:"rgba(165,180,252,0.8)",letterSpacing:"0.5px",display:"flex",alignItems:"center",justifyContent:"center",gap:8,animation:"banner-glow 4s ease-in-out infinite"}}>
-        <style>{`@keyframes banner-glow{0%,100%{background:linear-gradient(90deg,rgba(0,82,255,0.10),rgba(99,102,241,0.08),rgba(6,182,212,0.06))}50%{background:linear-gradient(90deg,rgba(0,82,255,0.18),rgba(99,102,241,0.14),rgba(6,182,212,0.10))}}@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(1.4)}}`}</style>
+        <style>{`@keyframes banner-glow{0%,100%{background:linear-gradient(90deg,rgba(0,82,255,0.10),rgba(99,102,241,0.08),rgba(6,182,212,0.06))}50%{background:linear-gradient(90deg,rgba(0,82,255,0.18),rgba(99,102,241,0.14),rgba(6,182,212,0.10))}}@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(1.4)}}@keyframes mm-brain-pulse{0%,100%{opacity:0.5;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}@keyframes mm-brain-glow{0%,100%{box-shadow:0 0 8px rgba(99,102,241,0.15)}50%{box-shadow:0 0 18px rgba(99,102,241,0.35),0 0 8px rgba(6,182,212,0.2)}}`}</style>
         <span style={{display:"inline-flex",alignItems:"center",gap:4}}><svg width="14" height="14" viewBox="0 0 111 111" style={{verticalAlign:"-2px"}} fill="none"><circle cx="55.5" cy="55.5" r="55.5" fill="#0052FF"/><path d="M55.7 14.7c-22.6 0-40.8 18.3-40.8 40.8s18.3 40.8 40.8 40.8 40.8-18.3 40.8-40.8H55.7V14.7z" fill="white"/></svg> Powered by AI & Base L2</span>
         <span style={{opacity:0.3}}>·</span>
         <span>All deposits & trades use ETH on Base</span>
@@ -969,7 +969,23 @@ export default function Dashboard(){
       {/* ── Nav ── */}
       <nav style={{padding:"4px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>window.location.href="/"}>
-          <MMLogo size={32}/><span style={{fontWeight:700,fontSize:15}}>MishMesh</span><TierBadge tier={user?.tier||"free"}/>
+          <MMLogo size={32}/><span style={{fontWeight:700,fontSize:15}}>MishMesh</span>
+          {(()=>{const aiOn=!!user?.ai_api_key_encrypted;return(
+            <div onClick={(e)=>{e.stopPropagation();setView("settings");}} title={aiOn?"AI Brain Connected":"Connect AI Brain"} style={{
+              width:28,height:28,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",position:"relative",transition:"all 0.3s",
+              background:aiOn?"linear-gradient(135deg,rgba(99,102,241,0.15),rgba(6,182,212,0.15))":"rgba(255,255,255,0.04)",
+              border:aiOn?"1.5px solid rgba(99,102,241,0.4)":"1.5px solid rgba(255,255,255,0.1)",
+              boxShadow:aiOn?"0 0 12px rgba(99,102,241,0.2)":"none",
+              animation:aiOn?"mm-brain-glow 3s ease-in-out infinite":"mm-brain-pulse 2s ease-in-out infinite",
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={aiOn?"url(#dbg)":"#6b6b80"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <defs><linearGradient id="dbg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#6366f1"/><stop offset="100%" stopColor="#06b6d4"/></linearGradient></defs>
+                <path d="M12 2a4 4 0 0 1 4 4c0 1.1-.9 2-2 2h-4c-1.1 0-2-.9-2-2a4 4 0 0 1 4-4z"/><path d="M8 8v1a4 4 0 0 0 8 0V8"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M12 16v6"/><path d="M9 22h6"/>
+                <path d="M7 8C4.2 8 2 10.2 2 13c0 2 1.2 3.8 3 4.5"/><path d="M17 8c2.8 0 5 2.2 5 5 0 2-1.2 3.8-3 4.5"/>
+              </svg>
+              {!aiOn&&<span style={{position:"absolute",top:-2,right:-2,width:7,height:7,borderRadius:"50%",background:"#ff2d55",boxShadow:"0 0 6px #ff2d55",animation:"pulse 1.2s infinite"}}/>}
+            </div>);})()}
+          <TierBadge tier={user?.tier||"free"}/>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:14}}>
           {/* Wallet balance with dropdown */}
