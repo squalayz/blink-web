@@ -110,6 +110,14 @@ export class RiskManager {
       return { ok: false, reason: `Max ${this.config.max_concurrent_positions} concurrent positions reached` };
     }
 
+    // Block buying tokens we already hold an open position in
+    const { data: existingPos } = await supabaseAdmin.from("trading_history")
+      .select("id").eq("user_id", this.userId).eq("action", "buy").is("closed_at", null)
+      .eq("token_address", tokenAddress).limit(1);
+    if (existingPos && existingPos.length > 0) {
+      return { ok: false, reason: `Already holding open position in this token — diversify!` };
+    }
+
     // Check cooldown
     const { data: lastTrade } = await supabaseAdmin.from("trading_history")
       .select("created_at").eq("user_id", this.userId).eq("token_address", tokenAddress)
@@ -364,6 +372,7 @@ async function getAIDecision(
 
   // Enrich position data with current prices
   let totalOpenPnl = 0;
+  const heldSymbols: string[] = [];
   const posData = positions.length > 0
     ? positions.map(p => {
         const currentToken = tokens.find(t => t.address.toLowerCase() === p.token_address?.toLowerCase());
@@ -372,9 +381,12 @@ async function getAIDecision(
           ? ((currentPrice - p.price_at_trade) / p.price_at_trade) * 100 : 0;
         const pnlEth = p.amount_eth * (pnlPct / 100);
         totalOpenPnl += pnlEth;
-        return `HOLDING: ${p.token_symbol} | Entry:$${p.price_at_trade?.toFixed(6)||"?"} | Now:$${currentPrice?.toFixed(6)||"?"} | P&L:${pnlPct>=0?"+":""}${pnlPct.toFixed(1)}% (${pnlEth>=0?"+":""}${pnlEth.toFixed(4)} ETH) | Size:${p.amount_eth?.toFixed(4)} ETH`;
+        heldSymbols.push(p.token_symbol);
+        const age = p.created_at ? Math.floor((Date.now() - new Date(p.created_at).getTime()) / 60000) : 0;
+        const ageStr = age < 60 ? `${age}min` : `${Math.floor(age/60)}h${age%60}m`;
+        return `HOLDING: ${p.token_symbol} | Entry:$${p.price_at_trade?.toFixed(6)||"?"} | Now:$${currentPrice?.toFixed(6)||"?"} | P&L:${pnlPct>=0?"+":""}${pnlPct.toFixed(1)}% (${pnlEth>=0?"+":""}${pnlEth.toFixed(4)} ETH) | Size:${p.amount_eth?.toFixed(4)} ETH | Age:${ageStr}`;
       }).join("\n")
-    : "No open positions.";
+    : "No open positions — BUY something!";
 
   // Calculate win rate + learning from recent closed trades
   const { data: recentTrades } = await supabaseAdmin.from("trading_history")
@@ -428,12 +440,17 @@ CRITICAL RULES:
 3. SELL BEFORE BUY — if you have open positions AND want to buy something new, sell the weakest position FIRST to free capital.
 4. GAS AWARENESS — you need at least ${GAS_RESERVE_ETH} ETH to execute sells. If balance is low, SELL a position to recover ETH.
 5. PROFIT IS THE GOAL — a completed sell at profit > a bag you hold forever.
+6. NEVER BUY A TOKEN YOU ALREADY HOLD — you CANNOT buy the same token twice. Always pick a DIFFERENT token.
+7. DIVERSIFY — spread across different tokens. Don't concentrate in one.
+8. ROTATE — buy → wait → sell for profit → buy something new. This is the cycle. Keep rotating.
 
-PRIORITY ORDER:
-1. Check positions — any hitting TP or SL? → SELL
-2. Check positions — any stale (no momentum for 30min+)? → SELL  
-3. If capital available and strong opportunity → BUY
-4. If nothing compelling → HOLD (but rarely — be active!)
+PRIORITY ORDER (follow this EXACTLY):
+1. Check positions — any hitting TP (>${STRATEGY_RISKS[tradingMode]?.take_profit_pct || 80}%) or SL (<${STRATEGY_RISKS[tradingMode]?.stop_loss_pct || -25}%)? → SELL immediately
+2. Check positions — any up >15%? → Consider SELL to lock profit
+3. Check positions — any stale (bought >10 min ago, flat or slightly down)? → SELL to free capital
+4. If you have NO open positions → BUY the best opportunity (must be a token you DON'T already hold)
+5. If you have 1-2 positions and strong opportunity in a DIFFERENT token → BUY
+6. If nothing compelling → HOLD (but rarely — keep rotating!)
 
 Respond ONLY with JSON: {"action":"buy|sell|hold","token":"SYMBOL","tokenAddress":"0x...","confidence":0-100,"amountPct":5-25,"reasoning":"one sentence"}`;
 
@@ -456,8 +473,13 @@ ${tokenData}
 
 POSITIONS:
 ${posData}
-
-INSTRUCTIONS: Review your past trades above. Learn from winners and losers. Avoid repeating mistakes. If a token burned you before, be cautious. If a pattern made money, lean into it.
+${heldSymbols.length > 0 ? `\n⛔ DO NOT BUY: ${heldSymbols.join(", ")} (already holding — pick something DIFFERENT or SELL one of these)\n` : ""}
+INSTRUCTIONS: 
+- Review your past trades above. Learn from winners and losers.
+- If you hold positions, check if any should be SOLD (profit target, stop loss, or stale).
+- SELL first, then BUY new tokens. Keep the capital rotating.
+- NEVER buy a token you already hold. Always diversify.
+- If a token burned you before, be cautious. If a pattern made money, lean into it.
 
 Your move?`;
 
