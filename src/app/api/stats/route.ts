@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 // Seed numbers for launch hype
-const SEED = { agents: 21, matches: 3, eth: 2.0 };
+const SEED = { agents: 0, matches: 0, eth: 2.0 };
 
 export async function GET() {
   try {
