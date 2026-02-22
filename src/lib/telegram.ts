@@ -22,7 +22,7 @@ export async function sendTelegramMessage(
     disable_web_page_preview: true,
   };
   if (inlineKeyboard?.length) {
-    body.reply_markup = JSON.stringify({ inline_keyboard: inlineKeyboard });
+    body.reply_markup = { inline_keyboard: inlineKeyboard };
   }
 
   const res = await fetch(`${API}/sendMessage`, {
@@ -33,7 +33,7 @@ export async function sendTelegramMessage(
 
   if (!res.ok) {
     const err = await res.text();
-    console.error("Telegram send error:", err);
+    console.error("[TG] Send error:", res.status, err);
   }
   return res.ok;
 }
@@ -60,7 +60,7 @@ export async function editMessage(
     disable_web_page_preview: true,
   };
   if (inlineKeyboard?.length) {
-    body.reply_markup = JSON.stringify({ inline_keyboard: inlineKeyboard });
+    body.reply_markup = { inline_keyboard: inlineKeyboard };
   }
 
   await fetch(`${API}/editMessageText`, {
