@@ -96,11 +96,12 @@ export async function POST(req: NextRequest) {
   // Get recent trades for this user (last hour)
   const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
   const { data: recentTrades } = await supabaseAdmin.from("trading_history")
-    .select("token_symbol, action, amount_eth, reasoning, confidence, created_at, tx_hash")
+    .select("token_symbol, action, amount_eth, reasoning, confidence, created_at, tx_hash, pnl_eth, closed_at")
     .eq("user_id", userId)
+    .neq("action", "skip")
     .gte("created_at", oneHourAgo)
     .order("created_at", { ascending: false })
-    .limit(5);
+    .limit(10);
 
   // Get open positions
   const { data: positions } = await supabaseAdmin.from("trading_history")

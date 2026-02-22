@@ -376,13 +376,23 @@ async function getAIDecision(
       }).join("\n")
     : "No open positions.";
 
-  // Calculate win rate from recent closed trades
+  // Calculate win rate + learning from recent closed trades
   const { data: recentTrades } = await supabaseAdmin.from("trading_history")
-    .select("pnl_eth").eq("user_id", userId).not("closed_at", "is", null)
+    .select("token_symbol, action, amount_eth, pnl_eth, reasoning, closed_at, created_at")
+    .eq("user_id", userId).not("closed_at", "is", null)
     .order("closed_at", { ascending: false }).limit(20);
   const wins = (recentTrades || []).filter(t => (t.pnl_eth || 0) > 0).length;
+  const losses = (recentTrades || []).filter(t => (t.pnl_eth || 0) < 0).length;
   const total = (recentTrades || []).length;
   const winRate = total > 0 ? ((wins / total) * 100).toFixed(0) : "N/A";
+  const totalPnl = (recentTrades || []).reduce((sum, t) => sum + (t.pnl_eth || 0), 0);
+
+  // Build learning context from past trades
+  const tradeHistory = (recentTrades || []).slice(0, 10).map(t => {
+    const pnl = t.pnl_eth || 0;
+    const result = pnl > 0 ? `✅ +${pnl.toFixed(4)} ETH` : pnl < 0 ? `❌ ${pnl.toFixed(4)} ETH` : "⚪ breakeven";
+    return `${t.token_symbol}: ${t.amount_eth?.toFixed(4)} ETH → ${result} | ${t.reasoning?.slice(0, 50) || "no reason"}`;
+  }).join("\n");
 
   // Get daily P&L from portfolio snapshot
   const { data: snapshot } = await supabaseAdmin.from("portfolio_snapshots")
@@ -429,16 +439,25 @@ Respond ONLY with JSON: {"action":"buy|sell|hold","token":"SYMBOL","tokenAddress
 
   const userMsg = `PORTFOLIO:
 - Balance: ${walletBalance.toFixed(4)} ETH ($${portfolioValue.toFixed(0)})
+- Available for trading: ${Math.max(0, walletBalance - GAS_RESERVE_ETH).toFixed(4)} ETH (after ${GAS_RESERVE_ETH} gas reserve)
 - Open positions: ${positions.length}
 - Open P&L: ${totalOpenPnl>=0?"+":""}${totalOpenPnl.toFixed(4)} ETH
 - Today's P&L: ${dailyPnl>=0?"+":""}${dailyPnl.toFixed(4)} ETH
-- Win rate (last 20): ${winRate}%
+
+PERFORMANCE (last ${total} closed trades):
+- Win rate: ${winRate}% (${wins}W / ${losses}L)
+- Total P&L: ${totalPnl>=0?"+":""}${totalPnl.toFixed(4)} ETH
+
+${tradeHistory ? `TRADE HISTORY (learn from these — what worked, what didn't):
+${tradeHistory}` : "No trade history yet — be smart with first trades."}
 
 TRENDING TOKENS:
 ${tokenData}
 
 POSITIONS:
 ${posData}
+
+INSTRUCTIONS: Review your past trades above. Learn from winners and losers. Avoid repeating mistakes. If a token burned you before, be cautious. If a pattern made money, lean into it.
 
 Your move?`;
 

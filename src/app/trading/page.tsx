@@ -773,6 +773,13 @@ export default function TradingDashboard() {
                     {reasoning && <div style={{fontSize:9,color:C.muted,marginTop:3,lineHeight:1.4}}>{reasoning}</div>}
                     <div style={{display:"flex",gap:8,fontSize:8,color:C.dim,marginTop:4}}>
                       <span>{time}</span>
+                      {tx.pnl_eth != null && tx.closed_at && (
+                        <span style={{color: tx.pnl_eth >= 0 ? C.match : C.hot, fontWeight:700}}>
+                          P&L: {tx.pnl_eth >= 0 ? "+" : ""}{tx.pnl_eth.toFixed(4)} ETH
+                        </span>
+                      )}
+                      {tx.closed_at && <span style={{color:C.cold}}>closed</span>}
+                      {!tx.closed_at && isBuy && <span style={{color:C.match}}>open</span>}
                       {tx.fee_eth > 0 && <span>Fee: {tx.fee_eth.toFixed(6)}</span>}
                       {txHash && (
                         <a href={`https://basescan.org/tx/${txHash}`} target="_blank" rel="noopener"

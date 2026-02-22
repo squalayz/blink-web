@@ -1526,9 +1526,16 @@ export default function Dashboard(){
                           {/* Reasoning or details */}
                           {reasoning&&<div style={{fontSize:10,color:C.muted,lineHeight:1.4,marginBottom:3}}>{reasoning}</div>}
                           
-                          {/* Footer: time + fee + tx link */}
+                          {/* Footer: time + PnL + fee + tx link */}
                           <div style={{display:"flex",alignItems:"center",gap:8,fontSize:9,color:C.dim}}>
                             <span>{dateStr} {timeStr}</span>
+                            {tx.pnl_eth!=null&&tx.closed_at&&(
+                              <span style={{color:tx.pnl_eth>=0?C.match:C.hot,fontWeight:700}}>
+                                P&L: {tx.pnl_eth>=0?"+":""}{tx.pnl_eth.toFixed(4)}
+                              </span>
+                            )}
+                            {tx.closed_at&&<span style={{color:C.cold}}>closed</span>}
+                            {!tx.closed_at&&isBuy&&<span style={{color:C.match}}>open</span>}
                             {parseFloat(fee)>0&&<span>Fee: {fee} ETH</span>}
                             {txHash&&<a href={`https://basescan.org/tx/${txHash}`} target="_blank" rel="noopener" style={{color:C.cold,textDecoration:"none"}}>View ↗</a>}
                           </div>
