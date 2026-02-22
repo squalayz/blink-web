@@ -49,7 +49,10 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
 #hero h1 .line{display:block}
 #hero .sub{font-size:clamp(15px,1.5vw,17px);color:#9a9ab0;max-width:480px;margin:20px 0 0;opacity:0;line-height:1.7}
 #hero .ctas{display:flex;gap:16px;justify-content:flex-start;margin-top:24px;opacity:0}
-#hero .social-proof{font-size:12px;color:#6b6b80;margin-top:16px;letter-spacing:0.5px;opacity:0}
+#hero .social-proof{display:inline-flex;align-items:center;gap:10px;margin-top:24px;padding:10px 22px;border-radius:40px;background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(6,182,212,0.08));border:1px solid rgba(99,102,241,0.25);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);font-size:14px;font-weight:600;color:#e8e8f0;letter-spacing:0.3px;opacity:0;box-shadow:0 0 20px rgba(99,102,241,0.15),0 4px 15px rgba(0,0,0,0.3);transition:all 0.6s ease-out}
+#hero .social-proof .live-dot{width:8px;height:8px;border-radius:50%;background:#30d158;box-shadow:0 0 8px rgba(48,209,88,0.6);animation:live-pulse 1.5s ease-in-out infinite}
+#hero .social-proof .count{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:16px;background:linear-gradient(135deg,#6366f1,#22d3ee);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+@keyframes live-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(1.3)}}
 /* Orbs */
 .orb-stage{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:1}
 .float-orb{position:absolute;border-radius:50%;will-change:transform;pointer-events:none;transition:filter 0.3s}
@@ -286,7 +289,7 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
   #hero .sub br{display:none}
   #hero .ctas{justify-content:center;flex-direction:column;gap:10px;margin-top:20px!important}
   #hero .ctas .btn-primary,#hero .ctas .btn-ghost{width:100%;text-align:center;justify-content:center;padding:14px 20px;font-size:15px}
-  #hero .social-proof{text-align:center;font-size:11px!important}
+  #hero .social-proof{font-size:12px!important;padding:8px 16px!important}
   /* Orbs smaller on mobile */
   .float-orb.a{width:40px;height:40px;box-shadow:0 0 20px 8px rgba(124,58,237,0.2)}.float-orb.b{width:35px;height:35px;box-shadow:0 0 20px 8px rgba(6,182,212,0.2)}
   /* Perf: reduce blur on mobile */
@@ -417,7 +420,7 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
         <button class="btn-primary" onclick="openModal()">Enter the Mesh <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-left:2px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>
         <a href="#how" class="btn-ghost">See How It Works</a>
       </div>
-      <p class="social-proof" id="socialProof"></p>
+      <div class="social-proof" id="socialProof"><span class="live-dot"></span><span class="count" id="agentCount">0</span><span>agents already in the mesh</span></div>
     </div>
   </div>
 </section>
@@ -810,7 +813,12 @@ function showHL(){
   },2500);
   setTimeout(()=>{document.getElementById('heroSub').style.transition='opacity 0.6s ease-out';document.getElementById('heroSub').style.opacity='1';},150);
   setTimeout(()=>{document.getElementById('heroCtas').style.transition='opacity 0.6s ease-out';document.getElementById('heroCtas').style.opacity='1';document.getElementById('scrollHint').style.opacity='1';},300);
-  setTimeout(async()=>{const sp=document.getElementById('socialProof');try{const r=await fetch('/api/stats');if(r.ok){const d=await r.json();sp.textContent=d.agents+' agents already in the mesh';}}catch(e){sp.textContent='54 agents already in the mesh';}sp.style.transition='opacity 0.6s ease-out';sp.style.opacity='1';},400);
+  setTimeout(async()=>{const sp=document.getElementById('socialProof');const countEl=document.getElementById('agentCount');let target=54;try{const r=await fetch('/api/stats');if(r.ok){const d=await r.json();target=d.agents||54;}}catch(e){}
+    // Animate counter up
+    let current=0;const duration=1500;const start=performance.now();
+    function tick(now){const elapsed=now-start;const progress=Math.min(elapsed/duration,1);const eased=1-Math.pow(1-progress,3);current=Math.round(eased*target);countEl.textContent=current;if(progress<1)requestAnimationFrame(tick);}
+    sp.style.opacity='1';requestAnimationFrame(tick);
+  },600);
   setTimeout(()=>{document.getElementById('agentText').style.transition='opacity 0.4s ease-out';document.getElementById('agentText').style.opacity='0';},50*wordIdx);
 }
 
