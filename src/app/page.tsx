@@ -17,7 +17,7 @@ export default function Home() {
 
   useEffect(() => {
     // Check if user has a session
-    fetch("/api/auth/session")
+    fetch("/api/auth/siwe/session")
       .then((r) => r.json())
       .then((session) => {
         if (session?.user) {

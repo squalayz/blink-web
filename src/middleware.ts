@@ -38,15 +38,29 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.ip || "unknown";
 
-  // ═══ 0. LANDING PAGE REDIRECT ═══
-  // Unauthenticated users hitting "/" → serve landing.html directly (no React/RainbowKit overhead)
+  // ═══ 0. AUTH-BASED ROUTING ═══
+  const hasSession = req.cookies.get("mm-session");
+
+  // Unauthenticated users hitting "/" → serve landing.html (no React overhead)
   if (pathname === "/") {
-    const hasSession = req.cookies.get("mm-session") || req.cookies.get("siwe-session") || req.cookies.get("next-auth.session-token") || req.cookies.get("__Secure-next-auth.session-token");
     if (!hasSession) {
       const url = req.nextUrl.clone();
       url.pathname = "/landing.html";
       return NextResponse.rewrite(url);
     }
+    // Authenticated users hitting "/" → redirect to dashboard
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  // Unauthenticated users hitting protected pages → redirect to signin
+  const protectedPaths = ["/dashboard", "/marketplace", "/leaderboard", "/explore"];
+  if (!hasSession && protectedPaths.some(p => pathname.startsWith(p))) {
+    return NextResponse.redirect(new URL("/auth/signin", req.url));
+  }
+
+  // Authenticated users hitting signin → redirect to dashboard
+  if (hasSession && pathname === "/auth/signin") {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
   // ═══ 1. GLOBAL RATE LIMIT ═══

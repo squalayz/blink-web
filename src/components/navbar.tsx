@@ -74,7 +74,7 @@ export default function NavBar() {
   useEffect(() => {
     if (!isLoggedIn) return;
     fetchBalance();
-    const iv = setInterval(fetchBalance, 30000);
+    const iv = setInterval(fetchBalance, 10000);
     return () => clearInterval(iv);
   }, [fetchBalance, isLoggedIn]);
 

@@ -412,6 +412,23 @@ export default function Dashboard(){
     await Promise.all([loadMatches(uid),loadDiscovery(uid),loadNotifications(uid),loadBadges(uid),loadLeaderboard(),loadChallenges(uid),loadReport(uid),loadWallet()]);
     setLoading(false);
 
+    // Real-time wallet balance polling (10s) — instant deposit detection
+    const walletPoll=setInterval(()=>{
+      fetch("/api/wallet").then(r=>r.json()).then(data=>{
+        if(data&&!data.error){
+          setWallet((prev:any)=>{
+            // Flash effect if balance changed
+            if(prev.balance_eth!==undefined&&data.balance_eth!==prev.balance_eth&&data.balance_eth>prev.balance_eth){
+              // Deposit detected — could trigger toast here
+            }
+            return{...prev,...data};
+          });
+          setTrades(data.recent_trades||[]);
+        }
+      }).catch(()=>{});
+    },10000);
+    return()=>clearInterval(walletPoll);
+
     // Realtime notifications
     supabase.channel("n-"+uid).on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications",filter:`user_id=eq.${uid}`},(p)=>{
       setNotifications(prev=>[p.new as any,...prev]);
