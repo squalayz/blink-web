@@ -699,7 +699,7 @@ export async function runSingleUserTrading(userId: string): Promise<{ action: st
 
   // ═══ PRE-AI AUTO-SELL CHECK ═══
   // Check open positions for SL/TP/stale BEFORE asking AI — this guarantees sells happen
-  const riskConfig = risk.getConfig();
+  const autoSellConfig = risk.getConfig();
   {
     const { data: openPos } = await supabaseAdmin.from("trading_history")
       .select("*").eq("user_id", userId).eq("action", "buy").is("closed_at", null).limit(10);
@@ -718,8 +718,8 @@ export async function runSingleUserTrading(userId: string): Promise<{ action: st
 
           const pnlPct = ((currentPrice - pos.price_at_trade) / pos.price_at_trade) * 100;
           const ageMin = (Date.now() - new Date(pos.created_at).getTime()) / 60000;
-          const sl = pos.stop_loss_pct || riskConfig.stop_loss_pct;
-          const tp = pos.take_profit_pct || riskConfig.take_profit_pct;
+          const sl = pos.stop_loss_pct || autoSellConfig.stop_loss_pct;
+          const tp = pos.take_profit_pct || autoSellConfig.take_profit_pct;
           
           let shouldSell = false;
           let reason = "";
