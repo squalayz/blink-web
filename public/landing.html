@@ -256,9 +256,38 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
 
 /* SECONDARY CTA STRIP */
 .cta-strip{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:16px;padding:20px 24px;background:rgba(99,102,241,0.04);border-top:1px solid rgba(99,102,241,0.08);border-bottom:1px solid rgba(99,102,241,0.08)}
-.cta-strip .strip-text{font-size:14px;color:var(--muted)}
-.cta-strip .strip-btn{padding:10px 20px;border:1px solid var(--indigo);border-radius:8px;background:transparent;color:var(--indigo);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:all 0.2s}
-.cta-strip .strip-btn:hover{background:var(--indigo);color:white}
+.cta-strip .strip-text{font-size:14px;color:var(--muted);opacity:0;animation:strip-fade 0.6s ease-out 0.2s forwards}
+.cta-strip .strip-btn-primary{
+  padding:14px 32px;border:none;border-radius:12px;
+  background:linear-gradient(135deg,#6366f1,#a855f7,#06b6d4);background-size:200% 200%;
+  color:white;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;
+  transition:all 0.3s ease;position:relative;overflow:hidden;
+  box-shadow:0 4px 20px rgba(99,102,241,0.3),0 0 40px rgba(99,102,241,0.1);
+  animation:strip-fade 0.6s ease-out 0.3s forwards,btn-shimmer 3s ease-in-out infinite;
+  opacity:0;text-decoration:none;display:inline-flex;align-items:center;gap:8px;
+}
+.cta-strip .strip-btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 30px rgba(99,102,241,0.4),0 0 60px rgba(99,102,241,0.15)}
+.cta-strip .strip-btn-primary::after{
+  content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;
+  background:linear-gradient(45deg,transparent 30%,rgba(255,255,255,0.08) 50%,transparent 70%);
+  animation:btn-shine 4s ease-in-out infinite;
+}
+.cta-strip .strip-btn-secondary{
+  padding:14px 28px;border:1.5px solid rgba(99,102,241,0.3);border-radius:12px;
+  background:rgba(99,102,241,0.04);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  color:#a5b4fc;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;
+  transition:all 0.3s ease;text-decoration:none;display:inline-flex;align-items:center;gap:8px;
+  animation:strip-fade 0.6s ease-out 0.4s forwards;opacity:0;position:relative;overflow:hidden;
+}
+.cta-strip .strip-btn-secondary:hover{border-color:rgba(99,102,241,0.6);background:rgba(99,102,241,0.08);transform:translateY(-2px);box-shadow:0 4px 20px rgba(99,102,241,0.15)}
+.cta-strip .strip-btn-secondary .earn-badge{
+  background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;font-size:11px;font-weight:800;
+  padding:2px 7px;border-radius:6px;animation:badge-pulse 2s ease-in-out infinite;
+}
+@keyframes strip-fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes btn-shimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+@keyframes btn-shine{0%,100%{transform:translateX(-100%) rotate(25deg)}50%{transform:translateX(100%) rotate(25deg)}}
+@keyframes badge-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
 
 /* MOBILE FLOATING BOTTOM CTA */
 .mobile-bottom-cta{display:none;position:fixed;bottom:0;left:0;right:0;z-index:400;padding:16px 16px calc(24px + env(safe-area-inset-bottom,72px)) 16px;background:rgba(5,5,8,0.95);backdrop-filter:blur(16px);border-top:1px solid rgba(99,102,241,0.15);transform:translateY(100%);transition:transform 0.4s cubic-bezier(0.16,1,0.3,1)}
@@ -427,9 +456,14 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
 
 <!-- SECONDARY CTA STRIP -->
 <div class="cta-strip" id="ctaStrip">
-  <span class="strip-text">Skip the tour?</span>
-  <button class="strip-btn" onclick="openModal()">Sign up now →</button>
-  <a href="/referral" class="strip-btn" style="background:transparent;border:1px solid rgba(99,102,241,0.4);color:#6366f1;text-decoration:none;margin-left:8px">💰 Refer & Earn 30%</a>
+  <span class="strip-text">Ready to start?</span>
+  <button class="strip-btn-primary" onclick="openModal()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+    Enter the Mesh
+  </button>
+  <a href="/referral" class="strip-btn-secondary">
+    💰 Refer & Earn <span class="earn-badge">30%</span>
+  </a>
 </div>
 
 <!-- TRADING FEATURE -->
