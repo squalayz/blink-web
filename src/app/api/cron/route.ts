@@ -27,6 +27,16 @@ export async function GET(req: NextRequest) {
     await runAutonomousTrading();
     results.push("Trading engine completed");
 
+    // 2b. SL/TP engine — check all open positions for stop-loss, take-profit, trailing stops
+    try {
+      const { runSLTPEngine } = await import("@/lib/trading-v2");
+      await runSLTPEngine();
+      results.push("SL/TP engine completed");
+    } catch (e: any) {
+      console.error("SL/TP engine error:", e.message);
+      results.push("SL/TP engine failed: " + e.message?.slice(0, 50));
+    }
+
     // 4. Check low balances (every hour)
     if (new Date().getMinutes() < 15) {
       await checkLowBalances();
@@ -37,6 +47,25 @@ export async function GET(req: NextRequest) {
     if (hour === 14) {
       await generateDailyReports();
       results.push("Daily reports generated");
+    }
+
+    // 5b. Portfolio snapshots (midnight UTC) — for daily loss circuit breaker
+    if (hour === 0) {
+      const { supabaseAdmin: snapAdmin } = await import("@/lib/supabase");
+      const { getWalletBalance } = await import("@/lib/wallet");
+      const { data: walletUsers } = await snapAdmin.from("users")
+        .select("id, wallet_address").not("wallet_address", "is", null);
+      let snapped = 0;
+      for (const u of walletUsers || []) {
+        try {
+          const bal = await getWalletBalance(u.wallet_address);
+          if (bal > 0) {
+            await snapAdmin.from("portfolio_snapshots").insert({ user_id: u.id, value_eth: bal });
+            snapped++;
+          }
+        } catch {}
+      }
+      results.push(`Portfolio snapshots: ${snapped}`);
     }
 
     // 6. Reset daily convo limits (00:00 UTC)

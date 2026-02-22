@@ -128,7 +128,7 @@ export default function ReferralPage() {
             { step: "1", emoji: "🔗", title: "Share Your Link", desc: "Copy your unique referral link and share it with friends, followers, or your community." },
             { step: "2", emoji: "👤", title: "They Sign Up", desc: "When someone creates a MishMesh account through your link, they're permanently linked to you." },
             { step: "3", emoji: "💰", title: "They Deposit ETH", desc: "MishMesh charges a 5% deposit fee. You earn 30% of that fee — automatically." },
-            { step: "4", emoji: "🤖", title: "Their AI Trades", desc: "Every time their agent makes a trade (1% fee per trade), you earn 30% of that fee too." },
+            { step: "4", emoji: "🤖", title: "Their AI Trades", desc: "Every time their agent makes a trade (3% fee per trade), you earn 30% of that fee too." },
             { step: "5", emoji: "♾️", title: "Earn Forever", desc: "There's no cap and no expiration. As long as they use MishMesh, you earn." },
           ].map((item, i) => (
             <div key={i} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
@@ -149,7 +149,7 @@ export default function ReferralPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {[
               { scenario: "Friend deposits 1 ETH", fee: "0.05 ETH (5%)", you: "0.015 ETH", color: C.match },
-              { scenario: "Friend trades 0.5 ETH", fee: "0.005 ETH (1%)", you: "0.0015 ETH", color: C.match },
+              { scenario: "Friend trades 0.5 ETH", fee: "0.015 ETH (3%)", you: "0.0045 ETH", color: C.match },
               { scenario: "10 friends × $100/month each", fee: "~0.5 ETH in fees", you: "~0.15 ETH/month", color: C.gold },
             ].map((e, i) => (
               <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: C.s2, borderRadius: 10 }}>

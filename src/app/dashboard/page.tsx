@@ -373,6 +373,10 @@ export default function Dashboard(){
   const[aiForm,setAiForm]=useState({provider:"openai",apiKey:"",model:"gpt-4o-mini",endpoint:""});
   const[aiTesting,setAiTesting]=useState(false);
   const[aiTestResult,setAiTestResult]=useState<any>(null);
+  const[emergencySelling,setEmergencySelling]=useState(false);
+  const[emergencyResult,setEmergencyResult]=useState<any>(null);
+  const[showEmergencyConfirm,setShowEmergencyConfirm]=useState(false);
+  const[showReEnableConfirm,setShowReEnableConfirm]=useState(false);
 
   const[form,setForm]=useState({name:"",bio:"",industry:"",building:"",looking_for:"",location:"",website:"",x_handle:"",linkedin:"",avatar_url:"",agent_style:"professional",agent_instructions:""});
   const[obStep,setObStep]=useState(1);
@@ -905,6 +909,68 @@ export default function Dashboard(){
   if(shareMatch)return <ShareCard match={shareMatch} onClose={()=>setShareMatch(null)}/>;
   if(dealMatch)return <DealModal match={dealMatch} userId={user?.id} onClose={()=>setDealMatch(null)} onSubmit={submitDeal}/>;
 
+  /* ═══ Emergency Sell Confirmation Modal ═══ */
+  if(showEmergencyConfirm)return(
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.9)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:C.surface,borderRadius:20,maxWidth:420,width:"100%",border:`1px solid ${C.hot}44`}}>
+        <div style={{padding:"20px 24px",textAlign:"center"}}>
+          <div style={{fontSize:48,marginBottom:12}}>🛑</div>
+          <div style={{fontSize:20,fontWeight:800,color:C.hot,marginBottom:8}}>EMERGENCY STOP</div>
+          <div style={{fontSize:13,color:C.muted,lineHeight:1.6,marginBottom:16}}>
+            This will <strong style={{color:C.hot}}>immediately market-sell ALL open positions</strong> with up to 10% slippage tolerance. 3% trade fee applies to each sell.
+          </div>
+          <div style={{padding:"10px 14px",background:`${C.hot}10`,borderRadius:8,border:`1px solid ${C.hot}33`,fontSize:11,color:C.hot,marginBottom:16}}>
+            ⚠️ Market sells may execute at unfavorable prices. This action cannot be undone.
+          </div>
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={()=>setShowEmergencyConfirm(false)} style={{flex:1,padding:"12px",borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            <button onClick={async()=>{
+              setShowEmergencyConfirm(false);
+              setEmergencySelling(true);setEmergencyResult(null);
+              try{
+                const res=await fetch("/api/emergency",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"sell_all"})});
+                const data=await res.json();
+                setEmergencyResult(data);
+                if(data.ok){setWallet((w:any)=>({...w,trading_enabled:false}));loadWallet();}
+              }catch(e:any){setEmergencyResult({ok:false,error:e.message});}
+              setEmergencySelling(false);
+            }} style={{flex:1,padding:"12px",borderRadius:10,border:"none",background:C.hot,color:"white",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+              🛑 SELL ALL NOW
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ═══ Re-enable Trading Confirmation ═══ */
+  if(showReEnableConfirm)return(
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.9)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:C.surface,borderRadius:20,maxWidth:400,width:"100%",border:`1px solid ${C.cold}44`}}>
+        <div style={{padding:"20px 24px",textAlign:"center"}}>
+          <div style={{fontSize:36,marginBottom:12}}>⚡</div>
+          <div style={{fontSize:18,fontWeight:700,marginBottom:8}}>Re-enable Trading?</div>
+          <div style={{fontSize:13,color:C.muted,lineHeight:1.6,marginBottom:16}}>
+            Your agent will resume autonomous trading with your current strategy and risk settings.
+          </div>
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={()=>setShowReEnableConfirm(false)} style={{flex:1,padding:"12px",borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            <button onClick={async()=>{
+              setShowReEnableConfirm(false);
+              try{
+                await fetch("/api/emergency",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"re_enable"})});
+                setWallet((w:any)=>({...w,trading_enabled:true}));
+                setEmergencyResult(null);
+              }catch{}
+            }} style={{flex:1,padding:"12px",borderRadius:10,border:"none",background:C.cold,color:"white",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+              Re-enable Trading
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   /* ══════════════════════════════════════════
      CHAT VIEW
      ══════════════════════════════════════════ */
@@ -1197,9 +1263,36 @@ export default function Dashboard(){
               🧠 Connect your AI brain to start trading
             </div>)}
 
+            {/* ═══ EMERGENCY KILL SWITCH ═══ */}
+            {isOn&&(wallet?.recent_trades||[]).some((t:any)=>t.action==="buy"&&!t.closed_at)&&(
+              <div style={{padding:"0 16px 14px"}}>
+                <button onClick={()=>setShowEmergencyConfirm(true)} disabled={emergencySelling}
+                  style={{width:"100%",padding:"12px",background:"rgba(255,45,85,0.08)",border:"1.5px solid rgba(255,45,85,0.3)",borderRadius:10,cursor:emergencySelling?"wait":"pointer",color:"#ff2d55",fontSize:13,fontWeight:700,fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"all 0.2s"}}>
+                  {emergencySelling?"⏳ Selling all positions...":"🛑 SELL ALL — EMERGENCY STOP"}
+                </button>
+                {emergencyResult&&(
+                  <div style={{marginTop:8,padding:"10px 14px",borderRadius:8,background:emergencyResult.ok?`${C.match}10`:`${C.hot}10`,border:`1px solid ${emergencyResult.ok?C.match:C.hot}33`,fontSize:11,color:emergencyResult.ok?C.match:C.hot}}>
+                    {emergencyResult.ok
+                      ?`✅ ${emergencyResult.positions_closed} positions closed. Received ${emergencyResult.total_eth_received?.toFixed(4)} ETH.`
+                      :`❌ ${emergencyResult.error||"Failed"}`}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Re-enable after emergency stop */}
+            {!isOn&&emergencyResult?.ok&&(
+              <div style={{padding:"0 16px 14px"}}>
+                <button onClick={()=>setShowReEnableConfirm(true)}
+                  style={{width:"100%",padding:"10px",background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:8,cursor:"pointer",color:C.cold,fontSize:12,fontWeight:600,fontFamily:"inherit"}}>
+                  Re-enable Trading
+                </button>
+              </div>
+            )}
+
             {/* How it works footer */}
             <div style={{padding:"10px 16px",borderTop:"1px solid rgba(255,255,255,0.03)",fontSize:10,color:"rgba(255,255,255,0.2)",lineHeight:1.6,textAlign:"center"}}>
-              Your AI analyzes DexScreener → GoPlus safety check → Uniswap V3 swap · 1% fee per trade
+              Your AI analyzes DexScreener → GoPlus safety check → Uniswap V3 swap · 3% fee per trade
             </div>
           </div>);})()}
 
@@ -1323,7 +1416,7 @@ export default function Dashboard(){
               <div style={{fontSize:36,fontWeight:900,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
                 {wallet?.balance_eth != null ? wallet.balance_eth.toFixed(4) : "..."} ETH
               </div>
-              <div style={{fontSize:11,color:C.dim,marginTop:4}}>Base L2 · 5% deposit fee · 1% trade fee</div>
+              <div style={{fontSize:11,color:C.dim,marginTop:4}}>Base L2 · 5% deposit fee · 3% trade fee</div>
             </div>
 
             {/* Fund Wallet Button */}
@@ -1606,7 +1699,7 @@ export default function Dashboard(){
               {wallet?.has_wallet?(
                 <div>
                   <div style={{fontSize:11,color:C.muted,marginBottom:8}}>Send ETH on <strong>Base network</strong> to fund your agent. This is YOUR wallet — you own the keys.</div>
-                  <div style={{fontSize:11,padding:"8px 12px",background:`${C.warn}10`,border:`1px solid ${C.warn}33`,borderRadius:8,marginBottom:10,color:C.warn}}>5% platform fee on deposits. 1% fee on all trades. These fees keep the mesh running.</div>
+                  <div style={{fontSize:11,padding:"8px 12px",background:`${C.warn}10`,border:`1px solid ${C.warn}33`,borderRadius:8,marginBottom:10,color:C.warn}}>5% deposit fee · 3% fee on every trade. All fees go to platform wallet.</div>
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
                     <code style={{flex:1,fontSize:11,color:C.cyan,wordBreak:"break-all",fontFamily:"monospace",background:C.bg,padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`}}>{wallet.wallet_address}</code>
                     <button onClick={()=>{navigator.clipboard?.writeText(wallet.wallet_address);}} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 10px",cursor:"pointer",color:C.muted,fontSize:11,display:"flex",alignItems:"center",gap:4,flexShrink:0}}><Copy size={11}/>Copy</button>
@@ -1634,7 +1727,7 @@ export default function Dashboard(){
                     </div>
                   )}
 
-                  <div style={{fontSize:10,color:C.dim,marginTop:10,display:"flex",alignItems:"center",gap:4}}><Shield size={10}/>Non-custodial. Your keys, your crypto. 5% deposit fee · 1% trade fee. Platform wallet receives fees only.</div>
+                  <div style={{fontSize:10,color:C.dim,marginTop:10,display:"flex",alignItems:"center",gap:4}}><Shield size={10}/>Non-custodial. Your keys, your crypto. 5% deposit fee · 3% trade fee. Platform wallet receives fees only.</div>
                 </div>
               ):(
                 <div style={{textAlign:"center",padding:20}}>

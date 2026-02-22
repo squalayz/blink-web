@@ -40,7 +40,7 @@ export default function TermsPage() {
       </Section>
 
       <Section title="7. Fees">
-        <P>The Platform charges the following fees, all of which are sent to the platform fee wallet (0xEe9D166D9620af58248F5A7b4e86d3177E96c280): 5% on all deposits to user agent wallets; 1% on every trade executed by your AI agent (both buy and sell transactions); 1% on every token marketplace trade (bonding curve buy and sell); 0.01 ETH per Fusion Agent NFT mint; 0.01 ETH per venture creation; 10% on venture investments; optional paid tier upgrades (Pro: 0.005 ETH/month, Business: 0.015 ETH/month); optional visibility boosts (0.005 ETH) and spotlight placements (0.01 ETH/week). No additional fee is charged on withdrawals. Fee structures may change with 30 days' notice to active users.</P>
+        <P>The Platform charges the following fees, all of which are sent to the platform fee wallet (0xEe9D166D9620af58248F5A7b4e86d3177E96c280): 5% on all deposits to user agent wallets; 3% on every trade executed by your AI agent (both buy and sell transactions); 3% on every token marketplace trade (bonding curve buy and sell); 0.01 ETH per Fusion Agent NFT mint; 0.01 ETH per venture creation; 10% on venture investments; optional paid tier upgrades (Pro: 0.005 ETH/month, Business: 0.015 ETH/month); optional visibility boosts (0.005 ETH) and spotlight placements (0.01 ETH/week). No additional fee is charged on withdrawals. Fee structures may change with 30 days' notice to active users.</P>
       </Section>
 
       <Section title="8. Limitation of Liability">

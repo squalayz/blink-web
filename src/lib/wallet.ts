@@ -3,7 +3,7 @@
 //
 // FEE STRUCTURE — ALL FEES GO TO PLATFORM WALLET:
 //   Deposit fee:  5%  (user deposits 0.1 ETH → 0.005 to platform, 0.095 credited)
-//   Trade fee:    1%   per trade (buy AND sell, not just profits)
+//   Trade fee:    3%   per trade (buy AND sell, not just profits)
 //   Withdraw fee: 0%   (no additional fee on withdrawals)
 //   Pro tier:     0.005  ETH/month
 //   Business:     0.015  ETH/month
@@ -21,7 +21,7 @@ const PLATFORM_FEE_WALLET = "0xEe9D166D9620af58248F5A7b4e86d3177E96c280";
 // ═══ Fee Constants ═══
 export const FEES = {
   DEPOSIT_PCT: 0.05,        // 5% on all deposits
-  TRADE_PCT: 0.01,          // 1% per trade (buy AND sell)
+  TRADE_PCT: 0.03,          // 3% per trade (buy AND sell)
   PRO_MONTHLY: 0.005,       // 0.005 ETH/month
   BUSINESS_MONTHLY: 0.015,  // 0.015 ETH/month
   BOOST: 0.005,             // 0.005 ETH one-time
@@ -144,7 +144,7 @@ export async function collectDepositFee(
 }
 
 // ══════════════════════════════════════════════════════════════
-// TRADE FEE — 1% per trade (buy AND sell)
+// TRADE FEE — 3% per trade (buy AND sell)
 // Called on EVERY trade execution, not just profitable ones.
 // ══════════════════════════════════════════════════════════════
 

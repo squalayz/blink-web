@@ -4,7 +4,7 @@
 // Non-custodial: trades execute FROM user's own wallet.
 // Each agent uses the USER'S OWN AI key for decisions.
 // Platform never holds funds. Platform never pays for inference.
-// 1% fee on EVERY trade (buy AND sell) sent to platform wallet.
+// 3% fee on EVERY trade (buy AND sell) sent to platform wallet.
 // ══════════════════════════════════════════════════════════════
 
 import { supabaseAdmin } from "./supabase";
@@ -146,7 +146,7 @@ ${riskConfig}
 
 RULES:
 - You trade meme/DeFi tokens on Base using ETH
-- 1% platform fee on every trade (already factored in)
+- 3% platform fee on every trade (already factored in)
 - NEVER go all-in. Max single trade: 25% of balance
 - If nothing looks good, say HOLD. Patience > FOMO
 - Consider momentum (1h + 24h change), volume, and liquidity
@@ -385,7 +385,7 @@ export async function runAutonomousTrading() {
       );
 
       if (swapResult.success) {
-        // ── Collect 1% fee → platform wallet ──
+        // ── Collect 3% fee → platform wallet ──
         const feeResult = await collectTradeFee(
           user.wallet_encrypted_key,
           tradeAmount,
