@@ -10,11 +10,27 @@ import {
 export async function POST(req: NextRequest) {
   try {
     const update = await req.json();
+    console.log("[TG] BOT_TOKEN set:", !!process.env.TELEGRAM_BOT_TOKEN, "len:", process.env.TELEGRAM_BOT_TOKEN?.length);
     console.log("[TG] Webhook received:", JSON.stringify(update).slice(0, 200));
 
     // Handle commands (text messages)
     if (update.message?.text) {
-      console.log("[TG] Processing message:", update.message.text, "from:", update.message.chat?.id);
+      const chatId = update.message.chat?.id;
+      const text = update.message.text;
+      console.log("[TG] Processing message:", text, "from:", chatId);
+      
+      // Direct send test — bypass all logic
+      if (text === "/ping") {
+        const token = process.env.TELEGRAM_BOT_TOKEN;
+        const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, text: `🏓 Pong! Token len: ${token?.length || 0}` }),
+        });
+        console.log("[TG] Ping response:", r.status, await r.text());
+        return NextResponse.json({ ok: true });
+      }
+      
       await handleMessage(update.message);
       console.log("[TG] Message handled successfully");
     }
