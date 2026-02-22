@@ -192,7 +192,18 @@ export default function TradingDashboard() {
   const [toggling, setToggling] = useState(false);
   const [scan, setScan] = useState<any>(null);
   const [scanTokenIdx, setScanTokenIdx] = useState(0);
+  const [showConfig, setShowConfig] = useState(false);
   const prevTradeCount = useRef(0);
+
+  async function updateSetting(key: string, value: any) {
+    setWallet((w: any) => ({ ...w, [key]: value }));
+    try {
+      await fetch("/api/wallet", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "settings", [key]: value }),
+      });
+    } catch {}
+  }
 
   async function toggleEngine() {
     if (toggling) return;
@@ -379,6 +390,154 @@ export default function TradingDashboard() {
             <div style={{fontSize:9,color:C.dim}}>{s.sub}</div>
           </div>
         ))}
+      </div>
+
+      {/* ═══ TRADING CONFIG ═══ */}
+      <div style={{padding:"0 16px",marginBottom:12}}>
+        <button onClick={()=>setShowConfig(!showConfig)} style={{
+          width:"100%",padding:"10px 14px",borderRadius:10,border:`1px solid ${C.border}`,
+          background:showConfig?`${C.indigo}08`:C.surface,cursor:"pointer",fontFamily:"inherit",
+          display:"flex",alignItems:"center",justifyContent:"space-between",
+        }}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.indigo} strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            <span style={{fontSize:12,fontWeight:600,color:C.text}}>Trading Config</span>
+          </div>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round"
+            style={{transform:showConfig?"rotate(180deg)":"rotate(0)",transition:"transform 0.2s"}}>
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </button>
+
+        {showConfig && (
+          <div style={{background:C.surface,borderRadius:"0 0 12px 12px",border:`1px solid ${C.border}`,borderTop:"none",padding:"14px"}}>
+            {/* Trade Size */}
+            <div style={{marginBottom:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                <span style={{fontSize:10,color:C.muted,fontWeight:600}}>Trade Size (% of portfolio)</span>
+                <span style={{fontSize:11,fontWeight:700,color:C.text,fontFamily:"'JetBrains Mono',monospace"}}>{wallet?.trade_size_pct||15}%</span>
+              </div>
+              <div style={{display:"flex",gap:4}}>
+                {[5,10,15,25,40].map(pct=>(
+                  <button key={pct} onClick={()=>updateSetting("trade_size_pct",pct)} style={{
+                    flex:1,padding:"8px 4px",borderRadius:6,border:`1px solid ${(wallet?.trade_size_pct||15)===pct?C.indigo+"44":C.border}`,
+                    background:(wallet?.trade_size_pct||15)===pct?`${C.indigo}15`:"transparent",
+                    color:(wallet?.trade_size_pct||15)===pct?C.text:C.muted,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                  }}>{pct}%</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Max Positions */}
+            <div style={{marginBottom:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                <span style={{fontSize:10,color:C.muted,fontWeight:600}}>Max Positions (hold at once)</span>
+                <span style={{fontSize:11,fontWeight:700,color:C.text,fontFamily:"'JetBrains Mono',monospace"}}>{wallet?.max_concurrent_positions||3}</span>
+              </div>
+              <div style={{display:"flex",gap:4}}>
+                {[1,2,3,5,7].map(n=>(
+                  <button key={n} onClick={()=>updateSetting("max_concurrent_positions",n)} style={{
+                    flex:1,padding:"8px 4px",borderRadius:6,border:`1px solid ${(wallet?.max_concurrent_positions||3)===n?C.cyan+"44":C.border}`,
+                    background:(wallet?.max_concurrent_positions||3)===n?`${C.cyan}15`:"transparent",
+                    color:(wallet?.max_concurrent_positions||3)===n?C.text:C.muted,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                  }}>{n}</button>
+                ))}
+              </div>
+              <div style={{fontSize:8,color:C.dim,marginTop:4}}>When full, agent sells weakest before buying new</div>
+            </div>
+
+            {/* Stop Loss / Take Profit */}
+            <div style={{display:"flex",gap:8,marginBottom:14}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:10,color:C.muted,fontWeight:600,marginBottom:4}}>Stop Loss</div>
+                <div style={{display:"flex",gap:3}}>
+                  {[-10,-20,-30,-50].map(sl=>(
+                    <button key={sl} onClick={()=>updateSetting("stop_loss_pct",sl)} style={{
+                      flex:1,padding:"6px 2px",borderRadius:5,border:`1px solid ${(wallet?.stop_loss_pct||-25)===sl?C.hot+"44":C.border}`,
+                      background:(wallet?.stop_loss_pct||-25)===sl?`${C.hot}15`:"transparent",
+                      color:(wallet?.stop_loss_pct||-25)===sl?C.hot:C.dim,fontSize:9,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                    }}>{sl}%</button>
+                  ))}
+                </div>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:10,color:C.muted,fontWeight:600,marginBottom:4}}>Take Profit</div>
+                <div style={{display:"flex",gap:3}}>
+                  {[25,50,100,200].map(tp=>(
+                    <button key={tp} onClick={()=>updateSetting("take_profit_pct",tp)} style={{
+                      flex:1,padding:"6px 2px",borderRadius:5,border:`1px solid ${(wallet?.take_profit_pct||80)===tp?C.match+"44":C.border}`,
+                      background:(wallet?.take_profit_pct||80)===tp?`${C.match}15`:"transparent",
+                      color:(wallet?.take_profit_pct||80)===tp?C.match:C.dim,fontSize:9,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                    }}>+{tp}%</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Trailing Stop */}
+            <div style={{marginBottom:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                <span style={{fontSize:10,color:C.muted,fontWeight:600}}>Trailing Stop</span>
+                <span style={{fontSize:10,fontWeight:700,color:C.text}}>{wallet?.trailing_stop_pct||20}%</span>
+              </div>
+              <div style={{display:"flex",gap:3}}>
+                {[10,15,20,30,0].map(ts=>(
+                  <button key={ts} onClick={()=>updateSetting("trailing_stop_pct",ts)} style={{
+                    flex:1,padding:"6px 2px",borderRadius:5,border:`1px solid ${(wallet?.trailing_stop_pct||20)===ts?C.purple+"44":C.border}`,
+                    background:(wallet?.trailing_stop_pct||20)===ts?`${C.purple}15`:"transparent",
+                    color:(wallet?.trailing_stop_pct||20)===ts?C.purple:C.dim,fontSize:9,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                  }}>{ts===0?"Off":`${ts}%`}</button>
+                ))}
+              </div>
+              <div style={{fontSize:8,color:C.dim,marginTop:3}}>Locks in profits by trailing behind the peak price</div>
+            </div>
+
+            {/* Cooldown + Auto Rebalance */}
+            <div style={{display:"flex",gap:8}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:10,color:C.muted,fontWeight:600,marginBottom:4}}>Cooldown (min between trades)</div>
+                <div style={{display:"flex",gap:3}}>
+                  {[5,10,15,30].map(cd=>(
+                    <button key={cd} onClick={()=>updateSetting("cooldown_minutes",cd)} style={{
+                      flex:1,padding:"6px 2px",borderRadius:5,border:`1px solid ${(wallet?.cooldown_minutes||15)===cd?C.indigo+"44":C.border}`,
+                      background:(wallet?.cooldown_minutes||15)===cd?`${C.indigo}15`:"transparent",
+                      color:(wallet?.cooldown_minutes||15)===cd?C.text:C.dim,fontSize:9,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                    }}>{cd}m</button>
+                  ))}
+                </div>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:10,color:C.muted,fontWeight:600,marginBottom:4}}>Auto-Rebalance</div>
+                <button onClick={()=>updateSetting("auto_rebalance",!(wallet?.auto_rebalance??true))} style={{
+                  width:"100%",padding:"6px",borderRadius:5,cursor:"pointer",fontFamily:"inherit",fontSize:9,fontWeight:600,
+                  border:`1px solid ${(wallet?.auto_rebalance??true)?C.match+"44":C.border}`,
+                  background:(wallet?.auto_rebalance??true)?`${C.match}15`:"transparent",
+                  color:(wallet?.auto_rebalance??true)?C.match:C.dim,
+                }}>{(wallet?.auto_rebalance??true)?"On — sells weakest when full":"Off — waits for manual exit"}</button>
+              </div>
+            </div>
+
+            {/* Daily Loss Limit */}
+            <div style={{marginTop:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                <span style={{fontSize:10,color:C.muted,fontWeight:600}}>Daily Loss Limit (circuit breaker)</span>
+                <span style={{fontSize:10,fontWeight:700,color:C.hot}}>{wallet?.max_daily_loss_pct||-30}%</span>
+              </div>
+              <div style={{display:"flex",gap:3}}>
+                {[-15,-20,-30,-50].map(dl=>(
+                  <button key={dl} onClick={()=>updateSetting("max_daily_loss_pct",dl)} style={{
+                    flex:1,padding:"6px 2px",borderRadius:5,border:`1px solid ${(wallet?.max_daily_loss_pct||-30)===dl?C.hot+"44":C.border}`,
+                    background:(wallet?.max_daily_loss_pct||-30)===dl?`${C.hot}10`:"transparent",
+                    color:(wallet?.max_daily_loss_pct||-30)===dl?C.hot:C.dim,fontSize:9,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+                  }}>{dl}%</button>
+                ))}
+              </div>
+              <div style={{fontSize:8,color:C.dim,marginTop:3}}>Auto-pauses trading if portfolio drops this much in one day</div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ═══ OPEN POSITIONS ═══ */}

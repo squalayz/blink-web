@@ -91,11 +91,26 @@ export async function POST(req: NextRequest) {
 
   // ── Update settings (risk level, trading toggle) ──
   if (action === "settings") {
-    const { risk_level, trading_enabled, trading_mode } = body;
+    const { risk_level, trading_enabled, trading_mode,
+      stop_loss_pct, take_profit_pct, trailing_stop_pct, max_daily_loss_pct,
+      max_position_pct, max_slippage_pct, max_price_impact_pct, cooldown_minutes,
+      max_concurrent_positions, trade_size_pct, auto_rebalance,
+    } = body;
     const updates: any = { user_id: userId };
     if (risk_level) updates.risk_level = risk_level;
     if (trading_enabled !== undefined) updates.trading_enabled = trading_enabled;
     if (trading_mode) updates.trading_mode = trading_mode;
+    if (stop_loss_pct !== undefined) updates.stop_loss_pct = stop_loss_pct;
+    if (take_profit_pct !== undefined) updates.take_profit_pct = take_profit_pct;
+    if (trailing_stop_pct !== undefined) updates.trailing_stop_pct = trailing_stop_pct;
+    if (max_daily_loss_pct !== undefined) updates.max_daily_loss_pct = max_daily_loss_pct;
+    if (max_position_pct !== undefined) updates.max_position_pct = max_position_pct;
+    if (max_slippage_pct !== undefined) updates.max_slippage_pct = max_slippage_pct;
+    if (max_price_impact_pct !== undefined) updates.max_price_impact_pct = max_price_impact_pct;
+    if (cooldown_minutes !== undefined) updates.cooldown_minutes = cooldown_minutes;
+    if (max_concurrent_positions !== undefined) updates.max_concurrent_positions = max_concurrent_positions;
+    if (trade_size_pct !== undefined) updates.trade_size_pct = trade_size_pct;
+    if (auto_rebalance !== undefined) updates.auto_rebalance = auto_rebalance;
     updates.updated_at = new Date().toISOString();
     await supabaseAdmin.from("agent_balances").upsert(updates, { onConflict: "user_id" });
     return NextResponse.json({ ok: true });

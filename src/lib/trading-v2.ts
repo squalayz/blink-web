@@ -453,7 +453,7 @@ export async function runSLTPEngine() {
 // ═══ MAIN TRADING LOOP V2 ═══
 export async function runAutonomousTradingV2(modeFilter?: string[]) {
   let query = supabaseAdmin.from("agent_balances")
-    .select("user_id, trading_enabled, risk_level, trading_mode, total_trading_pnl, total_fees, stop_loss_pct, take_profit_pct, trailing_stop_pct, max_daily_loss_pct, max_position_pct, max_slippage_pct, max_price_impact_pct, cooldown_minutes")
+    .select("user_id, trading_enabled, risk_level, trading_mode, total_trading_pnl, total_fees, stop_loss_pct, take_profit_pct, trailing_stop_pct, max_daily_loss_pct, max_position_pct, max_slippage_pct, max_price_impact_pct, cooldown_minutes, max_concurrent_positions, trade_size_pct, auto_rebalance")
     .eq("trading_enabled", true);
 
   if (modeFilter?.length) {
@@ -489,6 +489,8 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
       if (agent.max_slippage_pct != null) dbOverrides.max_slippage_pct = agent.max_slippage_pct;
       if (agent.max_price_impact_pct != null) dbOverrides.max_price_impact_pct = agent.max_price_impact_pct;
       if (agent.cooldown_minutes != null) dbOverrides.cooldown_minutes = agent.cooldown_minutes;
+      if (agent.max_concurrent_positions != null) dbOverrides.max_concurrent_positions = agent.max_concurrent_positions;
+      const userTradeSizePct = agent.trade_size_pct || null; // user's custom trade size
       const risk = new RiskManager(agent.user_id, strategy, dbOverrides);
 
       // Circuit breaker check
@@ -556,7 +558,10 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
         }
 
         // Risk check
-        const tradeAmount = walletBalance * (decision.amountPct / 100);
+        // Use user's trade_size_pct if set, otherwise AI's suggestion, capped at user's max
+        const maxPct = userTradeSizePct || riskConfig.max_position_pct || 15;
+        const effectivePct = Math.min(decision.amountPct || maxPct, maxPct);
+        const tradeAmount = walletBalance * (effectivePct / 100);
         const riskCheck = await risk.canTrade(decision.tokenAddress, tradeAmount, walletBalance);
         if (!riskCheck.ok) {
           await supabaseAdmin.from("trading_history").insert({
