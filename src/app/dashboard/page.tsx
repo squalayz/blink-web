@@ -382,7 +382,7 @@ export default function Dashboard(){
   const[obStep,setObStep]=useState(1);
   const[showWalletDrop,setShowWalletDrop]=useState(false);
   const obSteps=[{n:1,l:"Profile"},{n:2,l:"Industry & Goals"},{n:3,l:"AI Brain"},{n:4,l:"Personality"}];
-  const obCanNext=obStep===1?!!form.name:obStep===2?!!(form.building&&form.looking_for):true;
+  const obCanNext=obStep===1?!!(form.name&&form.avatar_url):obStep===2?!!(form.building&&form.looking_for):true;
 
   /* ── Auth + Load ── */
   useEffect(()=>{checkAuth();},[]);
@@ -678,8 +678,8 @@ export default function Dashboard(){
     }
     setOnboarding(false);
     setUser((u:any)=>({...u,onboarded:true}));
-    // Trigger instant match scan for this user (don't await — runs in background)
-    fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"scan"})}).catch(()=>{});
+    // Trigger delayed first match (2-10 min random delay, runs in background)
+    fetch("/api/match/delayed",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user_id:user.id})}).catch(()=>{});
     // Award first badge
     await supabase.from("badges").upsert({user_id:user.id,badge_type:"first_agent",badge_name:"Agent Deployed",badge_description:"Launched your first AI agent"},{onConflict:"user_id,badge_type"});
   }
@@ -728,10 +728,10 @@ export default function Dashboard(){
         <div style={{textAlign:"center",marginBottom:32}}>
           <MMLogo size={56}/>
           <h1 style={{fontSize:26,fontWeight:800,marginTop:12}}>
-            {obStep===1?"Who are you?":obStep===2?"What are you building?":obStep===3?"Give your agent a brain":"Set the vibe"}
+            {obStep===1?"Create your identity":obStep===2?"What drives you?":obStep===3?"Power up your agent":"Set the vibe"}
           </h1>
           <p style={{color:C.muted,marginTop:6,fontSize:13}}>
-            {obStep===1?"Your agent represents you. Make it count.":obStep===2?"This is how your agent finds the right people.":obStep===3?"Connect an AI provider so your agent can think. Optional — you can do this later.":"How should your agent talk to other agents?"}
+            {obStep===1?"Photo + username. 30 seconds.":obStep===2?"Your agent uses this to find your people.":obStep===3?"Give it a brain and it starts networking for you. Skip if you want — add later.":"Last step. How should your agent represent you?"}
           </p>
         </div>
 
@@ -753,8 +753,8 @@ export default function Dashboard(){
               <label style={{cursor:"pointer",display:"inline-block"}}>
                 <input type="file" accept="image/*" onChange={uploadPhoto} style={{display:"none"}}/>
                 {form.avatar_url?<img src={form.avatar_url} style={{width:88,height:88,borderRadius:"50%",objectFit:"cover",border:`3px solid ${C.cold}`}}/>:
-                <div style={{width:88,height:88,borderRadius:"50%",background:C.s2,border:`2px dashed ${C.dim}`,display:"flex",alignItems:"center",justifyContent:"center"}}><Camera size={28} color={C.dim}/></div>}
-                <div style={{fontSize:11,color:C.muted,marginTop:6}}>Upload photo</div>
+                <div style={{width:88,height:88,borderRadius:"50%",background:`linear-gradient(135deg,${C.cold}15,${C.cyan}10)`,border:`2px dashed ${C.cold}55`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}><Camera size={24} color={C.cold}/><span style={{fontSize:8,color:C.cold,fontWeight:600}}>REQUIRED</span></div>}
+                <div style={{fontSize:11,color:form.avatar_url?C.match:C.cold,marginTop:6,fontWeight:600}}>{form.avatar_url?"Looking good":"Tap to upload"}</div>
               </label>
             </div>
             {([
