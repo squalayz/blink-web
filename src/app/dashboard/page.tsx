@@ -981,7 +981,6 @@ export default function Dashboard(){
           {id:"mesh",label:"Mesh",icon:<BarChart3 size={13}/>},
           {id:"pending",label:`New${pendingMatches.length?` (${pendingMatches.length})`:""}`,icon:<Sparkles size={13}/>},
           {id:"matches",label:`Connected${acceptedMatches.length?` (${acceptedMatches.length})`:""}`,icon:<MessageCircle size={13}/>},
-          {id:"discover",label:"Agents",icon:<Search size={13}/>},
           {id:"leaderboard",label:"Ranks",icon:<Trophy size={13}/>},
           {id:"wallet",label:"Agent Fuel",icon:<Zap size={13}/>},
           {id:"nfts",label:`NFTs${nfts.length?` (${nfts.length})`:""}`,icon:<Award size={13}/>},
