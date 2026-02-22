@@ -944,7 +944,7 @@ export default function Dashboard(){
       {/* Base ETH Banner */}
       <div style={{position:"sticky",top:0,left:0,right:0,zIndex:1000,background:"linear-gradient(90deg,rgba(0,82,255,0.12),rgba(99,102,241,0.10),rgba(6,182,212,0.08))",borderBottom:"1px solid rgba(99,102,241,0.1)",padding:"6px 16px",textAlign:"center",fontSize:10,fontWeight:500,color:"rgba(165,180,252,0.8)",letterSpacing:"0.5px",display:"flex",alignItems:"center",justifyContent:"center",gap:8,animation:"banner-glow 4s ease-in-out infinite"}}>
         <style>{`@keyframes banner-glow{0%,100%{background:linear-gradient(90deg,rgba(0,82,255,0.10),rgba(99,102,241,0.08),rgba(6,182,212,0.06))}50%{background:linear-gradient(90deg,rgba(0,82,255,0.18),rgba(99,102,241,0.14),rgba(6,182,212,0.10))}}`}</style>
-        <span style={{display:"inline-flex",alignItems:"center",gap:4}}>⚡ Powered by AI & Base L2</span>
+        <span style={{display:"inline-flex",alignItems:"center",gap:4}}><svg width="14" height="14" viewBox="0 0 111 111" style={{verticalAlign:"-2px"}} fill="none"><circle cx="55.5" cy="55.5" r="55.5" fill="#0052FF"/><path d="M55.7 14.7c-22.6 0-40.8 18.3-40.8 40.8s18.3 40.8 40.8 40.8 40.8-18.3 40.8-40.8H55.7V14.7z" fill="white"/></svg> Powered by AI & Base L2</span>
         <span style={{opacity:0.3}}>·</span>
         <span>All deposits & trades use ETH on Base</span>
       </div>
