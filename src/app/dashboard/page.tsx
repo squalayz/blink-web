@@ -345,6 +345,7 @@ export default function Dashboard(){
   // Crypto + referrals + notifications state
   const[wallet,setWallet]=useState<any>({risk_level:"conservative",trading_enabled:false,balance_eth:0,has_wallet:false});
   const[stratOpen,setStratOpen]=useState(false);
+  const[riskOpen,setRiskOpen]=useState(false);
   const[deposits,setDeposits]=useState<any[]>([]);
   const[trades,setTrades]=useState<any[]>([]);
   const[fuelStats,setFuelStats]=useState<any>(null);
@@ -1049,7 +1050,7 @@ export default function Dashboard(){
       <style>{`nav.mm-global-nav{display:none!important}`}</style>
       {/* Base ETH Banner */}
       <div style={{position:"sticky",top:0,left:0,right:0,zIndex:1000,background:"linear-gradient(90deg,rgba(0,82,255,0.12),rgba(99,102,241,0.10),rgba(6,182,212,0.08))",borderBottom:"1px solid rgba(99,102,241,0.1)",padding:"6px 16px",textAlign:"center",fontSize:10,fontWeight:500,color:"rgba(165,180,252,0.8)",letterSpacing:"0.5px",display:"flex",alignItems:"center",justifyContent:"center",gap:8,animation:"banner-glow 4s ease-in-out infinite"}}>
-        <style>{`@keyframes banner-glow{0%,100%{background:linear-gradient(90deg,rgba(0,82,255,0.10),rgba(99,102,241,0.08),rgba(6,182,212,0.06))}50%{background:linear-gradient(90deg,rgba(0,82,255,0.18),rgba(99,102,241,0.14),rgba(6,182,212,0.10))}}@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(1.4)}}@keyframes mm-brain-pulse{0%,100%{opacity:0.5;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}@keyframes mm-brain-glow{0%,100%{box-shadow:0 0 8px rgba(99,102,241,0.15)}50%{box-shadow:0 0 18px rgba(99,102,241,0.35),0 0 8px rgba(6,182,212,0.2)}}@keyframes txn-slide{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}`}</style>
+        <style>{`@keyframes banner-glow{0%,100%{background:linear-gradient(90deg,rgba(0,82,255,0.10),rgba(99,102,241,0.08),rgba(6,182,212,0.06))}50%{background:linear-gradient(90deg,rgba(0,82,255,0.18),rgba(99,102,241,0.14),rgba(6,182,212,0.10))}}@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(1.4)}}@keyframes mm-brain-pulse{0%,100%{opacity:0.5;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}@keyframes mm-brain-glow{0%,100%{box-shadow:0 0 8px rgba(99,102,241,0.15)}50%{box-shadow:0 0 18px rgba(99,102,241,0.35),0 0 8px rgba(6,182,212,0.2)}}@keyframes txn-slide{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#FF9F0A;border:2px solid rgba(0,0,0,0.3);cursor:pointer;box-shadow:0 0 8px rgba(255,159,10,0.4)}input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#FF9F0A;border:2px solid rgba(0,0,0,0.3);cursor:pointer;box-shadow:0 0 8px rgba(255,159,10,0.4)}`}</style>
         <span style={{display:"inline-flex",alignItems:"center",gap:4}}><svg width="14" height="14" viewBox="0 0 111 111" style={{verticalAlign:"-2px"}} fill="none"><circle cx="55.5" cy="55.5" r="55.5" fill="#0052FF"/><path d="M55.7 14.7c-22.6 0-40.8 18.3-40.8 40.8s18.3 40.8 40.8 40.8 40.8-18.3 40.8-40.8H55.7V14.7z" fill="white"/></svg> Powered by AI & Base L2</span>
         <span style={{opacity:0.3}}>·</span>
         <span>All deposits & trades use ETH on Base</span>
@@ -1249,6 +1250,96 @@ export default function Dashboard(){
                       </div>
                     </button>);
                   })}
+                </div>
+              </div>
+            </div>
+
+            {/* ═══ RISK & POSITION SETTINGS ═══ */}
+            <div style={{padding:"0 16px 14px"}}>
+              <button onClick={()=>setRiskOpen(!riskOpen)} style={{
+                width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",
+                padding:"12px 14px",borderRadius:12,cursor:"pointer",fontFamily:"inherit",
+                background:riskOpen?"rgba(255,159,10,0.06)":"rgba(255,255,255,0.02)",
+                border:`1px solid ${riskOpen?"rgba(255,159,10,0.25)":"rgba(255,255,255,0.06)"}`,
+                transition:"all 0.3s",WebkitTapHighlightColor:"transparent",
+              }}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <Shield size={16} color={riskOpen?C.warn:C.muted}/>
+                  <div style={{textAlign:"left"}}>
+                    <div style={{fontSize:12,fontWeight:700,color:riskOpen?C.warn:C.text}}>Risk & Position Settings</div>
+                    <div style={{fontSize:9,color:C.muted,marginTop:1}}>Trade size, stop loss, take profit & more</div>
+                  </div>
+                </div>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{transform:riskOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.3s cubic-bezier(0.4,0,0.2,1)"}}>
+                  <path d="M3 4.5L6 7.5L9 4.5" stroke={C.muted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+
+              <div style={{
+                maxHeight:riskOpen?"900px":"0px",overflow:"hidden",
+                transition:"max-height 0.5s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
+                opacity:riskOpen?1:0,
+              }}>
+                <div style={{paddingTop:10,display:"flex",flexDirection:"column",gap:8}}>
+                  {/* Trade Size Per Trade */}
+                  {(()=>{
+                    const fields=[
+                      {key:"trade_size_pct",label:"Trade Size",desc:"% of portfolio per trade",min:1,max:100,step:1,suffix:"%",icon:"📊",default:15},
+                      {key:"max_position_pct",label:"Max Position",desc:"Max % of portfolio in one token",min:5,max:100,step:5,suffix:"%",icon:"🎯",default:15},
+                      {key:"stop_loss_pct",label:"Stop Loss",desc:"Auto-sell if price drops this much",min:-80,max:-5,step:5,suffix:"%",icon:"🛑",default:-25,negative:true},
+                      {key:"take_profit_pct",label:"Take Profit",desc:"Auto-sell if price rises this much",min:10,max:500,step:10,suffix:"%",icon:"💰",default:80},
+                      {key:"trailing_stop_pct",label:"Trailing Stop",desc:"Trail behind peak by this %",min:5,max:50,step:5,suffix:"%",icon:"📉",default:20},
+                      {key:"max_daily_loss_pct",label:"Daily Loss Limit",desc:"Stop trading if daily loss exceeds",min:-80,max:-5,step:5,suffix:"%",icon:"🚫",default:-30,negative:true},
+                      {key:"max_slippage_pct",label:"Max Slippage",desc:"Reject swaps with higher slippage",min:1,max:20,step:1,suffix:"%",icon:"⚡",default:8},
+                      {key:"max_price_impact_pct",label:"Max Price Impact",desc:"Skip tokens with high price impact",min:1,max:15,step:1,suffix:"%",icon:"💥",default:5},
+                      {key:"cooldown_minutes",label:"Cooldown",desc:"Minutes between trades on same token",min:5,max:120,step:5,suffix:" min",icon:"⏱️",default:15},
+                      {key:"max_concurrent_positions",label:"Max Positions",desc:"Maximum open positions at once",min:1,max:20,step:1,suffix:"",icon:"📦",default:5},
+                    ];
+                    return fields.map(f=>{
+                      const val=wallet?.[f.key]??f.default;
+                      const displayVal=f.negative?Math.abs(val):val;
+                      return(
+                        <div key={f.key} style={{background:"rgba(255,255,255,0.025)",borderRadius:10,padding:"10px 12px"}}>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                            <div style={{display:"flex",alignItems:"center",gap:6}}>
+                              <span style={{fontSize:13}}>{f.icon}</span>
+                              <div>
+                                <div style={{fontSize:11,fontWeight:700,color:C.text}}>{f.label}</div>
+                                <div style={{fontSize:9,color:C.muted}}>{f.desc}</div>
+                              </div>
+                            </div>
+                            <div style={{fontSize:14,fontWeight:800,color:C.warn,minWidth:50,textAlign:"right"}}>
+                              {f.negative?"-":""}{displayVal}{f.suffix}
+                            </div>
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <input type="range" min={f.negative?Math.abs(f.max):f.min} max={f.negative?Math.abs(f.min):f.max} step={f.step} value={displayVal}
+                              onChange={(e)=>{
+                                const raw=parseFloat(e.target.value);
+                                const newVal=f.negative?-raw:raw;
+                                setWallet((w:any)=>({...w,[f.key]:newVal}));
+                                updateWalletSettings({[f.key]:newVal});
+                              }}
+                              style={{flex:1,height:4,WebkitAppearance:"none",appearance:"none",background:`linear-gradient(to right, ${C.warn} ${((displayVal-(f.negative?Math.abs(f.max):f.min))/((f.negative?Math.abs(f.min):f.max)-(f.negative?Math.abs(f.max):f.min)))*100}%, rgba(255,255,255,0.08) ${((displayVal-(f.negative?Math.abs(f.max):f.min))/((f.negative?Math.abs(f.min):f.max)-(f.negative?Math.abs(f.max):f.min)))*100}%)`,borderRadius:4,outline:"none",cursor:"pointer"}}
+                            />
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+
+                  {/* Reset to defaults button */}
+                  <button onClick={()=>{
+                    const defaults={trade_size_pct:15,max_position_pct:15,stop_loss_pct:-25,take_profit_pct:80,trailing_stop_pct:20,max_daily_loss_pct:-30,max_slippage_pct:8,max_price_impact_pct:5,cooldown_minutes:15,max_concurrent_positions:5};
+                    setWallet((w:any)=>({...w,...defaults}));
+                    updateWalletSettings(defaults);
+                  }} style={{
+                    width:"100%",padding:"8px",borderRadius:8,border:`1px solid ${C.border}`,
+                    background:"transparent",color:C.muted,fontSize:10,fontWeight:600,
+                    cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",
+                  }}>
+                    Reset to Default Settings
+                  </button>
                 </div>
               </div>
             </div>
