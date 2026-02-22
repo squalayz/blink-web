@@ -20,6 +20,8 @@ export default function NavBar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [bal, setBal] = useState({ eth: 0, usd: 0, pnl: 0, active: true });
+  const [aiConnected, setAiConnected] = useState(false);
+  const [aiProvider, setAiProvider] = useState<string|null>(null);
   const [flash, setFlash] = useState("");
   const lastBal = useRef<number | null>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -63,6 +65,8 @@ export default function NavBar() {
       const pnl = parseFloat(data.pnl_today || "0");
       const active = data.agent_active !== false;
       setBal({ eth, usd, pnl, active });
+      setAiConnected(!!data.ai_connected);
+      setAiProvider(data.ai_provider || null);
       if (lastBal.current !== null && eth !== lastBal.current) {
         setFlash(eth > lastBal.current ? "deposit" : "loss");
         setTimeout(() => setFlash(""), 800);
@@ -113,6 +117,48 @@ export default function NavBar() {
           </div>
           MishMesh<span style={{ color: C.indigo }}>.ai</span>
         </a>
+
+        {/* ═══ AI BRAIN ICON ═══ */}
+        {isLoggedIn && (
+          <a href="/dashboard?view=settings&section=ai" title={aiConnected ? `AI Brain: ${aiProvider || "Connected"}` : "Connect your AI Brain"} style={{
+            width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+            background: aiConnected 
+              ? "linear-gradient(135deg, rgba(99,102,241,0.15), rgba(6,182,212,0.15))" 
+              : "rgba(255,255,255,0.04)",
+            border: aiConnected 
+              ? "1.5px solid rgba(99,102,241,0.4)" 
+              : "1.5px solid rgba(255,255,255,0.1)",
+            cursor: "pointer", textDecoration: "none", position: "relative", transition: "all 0.3s",
+            boxShadow: aiConnected ? "0 0 12px rgba(99,102,241,0.2)" : "none",
+            animation: aiConnected ? "mm-brain-glow 3s ease-in-out infinite" : "mm-brain-pulse 2s ease-in-out infinite",
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" 
+              stroke={aiConnected ? "url(#brain-grad)" : "#6b6b80"} 
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <defs>
+                <linearGradient id="brain-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor={C.indigo}/>
+                  <stop offset="100%" stopColor={C.cyan}/>
+                </linearGradient>
+              </defs>
+              <path d="M12 2a4 4 0 0 1 4 4c0 1.1-.9 2-2 2h-4c-1.1 0-2-.9-2-2a4 4 0 0 1 4-4z"/>
+              <path d="M8 8v1a4 4 0 0 0 8 0V8"/>
+              <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+              <path d="M12 16v6"/>
+              <path d="M9 22h6"/>
+              <path d="M7 8C4.2 8 2 10.2 2 13c0 2 1.2 3.8 3 4.5"/>
+              <path d="M17 8c2.8 0 5 2.2 5 5 0 2-1.2 3.8-3 4.5"/>
+            </svg>
+            {!aiConnected && (
+              <span style={{
+                position: "absolute", top: -2, right: -2, width: 8, height: 8,
+                borderRadius: "50%", background: C.hot,
+                boxShadow: `0 0 6px ${C.hot}`,
+                animation: "mm-pulse-fast 1.2s infinite",
+              }}/>
+            )}
+          </a>
+        )}
 
         {/* Center links (desktop) */}
         <div className="mm-nav-links" style={{ display: "flex", gap: 28, alignItems: "center" }}>
@@ -222,6 +268,8 @@ export default function NavBar() {
       <div style={{ height: 56 }} />
 
       <style>{`
+        @keyframes mm-brain-pulse{0%,100%{opacity:0.5;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
+        @keyframes mm-brain-glow{0%,100%{box-shadow:0 0 8px rgba(99,102,241,0.15)}50%{box-shadow:0 0 18px rgba(99,102,241,0.35),0 0 8px rgba(6,182,212,0.2)}}
         @keyframes mm-pulse-fast{0%,100%{opacity:.6;transform:scale(.9)}50%{opacity:1;transform:scale(1.3)}}
         @keyframes mm-pulse-slow{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.2)}}
         @keyframes mm-flash{0%{filter:brightness(2)}100%{filter:brightness(1)}}

@@ -219,7 +219,7 @@ export async function GET(req: NextRequest) {
   const userId = sessionUser.id;
 
   const [userRes, balRes, tradesRes, withdrawRes, depositRes] = await Promise.all([
-    supabaseAdmin.from("users").select("wallet_address, trading_wallet_address, tier, tier_expires_at").eq("id", userId).single(),
+    supabaseAdmin.from("users").select("wallet_address, trading_wallet_address, tier, tier_expires_at, ai_provider, ai_api_key_encrypted").eq("id", userId).single(),
     supabaseAdmin.from("agent_balances").select("*").eq("user_id", userId).single(),
     supabaseAdmin.from("trading_history").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(10),
     supabaseAdmin.from("withdrawals").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(5),
@@ -347,6 +347,8 @@ export async function GET(req: NextRequest) {
     platform_fee_wallet: PLATFORM_FEE_WALLET,
     chain: "Base (L2)",
     chain_id: 8453,
+    ai_connected: !!userRes.data?.ai_api_key_encrypted,
+    ai_provider: userRes.data?.ai_provider || null,
     // Instant deposit info (null if no new deposit this poll)
     deposit_just_collected: depositCollected ? depositInfo : null,
   });
