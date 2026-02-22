@@ -134,20 +134,14 @@ export default function NavBar() {
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" 
               stroke={aiConnected ? "url(#brain-grad)" : "#6b6b80"} 
-              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <defs>
                 <linearGradient id="brain-grad" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor={C.indigo}/>
                   <stop offset="100%" stopColor={C.cyan}/>
                 </linearGradient>
               </defs>
-              <path d="M12 2a4 4 0 0 1 4 4c0 1.1-.9 2-2 2h-4c-1.1 0-2-.9-2-2a4 4 0 0 1 4-4z"/>
-              <path d="M8 8v1a4 4 0 0 0 8 0V8"/>
-              <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
-              <path d="M12 16v6"/>
-              <path d="M9 22h6"/>
-              <path d="M7 8C4.2 8 2 10.2 2 13c0 2 1.2 3.8 3 4.5"/>
-              <path d="M17 8c2.8 0 5 2.2 5 5 0 2-1.2 3.8-3 4.5"/>
+              <path d="M9.5 2a3.5 3.5 0 0 0-3.4 4.3A3.5 3.5 0 0 0 4 9.8a3.5 3.5 0 0 0 .7 3.5A3.5 3.5 0 0 0 6 17a3.5 3.5 0 0 0 3.5 3h1V2z"/><path d="M14.5 2a3.5 3.5 0 0 1 3.4 4.3A3.5 3.5 0 0 1 20 9.8a3.5 3.5 0 0 1-.7 3.5A3.5 3.5 0 0 1 18 17a3.5 3.5 0 0 1-3.5 3h-1V2z"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M12 2v20"/><path d="M8 14c1.3.7 2.7.7 4 0"/><path d="M12 14c1.3.7 2.7.7 4 0"/>
             </svg>
             {!aiConnected && (
               <span style={{
