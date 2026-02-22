@@ -799,6 +799,7 @@ export default function Dashboard(){
                     {id:"openai",name:"OpenAI",cost:"~$0.30"},
                     {id:"anthropic",name:"Anthropic",cost:"~$3.00"},
                     {id:"google",name:"Google",cost:"~$0.15"},
+                    {id:"xai",name:"xAI (Grok)",cost:"~$0.30"},
                     {id:"groq",name:"Groq",cost:"~$0.12"},
                     {id:"openrouter",name:"OpenRouter",cost:"~$0.30"},
                   ].map((p)=>(
@@ -1823,6 +1824,7 @@ export default function Dashboard(){
                       {id:"openai",name:"OpenAI",cost:"~$0.30"},
                       {id:"anthropic",name:"Anthropic",cost:"~$3.00"},
                       {id:"google",name:"Google",cost:"~$0.15"},
+                      {id:"xai",name:"xAI (Grok)",cost:"~$0.30"},
                       {id:"groq",name:"Groq",cost:"~$0.12"},
                       {id:"openrouter",name:"OpenRouter",cost:"~$0.30"},
                       {id:"custom",name:"Custom",cost:"Varies"},
