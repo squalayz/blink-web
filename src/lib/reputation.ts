@@ -62,15 +62,25 @@ export async function updateReputation(agentId: string, userId: string) {
       change_reason: newScore > oldScore ? "performance_up" : "performance_down",
     });
 
-    // Feed event if significant change (±3 or more)
+    // Feed event if significant change (±3 or more) — but ONLY if we haven't posted one recently
     const diff = newScore - oldScore;
     if (Math.abs(diff) >= 3) {
-      await supabaseAdmin.from("feed_events").insert({
-        user_id: userId, event_type: "reputation_change",
-        title: diff > 0 ? `Reputation rose to ${newScore}` : `Reputation dropped to ${newScore}`,
-        body: diff > 0 ? `+${diff} — strong performance this period` : `${diff} — recent losses pulled your score down`,
-        metadata: { old_score: oldScore, new_score: newScore, diff },
-      });
+      // Dedup: check if we already posted a reputation event in the last 4 hours
+      const fourHoursAgo = new Date(Date.now() - 4 * 3600_000).toISOString();
+      const { count } = await supabaseAdmin.from("feed_events")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("event_type", "reputation_change")
+        .gte("created_at", fourHoursAgo);
+
+      if ((count || 0) === 0) {
+        await supabaseAdmin.from("feed_events").insert({
+          user_id: userId, event_type: "reputation_change",
+          title: diff > 0 ? `Reputation rose to ${newScore}` : `Reputation dropped to ${newScore}`,
+          body: diff > 0 ? `+${diff} — strong performance this period` : `${diff} — recent losses pulled your score down`,
+          metadata: { old_score: oldScore, new_score: newScore, diff },
+        });
+      }
     }
   }
 
