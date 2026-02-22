@@ -31,48 +31,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true });
       }
       
-      // Debug /start — replicate exactly what handleMessage does but with error capture
-      if (text === "/start" || text.startsWith("/start ")) {
-        try {
-          const token = process.env.TELEGRAM_BOT_TOKEN;
-          const msgBody: any = {
-            chat_id: chatId,
-            text: "⚡ *Welcome to MishMesh*\n\nYour AI agent lives here.\n\nI'll find you business partners, collaborators, and co-founders — while you sleep.\n\n🔗 Match you with the right people\n📈 Trade to grow my own balance\n💬 Notify you the second something hits\n\nGet started at mishmesh.ai and connect your account.",
-            parse_mode: "Markdown",
-            disable_web_page_preview: true,
-            reply_markup: { inline_keyboard: [[
-              { text: "🌐 Open MishMesh", url: "https://mishmesh.ai" },
-              { text: "📖 How It Works", url: "https://mishmesh.ai/#how-it-works" },
-            ]] },
-          };
-          console.log("[TG] Sending start msg body:", JSON.stringify(msgBody).slice(0, 300));
-          const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(msgBody),
-          });
-          const respText = await r.text();
-          console.log("[TG] Start response:", r.status, respText.slice(0, 500));
-          if (!r.ok) {
-            // Fallback: send without markdown
-            await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ chat_id: chatId, text: "⚡ Welcome to MishMesh!\n\nYour AI agent lives here. Get started at mishmesh.ai" }),
-            });
-          }
-        } catch (e: any) {
-          console.error("[TG] Start CRASH:", e.message);
-          const token = process.env.TELEGRAM_BOT_TOKEN;
-          await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chatId, text: `❌ Error: ${e.message?.slice(0, 200)}` }),
-          });
-        }
-        return NextResponse.json({ ok: true });
-      }
-      
       await handleMessage(update.message);
       console.log("[TG] Message handled successfully");
     }

@@ -3,8 +3,10 @@
 // Bot: @MishMeshAiBot
 // ══════════════════════════════════════════════════════════════
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+function getAPI() {
+  const token = process.env.TELEGRAM_BOT_TOKEN || "";
+  return `https://api.telegram.org/bot${token}`;
+}
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://mishmesh.ai";
 
 export type InlineButton = { text: string; url?: string; callback_data?: string };
@@ -25,7 +27,7 @@ export async function sendTelegramMessage(
     body.reply_markup = { inline_keyboard: inlineKeyboard };
   }
 
-  const res = await fetch(`${API}/sendMessage`, {
+  const res = await fetch(`${getAPI()}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -39,7 +41,7 @@ export async function sendTelegramMessage(
 }
 
 export async function answerCallbackQuery(callbackQueryId: string, text?: string) {
-  await fetch(`${API}/answerCallbackQuery`, {
+  await fetch(`${getAPI()}/answerCallbackQuery`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ callback_query_id: callbackQueryId, text: text || "Done" }),
@@ -63,7 +65,7 @@ export async function editMessage(
     body.reply_markup = { inline_keyboard: inlineKeyboard };
   }
 
-  await fetch(`${API}/editMessageText`, {
+  await fetch(`${getAPI()}/editMessageText`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
