@@ -96,6 +96,7 @@ export default function SignInPage() {
               {/* Create Wallet button */}
               <button
                 onClick={handleCreateWallet}
+                disabled={step !== "choose"}
                 onMouseEnter={() => setHoverCreate(true)}
                 onMouseLeave={() => setHoverCreate(false)}
                 style={{

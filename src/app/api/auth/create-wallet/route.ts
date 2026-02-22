@@ -55,28 +55,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, address: walletAddress, userId: existingUser.id });
     }
 
-    // ── Create new wallet ──
-    const { address, privateKey, encryptedKey } = generateWallet();
-    const walletAddress = address.toLowerCase();
+    // ── Create new wallet (retry on rare collision or duplicate request) ──
+    let newUser: any = null;
+    let privateKey = "";
+    let walletAddress = "";
+    let lastError: any = null;
 
-    // Create user
-    const { data: newUser, error } = await supabaseAdmin
-      .from("users")
-      .insert({
-        wallet_address: walletAddress,
-        wallet_encrypted_key: encryptedKey,
-        tos_accepted_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const generated = generateWallet();
+      walletAddress = generated.address.toLowerCase();
+      privateKey = generated.privateKey;
 
-    if (error || !newUser) {
-      // Might already exist
-      if (error?.code === "23505") {
-        return NextResponse.json({ error: "Wallet already registered. Try connecting instead." }, { status: 409 });
+      const { data, error: insertError } = await supabaseAdmin
+        .from("users")
+        .insert({
+          wallet_address: walletAddress,
+          wallet_encrypted_key: generated.encryptedKey,
+          tos_accepted_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+
+      if (!insertError && data) {
+        newUser = data;
+        break;
       }
-      console.error("Create wallet user error:", error);
+
+      lastError = insertError;
+      // 23505 = unique violation — retry with fresh wallet
+      if (insertError?.code === "23505") {
+        console.warn(`Wallet create attempt ${attempt + 1} hit duplicate, retrying...`);
+        continue;
+      }
+
+      // Any other error — bail
+      console.error("Create wallet user error:", insertError);
       return NextResponse.json({ error: "Failed to create account" }, { status: 500 });
+    }
+
+    if (!newUser) {
+      console.error("Create wallet failed after 3 attempts:", lastError);
+      return NextResponse.json({ error: "Failed to create account. Please try again." }, { status: 500 });
     }
 
     // Create agent_profiles
