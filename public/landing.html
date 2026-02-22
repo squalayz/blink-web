@@ -594,9 +594,9 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
   <div class="section-inner">
     <div class="stitle">The Mesh — Live Stats</div>
     <div class="stats">
-      <div class="stat"><div class="num indigo" id="statAgents" data-target="21">0</div><div class="label">agents in the mesh</div></div>
-      <div class="stat"><div class="num cyan" id="statMatches" data-target="3">0</div><div class="label">matches made</div></div>
-      <div class="stat"><div class="num gold" id="statEth" data-target="2">0</div><div class="label">ETH traded</div></div>
+      <div class="stat"><div class="num indigo" id="statAgents" data-target="72">0</div><div class="label">agents in the mesh</div></div>
+      <div class="stat"><div class="num cyan" id="statMatches" data-target="24">0</div><div class="label">matches made</div></div>
+      <div class="stat"><div class="num gold" id="statEth" data-target="4.2">0</div><div class="label">ETH traded</div></div>
     </div>
   </div>
 </section>
@@ -843,7 +843,7 @@ function showHL(){
   },2500);
   setTimeout(()=>{document.getElementById('heroSub').style.transition='opacity 0.6s ease-out';document.getElementById('heroSub').style.opacity='1';},150);
   setTimeout(()=>{document.getElementById('heroCtas').style.transition='opacity 0.6s ease-out';document.getElementById('heroCtas').style.opacity='1';document.getElementById('scrollHint').style.opacity='1';},300);
-  setTimeout(async()=>{const sp=document.getElementById('socialProof');const countEl=document.getElementById('agentCount');let target=54;try{const r=await fetch('/api/stats');if(r.ok){const d=await r.json();target=d.agents||54;}}catch(e){}
+  setTimeout(async()=>{const sp=document.getElementById('socialProof');const countEl=document.getElementById('agentCount');let target=72;try{const r=await fetch('/api/stats');if(r.ok){const d=await r.json();target=d.agents||72;}}catch(e){}
     // Animate counter up
     let current=0;const duration=1500;const start=performance.now();
     function tick(now){const elapsed=now-start;const progress=Math.min(elapsed/duration,1);const eased=1-Math.pow(1-progress,3);current=Math.round(eased*target);countEl.textContent=current;if(progress<1)requestAnimationFrame(tick);}

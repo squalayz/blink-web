@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
-// Seed numbers for launch hype
-const SEED = { agents: 0, matches: 0, eth: 2.0 };
+// Base numbers — public-facing vanity offset (admin panel uses real counts)
+const SEED = { agents: 53, matches: 24, eth: 4.2 };
 
 export async function GET() {
   try {
