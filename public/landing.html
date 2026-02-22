@@ -317,11 +317,12 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
 </style>
 </head>
 <body>
-<div id="topBanner" style="position:fixed;top:0;left:0;right:0;z-index:1000;background:linear-gradient(90deg,#0052FF,#6366f1);padding:8px 16px;text-align:center;font-size:11px;font-weight:600;color:white;letter-spacing:0.5px;display:flex;align-items:center;justify-content:center;gap:8px">
-  <span style="display:inline-flex;align-items:center;gap:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="white"/><path d="M12 6l4 6H8l4-6z" fill="#0052FF"/></svg> Powered by AI & Base L2</span>
-  <span style="opacity:0.6">·</span>
+<div id="topBanner" style="position:fixed;top:0;left:0;right:0;z-index:1000;background:linear-gradient(90deg,rgba(0,82,255,0.12),rgba(99,102,241,0.10),rgba(6,182,212,0.08));border-bottom:1px solid rgba(99,102,241,0.1);padding:6px 16px;text-align:center;font-size:10px;font-weight:500;color:rgba(165,180,252,0.8);letter-spacing:0.5px;display:flex;align-items:center;justify-content:center;gap:8px;animation:banner-glow 4s ease-in-out infinite">
+  <span style="display:inline-flex;align-items:center;gap:4px">⚡ Powered by AI & Base L2</span>
+  <span style="opacity:0.3">·</span>
   <span>All deposits & trades use ETH on Base</span>
 </div>
+<style>@keyframes banner-glow{0%,100%{background:linear-gradient(90deg,rgba(0,82,255,0.10),rgba(99,102,241,0.08),rgba(6,182,212,0.06))}50%{background:linear-gradient(90deg,rgba(0,82,255,0.18),rgba(99,102,241,0.14),rgba(6,182,212,0.10))}}</style>
 <div class="preload" id="preload"><div class="dot"></div></div>
 <div class="scroll-hint" id="scrollHint"><span></span></div>
 <canvas id="mesh"></canvas>

@@ -942,9 +942,10 @@ export default function Dashboard(){
       {/* Hide global navbar */}
       <style>{`nav.mm-global-nav{display:none!important}`}</style>
       {/* Base ETH Banner */}
-      <div style={{position:"sticky",top:0,left:0,right:0,zIndex:1000,background:"linear-gradient(90deg,#0052FF,#6366f1)",padding:"7px 16px",textAlign:"center",fontSize:11,fontWeight:600,color:"white",letterSpacing:"0.5px",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+      <div style={{position:"sticky",top:0,left:0,right:0,zIndex:1000,background:"linear-gradient(90deg,rgba(0,82,255,0.12),rgba(99,102,241,0.10),rgba(6,182,212,0.08))",borderBottom:"1px solid rgba(99,102,241,0.1)",padding:"6px 16px",textAlign:"center",fontSize:10,fontWeight:500,color:"rgba(165,180,252,0.8)",letterSpacing:"0.5px",display:"flex",alignItems:"center",justifyContent:"center",gap:8,animation:"banner-glow 4s ease-in-out infinite"}}>
+        <style>{`@keyframes banner-glow{0%,100%{background:linear-gradient(90deg,rgba(0,82,255,0.10),rgba(99,102,241,0.08),rgba(6,182,212,0.06))}50%{background:linear-gradient(90deg,rgba(0,82,255,0.18),rgba(99,102,241,0.14),rgba(6,182,212,0.10))}}`}</style>
         <span style={{display:"inline-flex",alignItems:"center",gap:4}}>⚡ Powered by AI & Base L2</span>
-        <span style={{opacity:0.5}}>·</span>
+        <span style={{opacity:0.3}}>·</span>
         <span>All deposits & trades use ETH on Base</span>
       </div>
       {showWalletDrop&&<div onClick={()=>setShowWalletDrop(false)} style={{position:"fixed",inset:0,zIndex:998}}/>}
