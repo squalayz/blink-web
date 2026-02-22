@@ -271,6 +271,7 @@ export default function TradingDashboard() {
         @keyframes float-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
         @keyframes glow-pulse{0%,100%{box-shadow:0 0 20px rgba(99,102,241,0.1)}50%{box-shadow:0 0 40px rgba(99,102,241,0.2)}}
         @keyframes orb-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
+        @keyframes shimmer{0%{transform:translateX(-100%)}50%{transform:translateX(100%)}100%{transform:translateX(100%)}}
         @keyframes bar-fill{from{width:0}to{width:var(--fill)}}
       `}</style>
 
@@ -282,23 +283,43 @@ export default function TradingDashboard() {
         </button>
         <div style={{fontSize:14,fontWeight:700,letterSpacing:"0.02em"}}>AI Trading</div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:10,color:isOn ? C.match : C.muted,fontWeight:600}}>{isOn ? "Live" : "Off"}</span>
+          <span style={{fontSize:10,color:isOn ? mode.color : C.muted,fontWeight:700,letterSpacing:"0.05em",textTransform:"uppercase",transition:"color 0.4s"}}>{isOn ? "Live" : "Off"}</span>
           <button onClick={toggleEngine} disabled={toggling} style={{
-            width:52,height:28,borderRadius:14,border:"none",cursor:toggling?"wait":"pointer",position:"relative",
-            background:isOn?"linear-gradient(135deg,#30d158,#34c759)":"rgba(255,255,255,0.08)",
-            boxShadow:isOn?"0 0 16px rgba(48,209,88,0.3),inset 0 1px 2px rgba(255,255,255,0.15)":"inset 0 1px 3px rgba(0,0,0,0.3)",
-            transition:"all 0.3s cubic-bezier(0.4,0,0.2,1)",WebkitTapHighlightColor:"transparent",
+            width:56,height:30,borderRadius:15,border:"none",cursor:toggling?"wait":"pointer",position:"relative",
+            background:isOn?`linear-gradient(135deg, ${mode.color}, ${mode.orbColor}dd)`:"rgba(255,255,255,0.06)",
+            boxShadow:isOn?`0 0 24px ${mode.color}55, 0 0 48px ${mode.color}22, inset 0 1px 2px rgba(255,255,255,0.2)`:"inset 0 2px 4px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06)",
+            transition:"all 0.4s cubic-bezier(0.4,0,0.2,1)",WebkitTapHighlightColor:"transparent",
+            overflow:"hidden",
           }}>
+            {/* Animated shimmer when on */}
+            {isOn && <div style={{
+              position:"absolute",top:0,left:0,right:0,bottom:0,borderRadius:15,
+              background:`linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%)`,
+              animation:"shimmer 2s ease-in-out infinite",
+            }}/>}
+            {/* Track glow particles when on */}
+            {isOn && <div style={{
+              position:"absolute",top:"50%",left:10,width:4,height:4,borderRadius:"50%",
+              background:"rgba(255,255,255,0.4)",marginTop:-2,
+              animation:"pulse-dot 1.5s infinite",
+            }}/>}
+            {isOn && <div style={{
+              position:"absolute",top:"50%",left:18,width:3,height:3,borderRadius:"50%",
+              background:"rgba(255,255,255,0.25)",marginTop:-1.5,
+              animation:"pulse-dot 1.5s 0.3s infinite",
+            }}/>}
+            {/* Knob */}
             <div style={{
-              width:22,height:22,borderRadius:"50%",background:"white",position:"absolute",top:3,
-              left:isOn?27:3,transition:"all 0.3s cubic-bezier(0.4,0,0.2,1)",
-              boxShadow:isOn?"0 2px 6px rgba(0,0,0,0.15)":"0 2px 4px rgba(0,0,0,0.3)",
+              width:24,height:24,borderRadius:"50%",position:"absolute",top:3,
+              left:isOn?29:3,transition:"all 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+              background:isOn?`radial-gradient(circle at 40% 35%, white, #f0f0f0)`:"radial-gradient(circle at 40% 35%, #888, #555)",
+              boxShadow:isOn?`0 2px 8px rgba(0,0,0,0.2), 0 0 12px ${mode.color}44`:"0 2px 4px rgba(0,0,0,0.4)",
               display:"flex",alignItems:"center",justifyContent:"center",
             }}>
               {isOn ? (
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#30d158" strokeWidth="3" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={mode.color} strokeWidth="3" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
               ) : (
-                <div style={{width:7,height:2,background:"#999",borderRadius:1}}/>
+                <div style={{width:8,height:2,background:"#333",borderRadius:1}}/>
               )}
             </div>
           </button>
