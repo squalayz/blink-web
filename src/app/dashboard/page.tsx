@@ -803,7 +803,7 @@ export default function Dashboard(){
                     {id:"groq",name:"Groq",cost:"~$0.12"},
                     {id:"openrouter",name:"OpenRouter",cost:"~$0.30"},
                   ].map((p)=>(
-                    <button key={p.id} onClick={()=>{setAiForm(f=>({...f,provider:p.id,model:p.id==="openai"?"gpt-4o-mini":p.id==="anthropic"?"claude-3-haiku-20240307":p.id==="groq"?"llama-3.1-70b-versatile":"gemini-pro"}));setAiTestResult(null);}}
+                    <button key={p.id} onClick={()=>{const defaults:any={"openai":"gpt-4o-mini","anthropic":"claude-sonnet-4-20250514","google":"gemini-2.0-flash","xai":"grok-3-mini","groq":"llama-3.1-70b-versatile","openrouter":"openai/gpt-4o-mini","custom":"default"};setAiForm(f=>({...f,provider:p.id,model:defaults[p.id]||"gpt-4o-mini"}));setAiTestResult(null);}}
                       style={{padding:"10px 16px",borderRadius:10,border:`1px solid ${aiForm.provider===p.id?C.cold:C.border}`,background:aiForm.provider===p.id?`${C.cold}15`:C.s2,cursor:"pointer",fontSize:12,fontWeight:aiForm.provider===p.id?700:400,color:aiForm.provider===p.id?C.cold:C.muted,transition:"all 0.2s"}}>
                       {p.name}<span style={{fontSize:9,display:"block",color:C.dim,marginTop:2}}>{p.cost}/match</span>
                     </button>
@@ -1829,7 +1829,7 @@ export default function Dashboard(){
                       {id:"openrouter",name:"OpenRouter",cost:"~$0.30"},
                       {id:"custom",name:"Custom",cost:"Varies"},
                     ]).map((p:any)=>(
-                      <button key={p.id} onClick={()=>{setAiForm(f=>({...f,provider:p.id,model:p.models?.[0]||"gpt-4o-mini"}));setAiTestResult(null);}}
+                      <button key={p.id} onClick={()=>{const defaults:any={"openai":"gpt-4o-mini","anthropic":"claude-sonnet-4-20250514","google":"gemini-2.0-flash","xai":"grok-3-mini","groq":"llama-3.1-70b-versatile","openrouter":"openai/gpt-4o-mini","custom":"default"};setAiForm(f=>({...f,provider:p.id,model:defaults[p.id]||p.models?.[0]||"gpt-4o-mini"}));setAiTestResult(null);}}
                         style={{padding:"8px 14px",borderRadius:8,border:`1px solid ${aiForm.provider===p.id?C.cold:C.border}`,background:aiForm.provider===p.id?`${C.cold}15`:C.s2,cursor:"pointer",fontSize:11,fontWeight:aiForm.provider===p.id?700:400,color:aiForm.provider===p.id?C.cold:C.muted}}>
                         {p.name}<span style={{fontSize:9,display:"block",color:C.dim}}>{p.cost}/match</span>
                       </button>
@@ -1842,7 +1842,7 @@ export default function Dashboard(){
                   <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Model</div>
                   <select value={aiForm.model} onChange={e=>setAiForm(f=>({...f,model:e.target.value}))}
                     style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:12,fontFamily:"inherit"}}>
-                    {(aiProviders.find((p:any)=>p.id===aiForm.provider)?.models||["gpt-4o-mini"]).map((m:string)=>(
+                    {(aiProviders.find((p:any)=>p.id===aiForm.provider)?.models||({"openai":["gpt-4o-mini","gpt-4o","gpt-4-turbo","o1-mini"],"anthropic":["claude-sonnet-4-20250514","claude-3-5-haiku-20241022","claude-3-haiku-20240307"],"google":["gemini-2.0-flash","gemini-1.5-pro","gemini-1.5-flash"],"xai":["grok-3","grok-3-mini","grok-2","grok-2-mini"],"groq":["llama-3.1-70b-versatile","llama-3.1-8b-instant","mixtral-8x7b-32768"],"openrouter":["openai/gpt-4o-mini","anthropic/claude-3-haiku","google/gemini-flash-1.5"],"custom":["default"]} as any)[aiForm.provider]||["gpt-4o-mini"]).map((m:string)=>(
                       <option key={m} value={m}>{m}</option>
                     ))}
                   </select>
