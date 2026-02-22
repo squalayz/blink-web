@@ -10,20 +10,24 @@ import {
 export async function POST(req: NextRequest) {
   try {
     const update = await req.json();
+    console.log("[TG] Webhook received:", JSON.stringify(update).slice(0, 200));
 
     // Handle commands (text messages)
     if (update.message?.text) {
+      console.log("[TG] Processing message:", update.message.text, "from:", update.message.chat?.id);
       await handleMessage(update.message);
+      console.log("[TG] Message handled successfully");
     }
 
     // Handle inline button presses
     if (update.callback_query) {
+      console.log("[TG] Processing callback:", update.callback_query.data);
       await handleCallback(update.callback_query);
     }
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error("Telegram webhook error:", err);
+    console.error("[TG] Webhook CRASH:", err.message, err.stack?.slice(0, 500));
     return NextResponse.json({ ok: true }); // Always return 200 to Telegram
   }
 }
