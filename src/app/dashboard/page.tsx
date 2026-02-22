@@ -1457,7 +1457,6 @@ export default function Dashboard(){
               </div>
               <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
                 <div><div style={{fontSize:10,color:C.muted}}>Status</div><div style={{fontSize:13,fontWeight:600,color:(wallet?.balance_eth||0)>0.001?C.match:C.hot,display:"flex",alignItems:"center",gap:4}}><div style={{width:6,height:6,borderRadius:"50%",background:(wallet?.balance_eth||0)>0.001?C.match:C.hot}}/>{(wallet?.balance_eth||0)>0.001?"Active":"Needs Fuel"}</div></div>
-                <div><div style={{fontSize:10,color:C.muted}}>Est. Days Left</div><div style={{fontSize:13,fontWeight:600}}>{fuelStats?.estimated_days||0}</div></div>
                 <div><div style={{fontSize:10,color:C.muted}}>Trading P&L</div><div style={{fontSize:13,fontWeight:600,color:(wallet?.total_trading_pnl||0)>=0?C.match:C.hot}}>{(wallet?.total_trading_pnl||0)>=0?"+":""}{(wallet?.total_trading_pnl||0).toFixed(4)} ETH</div></div>
                 <div><div style={{fontSize:10,color:C.muted}}>Chain</div><div style={{fontSize:13,fontWeight:600}}>Base L2</div></div>
               </div>
