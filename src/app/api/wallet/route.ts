@@ -315,7 +315,15 @@ export async function GET(req: NextRequest) {
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const todayTrades = (tradesRes.data || []).filter((t: any) => new Date(t.created_at) >= todayStart);
   const pnlToday = todayTrades.reduce((sum: number, t: any) => sum + parseFloat(t.pnl_eth || "0"), 0);
-  const ethUsdPrice = 2000; // TODO: fetch real price from oracle/API
+  // Fetch real ETH price
+  let ethUsdPrice = 1950; // fallback
+  try {
+    const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd", { next: { revalidate: 60 } });
+    if (priceRes.ok) {
+      const priceData = await priceRes.json();
+      ethUsdPrice = priceData?.ethereum?.usd || ethUsdPrice;
+    }
+  } catch {}
 
   return NextResponse.json({
     wallet_address: walletAddress || null,

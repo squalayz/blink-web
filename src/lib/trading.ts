@@ -144,7 +144,11 @@ ${agentPersonality ? `PERSONALITY: ${agentPersonality}` : ""}
 Respond in EXACTLY this JSON format, nothing else:
 {"action":"buy|sell|hold","token":"SYMBOL","confidence":0-100,"amountPct":5-25,"reasoning":"one sentence"}`;
 
-  const userMsg = `WALLET: ${walletBalance.toFixed(4)} ETH ($${(walletBalance * 2800).toFixed(0)})
+  // Fetch real ETH price for AI context
+  let ethPrice = 1950;
+  try { const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"); if(r.ok){ const d=await r.json(); ethPrice=d?.ethereum?.usd||ethPrice; } } catch{}
+
+  const userMsg = `WALLET: ${walletBalance.toFixed(4)} ETH ($${(walletBalance * ethPrice).toFixed(0)})
 
 TRENDING ON BASE:
 ${tokenData}
