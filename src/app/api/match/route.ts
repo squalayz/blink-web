@@ -178,12 +178,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, message: "Scan triggered" });
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-  } catch (err: any) {
-    console.error("Match API error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
-    }
-
     // ═══ CREATE INVITE ═══
     if (action === "create_invite") {
       const { invitee_name } = body;
@@ -322,6 +316,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+  } catch (err: any) {
+    console.error("Match API error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
