@@ -270,7 +270,7 @@ export async function POST(req: NextRequest) {
       await supabaseAdmin.from("notifications").insert({
         user_id: invite.inviter_id,
         type: "referral",
-        message: `Your invite was claimed! You'll earn 10% of their deposit fees and 10% of their trade fees.`,
+        message: `Your invite was claimed! You'll earn 30% of their deposit and trade fees.`,
         metadata: JSON.stringify({ referred_user: userId, code }),
       });
 
@@ -301,7 +301,7 @@ export async function POST(req: NextRequest) {
 
       const depositFeesFromRefs = (deposits || []).reduce((sum: number, d: any) => sum + (d.fee_eth || 0), 0);
       const tradeFeesFromRefs = (trades || []).reduce((sum: number, t: any) => sum + (t.fee_eth || 0), 0);
-      const totalRewardsEarned = (depositFeesFromRefs + tradeFeesFromRefs) * 0.10; // 10% of fees
+      const totalRewardsEarned = (depositFeesFromRefs + tradeFeesFromRefs) * 0.30; // 30% of fees
 
       // Get user's referral code
       const { data: userData } = await supabaseAdmin.from("users").select("referral_code").eq("id", userId).single();
@@ -312,7 +312,7 @@ export async function POST(req: NextRequest) {
         deposit_fees_from_refs: depositFeesFromRefs,
         trade_fees_from_refs: tradeFeesFromRefs,
         referral_code: userData?.referral_code || null,
-        reward_rate: "10%",
+        reward_rate: "30%",
       });
     }
 

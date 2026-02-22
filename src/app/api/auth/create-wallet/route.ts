@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
           wallet_address: walletAddress,
           wallet_encrypted_key: generated.encryptedKey,
           tos_accepted_at: new Date().toISOString(),
+          referral_code: "MM" + Math.random().toString(36).slice(2, 8).toUpperCase(),
         })
         .select("id")
         .single();
@@ -143,7 +144,7 @@ export async function POST(req: NextRequest) {
           await supabaseAdmin.from("users").update({ referred_by: invite.inviter_id }).eq("id", newUser.id);
           await supabaseAdmin.from("notifications").insert({
             user_id: invite.inviter_id, type: "referral",
-            message: "Your invite was claimed! You'll earn 10% of their deposit and trade fees.",
+            message: "Your invite was claimed! You'll earn 30% of their deposit and trade fees.",
             metadata: JSON.stringify({ referred_user: newUser.id, code: inviteCode }),
           });
         }

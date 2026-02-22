@@ -431,12 +431,12 @@ export async function runAutonomousTrading() {
           }),
         });
 
-        // ═══ REFERRAL REWARD: 10% of trade fee to referrer ═══
+        // ═══ REFERRAL REWARD: 30% of trade fee to referrer ═══
         try {
           const { data: refData } = await supabaseAdmin.from("users")
             .select("referred_by").eq("id", agent.user_id).single();
           if (refData?.referred_by) {
-            const referralReward = fee * 0.10;
+            const referralReward = fee * 0.30;
             if (referralReward >= 0.000001) {
               await supabaseAdmin.from("referral_rewards").insert({
                 user_id: refData.referred_by,

@@ -294,7 +294,7 @@ export async function GET(req: NextRequest) {
               metadata: JSON.stringify(depositInfo),
             });
 
-            // ═══ REFERRAL REWARD: Pay 10% of fee to referrer ═══
+            // ═══ REFERRAL REWARD: Pay 30% of fee to referrer ═══
             try {
               const { data: refUser } = await supabaseAdmin.from("users")
                 .select("referred_by")
@@ -304,7 +304,7 @@ export async function GET(req: NextRequest) {
                   .select("wallet_address")
                   .eq("id", refUser.referred_by).single();
                 if (referrer?.wallet_address) {
-                  const referralReward = result.fee * 0.10; // 10% of our 5% fee
+                  const referralReward = result.fee * 0.30; // 30% of our 5% fee
                   if (referralReward >= 0.000001) {
                     const { sendFeeToPlatform } = await import("@/lib/wallet");
                     // Send reward FROM platform wallet to referrer

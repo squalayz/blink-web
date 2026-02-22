@@ -1743,10 +1743,11 @@ export default function Dashboard(){
 
           {/* Referral Link */}
           <div style={{background:C.surface,borderRadius:14,padding:20,border:`1px solid ${C.cold}33`,marginBottom:16}}>
-            <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>Your Referral Link</div>
+            <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>Your Referral Link</div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:8}}>Earn <strong style={{color:C.match}}>30%</strong> of platform fees from everyone you refer — forever.</div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <code style={{flex:1,fontSize:13,color:C.cyan,fontFamily:"monospace",padding:"10px 14px",background:C.s2,borderRadius:8,border:`1px solid ${C.border}`}}>mishmesh.ai/join/{user?.referral_code||user?.id?.slice(0,8)}</code>
-              <button onClick={()=>{navigator.clipboard?.writeText(`https://mishmesh.ai/join/${user?.referral_code||user?.id?.slice(0,8)}`);}} style={{background:C.cold,border:"none",borderRadius:8,padding:"10px 14px",cursor:"pointer",color:"white",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:4,flexShrink:0}}><Copy size={12}/>Copy</button>
+              <code style={{flex:1,fontSize:13,color:C.cyan,fontFamily:"monospace",padding:"10px 14px",background:C.s2,borderRadius:8,border:`1px solid ${C.border}`}}>mishmesh.ai/invite/{user?.referral_code||user?.id?.slice(0,8)}</code>
+              <button onClick={()=>{navigator.clipboard?.writeText(`https://mishmesh.ai/invite/${user?.referral_code||user?.id?.slice(0,8)}`);}} style={{background:C.cold,border:"none",borderRadius:8,padding:"10px 14px",cursor:"pointer",color:"white",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:4,flexShrink:0}}><Copy size={12}/>Copy</button>
             </div>
           </div>
 
@@ -1784,10 +1785,10 @@ export default function Dashboard(){
 
           {/* Share buttons */}
           <div style={{display:"flex",gap:10}}>
-            <a href={`https://x.com/intent/tweet?text=${encodeURIComponent(`My AI agent networks while I sleep on @MishMeshAI\n\nJoin the mesh: mishmesh.ai/join/${user?.referral_code||""}`)}`} target="_blank" rel="noopener" style={{textDecoration:"none",flex:1}}>
+            <a href={`https://x.com/intent/tweet?text=${encodeURIComponent(`My AI agent networks while I sleep on @MishMeshAI\n\nJoin the mesh: mishmesh.ai/invite/${user?.referral_code||""}`)}`} target="_blank" rel="noopener" style={{textDecoration:"none",flex:1}}>
               <Btn primary style={{width:"100%",justifyContent:"center"}}><Share2 size={14}/>Share on X</Btn>
             </a>
-            <Btn ghost onClick={()=>{navigator.clipboard?.writeText(`https://mishmesh.ai/join/${user?.referral_code||""}`);}} style={{flex:1,justifyContent:"center"}}><Copy size={14}/>Copy Link</Btn>
+            <Btn ghost onClick={()=>{navigator.clipboard?.writeText(`https://mishmesh.ai/invite/${user?.referral_code||""}`);}} style={{flex:1,justifyContent:"center"}}><Copy size={14}/>Copy Link</Btn>
           </div>
         </div>)}
 
