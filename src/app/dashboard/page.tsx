@@ -968,7 +968,7 @@ export default function Dashboard(){
       {showWalletDrop&&<div onClick={()=>setShowWalletDrop(false)} style={{position:"fixed",inset:0,zIndex:998}}/>}
       {/* ── Nav ── */}
       <nav style={{padding:"4px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>window.location.href="/"}>
+        <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>window.location.href="/landing.html"}>
           <MMLogo size={32}/><span style={{fontWeight:700,fontSize:15}}>MishMesh</span>
           {(()=>{const aiOn=!!user?.ai_api_key_encrypted;return(
             <div onClick={(e)=>{e.stopPropagation();setView("settings");}} title={aiOn?"AI Brain Connected":"Connect AI Brain"} style={{
