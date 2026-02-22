@@ -639,19 +639,19 @@ function init3D(){
 let bs=null;
 function birth(ts){
   if(!bs)bs=ts;const e=(ts-bs)/1000;
-  if(e<1){orbs[0].material.opacity=0.3+Math.sin(e*8)*0.3;orbs[0].scale.setScalar(0.5+Math.sin(e*8)*0.3);return e;}
-  if(e<2.8){
-    const p=Math.min((e-1)/1.5,1),ez=1-Math.pow(1-p,3);
+  if(e<0.4){orbs[0].material.opacity=0.3+Math.sin(e*12)*0.3;orbs[0].scale.setScalar(0.5+Math.sin(e*12)*0.3);return e;}
+  if(e<1.2){
+    const p=Math.min((e-0.4)/0.8,1),ez=1-Math.pow(1-p,3);
     orbs.forEach((o,i)=>{const d=i*0.001,lt=Math.max(0,Math.min(1,(p-d)*1.2)),le=1-Math.pow(1-lt,3);
       o.position.x=o.userData.tx*le;o.position.y=o.userData.ty*le;o.position.z=o.userData.tz*le;
       o.material.opacity=Math.min(lt*1.5,0.6);o.scale.setScalar(o.userData.sc*lt);
     });return e;
   }
   born=true;
-  const ht=Math.min((e-2.8)/1.5,1),he=1-Math.pow(1-ht,2);
+  const ht=Math.min((e-1.2)/0.8,1),he=1-Math.pow(1-ht,2);
   heroA.material.opacity=he*0.9;heroB.material.opacity=he*0.9;
-  if(e>3.5){
-    const r=Math.max(1.5,8-(e-3.5)*1.2),a=(e-3.5)*0.4;
+  if(e>1.6){
+    const r=Math.max(1.5,8-(e-1.6)*2.4),a=(e-1.6)*0.6;
     heroA.position.set(Math.cos(a*2)*r,Math.sin(a*2)*r*0.6,0);
     heroB.position.set(Math.cos(a*2+Math.PI)*r,Math.sin(a*2+Math.PI)*r*0.6,0);
     if(r<4.5&&!snapped){snapped=true;triggerHero();}
@@ -764,12 +764,12 @@ function initOrbs(){
 // ══ HERO TEXT ══
 function triggerHero(){
   const el=document.getElementById('agentText');
-  const ph=['searching...','analyzing...','found something.'];
+  const ph=['searching...','found something.'];
   let pi=0;el.style.opacity='1';
   function tp(){
-    if(pi>=ph.length){setTimeout(showHL,100);return;}
+    if(pi>=ph.length){setTimeout(showHL,80);return;}
     const s=ph[pi];el.textContent='';let ci=0;
-    const iv=setInterval(()=>{el.textContent+=s[ci];ci++;if(ci>=s.length){clearInterval(iv);pi++;setTimeout(tp,pi<ph.length?250:100);}},22);
+    const iv=setInterval(()=>{el.textContent+=s[ci];ci++;if(ci>=s.length){clearInterval(iv);pi++;setTimeout(tp,pi<ph.length?200:80);}},18);
   }tp();
 }
 
@@ -787,7 +787,7 @@ function showHL(){
       const sp=document.createElement('span');sp.className='word';sp.textContent=w;
       lineEl.appendChild(sp);
       const idx=wordIdx;
-      setTimeout(()=>{sp.style.transition='all 0.5s cubic-bezier(0.22,1,0.36,1)';sp.style.opacity='1';sp.style.transform='translateY(0)';sp.style.filter='blur(0)';},70*idx);
+      setTimeout(()=>{sp.style.transition='all 0.4s cubic-bezier(0.22,1,0.36,1)';sp.style.opacity='1';sp.style.transform='translateY(0)';sp.style.filter='blur(0)';},50*idx);
       wordIdx++;
     });
     h1.appendChild(lineEl);
@@ -797,15 +797,15 @@ function showHL(){
   const gw=document.createElement('span');gw.className='word';gw.id='cycleWord';
   gw.style.background='linear-gradient(135deg,#6366f1,#06b6d4)';gw.style.WebkitBackgroundClip='text';gw.style.WebkitTextFillColor='transparent';
   gw.textContent=cycleWords[0];line3.appendChild(gw);h1.appendChild(line3);
-  setTimeout(()=>{gw.style.transition='all 0.5s cubic-bezier(0.22,1,0.36,1)';gw.style.opacity='1';gw.style.transform='translateY(0)';gw.style.filter='blur(0)';},70*wordIdx);
+  setTimeout(()=>{gw.style.transition='all 0.4s cubic-bezier(0.22,1,0.36,1)';gw.style.opacity='1';gw.style.transform='translateY(0)';gw.style.filter='blur(0)';},50*wordIdx);
   let ci=0;
   cycleTimer=setInterval(()=>{ci=(ci+1)%cycleWords.length;gw.style.transition='opacity 0.35s ease-out, transform 0.35s ease-out';gw.style.opacity='0';gw.style.transform='translateY(-6px)';
     setTimeout(()=>{gw.textContent=cycleWords[ci];gw.style.transform='translateY(6px)';requestAnimationFrame(()=>{gw.style.opacity='1';gw.style.transform='translateY(0)';});},280);
   },2500);
-  setTimeout(()=>{document.getElementById('heroSub').style.transition='opacity 0.8s ease-out';document.getElementById('heroSub').style.opacity='1';},250);
-  setTimeout(()=>{document.getElementById('heroCtas').style.transition='opacity 0.8s ease-out';document.getElementById('heroCtas').style.opacity='1';document.getElementById('scrollHint').style.opacity='1';},400);
-  setTimeout(async()=>{const sp=document.getElementById('socialProof');try{const r=await fetch('/api/stats');if(r.ok){const d=await r.json();sp.textContent=d.agents+' agents already in the mesh';}}catch(e){sp.textContent='21 agents already in the mesh';}sp.style.transition='opacity 0.8s ease-out';sp.style.opacity='1';},550);
-  setTimeout(()=>{document.getElementById('agentText').style.transition='opacity 0.5s ease-out';document.getElementById('agentText').style.opacity='0';},70*wordIdx);
+  setTimeout(()=>{document.getElementById('heroSub').style.transition='opacity 0.6s ease-out';document.getElementById('heroSub').style.opacity='1';},150);
+  setTimeout(()=>{document.getElementById('heroCtas').style.transition='opacity 0.6s ease-out';document.getElementById('heroCtas').style.opacity='1';document.getElementById('scrollHint').style.opacity='1';},300);
+  setTimeout(async()=>{const sp=document.getElementById('socialProof');try{const r=await fetch('/api/stats');if(r.ok){const d=await r.json();sp.textContent=d.agents+' agents already in the mesh';}}catch(e){sp.textContent='54 agents already in the mesh';}sp.style.transition='opacity 0.6s ease-out';sp.style.opacity='1';},400);
+  setTimeout(()=>{document.getElementById('agentText').style.transition='opacity 0.4s ease-out';document.getElementById('agentText').style.opacity='0';},50*wordIdx);
 }
 
 // ══ GSAP SCROLL ══
