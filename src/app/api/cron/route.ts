@@ -501,6 +501,92 @@ export async function GET(req: NextRequest) {
       results.push("Memory decay: processed");
     }
 
+    // ═══ 18. DEPOSIT DETECTION & 5% FEE COLLECTION ═══
+    {
+      const { supabaseAdmin: supabase18 } = await import("@/lib/supabase");
+      const { getWalletBalance, collectDepositFee } = await import("@/lib/wallet");
+
+      // Get all users with wallets
+      const { data: walletUsers } = await supabase18
+        .from("users")
+        .select("id, wallet_address, wallet_encrypted_key")
+        .not("wallet_address", "is", null)
+        .not("wallet_encrypted_key", "is", null);
+
+      let depositsDetected = 0;
+      let feesCollected = 0;
+
+      for (const u of walletUsers || []) {
+        try {
+          const onChainBalance = await getWalletBalance(u.wallet_address);
+          if (onChainBalance <= 0) continue;
+
+          // Get last known balance from our tracking table
+          const { data: lastRecord } = await supabase18
+            .from("deposit_tracking")
+            .select("last_known_balance")
+            .eq("user_id", u.id)
+            .single();
+
+          const lastKnown = lastRecord?.last_known_balance || 0;
+          const diff = onChainBalance - lastKnown;
+
+          // If balance increased by more than dust (0.0001 ETH), it's a deposit
+          if (diff > 0.0001) {
+            depositsDetected++;
+
+            // Collect 5% fee
+            const result = await collectDepositFee(u.wallet_encrypted_key, diff);
+
+            if (result.success) {
+              feesCollected++;
+
+              // Log the deposit
+              await supabase18.from("deposits").insert({
+                user_id: u.id,
+                amount_eth: diff,
+                fee_eth: result.fee,
+                net_eth: result.net,
+                fee_tx_hash: result.feeTxHash,
+                status: "confirmed",
+              });
+
+              // Update tracking with post-fee balance
+              const newBalance = onChainBalance - result.fee;
+              await supabase18.from("deposit_tracking").upsert({
+                user_id: u.id,
+                last_known_balance: newBalance,
+                last_checked_at: new Date().toISOString(),
+              }, { onConflict: "user_id" });
+
+              // Notify user
+              await supabase18.from("notifications").insert({
+                user_id: u.id,
+                type: "deposit",
+                message: `Deposit received: ${diff.toFixed(4)} ETH. Platform fee: ${result.fee.toFixed(4)} ETH (5%). ${result.net.toFixed(4)} ETH credited to your agent.`,
+                metadata: JSON.stringify({ amount: diff, fee: result.fee, net: result.net, tx: result.feeTxHash }),
+              });
+            } else {
+              // Fee collection failed — still update tracking so we don't retry every cycle
+              // Will retry next time balance changes
+              console.error(`Fee collection failed for user ${u.id}, deposit ${diff} ETH`);
+            }
+          } else {
+            // No deposit — just update tracking
+            await supabase18.from("deposit_tracking").upsert({
+              user_id: u.id,
+              last_known_balance: onChainBalance,
+              last_checked_at: new Date().toISOString(),
+            }, { onConflict: "user_id" });
+          }
+        } catch (err) {
+          console.error(`Deposit check failed for user ${u.id}:`, err);
+        }
+      }
+
+      results.push(`Deposits: ${depositsDetected} detected, ${feesCollected} fees collected`);
+    }
+
     return NextResponse.json({ ok: true, results, timestamp: new Date().toISOString() });
   } catch (err: any) {
     console.error("Cron error:", err);
