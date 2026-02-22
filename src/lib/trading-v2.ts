@@ -253,40 +253,57 @@ interface TrendingToken {
 }
 
 // Known high-liquidity Base tokens — always check these
-const BASE_WATCHLIST = [
+// ═══ MODE-SPECIFIC TOKEN WATCHLISTS ═══
+const BLUE_CHIP_TOKENS = [
   "0x940181a94A35A4569E4529A3CDfB74e38FD98631", // AERO
+  "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf", // cbBTC
+  "0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b", // VIRTUAL
   "0x532f27101965dd16442E59d40670FaF5eBB142E4", // BRETT
+];
+
+const MEME_DEGEN_TOKENS = [
   "0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed", // DEGEN
   "0xAC1Bd2486aAf3B5C0fc3Fd868558b082a531B2B4", // TOSHI
-  "0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b", // VIRTUAL
   "0x2Da56AcB9Ea78330f947bD57C54119Debda7AF71", // MOG
   "0x768BE13e1680b5ebE0024C42c896E3dB59ec0149", // MFER
   "0xBC45647eA894030a4E9801Ec03479739FA2485F0", // KEYCAT
-  "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf", // cbBTC
   "0x22e6966B799c4D5B13BE962E1D117b56327FDa66", // WEIRDO
   "0xB1a03EdA10342529bBF8EB700a06C60441fEf25d", // MIGGLES
 ];
 
-async function fetchTrendingTokens(): Promise<TrendingToken[]> {
+const ALL_TOKENS = [...BLUE_CHIP_TOKENS, ...MEME_DEGEN_TOKENS];
+
+// Mode → which watchlist + min liquidity for DexScreener search
+const MODE_TOKEN_CONFIG: Record<string, { watchlist: string[]; searchQuery: string; minLiq: number; minVol: number; sortBy: "volume" | "change1h" }> = {
+  meme_scout:  { watchlist: MEME_DEGEN_TOKENS, searchQuery: "base meme", minLiq: 20000, minVol: 5000, sortBy: "change1h" },
+  momentum:    { watchlist: ALL_TOKENS, searchQuery: "base trending", minLiq: 30000, minVol: 10000, sortBy: "change1h" },
+  sniper:      { watchlist: MEME_DEGEN_TOKENS, searchQuery: "base new", minLiq: 10000, minVol: 3000, sortBy: "volume" },
+  blue_chip:   { watchlist: BLUE_CHIP_TOKENS, searchQuery: "base AERO BRETT", minLiq: 100000, minVol: 50000, sortBy: "volume" },
+  mean_revert: { watchlist: ALL_TOKENS, searchQuery: "base WETH", minLiq: 50000, minVol: 20000, sortBy: "volume" },
+  hodl_dca:    { watchlist: BLUE_CHIP_TOKENS, searchQuery: "base AERO", minLiq: 200000, minVol: 50000, sortBy: "volume" },
+};
+
+async function fetchTrendingTokens(tradingMode?: string): Promise<TrendingToken[]> {
+  const config = MODE_TOKEN_CONFIG[tradingMode || "meme_scout"] || MODE_TOKEN_CONFIG.meme_scout;
   const tokens: TrendingToken[] = [];
   const seen = new Set<string>();
+  const stables = new Set(["usdc", "usdt", "dai", "usdbc", "weth"]);
 
-  // 1. Fetch watchlist tokens in parallel (batch of token addresses)
+  // 1. Fetch mode-specific watchlist tokens
   try {
-    const batchUrl = `https://api.dexscreener.com/latest/dex/tokens/${BASE_WATCHLIST.join(",")}`;
+    const batchUrl = `https://api.dexscreener.com/latest/dex/tokens/${config.watchlist.join(",")}`;
     const res = await fetch(batchUrl, {
       headers: { "User-Agent": "MishMesh/2.0" },
       signal: AbortSignal.timeout(8000),
     });
     if (res.ok) {
       const data = await res.json();
-      const stables = new Set(["usdc", "usdt", "dai", "usdbc", "weth"]);
       for (const p of (data.pairs || [])) {
         if (p.chainId !== "base") continue;
         const sym = p.baseToken?.symbol;
         const addr = p.baseToken?.address?.toLowerCase();
         if (!sym || !addr || stables.has(sym.toLowerCase()) || seen.has(addr)) continue;
-        if ((p.volume?.h24 || 0) < 5000 || (p.liquidity?.usd || 0) < 20000) continue;
+        if ((p.volume?.h24 || 0) < config.minVol || (p.liquidity?.usd || 0) < config.minLiq) continue;
         seen.add(addr);
         tokens.push({
           address: p.baseToken.address, symbol: sym, name: p.baseToken.name || sym,
@@ -298,20 +315,19 @@ async function fetchTrendingTokens(): Promise<TrendingToken[]> {
     }
   } catch (e) { console.error("[V2] Watchlist fetch error:", e); }
 
-  // 2. Supplement with search for new/trending tokens
+  // 2. Supplement with mode-specific search for new/trending tokens
   try {
-    const res = await fetch("https://api.dexscreener.com/latest/dex/search?q=base%20WETH", {
+    const res = await fetch(`https://api.dexscreener.com/latest/dex/search?q=${encodeURIComponent(config.searchQuery)}`, {
       headers: { "User-Agent": "MishMesh/2.0" },
       signal: AbortSignal.timeout(5000),
     });
     if (res.ok) {
       const data = await res.json();
-      const stables = new Set(["usdc", "usdt", "dai", "usdbc", "weth"]);
       for (const p of (data.pairs || [])) {
         if (p.chainId !== "base") continue;
         const addr = p.baseToken?.address?.toLowerCase();
         if (!addr || seen.has(addr) || stables.has(p.baseToken?.symbol?.toLowerCase())) continue;
-        if ((p.volume?.h24 || 0) < 5000 || (p.liquidity?.usd || 0) < 20000) continue;
+        if ((p.volume?.h24 || 0) < config.minVol || (p.liquidity?.usd || 0) < config.minLiq) continue;
         seen.add(addr);
         tokens.push({
           address: p.baseToken.address, symbol: p.baseToken.symbol, name: p.baseToken.name || p.baseToken.symbol,
@@ -323,7 +339,10 @@ async function fetchTrendingTokens(): Promise<TrendingToken[]> {
     }
   } catch {}
 
-  // Sort by volume (most active first)
+  // Sort by mode preference
+  if (config.sortBy === "change1h") {
+    return tokens.sort((a, b) => Math.abs(b.priceChange1h) - Math.abs(a.priceChange1h)).slice(0, 20);
+  }
   return tokens.sort((a, b) => b.volume24h - a.volume24h).slice(0, 20);
 }
 
@@ -678,8 +697,82 @@ export async function runSingleUserTrading(userId: string): Promise<{ action: st
   const breaker = await risk.checkCircuitBreaker();
   if (breaker.tripped) return { action: "skip", reasoning: "Circuit breaker tripped" };
 
-  // Fetch trending tokens
-  const trending = await fetchTrendingTokens();
+  // ═══ PRE-AI AUTO-SELL CHECK ═══
+  // Check open positions for SL/TP/stale BEFORE asking AI — this guarantees sells happen
+  const riskConfig = risk.getConfig();
+  {
+    const { data: openPos } = await supabaseAdmin.from("trading_history")
+      .select("*").eq("user_id", userId).eq("action", "buy").is("closed_at", null).limit(10);
+
+    if (openPos?.length) {
+      for (const pos of openPos) {
+        try {
+          const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${pos.token_address}`, { signal: AbortSignal.timeout(5000) });
+          if (!res.ok) continue;
+          const data = await res.json();
+          const pair = data.pairs?.find((p: any) => p.chainId === "base");
+          if (!pair) continue;
+
+          const currentPrice = parseFloat(pair.priceUsd || "0");
+          if (!currentPrice || !pos.price_at_trade) continue;
+
+          const pnlPct = ((currentPrice - pos.price_at_trade) / pos.price_at_trade) * 100;
+          const ageMin = (Date.now() - new Date(pos.created_at).getTime()) / 60000;
+          const sl = pos.stop_loss_pct || riskConfig.stop_loss_pct;
+          const tp = pos.take_profit_pct || riskConfig.take_profit_pct;
+          
+          let shouldSell = false;
+          let reason = "";
+
+          // Hard SL/TP
+          if (sl !== -999 && pnlPct <= sl) { shouldSell = true; reason = `Stop loss: ${pnlPct.toFixed(1)}%`; }
+          else if (tp !== 999 && pnlPct >= tp) { shouldSell = true; reason = `Take profit: ${pnlPct.toFixed(1)}%`; }
+          // Stale position — held >15min and losing or flat
+          else if (ageMin > 15 && pnlPct < 5) { shouldSell = true; reason = `Stale (${Math.floor(ageMin)}min, ${pnlPct.toFixed(1)}%)`; }
+          // Quick profit lock — up >20% within first 10min
+          else if (ageMin < 10 && pnlPct > 20) { shouldSell = true; reason = `Quick profit lock: +${pnlPct.toFixed(1)}%`; }
+
+          if (shouldSell && user.wallet_encrypted_key) {
+            console.log(`[AUTO-SELL] ${userId.slice(0,8)}: ${pos.token_symbol} — ${reason}`);
+            const provider = getProvider();
+            const token = new ethers.Contract(pos.token_address, ERC20_ABI, provider);
+            const { decrypt } = await import("./wallet");
+            const wallet = new ethers.Wallet(decrypt(user.wallet_encrypted_key), provider);
+            const balance = await token.balanceOf(wallet.address);
+            if (balance === 0n) continue;
+
+            const sellQuote = await findBestRoute(pos.token_address, WETH_BASE, balance, 8);
+            if (!sellQuote) continue;
+
+            const result = await executeSwapV2(user.wallet_encrypted_key, pos.token_address, WETH_BASE, balance, sellQuote.feeTier, sellQuote.amountOutMin, false);
+            if (result.success) {
+              const ethReceived = parseFloat(ethers.formatEther(sellQuote.amountOut));
+              await collectTradeFee(user.wallet_encrypted_key, ethReceived, "sell", pos.token_symbol);
+              await supabaseAdmin.from("trading_history").update({
+                closed_at: new Date().toISOString(), pnl_eth: ethReceived - pos.amount_eth,
+                reasoning: `🤖 Auto-sell: ${reason}`,
+              }).eq("id", pos.id);
+              await supabaseAdmin.from("notifications").insert({
+                user_id: userId, type: "auto_exit",
+                message: `🔴 Auto-sell ${pos.token_symbol}: ${reason}. Got ${ethReceived.toFixed(4)} ETH (P&L: ${(ethReceived - pos.amount_eth).toFixed(4)})`,
+              });
+              // Insert a sell record for activity feed
+              await supabaseAdmin.from("trading_history").insert({
+                user_id: userId, token_address: pos.token_address,
+                token_symbol: pos.token_symbol, action: "sell", amount_eth: ethReceived,
+                pnl_eth: ethReceived - pos.amount_eth, tx_hash: result.txHash,
+                reasoning: `🤖 Auto-sell: ${reason}`,
+              });
+              return { action: "sell", token: pos.token_symbol, reasoning: `Auto-sold: ${reason}. Got ${ethReceived.toFixed(4)} ETH` };
+            }
+          }
+        } catch (err) { console.error(`[AUTO-SELL] Error checking ${pos.token_symbol}:`, err); }
+      }
+    }
+  }
+
+  // Fetch trending tokens for this user's trading mode
+  const trending = await fetchTrendingTokens(strategy);
   if (!trending.length) return { action: "skip", reasoning: "No trending tokens found" };
 
   const { data: positions } = await supabaseAdmin.from("trading_history")
@@ -864,9 +957,8 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
   if (!agents?.length) { dlog("[V2] No agents with trading enabled"); return; }
   console.log(`[V2] Processing ${agents.length} agents`);
 
-  const trending = await fetchTrendingTokens();
-  if (!trending.length) { dlog("[V2] No trending tokens found — aborting"); return; }
-  console.log(`[V2] Found ${trending.length} tokens: ${trending.map(t=>t.symbol).join(', ')}`);
+  // Cache trending tokens per mode to avoid duplicate API calls
+  const trendingCache: Record<string, TrendingToken[]> = {};
 
   for (const agent of agents) {
     try {
@@ -905,6 +997,13 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
       // Agent personality
       const { data: profile } = await supabaseAdmin.from("agent_profiles")
         .select("soul").eq("user_id", agent.user_id).single();
+
+      // Fetch tokens for this user's mode (cached per mode)
+      if (!trendingCache[strategy]) {
+        trendingCache[strategy] = await fetchTrendingTokens(strategy);
+      }
+      const trending = trendingCache[strategy];
+      if (!trending.length) { await dlog(`[V2] ${agent.user_id.slice(0,8)}: No tokens for mode ${strategy}`); continue; }
 
       // AI decision
       await dlog(`[V2] ${agent.user_id.slice(0,8)}: Calling AI (${strategy}, bal:${walletBalance.toFixed(4)} ETH, ${trending.length} tokens)`);
