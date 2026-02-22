@@ -14,12 +14,32 @@ export async function POST(req: NextRequest) {
     try { body = await req.json(); } catch {}
 
     if (body.privateKey) {
+      // Clean the private key — strip invisible chars, whitespace, smart quotes, etc.
+      let rawKey = String(body.privateKey)
+        .trim()
+        .replace(/[\u200B\u200C\u200D\uFEFF\u00A0]/g, "") // zero-width chars, non-breaking space
+        .replace(/[""'']/g, "") // smart quotes from iOS
+        .replace(/\s+/g, ""); // any whitespace
+
+      // Ensure 0x prefix
+      if (!rawKey.startsWith("0x") && !rawKey.startsWith("0X")) {
+        rawKey = "0x" + rawKey;
+      }
+      rawKey = rawKey.toLowerCase();
+
+      // Validate: must be 0x + 64 hex characters
+      if (!/^0x[0-9a-f]{64}$/.test(rawKey)) {
+        return NextResponse.json({ 
+          error: `Invalid private key format. Expected 66 characters (0x + 64 hex). Got ${rawKey.length} chars.` 
+        }, { status: 400 });
+      }
+
       // Derive address from private key
       let wallet: ethers.Wallet;
       try {
-        wallet = new ethers.Wallet(body.privateKey);
-      } catch {
-        return NextResponse.json({ error: "Invalid private key" }, { status: 400 });
+        wallet = new ethers.Wallet(rawKey);
+      } catch (e: any) {
+        return NextResponse.json({ error: "Invalid private key: " + (e.message || "").slice(0, 100) }, { status: 400 });
       }
       const walletAddress = wallet.address.toLowerCase();
 
