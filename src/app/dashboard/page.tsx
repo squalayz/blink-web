@@ -943,7 +943,7 @@ export default function Dashboard(){
       <style>{`nav.mm-global-nav{display:none!important}`}</style>
       {/* Base ETH Banner */}
       <div style={{position:"sticky",top:0,left:0,right:0,zIndex:1000,background:"linear-gradient(90deg,rgba(0,82,255,0.12),rgba(99,102,241,0.10),rgba(6,182,212,0.08))",borderBottom:"1px solid rgba(99,102,241,0.1)",padding:"6px 16px",textAlign:"center",fontSize:10,fontWeight:500,color:"rgba(165,180,252,0.8)",letterSpacing:"0.5px",display:"flex",alignItems:"center",justifyContent:"center",gap:8,animation:"banner-glow 4s ease-in-out infinite"}}>
-        <style>{`@keyframes banner-glow{0%,100%{background:linear-gradient(90deg,rgba(0,82,255,0.10),rgba(99,102,241,0.08),rgba(6,182,212,0.06))}50%{background:linear-gradient(90deg,rgba(0,82,255,0.18),rgba(99,102,241,0.14),rgba(6,182,212,0.10))}}`}</style>
+        <style>{`@keyframes banner-glow{0%,100%{background:linear-gradient(90deg,rgba(0,82,255,0.10),rgba(99,102,241,0.08),rgba(6,182,212,0.06))}50%{background:linear-gradient(90deg,rgba(0,82,255,0.18),rgba(99,102,241,0.14),rgba(6,182,212,0.10))}}@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(1.4)}}`}</style>
         <span style={{display:"inline-flex",alignItems:"center",gap:4}}><svg width="14" height="14" viewBox="0 0 111 111" style={{verticalAlign:"-2px"}} fill="none"><circle cx="55.5" cy="55.5" r="55.5" fill="#0052FF"/><path d="M55.7 14.7c-22.6 0-40.8 18.3-40.8 40.8s18.3 40.8 40.8 40.8 40.8-18.3 40.8-40.8H55.7V14.7z" fill="white"/></svg> Powered by AI & Base L2</span>
         <span style={{opacity:0.3}}>·</span>
         <span>All deposits & trades use ETH on Base</span>
@@ -1027,30 +1027,104 @@ export default function Dashboard(){
 
           <MeshGraph matches={matches} userId={user?.id}/>
 
-          {/* Agent Status Card */}
-          {agent&&(<div style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.cold}22`,marginTop:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-              <div style={{width:44,height:44,borderRadius:"50%",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
-                <Cpu size={20} color="white"/>
-                <div style={{position:"absolute",bottom:-2,right:-2,width:12,height:12,borderRadius:"50%",background:C.match,border:`2px solid ${C.surface}`}} title="Active"/>
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:15}}>{agent.agent_name}</div>
-                <div style={{fontSize:11,color:C.match,display:"flex",alignItems:"center",gap:4}}>
-                  <div style={{width:6,height:6,borderRadius:"50%",background:C.match}}/>Active — networking 24/7
+          {/* ═══ AI TRADING ENGINE ═══ */}
+          {(()=>{
+            const isOn=wallet?.trading_enabled;
+            const hasBalance=(wallet?.balance_eth||0)>=0.002;
+            const hasAI=!!user?.ai_api_key_encrypted||user?.ai_provider;
+            const risk=wallet?.risk_level||"conservative";
+            const riskColors:any={conservative:"#6b6b80",balanced:"#6366f1",degen:"#ff2d55"};
+            const riskLabels:any={conservative:"Conservative (Hold Only)",balanced:"Balanced (Moderate Risk)",degen:"Degen (High Risk)"};
+            const totalPnl=wallet?.total_trading_pnl||0;
+            const totalFees=wallet?.total_fees_paid||0;
+            const lastTrade=wallet?.recent_trades?.[0];
+            return(
+          <div style={{background:isOn?`linear-gradient(135deg,${C.surface},rgba(99,102,241,0.06))`:`linear-gradient(135deg,${C.surface},rgba(255,255,255,0.01))`,borderRadius:16,padding:0,border:`1px solid ${isOn?"rgba(99,102,241,0.3)":C.border}`,marginTop:16,overflow:"hidden",transition:"all 0.4s ease",boxShadow:isOn?"0 0 30px rgba(99,102,241,0.08)":"none"}}>
+            {/* Header bar */}
+            <div style={{padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${isOn?"rgba(99,102,241,0.15)":"rgba(255,255,255,0.04)"}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:42,height:42,borderRadius:12,background:isOn?`linear-gradient(135deg,${C.cold},${C.cyan})`:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.4s",boxShadow:isOn?`0 0 20px rgba(99,102,241,0.3)`:"none"}}>
+                  <Zap size={20} color={isOn?"white":"#6b6b80"}/>
+                </div>
+                <div>
+                  <div style={{fontWeight:800,fontSize:15,color:C.text,letterSpacing:"-0.02em"}}>AI Trading Engine</div>
+                  <div style={{fontSize:11,color:isOn?C.match:C.muted,display:"flex",alignItems:"center",gap:5,marginTop:2}}>
+                    {isOn&&<span style={{width:6,height:6,borderRadius:"50%",background:C.match,boxShadow:`0 0 6px ${C.match}`,animation:"pulse 1.5s infinite"}}/>}
+                    {isOn?"Live — scanning Base tokens":"Inactive"}
+                  </div>
                 </div>
               </div>
-              <div style={{display:"flex",gap:16}}>
-                <div style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:800,color:C.cold}}>{agent.conversation_count}</div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase"}}>Convos</div></div>
-                <div style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:800,color:C.match}}>{agent.match_count}</div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase"}}>Matches</div></div>
-              </div>
+
+              {/* THE TOGGLE */}
+              <button onClick={()=>{
+                if(!hasBalance&&!isOn){alert("Fund your wallet first (min 0.002 ETH)");return;}
+                if(risk==="conservative"&&!isOn){alert("Change risk level from Conservative to enable trading");return;}
+                updateWalletSettings({trading_enabled:!isOn});
+              }}
+                style={{width:64,height:34,borderRadius:17,background:isOn?"linear-gradient(135deg,#30d158,#34c759)":"rgba(255,255,255,0.08)",border:isOn?"2px solid rgba(48,209,88,0.4)":"2px solid rgba(255,255,255,0.1)",cursor:"pointer",position:"relative",transition:"all 0.3s cubic-bezier(0.4,0,0.2,1)",boxShadow:isOn?"0 0 20px rgba(48,209,88,0.25),inset 0 1px 2px rgba(255,255,255,0.15)":"inset 0 1px 3px rgba(0,0,0,0.3)",WebkitTapHighlightColor:"transparent"}}>
+                <div style={{width:26,height:26,borderRadius:"50%",background:"white",position:"absolute",top:2,left:isOn?34:2,transition:"all 0.3s cubic-bezier(0.4,0,0.2,1)",boxShadow:isOn?"0 2px 8px rgba(0,0,0,0.15),0 0 0 1px rgba(48,209,88,0.1)":"0 2px 6px rgba(0,0,0,0.3)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  {isOn?<Zap size={12} color="#30d158"/>:<div style={{width:8,height:2,background:"#999",borderRadius:1}}/>}
+                </div>
+              </button>
             </div>
-            <p style={{fontSize:12,color:C.muted,lineHeight:1.6,marginBottom:10}}>{agent.summary}</p>
-            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{(agent.capabilities||[]).map((c:string)=><span key={c} style={{fontSize:10,padding:"3px 8px",background:C.s2,borderRadius:6,color:C.text}}>{c}</span>)}</div>
-            {user?.tier==="free"&&<div style={{marginTop:12,fontSize:11,color:C.dim,display:"flex",alignItems:"center",gap:4,padding:"8px 12px",background:C.s2,borderRadius:8}}>
-              <Timer size={11}/>{user.daily_convos_used||0}/5 daily agent conversations · <span style={{color:C.cold,cursor:"pointer"}}>Upgrade to Pro for unlimited</span>
-            </div>}
-          </div>)}
+
+            {/* Body — shows when ON */}
+            {isOn&&(<div style={{padding:"16px 20px"}}>
+              {/* Risk Level Pills */}
+              <div style={{display:"flex",gap:6,marginBottom:14}}>
+                {(["balanced","degen"] as const).map(level=>{
+                  const active=risk===level;
+                  const colors:any={balanced:C.cold,degen:C.hot};
+                  return(<button key={level} onClick={()=>updateWalletSettings({risk_level:level})} style={{flex:1,padding:"10px 0",borderRadius:10,border:`1px solid ${active?colors[level]+"66":"rgba(255,255,255,0.06)"}`,background:active?colors[level]+"15":"transparent",color:active?colors[level]:C.muted,fontSize:12,fontWeight:active?700:500,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",textTransform:"capitalize",WebkitTapHighlightColor:"transparent"}}>
+                    {level==="balanced"?"⚖️ Balanced":"🔥 Degen"}
+                  </button>);
+                })}
+              </div>
+
+              {/* Stats row */}
+              <div style={{display:"flex",gap:8,marginBottom:14}}>
+                <div style={{flex:1,background:"rgba(255,255,255,0.03)",borderRadius:10,padding:"10px 12px",textAlign:"center"}}>
+                  <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:4}}>Trades</div>
+                  <div style={{fontSize:18,fontWeight:800,color:C.text}}>{wallet?.recent_trades?.length||0}</div>
+                </div>
+                <div style={{flex:1,background:"rgba(255,255,255,0.03)",borderRadius:10,padding:"10px 12px",textAlign:"center"}}>
+                  <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:4}}>P&L</div>
+                  <div style={{fontSize:18,fontWeight:800,color:totalPnl>=0?C.match:C.hot}}>{totalPnl>=0?"+":""}{totalPnl.toFixed(4)}</div>
+                </div>
+                <div style={{flex:1,background:"rgba(255,255,255,0.03)",borderRadius:10,padding:"10px 12px",textAlign:"center"}}>
+                  <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:4}}>Fees</div>
+                  <div style={{fontSize:18,fontWeight:800,color:C.dim}}>{totalFees.toFixed(4)}</div>
+                </div>
+              </div>
+
+              {/* How it works */}
+              <div style={{background:"rgba(99,102,241,0.04)",borderRadius:10,padding:"10px 14px",border:"1px solid rgba(99,102,241,0.1)"}}>
+                <div style={{fontSize:10,color:C.cold,fontWeight:700,marginBottom:6}}>HOW IT WORKS</div>
+                <div style={{fontSize:11,color:C.muted,lineHeight:1.7}}>
+                  Your agent uses <strong style={{color:C.text}}>your AI key</strong> to analyze trending Base tokens every 15 min via DexScreener. 
+                  It checks GoPlus for rugs, then executes real Uniswap V3 swaps from your wallet. 
+                  <span style={{color:C.dim}}> · 1% fee per trade</span>
+                </div>
+              </div>
+
+              {/* Last trade */}
+              {lastTrade&&(<div style={{marginTop:10,fontSize:11,color:C.dim,display:"flex",alignItems:"center",gap:6}}>
+                <div style={{width:4,height:4,borderRadius:"50%",background:lastTrade.action==="buy"?C.match:C.hot}}/>
+                Last: {lastTrade.action} {lastTrade.token_symbol} — {lastTrade.amount_eth?.toFixed(4)} ETH
+                {lastTrade.reasoning&&<span style={{color:C.muted}}> · {lastTrade.reasoning.slice(0,60)}</span>}
+              </div>)}
+
+              {/* No AI key warning */}
+              {!user?.ai_api_key_encrypted&&(<div style={{marginTop:10,padding:"10px 14px",borderRadius:10,background:"rgba(255,45,85,0.06)",border:"1px solid rgba(255,45,85,0.15)",fontSize:11,color:C.hot,display:"flex",alignItems:"center",gap:6}}>
+                ⚠️ Connect your AI key in Settings to enable autonomous trading
+              </div>)}
+            </div>)}
+
+            {/* Collapsed state hint */}
+            {!isOn&&(<div style={{padding:"12px 20px 16px",fontSize:11,color:C.dim,lineHeight:1.6}}>
+              Activate to let your agent trade trending Base tokens autonomously using your AI brain. Real swaps, real profits. You stay in control.
+            </div>)}
+          </div>);})()}
 
           {/* Daily Report */}
           {report&&report.convos_count>0&&(<div style={{background:C.s2,borderRadius:14,padding:16,marginTop:12,border:`1px solid ${C.border}`}}>

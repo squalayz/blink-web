@@ -92,10 +92,11 @@ export async function POST(req: NextRequest) {
   // ── Update settings (risk level, trading toggle) ──
   if (action === "settings") {
     const { risk_level, trading_enabled } = body;
-    const updates: any = {};
+    const updates: any = { user_id: userId };
     if (risk_level) updates.risk_level = risk_level;
     if (trading_enabled !== undefined) updates.trading_enabled = trading_enabled;
-    await supabaseAdmin.from("agent_balances").update(updates).eq("user_id", userId);
+    updates.updated_at = new Date().toISOString();
+    await supabaseAdmin.from("agent_balances").upsert(updates, { onConflict: "user_id" });
     return NextResponse.json({ ok: true });
   }
 
