@@ -5,7 +5,7 @@
 // Supports: OpenAI, Anthropic, Google, Groq, OpenRouter, Custom
 // ══════════════════════════════════════════════════════════════
 
-export type AIProvider = "openai" | "anthropic" | "google" | "groq" | "openrouter" | "custom";
+export type AIProvider = "openai" | "anthropic" | "google" | "groq" | "xai" | "openrouter" | "custom";
 
 export interface AIConfig {
   provider: AIProvider;
@@ -45,6 +45,12 @@ const PROVIDER_CONFIG: Record<string, { url: string; models: string[]; defaultMo
     models: ["anthropic/claude-sonnet-4", "openai/gpt-4o-mini", "google/gemini-2.0-flash-001", "meta-llama/llama-3.3-70b-instruct"],
     defaultModel: "openai/gpt-4o-mini",
     costPer1k: 0.15,
+  },
+  xai: {
+    url: "https://api.x.ai/v1/chat/completions",
+    models: ["grok-3", "grok-3-mini", "grok-2", "grok-2-mini"],
+    defaultModel: "grok-3-mini",
+    costPer1k: 0.30,
   },
   custom: {
     url: "",

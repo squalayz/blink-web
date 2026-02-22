@@ -80,6 +80,7 @@ export async function GET(req: NextRequest) {
     { id: "anthropic", name: "Anthropic", models: getModelsForProvider("anthropic"), cost: estimateCostPerMatch("anthropic", "claude-sonnet-4-20250514") },
     { id: "google", name: "Google", models: getModelsForProvider("google"), cost: estimateCostPerMatch("google", "gemini-2.0-flash") },
     { id: "groq", name: "Groq", models: getModelsForProvider("groq"), cost: estimateCostPerMatch("groq", "llama-3.3-70b-versatile") },
+    { id: "xai", name: "xAI (Grok)", models: getModelsForProvider("xai"), cost: estimateCostPerMatch("xai", "grok-3-mini") },
     { id: "openrouter", name: "OpenRouter", models: getModelsForProvider("openrouter"), cost: estimateCostPerMatch("openrouter", "openai/gpt-4o-mini") },
     { id: "custom", name: "Custom Endpoint", models: ["default"], cost: "Varies" },
   ];
