@@ -293,6 +293,38 @@ export async function GET(req: NextRequest) {
               message: `Deposit: ${diff.toFixed(4)} ETH received. Fee: ${result.fee.toFixed(6)} ETH (5%). Credited: ${result.net.toFixed(4)} ETH.`,
               metadata: JSON.stringify(depositInfo),
             });
+
+            // ═══ REFERRAL REWARD: Pay 10% of fee to referrer ═══
+            try {
+              const { data: refUser } = await supabaseAdmin.from("users")
+                .select("referred_by")
+                .eq("id", userId).single();
+              if (refUser?.referred_by) {
+                const { data: referrer } = await supabaseAdmin.from("users")
+                  .select("wallet_address")
+                  .eq("id", refUser.referred_by).single();
+                if (referrer?.wallet_address) {
+                  const referralReward = result.fee * 0.10; // 10% of our 5% fee
+                  if (referralReward >= 0.000001) {
+                    const { sendFeeToPlatform } = await import("@/lib/wallet");
+                    // Send reward FROM platform wallet to referrer
+                    // For now, log it — actual payout requires platform wallet signing
+                    await supabaseAdmin.from("referral_rewards").insert({
+                      user_id: refUser.referred_by,
+                      reward_type: "deposit_fee_share",
+                      amount_eth: referralReward,
+                      from_user_id: userId,
+                      unlocked_at: new Date().toISOString(),
+                    });
+                    await supabaseAdmin.from("notifications").insert({
+                      user_id: refUser.referred_by,
+                      type: "referral_reward",
+                      message: `Referral reward: +${referralReward.toFixed(6)} ETH from a deposit by someone you invited!`,
+                    });
+                  }
+                }
+              }
+            } catch (refErr) { console.error("Referral reward error:", refErr); }
           }
         }
       } else {

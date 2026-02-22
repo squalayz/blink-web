@@ -127,6 +127,29 @@ export async function POST(req: NextRequest) {
       reputation_count: 0,
     });
 
+    // ═══ CLAIM INVITE if provided ═══
+    const inviteCode = body.inviteCode;
+    if (inviteCode) {
+      try {
+        const { data: invite } = await supabaseAdmin.from("invites")
+          .select("*").eq("invite_code", inviteCode).is("claimed_by", null).single();
+        if (invite) {
+          await supabaseAdmin.from("invites").update({
+            claimed_by: newUser.id, claimed_at: new Date().toISOString(),
+          }).eq("id", invite.id);
+          await supabaseAdmin.from("referrals").insert({
+            referrer_id: invite.inviter_id, referred_user_id: newUser.id, referral_code: inviteCode,
+          });
+          await supabaseAdmin.from("users").update({ referred_by: invite.inviter_id }).eq("id", newUser.id);
+          await supabaseAdmin.from("notifications").insert({
+            user_id: invite.inviter_id, type: "referral",
+            message: "Your invite was claimed! You'll earn 10% of their deposit and trade fees.",
+            metadata: JSON.stringify({ referred_user: newUser.id, code: inviteCode }),
+          });
+        }
+      } catch (e) { console.error("Invite claim error:", e); }
+    }
+
     // Create JWT session
     const token = await new SignJWT({
       sub: newUser.id,

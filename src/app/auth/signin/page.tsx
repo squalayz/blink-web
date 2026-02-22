@@ -24,7 +24,12 @@ export default function SignInPage() {
     setStep("creating");
     setError("");
     try {
-      const res = await fetch("/api/auth/create-wallet", { method: "POST" });
+      const inviteCode = typeof window !== "undefined" ? localStorage.getItem("mm_invite_code") : null;
+      const res = await fetch("/api/auth/create-wallet", { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inviteCode: inviteCode || undefined }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed");
       setNewWallet({ address: data.address, privateKey: data.privateKey });
@@ -77,6 +82,7 @@ export default function SignInPage() {
 
   function proceedAfterKey() {
     setStep("done");
+    if (typeof window !== "undefined") localStorage.removeItem("mm_invite_code");
     setTimeout(() => router.push("/dashboard?onboard=1"), 600);
   }
 

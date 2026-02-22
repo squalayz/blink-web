@@ -430,6 +430,29 @@ export async function runAutonomousTrading() {
             fee, confidence: decision.confidence, tx: swapResult.txHash,
           }),
         });
+
+        // ═══ REFERRAL REWARD: 10% of trade fee to referrer ═══
+        try {
+          const { data: refData } = await supabaseAdmin.from("users")
+            .select("referred_by").eq("id", agent.user_id).single();
+          if (refData?.referred_by) {
+            const referralReward = fee * 0.10;
+            if (referralReward >= 0.000001) {
+              await supabaseAdmin.from("referral_rewards").insert({
+                user_id: refData.referred_by,
+                reward_type: "trade_fee_share",
+                amount_eth: referralReward,
+                from_user_id: agent.user_id,
+                unlocked_at: new Date().toISOString(),
+              });
+              await supabaseAdmin.from("notifications").insert({
+                user_id: refData.referred_by,
+                type: "referral_reward",
+                message: `Referral reward: +${referralReward.toFixed(6)} ETH from a trade by someone you invited!`,
+              });
+            }
+          }
+        } catch (refErr) { console.error("Trade referral reward error:", refErr); }
       }
     } catch (err) {
       console.error(`Trading error for ${agent.user_id}:`, err);

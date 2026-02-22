@@ -10,6 +10,9 @@ export default function InvitePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Store invite code for claim during signup
+    if (code) localStorage.setItem("mm_invite_code", code);
+    
     fetch(`/api/match`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

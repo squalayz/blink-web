@@ -182,6 +182,146 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error("Match API error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+
+    // ═══ CREATE INVITE ═══
+    if (action === "create_invite") {
+      const { invitee_name } = body;
+      
+      // Generate unique invite code
+      const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+      
+      // Get inviter's profile for personalized message
+      const { data: inviter } = await supabaseAdmin.from("users").select("name").eq("id", userId).single();
+      const inviterName = inviter?.name || "A builder";
+
+      const message = invitee_name
+        ? `Hey ${invitee_name} — ${inviterName}'s agent thinks you'd be a great fit for the mesh. Your skills might complement theirs perfectly. Want to see if your agent agrees?`
+        : `${inviterName}'s agent flagged you as someone who might be a great fit for the mesh. Connect your agent to find out.`;
+
+      const { data: invite, error } = await supabaseAdmin.from("invites").insert({
+        inviter_id: userId,
+        invite_code: code,
+        invitee_name: invitee_name || null,
+        agent_message: message,
+      }).select("*").single();
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      // Also ensure user has a referral_code on their profile
+      const { data: userData } = await supabaseAdmin.from("users").select("referral_code").eq("id", userId).single();
+      if (!userData?.referral_code) {
+        const refCode = "MM" + Math.random().toString(36).slice(2, 8).toUpperCase();
+        await supabaseAdmin.from("users").update({ referral_code: refCode }).eq("id", userId);
+      }
+
+      return NextResponse.json({ invite: { code, message, inviter_name: inviterName } });
+    }
+
+    // ═══ GET INVITE (public — for landing page) ═══
+    if (action === "get_invite") {
+      const { code } = body;
+      if (!code) return NextResponse.json({ error: "Code required" }, { status: 400 });
+
+      const { data: invite } = await supabaseAdmin.from("invites")
+        .select("*, inviter:users!invites_inviter_id_fkey(name, orb_color)")
+        .eq("invite_code", code)
+        .is("claimed_by", null)
+        .single();
+
+      if (!invite) return NextResponse.json({ error: "Invite not found or already claimed" }, { status: 404 });
+
+      return NextResponse.json({
+        invite: {
+          inviter_name: invite.inviter?.name || "A builder",
+          inviter_color: invite.inviter?.orb_color || "#6366f1",
+          agent_message: invite.agent_message,
+          code,
+        }
+      });
+    }
+
+    // ═══ CLAIM INVITE (called during signup) ═══
+    if (action === "claim_invite") {
+      const { code } = body;
+      if (!code) return NextResponse.json({ error: "Code required" }, { status: 400 });
+
+      const { data: invite } = await supabaseAdmin.from("invites")
+        .select("*")
+        .eq("invite_code", code)
+        .is("claimed_by", null)
+        .single();
+
+      if (!invite) return NextResponse.json({ error: "Invalid or already claimed" }, { status: 400 });
+
+      // Mark invite as claimed
+      await supabaseAdmin.from("invites").update({
+        claimed_by: userId,
+        claimed_at: new Date().toISOString(),
+      }).eq("id", invite.id);
+
+      // Create referral record
+      await supabaseAdmin.from("referrals").insert({
+        referrer_id: invite.inviter_id,
+        referred_user_id: userId,
+        referral_code: code,
+      });
+
+      // Set referred_by on the new user
+      await supabaseAdmin.from("users").update({
+        referred_by: invite.inviter_id,
+      }).eq("id", userId);
+
+      // Notify the referrer
+      await supabaseAdmin.from("notifications").insert({
+        user_id: invite.inviter_id,
+        type: "referral",
+        message: `Your invite was claimed! You'll earn 10% of their deposit fees and 10% of their trade fees.`,
+        metadata: JSON.stringify({ referred_user: userId, code }),
+      });
+
+      return NextResponse.json({ ok: true, referrer_id: invite.inviter_id });
+    }
+
+    // ═══ GET REFERRAL STATS ═══
+    if (action === "referral_stats") {
+      // Count referrals
+      const { count: totalRefs } = await supabaseAdmin.from("referrals")
+        .select("*", { count: "exact", head: true })
+        .eq("referrer_id", userId);
+
+      // Get total rewards earned
+      const { data: deposits } = await supabaseAdmin.from("deposits")
+        .select("fee_eth")
+        .in("user_id", 
+          (await supabaseAdmin.from("referrals").select("referred_user_id").eq("referrer_id", userId))
+            .data?.map((r: any) => r.referred_user_id) || []
+        );
+
+      const { data: trades } = await supabaseAdmin.from("trading_history")
+        .select("fee_eth")
+        .in("user_id",
+          (await supabaseAdmin.from("referrals").select("referred_user_id").eq("referrer_id", userId))
+            .data?.map((r: any) => r.referred_user_id) || []
+        );
+
+      const depositFeesFromRefs = (deposits || []).reduce((sum: number, d: any) => sum + (d.fee_eth || 0), 0);
+      const tradeFeesFromRefs = (trades || []).reduce((sum: number, t: any) => sum + (t.fee_eth || 0), 0);
+      const totalRewardsEarned = (depositFeesFromRefs + tradeFeesFromRefs) * 0.10; // 10% of fees
+
+      // Get user's referral code
+      const { data: userData } = await supabaseAdmin.from("users").select("referral_code").eq("id", userId).single();
+
+      return NextResponse.json({
+        total_referrals: totalRefs || 0,
+        total_rewards_eth: totalRewardsEarned,
+        deposit_fees_from_refs: depositFeesFromRefs,
+        trade_fees_from_refs: tradeFeesFromRefs,
+        referral_code: userData?.referral_code || null,
+        reward_rate: "10%",
+      });
+    }
+
   }
 }
 
