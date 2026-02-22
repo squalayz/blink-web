@@ -334,6 +334,8 @@ export default function Dashboard(){
   const[chatMatch,setChatMatch]=useState<any>(null);
   const[messages,setMessages]=useState<any[]>([]);
   const[msgText,setMsgText]=useState("");
+  const[sendTo,setSendTo]=useState("");
+  const[sendAmt,setSendAmt]=useState("");
   const[onboarding,setOnboarding]=useState(false);
   const[replayData,setReplayData]=useState<any>(null);
   const[shareMatch,setShareMatch]=useState<any>(null);
@@ -1051,35 +1053,79 @@ export default function Dashboard(){
             </div>
           </div>)}
 
-          {/* Streak + Badges Row */}
-          <div style={{display:"flex",gap:12,marginTop:16,flexWrap:"wrap"}}>
-            {streak&&<div style={{background:C.surface,borderRadius:14,padding:16,flex:"1 1 120px",border:`1px solid ${C.border}`,textAlign:"center"}}>
-              <Flame size={20} color={streak.current_streak>=7?C.hot:C.warn}/>
-              <div style={{fontSize:28,fontWeight:800,marginTop:4}}>{streak.current_streak}</div>
-              <div style={{fontSize:10,color:C.muted}}>Day Streak</div>
-              {streak.current_streak>0&&streak.current_streak<7&&<div style={{fontSize:10,color:C.warn,marginTop:6}}>{7-streak.current_streak} more for Legendary badge</div>}
-              {streak.current_streak>=7&&<div style={{fontSize:10,color:C.match,marginTop:6}}>Legendary Networker</div>}
-            </div>}
-            <div style={{background:C.surface,borderRadius:14,padding:16,flex:"1 1 200px",border:`1px solid ${C.border}`}}>
-              <div style={{fontSize:10,color:C.muted,marginBottom:8,display:"flex",alignItems:"center",gap:4}}><Award size={11}/>Badges ({badges.length})</div>
-              {badges.length===0?<div style={{fontSize:12,color:C.dim}}>Complete challenges to earn badges</div>:
-                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{badges.slice(0,6).map(b=><BadgeChip key={b.id} name={b.badge_name} type={b.badge_type}/>)}</div>}
+          {/* ── Agent Wallet ── */}
+          <div style={{background:C.surface,borderRadius:14,padding:20,marginTop:16,border:`1px solid ${C.border}`}}>
+            <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:14,display:"flex",alignItems:"center",gap:4}}><Zap size={11}/>Agent Wallet</div>
+            
+            {/* Balance */}
+            <div style={{textAlign:"center",marginBottom:16}}>
+              <div style={{fontSize:36,fontWeight:900,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
+                {wallet?.balance_eth != null ? wallet.balance_eth.toFixed(4) : "..."} ETH
+              </div>
+              <div style={{fontSize:11,color:C.dim,marginTop:4}}>Base L2 · 5% deposit fee · 1% trade fee</div>
             </div>
-          </div>
 
-          {/* Challenges */}
-          {challenges.length>0&&(<div style={{marginTop:16}}>
-            <div style={{fontSize:10,color:C.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}><Target size={11}/>Weekly Challenges</div>
-            {challenges.map(ch=>(<div key={ch.id} style={{background:C.surface,borderRadius:10,padding:14,marginBottom:8,border:`1px solid ${C.border}`}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-                <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13}}>{ch.title}</div><div style={{fontSize:11,color:C.muted}}>{ch.description}</div></div>
-                <BadgeChip name={ch.badge_name} type={ch.badge_type}/>
+            {/* Wallet Address + Copy */}
+            {wallet?.address && <div style={{display:"flex",alignItems:"center",gap:8,background:C.s2,borderRadius:10,padding:"10px 12px",marginBottom:12}}>
+              <div style={{flex:1,fontSize:11,color:C.muted,fontFamily:"'JetBrains Mono',monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wallet.address}</div>
+              <button onClick={()=>{navigator.clipboard?.writeText(wallet.address);}} style={{background:C.cold,border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",color:"white",fontSize:10,fontWeight:600,display:"flex",alignItems:"center",gap:3,flexShrink:0}}><Copy size={10}/>Copy</button>
+            </div>}
+
+            {/* Send Section */}
+            <div style={{marginTop:12}}>
+              <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:600}}>Send ETH</div>
+              <input 
+                placeholder="Recipient address (0x...)" 
+                value={sendTo} 
+                onChange={e=>{setSendTo(e.target.value);}}
+                style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",color:C.text,fontSize:12,fontFamily:"inherit",outline:"none",marginBottom:6,boxSizing:"border-box"}}
+              />
+              <div style={{display:"flex",gap:6}}>
+                <input 
+                  placeholder="Amount" 
+                  type="number" step="0.001"
+                  value={sendAmt} 
+                  onChange={e=>{setSendAmt(e.target.value);}}
+                  style={{flex:1,background:C.s2,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",color:C.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}
+                />
+                <button onClick={async()=>{
+                  const to=sendTo.trim(), amt=parseFloat(sendAmt);
+                  if(!to||!amt||amt<=0){alert("Enter address and amount");return;}
+                  if(!confirm(`Send ${amt} ETH to ${to.slice(0,8)}...?`))return;
+                  try{
+                    const res=await fetch("/api/wallet",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"withdraw",to_address:to,amount:amt})});
+                    const d=await res.json();
+                    if(d.error){alert(d.error);return;}
+                    alert(`Sent! TX: ${d.txHash?.slice(0,16)}...`);
+                    setSendTo("");setSendAmt("");
+                    loadWallet();
+                  }catch(e:any){alert("Failed: "+e.message);}
+                }} style={{background:`linear-gradient(135deg,${C.cold},#8b5cf6)`,border:"none",borderRadius:10,padding:"10px 18px",cursor:"pointer",color:"white",fontSize:12,fontWeight:700,flexShrink:0}}>Send</button>
               </div>
-              <div style={{marginTop:8,height:4,borderRadius:2,background:C.s2,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${Math.min(100,((ch.progress?.progress||0)/(ch.criteria?.count||1))*100)}%`,background:`linear-gradient(90deg,${C.cold},${C.cyan})`,borderRadius:2,transition:"width 0.5s"}}/>
-              </div>
-            </div>))}
-          </div>)}
+            </div>
+
+            {/* Trade History */}
+            {wallet?.trades && wallet.trades.length > 0 && <div style={{marginTop:16}}>
+              <div style={{fontSize:11,color:C.muted,marginBottom:8,fontWeight:600}}>Recent Trades</div>
+              {wallet.trades.slice(0,5).map((t:any,i:number)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:i<Math.min(wallet.trades.length-1,4)?`1px solid ${C.border}`:"none"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:6,height:6,borderRadius:3,background:t.action==="buy"?C.match:C.hot}}/>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:600}}>{t.action==="buy"?"Bought":"Sold"} {t.token_symbol||"ETH"}</div>
+                      <div style={{fontSize:10,color:C.dim}}>{new Date(t.created_at).toLocaleDateString()}</div>
+                    </div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:12,fontWeight:600}}>{t.amount_eth?.toFixed(4)} ETH</div>
+                    {t.pnl_eth!=null&&t.pnl_eth!==0&&<div style={{fontSize:10,color:t.pnl_eth>0?C.match:C.hot}}>{t.pnl_eth>0?"+":""}{t.pnl_eth.toFixed(4)}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>}
+
+            {(!wallet?.trades||wallet.trades.length===0)&&<div style={{marginTop:12,textAlign:"center",padding:16,color:C.dim,fontSize:11}}>No trades yet. Fund your wallet to enable autonomous trading.</div>}
+          </div>
         </div>)}
 
         {/* ════ PENDING (Agent found these) ════ */}
