@@ -63,18 +63,36 @@ export async function POST(req: NextRequest) {
 
     // ═══ ALL USERS (for users tab) ═══
     const { data: allUsers } = await supabaseAdmin.from("users")
-      .select("id, wallet_address, ai_provider, created_at")
+      .select("id, name, email, wallet_address, ai_provider, ai_model, onboarded, tier, referral_code, referred_by, created_at")
       .order("created_at", { ascending: false });
 
     const { data: allAgents } = await supabaseAdmin.from("agent_profiles")
-      .select("user_id, agent_name");
-    const allAgentMap: Record<string, string> = {};
-    (allAgents || []).forEach((a: any) => { allAgentMap[a.user_id] = a.agent_name; });
+      .select("user_id, agent_name, mood");
+    const allAgentMap: Record<string, any> = {};
+    (allAgents || []).forEach((a: any) => { allAgentMap[a.user_id] = { name: a.agent_name, mood: a.mood }; });
 
     const { data: allBalances } = await supabaseAdmin.from("agent_balances")
-      .select("user_id, trading_enabled, balance_eth");
+      .select("user_id, trading_enabled, trading_mode, balance_eth, total_trading_pnl, risk_level");
     const balMap: Record<string, any> = {};
     (allBalances || []).forEach((b: any) => { balMap[b.user_id] = b; });
+
+    // Fetch live on-chain balances for wallets
+    let liveBalances: Record<string, number> = {};
+    try {
+      const { getProvider } = await import("@/lib/wallet");
+      const provider = getProvider();
+      const { ethers } = await import("ethers");
+      const wallets = (allUsers || []).filter(u => u.wallet_address).slice(0, 50);
+      const balResults = await Promise.allSettled(
+        wallets.map(async u => {
+          const bal = await provider.getBalance(u.wallet_address);
+          return { id: u.id, bal: parseFloat(ethers.formatEther(bal)) };
+        })
+      );
+      balResults.forEach(r => {
+        if (r.status === "fulfilled") liveBalances[r.value.id] = r.value.bal;
+      });
+    } catch (e) { console.error("Live balance fetch error:", e); }
 
     // ═══ DEPOSITS ═══
     const { data: deposits } = await supabaseAdmin.from("deposits")
@@ -126,10 +144,16 @@ export async function POST(req: NextRequest) {
       recent_users: (recentUsers || []).map(u => ({
         ...u, agent_name: agentMap[u.id],
       })),
-      all_users: (allUsers || []).map(u => ({
-        ...u, agent_name: allAgentMap[u.id],
+        all_users: (allUsers || []).map(u => ({
+        ...u,
+        agent_name: allAgentMap[u.id]?.name || "",
+        agent_mood: allAgentMap[u.id]?.mood || "",
         trading_enabled: balMap[u.id]?.trading_enabled || false,
-        balance: balMap[u.id]?.balance_eth || 0,
+        trading_mode: balMap[u.id]?.trading_mode || "",
+        balance_db: balMap[u.id]?.balance_eth || 0,
+        balance_live: liveBalances[u.id] || 0,
+        total_pnl: balMap[u.id]?.total_trading_pnl || 0,
+        risk_level: balMap[u.id]?.risk_level || "",
       })),
       deposits: (deposits || []).map(d => ({
         ...d, wallet: walletMap[d.user_id],

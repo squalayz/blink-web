@@ -143,22 +143,81 @@ export default function AdminPanel() {
       {/* ═══ USERS ═══ */}
       {tab==="users"&&(
         <div>
-          <div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:8}}>ALL USERS ({data.all_users?.length||0})</div>
-          <div style={{display:"flex",flexDirection:"column",gap:3}}>
-            {(data.all_users||[]).map((u:any,i:number)=>(
-              <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:C.surface,borderRadius:8,border:`1px solid ${C.border}`,fontSize:10}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,flex:1}}>
-                  <span style={{fontWeight:700,minWidth:120}}>{u.agent_name||"—"}</span>
-                  <span style={{color:C.dim,fontFamily:"'JetBrains Mono',monospace",fontSize:9}}>{u.wallet_address?.slice(0,10)}...</span>
+          <div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:10}}>ALL USERS ({data.all_users?.length||0})</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {(data.all_users||[]).map((u:any,i:number)=>{
+              const hasDeposit=u.balance_live>0;
+              const hasAI=!!u.ai_provider&&u.ai_provider!=="openai"||!!u.agent_name;
+              return(
+                <div key={i} style={{background:C.surface,borderRadius:12,padding:"12px 14px",border:`1px solid ${hasDeposit?`${C.cyan}22`:C.border}`,transition:"all 0.2s"}}>
+                  {/* Row 1: Identity */}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:28,height:28,borderRadius:8,background:hasDeposit?`${C.cyan}15`:`${C.dim}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:hasDeposit?C.cyan:C.muted}}>
+                        {(u.name||u.agent_name||"?")[0]?.toUpperCase()||"?"}
+                      </div>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>
+                          {u.name||u.agent_name||"Anonymous"}
+                          {u.agent_mood&&<span style={{fontSize:12}}>{u.agent_mood}</span>}
+                          {u.trading_enabled&&<span style={{padding:"1px 5px",borderRadius:3,background:`${C.match}15`,color:C.match,fontSize:7,fontWeight:700}}>LIVE</span>}
+                        </div>
+                        <div style={{fontSize:9,color:C.dim,fontFamily:"'JetBrains Mono',monospace",marginTop:1}}>
+                          {u.wallet_address}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:9,color:C.dim}}>{new Date(u.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</div>
+                      {u.onboarded&&<span style={{fontSize:7,padding:"1px 4px",borderRadius:3,background:`${C.indigo}15`,color:C.indigo,fontWeight:600}}>ONBOARDED</span>}
+                    </div>
+                  </div>
+
+                  {/* Row 2: Wallet + Balance */}
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",fontSize:9}}>
+                    <div style={{padding:"4px 8px",borderRadius:6,background:C.s2,display:"flex",alignItems:"center",gap:4}}>
+                      <span style={{color:C.muted}}>Balance:</span>
+                      <span style={{color:u.balance_live>0?C.cyan:C.dim,fontWeight:700,fontFamily:"'JetBrains Mono',monospace"}}>{u.balance_live?.toFixed(6)||"0"} ETH</span>
+                    </div>
+                    {u.trading_mode&&(
+                      <div style={{padding:"4px 8px",borderRadius:6,background:C.s2,display:"flex",alignItems:"center",gap:4}}>
+                        <span style={{color:C.muted}}>Strategy:</span>
+                        <span style={{color:C.text,fontWeight:600}}>{u.trading_mode}</span>
+                      </div>
+                    )}
+                    {u.ai_provider&&(
+                      <div style={{padding:"4px 8px",borderRadius:6,background:C.s2,display:"flex",alignItems:"center",gap:4}}>
+                        <span style={{color:C.muted}}>AI:</span>
+                        <span style={{color:C.indigo,fontWeight:600}}>{u.ai_provider}{u.ai_model?` / ${u.ai_model}`:""}</span>
+                      </div>
+                    )}
+                    {u.total_pnl!==0&&(
+                      <div style={{padding:"4px 8px",borderRadius:6,background:C.s2,display:"flex",alignItems:"center",gap:4}}>
+                        <span style={{color:C.muted}}>P&L:</span>
+                        <span style={{color:u.total_pnl>=0?C.match:C.hot,fontWeight:700,fontFamily:"'JetBrains Mono',monospace"}}>{u.total_pnl>=0?"+":""}{u.total_pnl?.toFixed(4)}</span>
+                      </div>
+                    )}
+                    {u.tier&&u.tier!=="free"&&(
+                      <div style={{padding:"4px 8px",borderRadius:6,background:`${C.gold}10`,display:"flex",alignItems:"center",gap:4}}>
+                        <span style={{color:C.gold,fontWeight:600}}>{u.tier.toUpperCase()}</span>
+                      </div>
+                    )}
+                    {u.referred_by&&(
+                      <div style={{padding:"4px 8px",borderRadius:6,background:C.s2,display:"flex",alignItems:"center",gap:4}}>
+                        <span style={{color:C.muted}}>Ref:</span>
+                        <span style={{color:C.text}}>{u.referred_by}</span>
+                      </div>
+                    )}
+                    {u.email&&(
+                      <div style={{padding:"4px 8px",borderRadius:6,background:C.s2,display:"flex",alignItems:"center",gap:4}}>
+                        <span style={{color:C.muted}}>Email:</span>
+                        <span style={{color:C.text}}>{u.email}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div style={{display:"flex",gap:12,alignItems:"center"}}>
-                  {u.ai_provider&&<span style={{padding:"2px 6px",borderRadius:4,background:`${C.indigo}15`,color:C.indigo,fontSize:8,fontWeight:600}}>{u.ai_provider}</span>}
-                  {u.trading_enabled&&<span style={{padding:"2px 6px",borderRadius:4,background:`${C.match}15`,color:C.match,fontSize:8,fontWeight:600}}>TRADING</span>}
-                  <span style={{color:C.muted,fontSize:8,minWidth:50,textAlign:"right"}}>{u.balance?.toFixed(4)} ETH</span>
-                  <span style={{color:C.dim,fontSize:8}}>{new Date(u.created_at).toLocaleDateString()}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
