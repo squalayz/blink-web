@@ -957,8 +957,9 @@ export default function Dashboard(){
             </div>
             {showWalletDrop&&(
               <div style={{position:"absolute",top:"100%",right:0,marginTop:8,background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:12,minWidth:200,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>
-                <div style={{fontSize:10,color:C.dim,marginBottom:8,fontFamily:"monospace",wordBreak:"break-all"}}>{user?.wallet_address?.slice(0,6)}...{user?.wallet_address?.slice(-4)}</div>
-                <button onClick={()=>{setShowWalletDrop(false);setTab("wallet");}} style={{width:"100%",padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.text,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:6,fontFamily:"inherit",textAlign:"left"}}>View Wallet</button>
+                <div style={{fontSize:10,color:C.dim,marginBottom:8,fontFamily:"monospace",wordBreak:"break-all"}}>{(wallet?.wallet_address||user?.wallet_address)?.slice(0,6)}...{(wallet?.wallet_address||user?.wallet_address)?.slice(-4)}</div>
+                <button onClick={()=>{const addr=wallet?.wallet_address||user?.wallet_address;if(addr){navigator.clipboard?.writeText(addr);}setShowWalletDrop(false);}} style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"none",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,color:"white",fontSize:12,fontWeight:700,cursor:"pointer",marginBottom:6,fontFamily:"inherit",textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}><Zap size={12}/>Fund Wallet (Copy Address)</button>
+                <button onClick={()=>{setShowWalletDrop(false);setView("wallet");}} style={{width:"100%",padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.text,fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:6,fontFamily:"inherit",textAlign:"left"}}>View Wallet</button>
                 <button onClick={async()=>{setShowWalletDrop(false);await fetch("/api/auth/siwe/logout",{method:"POST"});window.location.href="/";}} style={{width:"100%",padding:"8px 12px",borderRadius:8,border:`1px solid rgba(255,50,85,0.3)`,background:"transparent",color:"#FF2D55",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>Disconnect</button>
               </div>
             )}
@@ -1065,10 +1066,18 @@ export default function Dashboard(){
               <div style={{fontSize:11,color:C.dim,marginTop:4}}>Base L2 · 5% deposit fee · 1% trade fee</div>
             </div>
 
-            {/* Wallet Address + Copy */}
-            {wallet?.address && <div style={{display:"flex",alignItems:"center",gap:8,background:C.s2,borderRadius:10,padding:"10px 12px",marginBottom:12}}>
-              <div style={{flex:1,fontSize:11,color:C.muted,fontFamily:"'JetBrains Mono',monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wallet.address}</div>
-              <button onClick={()=>{navigator.clipboard?.writeText(wallet.address);}} style={{background:C.cold,border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",color:"white",fontSize:10,fontWeight:600,display:"flex",alignItems:"center",gap:3,flexShrink:0}}><Copy size={10}/>Copy</button>
+            {/* Fund Wallet Button */}
+            <button onClick={()=>{
+              const addr=wallet?.wallet_address||user?.wallet_address;
+              if(addr){navigator.clipboard?.writeText(addr);alert("Wallet address copied!\\n\\n"+addr+"\\n\\nSend ETH on Base L2 to this address.");}
+            }} style={{width:"100%",padding:"14px",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:12,color:"white",fontSize:14,fontWeight:700,cursor:"pointer",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:`0 4px 20px rgba(99,102,241,0.3)`}}>
+              <Zap size={16}/>Fund Wallet
+            </button>
+
+            {/* Wallet Address */}
+            {(wallet?.wallet_address||user?.wallet_address) && <div style={{display:"flex",alignItems:"center",gap:8,background:C.s2,borderRadius:10,padding:"10px 12px",marginBottom:12}}>
+              <div style={{flex:1,fontSize:11,color:C.muted,fontFamily:"'JetBrains Mono',monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wallet?.wallet_address||user?.wallet_address}</div>
+              <button onClick={()=>{navigator.clipboard?.writeText(wallet?.wallet_address||user?.wallet_address);}} style={{background:"rgba(99,102,241,0.15)",border:`1px solid rgba(99,102,241,0.3)`,borderRadius:8,padding:"6px 12px",cursor:"pointer",color:C.cold,fontSize:10,fontWeight:600,display:"flex",alignItems:"center",gap:3,flexShrink:0}}><Copy size={10}/>Copy</button>
             </div>}
 
             {/* Send Section */}
