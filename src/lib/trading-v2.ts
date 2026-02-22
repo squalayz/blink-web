@@ -514,6 +514,25 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
       const riskConfig = risk.getConfig();
 
       if (decision.action === "buy" && decision.tokenAddress) {
+        // ═══ SYNDICATE CHECK — propose instead of executing directly ═══
+        try {
+          const { getAgentSyndicate, proposeTrade: syndicatePropose } = await import("./syndicate-engine");
+          const { data: agentProfile } = await supabaseAdmin.from("agent_profiles")
+            .select("id").eq("user_id", agent.user_id).single();
+          if (agentProfile) {
+            const syndicate = await getAgentSyndicate(agentProfile.id);
+            if (syndicate) {
+              const tokenInfo = trending.find(t => t.address.toLowerCase() === decision.tokenAddress.toLowerCase());
+              await syndicatePropose(syndicate.id, agentProfile.id, decision, {
+                price: tokenInfo?.price || 0, volume24h: tokenInfo?.volume24h || 0,
+                liquidity: tokenInfo?.liquidity || 0, mcap: 0,
+                change1h: tokenInfo?.priceChange1h, change24h: tokenInfo?.priceChange24h,
+              });
+              continue; // Don't execute — wait for syndicate verdict
+            }
+          }
+        } catch (e) { console.error("[V2] Syndicate check error:", e); }
+
         // Safety check
         const safety = await isTokenSafe(decision.tokenAddress);
         if (!safety.safe) {

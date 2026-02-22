@@ -27,7 +27,16 @@ export async function GET(req: NextRequest) {
     await runAutonomousTrading();
     results.push("Trading engine completed");
 
-    // 2b. SL/TP engine — check all open positions for stop-loss, take-profit, trailing stops
+    // 2b. Syndicate signal resolution
+    try {
+      const { resolveSignal } = await import("@/lib/syndicate-engine");
+      const { data: expired } = await supabaseAdmin.from("syndicate_signals")
+        .select("id").eq("status", "voting").lt("voting_deadline", new Date().toISOString());
+      for (const s of expired || []) { await resolveSignal(s.id); }
+      if (expired?.length) results.push(`Resolved ${expired.length} syndicate signals`);
+    } catch (e: any) { console.error("Syndicate resolution error:", e.message); }
+
+    // 2c. SL/TP engine — check all open positions for stop-loss, take-profit, trailing stops
     try {
       const { runSLTPEngine } = await import("@/lib/trading-v2");
       await runSLTPEngine();

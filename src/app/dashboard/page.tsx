@@ -1089,7 +1089,8 @@ export default function Dashboard(){
       <div style={{padding:"8px 16px 10px",display:"flex",gap:6,borderBottom:`1px solid ${C.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",msOverflowStyle:"none"}}>
         {[
           {id:"mesh",label:"Mesh",icon:<BarChart3 size={13}/>},
-          {id:"pending",label:`New${pendingMatches.length?` (${pendingMatches.length})`:""}`,icon:<Sparkles size={13}/>},
+          {id:"syndicates",label:"AI Social",icon:<Sparkles size={13}/>},
+          {id:"pending",label:`New${pendingMatches.length?` (${pendingMatches.length})`:""}`,icon:<Users size={13}/>},
           {id:"matches",label:`Connected${acceptedMatches.length?` (${acceptedMatches.length})`:""}`,icon:<MessageCircle size={13}/>},
           {id:"leaderboard",label:"Ranks",icon:<Trophy size={13}/>},
           {id:"wallet",label:"Agent Fuel",icon:<Zap size={13}/>},
@@ -1098,7 +1099,7 @@ export default function Dashboard(){
           {id:"referrals",label:"Referrals",icon:<Share2 size={13}/>},
           {id:"settings",label:"AI Brain",icon:<Cpu size={13}/>},
         ].map(t=>(
-          <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="wallet"&&!wallet)loadWallet();if(t.id==="nfts"&&!nfts.length)loadNfts();if(t.id==="groups"&&!groupMeshes.length)loadGroupMeshes();if(t.id==="referrals"&&!referralStats)loadReferralStats();if(t.id==="settings"&&!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();};}} style={{
+          <button key={t.id} onClick={()=>{if(t.id==="syndicates"){router.push("/dashboard/syndicates");return;}setView(t.id);if(t.id==="wallet"&&!wallet)loadWallet();if(t.id==="nfts"&&!nfts.length)loadNfts();if(t.id==="groups"&&!groupMeshes.length)loadGroupMeshes();if(t.id==="referrals"&&!referralStats)loadReferralStats();if(t.id==="settings"&&!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();};}} style={{
             background:view===t.id?"linear-gradient(135deg, rgba(99,102,241,0.25), rgba(6,182,212,0.15))":"rgba(255,255,255,0.03)",
             border:view===t.id?`1px solid rgba(99,102,241,0.5)`:`1px solid rgba(255,255,255,0.06)`,
             borderRadius:22,
