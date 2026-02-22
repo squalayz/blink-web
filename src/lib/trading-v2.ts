@@ -10,6 +10,11 @@ import { supabaseAdmin } from "./supabase";
 import { getWalletBalance, collectTradeFee, getSigner, getProvider, FEES } from "./wallet";
 import { getUserAIConfig, callUserLLM } from "./ai-providers";
 import { ethers } from "ethers";
+import { detectMarketRegime, adjustForRegime, type MarketRegime } from "./market-regime";
+import { shouldAutoSell, TAKE_PROFIT_TIERS } from "./position-manager";
+import { passesAntiChurn } from "./anti-churn";
+import { calculateKellySize } from "./kelly-sizing";
+import { generateReportCard, getReportCardsForPrompt, updatePostExitPrices } from "./report-cards";
 
 // ═══ CONSTANTS ═══
 const WETH_BASE = "0x4200000000000000000000000000000000000006";
@@ -366,6 +371,8 @@ async function isTokenSafe(address: string): Promise<{ safe: boolean; reason: st
 async function getAIDecision(
   userId: string, tokens: TrendingToken[], positions: any[],
   walletBalance: number, riskLevel: string, tradingMode: string, personality: string | null,
+  regime?: { regime: string; confidence: number; recommendation: string; eth1h: number; eth24h: number },
+  kellySizePct?: number,
 ) {
   const aiConfig = await getUserAIConfig(userId);
   if (!aiConfig) return { action: "hold", confidence: 0, amountPct: 0, reasoning: "No AI key" };
@@ -433,74 +440,63 @@ async function getAIDecision(
 
   const portfolioValue = walletBalance * ethPrice;
 
-  const gasReserveWarning = walletBalance < 0.005
-    ? `\n⚠️ LOW BALANCE WARNING: Only ${walletBalance.toFixed(4)} ETH left. Gas reserve is ${GAS_RESERVE_ETH} ETH. You MUST keep enough to sell positions! Consider selling a position to free up ETH.`
+  // V3: Get report cards for learning loop
+  const reportCardsText = await getReportCardsForPrompt(userId, 10);
+
+  const regimeText = regime
+    ? `\n═══ MARKET REGIME ═══\n${regime.regime === 'bull_trending' ? '🐂' : regime.regime === 'bear_trending' ? '🐻' : regime.regime === 'sideways_chop' ? '📊' : '⚡'} ${regime.regime.replace('_', ' ').toUpperCase()} (confidence: ${regime.confidence}%)\nETH 1h: ${regime.eth1h.toFixed(1)}% | 24h: ${regime.eth24h.toFixed(1)}%\nRecommendation: ${regime.recommendation}\n`
     : "";
 
-  const system = `You are an autonomous trading agent on Base L2.
+  const kellyText = kellySizePct ? `\nSuggested position size (Kelly): ${kellySizePct}%` : "";
+
+  const gasReserveWarning = walletBalance < 0.005
+    ? `\n⚠️ LOW BALANCE: Only ${walletBalance.toFixed(4)} ETH. Gas reserve is ${GAS_RESERVE_ETH} ETH. SELL a position to recover ETH!`
+    : "";
+
+  const system = `You are an autonomous AI trading agent on Base L2.
 
 STRATEGY: ${modePrompts[tradingMode] || modePrompts.meme_scout}
 RISK: ${riskLevel.toUpperCase()}
 ${personality ? `PERSONALITY: ${personality}` : ""}
-
-RISK LIMITS:
-- Max position size: ${STRATEGY_RISKS[tradingMode]?.max_position_pct || 15}% of portfolio
-- Stop loss: ${STRATEGY_RISKS[tradingMode]?.stop_loss_pct || -25}%
-- Take profit: +${STRATEGY_RISKS[tradingMode]?.take_profit_pct || 80}%
-- Max concurrent positions: ${STRATEGY_RISKS[tradingMode]?.max_concurrent_positions || 5}
-- Min liquidity: $${((STRATEGY_RISKS[tradingMode]?.min_liquidity_usd || 50000) / 1000).toFixed(0)}k
-- Platform fee: 3% per trade (buy AND sell)
-- Gas reserve: ${GAS_RESERVE_ETH} ETH (NEVER spend below this — you need gas to sell!)
+${regimeText}
+═══ RISK LIMITS ═══
+- Max position: ${STRATEGY_RISKS[tradingMode]?.max_position_pct || 15}%${kellyText}
+- Stop loss: ${STRATEGY_RISKS[tradingMode]?.stop_loss_pct || -25}% | Take profit: +${STRATEGY_RISKS[tradingMode]?.take_profit_pct || 80}%
+- Max concurrent: ${STRATEGY_RISKS[tradingMode]?.max_concurrent_positions || 5} | Min liquidity: $${((STRATEGY_RISKS[tradingMode]?.min_liquidity_usd || 50000) / 1000).toFixed(0)}k
+- Fee: 3% per trade | Gas reserve: ${GAS_RESERVE_ETH} ETH
 ${gasReserveWarning}
 
-CRITICAL RULES:
-1. TAKE PROFITS — if any position is up >${STRATEGY_RISKS[tradingMode]?.take_profit_pct || 80}%, SELL IT. Unrealized gains are NOT real gains.
-2. CUT LOSSES — if any position is down >${Math.abs(STRATEGY_RISKS[tradingMode]?.stop_loss_pct || -25)}%, SELL IT. Don't hold losers.
-3. SELL BEFORE BUY — if you have open positions AND want to buy something new, sell the weakest position FIRST to free capital.
-4. GAS AWARENESS — you need at least ${GAS_RESERVE_ETH} ETH to execute sells. If balance is low, SELL a position to recover ETH.
-5. PROFIT IS THE GOAL — a completed sell at profit > a bag you hold forever.
-6. NEVER BUY A TOKEN YOU ALREADY HOLD — you CANNOT buy the same token twice. Always pick a DIFFERENT token.
-7. DIVERSIFY — spread across different tokens. Don't concentrate in one.
-8. ROTATE — buy → wait → sell for profit → buy something new. This is the cycle. Keep rotating.
+═══ RULES ═══
+1. NEVER buy a token you already hold
+2. Your min expected gain must exceed 3% to cover fees (buy + sell)
+3. Don't chase — if 1h change is >150%, it's probably too late
+4. If today's P&L is below -15%, HOLD (protect capital)
+5. If last 3 trades were losses, reduce confidence by 20 points
+6. SELL positions hitting TP/SL BEFORE buying new ones
+7. Sitting out IS a valid trade — only enter high-conviction setups
 
-PRIORITY ORDER (follow this EXACTLY):
-1. Check positions — any hitting TP (>${STRATEGY_RISKS[tradingMode]?.take_profit_pct || 80}%) or SL (<${STRATEGY_RISKS[tradingMode]?.stop_loss_pct || -25}%)? → SELL immediately
-2. Check positions — any up >15%? → Consider SELL to lock profit
-3. Check positions — any stale (bought >10 min ago, flat or slightly down)? → SELL to free capital
-4. If you have NO open positions → BUY the best opportunity (must be a token you DON'T already hold)
-5. If you have 1-2 positions and strong opportunity in a DIFFERENT token → BUY
-6. If nothing compelling → HOLD (but rarely — keep rotating!)
+Respond ONLY with JSON: {"action":"buy|sell|hold","token":"SYMBOL","tokenAddress":"0x...","confidence":0-100,"amountPct":2-25,"reasoning":"2-3 sentences referencing specific data"}`;
 
-Respond ONLY with JSON: {"action":"buy|sell|hold","token":"SYMBOL","tokenAddress":"0x...","confidence":0-100,"amountPct":5-25,"reasoning":"one sentence"}`;
+  const userMsg = `═══ PORTFOLIO ═══
+Balance: ${walletBalance.toFixed(4)} ETH ($${portfolioValue.toFixed(0)})
+Available: ${Math.max(0, walletBalance - GAS_RESERVE_ETH).toFixed(4)} ETH (after gas reserve)
+Open positions: ${positions.length} | Open P&L: ${totalOpenPnl>=0?"+":""}${totalOpenPnl.toFixed(4)} ETH
+Today's P&L: ${dailyPnl>=0?"+":""}${dailyPnl.toFixed(4)} ETH
 
-  const userMsg = `PORTFOLIO:
-- Balance: ${walletBalance.toFixed(4)} ETH ($${portfolioValue.toFixed(0)})
-- Available for trading: ${Math.max(0, walletBalance - GAS_RESERVE_ETH).toFixed(4)} ETH (after ${GAS_RESERVE_ETH} gas reserve)
-- Open positions: ${positions.length}
-- Open P&L: ${totalOpenPnl>=0?"+":""}${totalOpenPnl.toFixed(4)} ETH
-- Today's P&L: ${dailyPnl>=0?"+":""}${dailyPnl.toFixed(4)} ETH
+═══ PERFORMANCE ═══
+Win rate: ${winRate}% (${wins}W/${losses}L) | Total P&L: ${totalPnl>=0?"+":""}${totalPnl.toFixed(4)} ETH
 
-PERFORMANCE (last ${total} closed trades):
-- Win rate: ${winRate}% (${wins}W / ${losses}L)
-- Total P&L: ${totalPnl>=0?"+":""}${totalPnl.toFixed(4)} ETH
+═══ YOUR TRADE HISTORY & GRADES ═══
+${reportCardsText}
 
-${tradeHistory ? `TRADE HISTORY (learn from these — what worked, what didn't):
-${tradeHistory}` : "No trade history yet — be smart with first trades."}
-
-TRENDING TOKENS:
+═══ POSITIONS ═══
+${posData}
+${heldSymbols.length > 0 ? `⛔ DO NOT BUY: ${heldSymbols.join(", ")} (already holding)\n` : ""}
+═══ TOKEN CANDIDATES ═══
 ${tokenData}
 
-POSITIONS:
-${posData}
-${heldSymbols.length > 0 ? `\n⛔ DO NOT BUY: ${heldSymbols.join(", ")} (already holding — pick something DIFFERENT or SELL one of these)\n` : ""}
-INSTRUCTIONS: 
-- Review your past trades above. Learn from winners and losers.
-- If you hold positions, check if any should be SOLD (profit target, stop loss, or stale).
-- SELL first, then BUY new tokens. Keep the capital rotating.
-- NEVER buy a token you already hold. Always diversify.
-- If a token burned you before, be cautious. If a pattern made money, lean into it.
+Analyze your grades above. Learn from your A-trades and avoid repeating D/F patterns. Your move?`;
 
-Your move?`;
 
   try {
     const response = await callUserLLM(aiConfig, system, userMsg, 200);
@@ -585,10 +581,16 @@ export async function runSLTPEngine() {
     }
   }
 
+  // V3: Use position manager for all sell decisions
+  // Determine strategy per user (fallback to meme_scout)
+  const userStrategies: Record<string, string> = {};
+  const { data: agentConfigs } = await supabaseAdmin.from("agent_balances")
+    .select("user_id, trading_mode").eq("trading_enabled", true);
+  for (const ac of agentConfigs || []) userStrategies[ac.user_id] = ac.trading_mode || "meme_scout";
+
   for (const pos of openPositions) {
     try {
-      // Fetch current price from DexScreener
-      const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${pos.token_address}`);
+      const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${pos.token_address}`, { signal: AbortSignal.timeout(5000) });
       if (!res.ok) continue;
       const data = await res.json();
       const pair = data.pairs?.find((p: any) => p.chainId === "base");
@@ -597,67 +599,90 @@ export async function runSLTPEngine() {
       const currentPrice = parseFloat(pair.priceUsd || "0");
       if (!currentPrice || !pos.price_at_trade) continue;
 
-      const pnlPct = ((currentPrice - pos.price_at_trade) / pos.price_at_trade) * 100;
-      const peakPrice = Math.max(pos.peak_price || pos.price_at_trade, currentPrice);
-      const drawdownFromPeak = peakPrice > 0 ? ((currentPrice - peakPrice) / peakPrice) * 100 : 0;
-
       // Update peak price
       if (currentPrice > (pos.peak_price || 0)) {
         await supabaseAdmin.from("trading_history").update({ peak_price: currentPrice }).eq("id", pos.id);
       }
 
-      const sl = pos.stop_loss_pct || -20;
-      const tp = pos.take_profit_pct || 50;
-      const ts = pos.trailing_stop_pct || 15;
-      let shouldSell = false;
-      let sellReason = "";
+      // V3: Position manager decides sell logic (graduated TP, momentum-based aging)
+      const posStrategy = userStrategies[pos.user_id] || "meme_scout";
+      const vol5m = pair.volume?.m5 || 0;
+      const vol1h = pair.volume?.h1 || 0;
+      const volumeDecreasing = vol1h > 0 && (vol5m * 12) < vol1h * 0.5;
 
-      if (sl !== -999 && pnlPct <= sl) { shouldSell = true; sellReason = `Stop loss hit: ${pnlPct.toFixed(1)}%`; }
-      else if (tp !== 999 && pnlPct >= tp) { shouldSell = true; sellReason = `Take profit hit: ${pnlPct.toFixed(1)}%`; }
-      else if (ts !== 999 && drawdownFromPeak <= -ts && pnlPct > 0) { shouldSell = true; sellReason = `Trailing stop: ${drawdownFromPeak.toFixed(1)}% from peak`; }
+      const sellDecision = shouldAutoSell(
+        { ...pos, tiers_hit: pos.tiers_hit || [], remaining_size_pct: pos.remaining_size_pct || 100 },
+        currentPrice, posStrategy, volumeDecreasing
+      );
 
-      if (shouldSell && pos.users?.wallet_encrypted_key) {
-        // Execute sell
-        const quote = await findBestRoute(pos.token_address, WETH_BASE, ethers.MaxUint256, 5);
-        // Get actual token balance
+      if (sellDecision.sell && pos.users?.wallet_encrypted_key) {
         const provider = getProvider();
         const token = new ethers.Contract(pos.token_address, ERC20_ABI, provider);
         const { decrypt } = await import("./wallet");
         const wallet = new ethers.Wallet(decrypt(pos.users.wallet_encrypted_key), provider);
-        const balance = await token.balanceOf(wallet.address);
-        if (balance === 0n) continue;
+        const fullBalance = await token.balanceOf(wallet.address);
+        if (fullBalance === 0n) continue;
 
-        const sellQuote = await findBestRoute(pos.token_address, WETH_BASE, balance, 5);
+        const sellPct = sellDecision.sellPct || 100;
+        const sellAmount = sellPct >= 100 ? fullBalance : (fullBalance * BigInt(sellPct)) / 100n;
+        if (sellAmount === 0n) continue;
+
+        const sellQuote = await findBestRoute(pos.token_address, WETH_BASE, sellAmount, 8);
         if (!sellQuote) continue;
 
         const result = await executeSwapV2(
           pos.users.wallet_encrypted_key, pos.token_address, WETH_BASE,
-          balance, sellQuote.feeTier, sellQuote.amountOutMin, false,
+          sellAmount, sellQuote.feeTier, sellQuote.amountOutMin, false,
         );
 
         if (result.success) {
-          // Collect 3% fee
           const ethReceived = parseFloat(ethers.formatEther(sellQuote.amountOut));
           await collectTradeFee(pos.users.wallet_encrypted_key, ethReceived, "sell", pos.token_symbol);
 
-          // Close position
-          await supabaseAdmin.from("trading_history").update({
-            closed_at: new Date().toISOString(),
-            pnl_eth: ethReceived - pos.amount_eth,
-            reasoning: sellReason,
-          }).eq("id", pos.id);
+          if (sellPct >= 100) {
+            await supabaseAdmin.from("trading_history").update({
+              closed_at: new Date().toISOString(), pnl_eth: ethReceived - pos.amount_eth,
+              reasoning: `🤖 V3 SLTP: ${sellDecision.reason}`,
+            }).eq("id", pos.id);
+            // Generate report card on close
+            try { await generateReportCard(pos.user_id, { ...pos, closed_at: new Date().toISOString(), pnl_eth: ethReceived - pos.amount_eth }, posStrategy); } catch {}
+          } else {
+            // Partial sell — update tiers
+            const newTiersHit = [...(pos.tiers_hit || [])];
+            const tiers = TAKE_PROFIT_TIERS[posStrategy] || [];
+            const pnlPct = ((currentPrice - pos.price_at_trade) / pos.price_at_trade) * 100;
+            for (let i = 0; i < tiers.length; i++) {
+              if (!newTiersHit.includes(i) && pnlPct >= tiers[i].trigger_pct) { newTiersHit.push(i); break; }
+            }
+            const newRemaining = Math.max(0, (pos.remaining_size_pct || 100) - sellPct);
+            await supabaseAdmin.from("trading_history").update({
+              tiers_hit: newTiersHit, remaining_size_pct: newRemaining,
+              trailing_stop_pct: sellDecision.newTrailingStop || pos.trailing_stop_pct,
+              amount_eth: pos.amount_eth * (newRemaining / 100),
+            }).eq("id", pos.id);
+          }
 
-          // Notify
           await supabaseAdmin.from("notifications").insert({
             user_id: pos.user_id, type: "auto_exit",
-            message: `🔴 Auto-exit: ${pos.token_symbol} — ${sellReason}. Received ${ethReceived.toFixed(4)} ETH.`,
+            message: `🔴 ${sellPct < 100 ? `Partial (${sellPct}%)` : ''} ${pos.token_symbol}: ${sellDecision.reason}. Got ${ethReceived.toFixed(4)} ETH`,
+          });
+
+          // Sell record for feed
+          await supabaseAdmin.from("trading_history").insert({
+            user_id: pos.user_id, token_address: pos.token_address,
+            token_symbol: pos.token_symbol, action: "sell", amount_eth: ethReceived,
+            pnl_eth: sellPct >= 100 ? ethReceived - pos.amount_eth : undefined,
+            reasoning: `🤖 V3 SLTP: ${sellDecision.reason}`,
           });
         }
       }
     } catch (err) {
-      console.error(`[V2] SLTP error for position ${pos.id}:`, err);
+      console.error(`[V3] SLTP error for position ${pos.id}:`, err);
     }
   }
+
+  // V3: Update post-exit prices for recently closed positions (for grading)
+  try { await updatePostExitPrices(); } catch {}
 }
 
 // ═══ SINGLE USER INSTANT TRADING ═══
@@ -697,9 +722,10 @@ export async function runSingleUserTrading(userId: string): Promise<{ action: st
   const breaker = await risk.checkCircuitBreaker();
   if (breaker.tripped) return { action: "skip", reasoning: "Circuit breaker tripped" };
 
-  // ═══ PRE-AI AUTO-SELL CHECK ═══
-  // Check open positions for SL/TP/stale BEFORE asking AI — this guarantees sells happen
-  const autoSellConfig = risk.getConfig();
+  // ═══ V3: MARKET REGIME + PRE-AI POSITION MANAGEMENT ═══
+  const regime = await detectMarketRegime();
+  console.log(`[V3] ${userId.slice(0,8)} | Regime: ${regime.regime} (${regime.confidence}%) | ETH 1h:${regime.eth1h.toFixed(1)}% 24h:${regime.eth24h.toFixed(1)}%`);
+
   {
     const { data: openPos } = await supabaseAdmin.from("trading_history")
       .select("*").eq("user_id", userId).eq("action", "buy").is("closed_at", null).limit(10);
@@ -716,57 +742,86 @@ export async function runSingleUserTrading(userId: string): Promise<{ action: st
           const currentPrice = parseFloat(pair.priceUsd || "0");
           if (!currentPrice || !pos.price_at_trade) continue;
 
-          const pnlPct = ((currentPrice - pos.price_at_trade) / pos.price_at_trade) * 100;
-          const ageMin = (Date.now() - new Date(pos.created_at).getTime()) / 60000;
-          const sl = pos.stop_loss_pct || autoSellConfig.stop_loss_pct;
-          const tp = pos.take_profit_pct || autoSellConfig.take_profit_pct;
-          
-          let shouldSell = false;
-          let reason = "";
+          // Update peak price
+          if (currentPrice > (pos.peak_price || 0)) {
+            await supabaseAdmin.from("trading_history").update({ peak_price: currentPrice }).eq("id", pos.id);
+          }
 
-          // Hard SL/TP
-          if (sl !== -999 && pnlPct <= sl) { shouldSell = true; reason = `Stop loss: ${pnlPct.toFixed(1)}%`; }
-          else if (tp !== 999 && pnlPct >= tp) { shouldSell = true; reason = `Take profit: ${pnlPct.toFixed(1)}%`; }
-          // Stale position — held >15min and losing or flat
-          else if (ageMin > 15 && pnlPct < 5) { shouldSell = true; reason = `Stale (${Math.floor(ageMin)}min, ${pnlPct.toFixed(1)}%)`; }
-          // Quick profit lock — up >20% within first 10min
-          else if (ageMin < 10 && pnlPct > 20) { shouldSell = true; reason = `Quick profit lock: +${pnlPct.toFixed(1)}%`; }
+          // V3: Use position manager (graduated TP tiers, momentum-based aging)
+          const vol5m = pair.volume?.m5 || 0;
+          const vol1h = pair.volume?.h1 || 0;
+          const volumeDecreasing = vol1h > 0 && (vol5m * 12) < vol1h * 0.5; // 5min rate < 50% of hourly rate
 
-          if (shouldSell && user.wallet_encrypted_key) {
-            console.log(`[AUTO-SELL] ${userId.slice(0,8)}: ${pos.token_symbol} — ${reason}`);
+          const sellDecision = shouldAutoSell(
+            { ...pos, tiers_hit: pos.tiers_hit || [], remaining_size_pct: pos.remaining_size_pct || 100 },
+            currentPrice, strategy, volumeDecreasing
+          );
+
+          if (sellDecision.sell && user.wallet_encrypted_key) {
+            console.log(`[V3-SELL] ${userId.slice(0,8)}: ${pos.token_symbol} — ${sellDecision.reason} (sell ${sellDecision.sellPct || 100}%)`);
             const provider = getProvider();
             const token = new ethers.Contract(pos.token_address, ERC20_ABI, provider);
             const { decrypt } = await import("./wallet");
             const wallet = new ethers.Wallet(decrypt(user.wallet_encrypted_key), provider);
-            const balance = await token.balanceOf(wallet.address);
-            if (balance === 0n) continue;
+            const fullBalance = await token.balanceOf(wallet.address);
+            if (fullBalance === 0n) continue;
 
-            const sellQuote = await findBestRoute(pos.token_address, WETH_BASE, balance, 8);
+            // Partial sell for graduated TP tiers
+            const sellPct = sellDecision.sellPct || 100;
+            const sellAmount = sellPct >= 100 ? fullBalance : (fullBalance * BigInt(sellPct)) / 100n;
+            if (sellAmount === 0n) continue;
+
+            const sellQuote = await findBestRoute(pos.token_address, WETH_BASE, sellAmount, 8);
             if (!sellQuote) continue;
 
-            const result = await executeSwapV2(user.wallet_encrypted_key, pos.token_address, WETH_BASE, balance, sellQuote.feeTier, sellQuote.amountOutMin, false);
+            const result = await executeSwapV2(user.wallet_encrypted_key, pos.token_address, WETH_BASE, sellAmount, sellQuote.feeTier, sellQuote.amountOutMin, false);
             if (result.success) {
               const ethReceived = parseFloat(ethers.formatEther(sellQuote.amountOut));
               await collectTradeFee(user.wallet_encrypted_key, ethReceived, "sell", pos.token_symbol);
-              await supabaseAdmin.from("trading_history").update({
-                closed_at: new Date().toISOString(), pnl_eth: ethReceived - pos.amount_eth,
-                reasoning: `🤖 Auto-sell: ${reason}`,
-              }).eq("id", pos.id);
+
+              if (sellPct >= 100) {
+                // Full close
+                const closedPos = { ...pos, closed_at: new Date().toISOString(), pnl_eth: ethReceived - pos.amount_eth, reasoning: `🤖 V3: ${sellDecision.reason}` };
+                await supabaseAdmin.from("trading_history").update({
+                  closed_at: closedPos.closed_at, pnl_eth: closedPos.pnl_eth, reasoning: closedPos.reasoning,
+                }).eq("id", pos.id);
+                // Generate report card
+                try { await generateReportCard(userId, { ...pos, ...closedPos }, strategy); } catch {}
+              } else {
+                // Partial close — update remaining size + tiers hit + tighten trailing
+                const newTiersHit = [...(pos.tiers_hit || [])];
+                const tiers = TAKE_PROFIT_TIERS[strategy] || [];
+                for (let i = 0; i < tiers.length; i++) {
+                  if (!newTiersHit.includes(i)) {
+                    const pnlPct = ((currentPrice - pos.price_at_trade) / pos.price_at_trade) * 100;
+                    if (pnlPct >= tiers[i].trigger_pct) { newTiersHit.push(i); break; }
+                  }
+                }
+                const newRemaining = Math.max(0, (pos.remaining_size_pct || 100) - sellPct);
+                await supabaseAdmin.from("trading_history").update({
+                  tiers_hit: newTiersHit,
+                  remaining_size_pct: newRemaining,
+                  trailing_stop_pct: sellDecision.newTrailingStop || pos.trailing_stop_pct,
+                  amount_eth: pos.amount_eth * (newRemaining / 100),
+                }).eq("id", pos.id);
+              }
+
               await supabaseAdmin.from("notifications").insert({
                 user_id: userId, type: "auto_exit",
-                message: `🔴 Auto-sell ${pos.token_symbol}: ${reason}. Got ${ethReceived.toFixed(4)} ETH (P&L: ${(ethReceived - pos.amount_eth).toFixed(4)})`,
+                message: `🔴 ${sellPct < 100 ? `Partial sell (${sellPct}%)` : 'Sell'} ${pos.token_symbol}: ${sellDecision.reason}. Got ${ethReceived.toFixed(4)} ETH`,
               });
-              // Insert a sell record for activity feed
               await supabaseAdmin.from("trading_history").insert({
                 user_id: userId, token_address: pos.token_address,
                 token_symbol: pos.token_symbol, action: "sell", amount_eth: ethReceived,
-                pnl_eth: ethReceived - pos.amount_eth, tx_hash: result.txHash,
-                reasoning: `🤖 Auto-sell: ${reason}`,
+                pnl_eth: sellPct >= 100 ? ethReceived - pos.amount_eth : undefined,
+                tx_hash: result.txHash, reasoning: `🤖 V3: ${sellDecision.reason}`,
               });
-              return { action: "sell", token: pos.token_symbol, reasoning: `Auto-sold: ${reason}. Got ${ethReceived.toFixed(4)} ETH` };
+              if (sellPct >= 100) {
+                return { action: "sell", token: pos.token_symbol, reasoning: `V3 auto-sold: ${sellDecision.reason}. Got ${ethReceived.toFixed(4)} ETH` };
+              }
             }
           }
-        } catch (err) { console.error(`[AUTO-SELL] Error checking ${pos.token_symbol}:`, err); }
+        } catch (err) { console.error(`[V3-SELL] Error:`, err); }
       }
     }
   }
@@ -781,25 +836,38 @@ export async function runSingleUserTrading(userId: string): Promise<{ action: st
   const { data: profile } = await supabaseAdmin.from("agent_profiles")
     .select("soul").eq("user_id", userId).single();
 
+  // V3: Kelly sizing
+  const kelly = await calculateKellySize(userId, 70, risk.getConfig().max_position_pct, regime.regime as MarketRegime);
+  console.log(`[V3] ${userId.slice(0,8)} | Kelly: ${kelly.positionPct}% (WR:${kelly.winRate.toFixed(0)}% avgW:+${kelly.avgWin.toFixed(1)}% avgL:-${kelly.avgLoss.toFixed(1)}%)`);
+
   const decision = await getAIDecision(
     userId, trending, positions || [], walletBalance,
     agent.risk_level, strategy, profile?.soul || null,
+    regime, kelly.positionPct,
   );
 
-  console.log(`[TRADE-V2] ${userId} | AI decision: ${decision.action} ${decision.token || ''} | confidence: ${decision.confidence}% | ${decision.reasoning?.slice(0,100)}`);
+  console.log(`[V3] ${userId.slice(0,8)} | AI: ${decision.action} ${decision.token || ''} | confidence: ${decision.confidence}% | ${decision.reasoning?.slice(0,100)}`);
 
-  // Lower threshold for instant trigger — 40% confidence (vs 60% in cron)
-  // This ensures users SEE action quickly
-  if (decision.action === "hold" || decision.confidence < 40) {
-    console.log(`[TRADE-V2] ${userId} | HOLD — action=${decision.action} confidence=${decision.confidence}% (need 40%)`);
+  // V3: Regime-adjusted confidence threshold
+  const regimeAdjusted = adjustForRegime(risk.getConfig(), regime.regime as MarketRegime);
+  const minConfidence = regimeAdjusted.min_confidence || 40;
+
+  if (decision.action === "hold" || decision.confidence < minConfidence) {
+    console.log(`[V3] ${userId.slice(0,8)} | HOLD — confidence ${decision.confidence}% < min ${minConfidence}%`);
     return { action: "hold", reasoning: decision.reasoning || "AI chose to hold" };
   }
 
   const riskConfig = risk.getConfig();
 
   if (decision.action === "buy" && decision.tokenAddress) {
-    // Skip syndicate check for instant triggers — user wants action NOW
-    console.log(`[TRADE-V2] ${userId} | BUY flow start: ${decision.token} (${decision.tokenAddress}) | confidence: ${decision.confidence}%`);
+    // V3: Anti-churn check
+    const churnCheck = await passesAntiChurn(userId, decision.tokenAddress, strategy);
+    if (!churnCheck.pass) {
+      console.log(`[V3] ${userId.slice(0,8)} | ANTI-CHURN BLOCKED: ${churnCheck.reason}`);
+      return { action: "skip", token: decision.token, reasoning: churnCheck.reason };
+    }
+
+    console.log(`[V3] ${userId.slice(0,8)} | BUY flow: ${decision.token} (${decision.tokenAddress}) | confidence: ${decision.confidence}%`);
     const safety = await isTokenSafe(decision.tokenAddress);
     console.log(`[TRADE-V2] ${userId} | Safety: ${safety.safe ? 'PASS' : 'FAIL'} — ${safety.reason}`);
     if (!safety.safe) {
@@ -818,17 +886,20 @@ export async function runSingleUserTrading(userId: string): Promise<{ action: st
       return { action: "skip", token: decision.token, reasoning: `Low liquidity: $${(tokenInfo.liquidity/1000).toFixed(0)}k` };
     }
 
+    // V3: Kelly-informed position sizing
     const maxPct = userTradeSizePct || riskConfig.max_position_pct || 15;
-    const effectivePct = Math.min(decision.amountPct || maxPct, maxPct);
+    const kellyPct = kelly.positionPct;
+    const aiPct = decision.amountPct || 10;
+    const effectivePct = Math.min(aiPct, kellyPct, maxPct); // most conservative wins
     const availableForTrading = Math.max(0, walletBalance - GAS_RESERVE_ETH);
     const tradeAmount = Math.min(availableForTrading, walletBalance * (effectivePct / 100));
     if (tradeAmount < 0.0005) {
-      console.log(`[TRADE-V2] ${userId} | BLOCKED: Trade amount ${tradeAmount.toFixed(6)} ETH too small after gas reserve`);
-      return { action: "skip", token: decision.token, reasoning: `Balance too low after gas reserve (avail: ${availableForTrading.toFixed(4)} ETH)` };
+      console.log(`[V3] ${userId.slice(0,8)} | BLOCKED: Trade ${tradeAmount.toFixed(6)} ETH too small`);
+      return { action: "skip", token: decision.token, reasoning: `Balance too low after gas reserve` };
     }
-    console.log(`[TRADE-V2] ${userId} | Trade size: ${tradeAmount.toFixed(4)} ETH (${effectivePct}% of ${walletBalance.toFixed(4)}, gas reserve: ${GAS_RESERVE_ETH})`);
+    console.log(`[V3] ${userId.slice(0,8)} | Size: ${tradeAmount.toFixed(4)} ETH (${effectivePct}% — AI:${aiPct}% Kelly:${kellyPct}% Max:${maxPct}%)`);
     const riskCheck = await risk.canTrade(decision.tokenAddress, tradeAmount, walletBalance);
-    console.log(`[TRADE-V2] ${userId} | Risk check: ${riskCheck.ok ? 'PASS' : 'FAIL'} — ${riskCheck.reason}`);
+    console.log(`[V3] ${userId.slice(0,8)} | Risk: ${riskCheck.ok ? 'PASS' : 'FAIL'} — ${riskCheck.reason}`);
     if (!riskCheck.ok) return { action: "skip", token: decision.token, reasoning: riskCheck.reason };
 
     const amountIn = ethers.parseEther(tradeAmount.toFixed(18));
