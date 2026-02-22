@@ -720,7 +720,7 @@ export default function TradingDashboard() {
           )}
         </div>
 
-        {trades.length === 0 ? (
+        {trades.filter((t:any)=>t.action!=="skip").length === 0 ? (
           <div style={{background:C.surface,borderRadius:14,border:`1px solid ${C.border}`,padding:"44px 20px",textAlign:"center"}}>
             <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
               <AIRobotHead size={80} />
@@ -732,7 +732,7 @@ export default function TradingDashboard() {
           </div>
         ) : (
           <div style={{display:"flex",flexDirection:"column",gap:3}}>
-            {trades.slice(0, 20).map((tx: any, i: number) => {
+            {trades.filter((t:any)=>t.action!=="skip").slice(0, 20).map((tx: any, i: number) => {
               const isBuy = tx.action === "buy";
               const isSell = tx.action === "sell";
               const isSkip = tx.action === "skip";

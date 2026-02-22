@@ -237,7 +237,7 @@ export async function GET(req: NextRequest) {
   const [userRes, balRes, tradesRes, withdrawRes, depositRes] = await Promise.all([
     supabaseAdmin.from("users").select("wallet_address, trading_wallet_address, tier, tier_expires_at, ai_provider, ai_api_key_encrypted").eq("id", userId).single(),
     supabaseAdmin.from("agent_balances").select("*").eq("user_id", userId).single(),
-    supabaseAdmin.from("trading_history").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(10),
+    supabaseAdmin.from("trading_history").select("*").eq("user_id", userId).neq("action", "skip").order("created_at", { ascending: false }).limit(20),
     supabaseAdmin.from("withdrawals").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(5),
     supabaseAdmin.from("deposits").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(5),
   ]);

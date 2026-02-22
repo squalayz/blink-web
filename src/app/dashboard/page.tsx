@@ -1189,6 +1189,14 @@ export default function Dashboard(){
                 if(!hasBalance&&!isOn){alert("Fund your wallet first (min 0.002 ETH)");return;}
                 if(!hasAI&&!isOn){alert("Connect your AI brain first (tap the brain icon)");return;}
                 updateWalletSettings({trading_enabled:!isOn,risk_level:isOn?risk:(activeMode.risk||"balanced")});
+                // Instant trigger — don't wait for cron, fire first trade NOW
+                if(!isOn){
+                  setTimeout(()=>{
+                    fetch("/api/trading/trigger",{method:"POST"}).then(r=>r.json()).then(d=>{
+                      if(d.ok&&d.action==="buy"){loadWallet();}
+                    }).catch(()=>{});
+                  },1500); // slight delay for settings to save
+                }
               }}
                 style={{width:64,height:34,borderRadius:17,background:isOn?"linear-gradient(135deg,#30d158,#34c759)":"rgba(255,255,255,0.08)",border:isOn?"2px solid rgba(48,209,88,0.4)":"2px solid rgba(255,255,255,0.1)",cursor:"pointer",position:"relative",transition:"all 0.3s cubic-bezier(0.4,0,0.2,1)",boxShadow:isOn?"0 0 20px rgba(48,209,88,0.25),inset 0 1px 2px rgba(255,255,255,0.15)":"inset 0 1px 3px rgba(0,0,0,0.3)",WebkitTapHighlightColor:"transparent"}}>
                 <div style={{width:26,height:26,borderRadius:"50%",background:"white",position:"absolute",top:2,left:isOn?34:2,transition:"all 0.3s cubic-bezier(0.4,0,0.2,1)",boxShadow:isOn?"0 2px 8px rgba(0,0,0,0.15)":"0 2px 6px rgba(0,0,0,0.3)",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -1440,8 +1448,8 @@ export default function Dashboard(){
           {/* ═══ TRANSACTION ACTIVITY FEED ═══ */}
           {(()=>{
             const allTxns=[
-              // Combine trades, deposits, and fees into one timeline
-              ...(trades||[]).map((t:any)=>({...t,txType:"trade",time:t.created_at})),
+              // Combine trades, deposits, and fees into one timeline — filter out skip noise
+              ...(trades||[]).filter((t:any)=>t.action!=="skip").map((t:any)=>({...t,txType:"trade",time:t.created_at})),
               ...(wallet?.recent_deposits||[]).map((d:any)=>({...d,txType:"deposit",time:d.created_at})),
             ].sort((a:any,b:any)=>new Date(b.time).getTime()-new Date(a.time).getTime()).slice(0,20);
             const hasTxns=allTxns.length>0;

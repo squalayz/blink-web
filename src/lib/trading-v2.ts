@@ -18,6 +18,10 @@ const SWAP_ROUTER = "0x2626664c2603336E57B271c5C0b26F421741e481";
 const QUOTER_V2 = "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a";
 const FEE_TIERS = [100, 500, 3000, 10000]; // 0.01%, 0.05%, 0.3%, 1%
 
+// ETH price cache
+let _cachedEthPrice = 1950;
+let _ethPriceCacheTime = 0;
+
 const QUOTER_ABI = [
   "function quoteExactInputSingle((address tokenIn, address tokenOut, uint256 amountIn, uint24 fee, uint160 sqrtPriceLimitX96)) external returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)",
 ];
@@ -226,32 +230,85 @@ interface TrendingToken {
   liquidity: number; pairAddress: string;
 }
 
+// Known high-liquidity Base tokens — always check these
+const BASE_WATCHLIST = [
+  "0x940181a94A35A4569E4529A3CDfB74e38FD98631", // AERO
+  "0x532f27101965dd16442E59d40670FaF5eBB142E4", // BRETT
+  "0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed", // DEGEN
+  "0xAC1Bd2486aAf3B5C0fc3Fd868558b082a531B2B4", // TOSHI
+  "0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b", // VIRTUAL
+  "0x2Da56AcB9Ea78330f947bD57C54119Debda7AF71", // MOG
+  "0x768BE13e1680b5ebE0024C42c896E3dB59ec0149", // MFER
+  "0xBC45647eA894030a4E9801Ec03479739FA2485F0", // KEYCAT
+  "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf", // cbBTC
+  "0x22e6966B799c4D5B13BE962E1D117b56327FDa66", // WEIRDO
+  "0xB1a03EdA10342529bBF8EB700a06C60441fEf25d", // MIGGLES
+];
+
 async function fetchTrendingTokens(): Promise<TrendingToken[]> {
+  const tokens: TrendingToken[] = [];
+  const seen = new Set<string>();
+
+  // 1. Fetch watchlist tokens in parallel (batch of token addresses)
+  try {
+    const batchUrl = `https://api.dexscreener.com/latest/dex/tokens/${BASE_WATCHLIST.join(",")}`;
+    const res = await fetch(batchUrl, {
+      headers: { "User-Agent": "MishMesh/2.0" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const stables = new Set(["usdc", "usdt", "dai", "usdbc", "weth"]);
+      for (const p of (data.pairs || [])) {
+        if (p.chainId !== "base") continue;
+        const sym = p.baseToken?.symbol;
+        const addr = p.baseToken?.address?.toLowerCase();
+        if (!sym || !addr || stables.has(sym.toLowerCase()) || seen.has(addr)) continue;
+        if ((p.volume?.h24 || 0) < 5000 || (p.liquidity?.usd || 0) < 20000) continue;
+        seen.add(addr);
+        tokens.push({
+          address: p.baseToken.address, symbol: sym, name: p.baseToken.name || sym,
+          price: parseFloat(p.priceUsd || "0"), volume24h: p.volume?.h24 || 0,
+          priceChange24h: p.priceChange?.h24 || 0, priceChange1h: p.priceChange?.h1 || 0,
+          liquidity: p.liquidity?.usd || 0, pairAddress: p.pairAddress,
+        });
+      }
+    }
+  } catch (e) { console.error("[V2] Watchlist fetch error:", e); }
+
+  // 2. Supplement with search for new/trending tokens
   try {
     const res = await fetch("https://api.dexscreener.com/latest/dex/search?q=base%20WETH", {
       headers: { "User-Agent": "MishMesh/2.0" },
+      signal: AbortSignal.timeout(5000),
     });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const stables = ["usdc", "usdt", "dai", "usdbc"];
-    return (data.pairs || [])
-      .filter((p: any) =>
-        p.chainId === "base" && p.quoteToken?.symbol?.toLowerCase() === "weth" &&
-        !stables.includes(p.baseToken?.symbol?.toLowerCase()) &&
-        (p.volume?.h24 || 0) > 10000 && (p.liquidity?.usd || 0) > 30000
-      ).slice(0, 20).map((p: any) => ({
-        address: p.baseToken.address, symbol: p.baseToken.symbol, name: p.baseToken.name,
-        price: parseFloat(p.priceUsd || "0"), volume24h: p.volume?.h24 || 0,
-        priceChange24h: p.priceChange?.h24 || 0, priceChange1h: p.priceChange?.h1 || 0,
-        liquidity: p.liquidity?.usd || 0, pairAddress: p.pairAddress,
-      }));
-  } catch { return []; }
+    if (res.ok) {
+      const data = await res.json();
+      const stables = new Set(["usdc", "usdt", "dai", "usdbc", "weth"]);
+      for (const p of (data.pairs || [])) {
+        if (p.chainId !== "base") continue;
+        const addr = p.baseToken?.address?.toLowerCase();
+        if (!addr || seen.has(addr) || stables.has(p.baseToken?.symbol?.toLowerCase())) continue;
+        if ((p.volume?.h24 || 0) < 5000 || (p.liquidity?.usd || 0) < 20000) continue;
+        seen.add(addr);
+        tokens.push({
+          address: p.baseToken.address, symbol: p.baseToken.symbol, name: p.baseToken.name || p.baseToken.symbol,
+          price: parseFloat(p.priceUsd || "0"), volume24h: p.volume?.h24 || 0,
+          priceChange24h: p.priceChange?.h24 || 0, priceChange1h: p.priceChange?.h1 || 0,
+          liquidity: p.liquidity?.usd || 0, pairAddress: p.pairAddress,
+        });
+      }
+    }
+  } catch {}
+
+  // Sort by volume (most active first)
+  return tokens.sort((a, b) => b.volume24h - a.volume24h).slice(0, 20);
 }
 
 // ═══ GOPLUS SAFETY ═══
 async function isTokenSafe(address: string): Promise<{ safe: boolean; reason: string }> {
   try {
-    const res = await fetch(`https://api.gopluslabs.io/api/v1/token_security/8453?contract_addresses=${address}`);
+    const res = await fetch(`https://api.gopluslabs.io/api/v1/token_security/8453?contract_addresses=${address}`, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) return { safe: false, reason: "GoPlus API failed" };
     const data = await res.json();
     const info = data.result?.[address.toLowerCase()];
@@ -281,11 +338,14 @@ async function getAIDecision(
     hodl_dca: "AUTO DCA: Split into top 3 by liquidity each cycle. Never sell. Accumulate.",
   };
 
-  let ethPrice = 1950;
-  try { const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"); if (r.ok) { const d = await r.json(); ethPrice = d?.ethereum?.usd || ethPrice; } } catch {}
+  // Cached ETH price — avoid slow CoinGecko call every cycle
+  let ethPrice = _cachedEthPrice;
+  if (Date.now() - _ethPriceCacheTime > 300_000) { // refresh every 5min
+    try { const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd", { signal: AbortSignal.timeout(3000) }); if (r.ok) { const d = await r.json(); ethPrice = d?.ethereum?.usd || ethPrice; _cachedEthPrice = ethPrice; _ethPriceCacheTime = Date.now(); } } catch {}
+  }
 
   const tokenData = tokens.slice(0, 10).map(t =>
-    `${t.symbol} ($${t.price.toFixed(6)}) | 1h:${t.priceChange1h>0?"+":""}${t.priceChange1h.toFixed(1)}% | 24h:${t.priceChange24h>0?"+":""}${t.priceChange24h.toFixed(1)}% | Vol:$${(t.volume24h/1000).toFixed(0)}k | Liq:$${(t.liquidity/1000).toFixed(0)}k`
+    `${t.symbol} (${t.address}) $${t.price.toFixed(6)} | 1h:${t.priceChange1h>0?"+":""}${t.priceChange1h.toFixed(1)}% | 24h:${t.priceChange24h>0?"+":""}${t.priceChange24h.toFixed(1)}% | Vol:$${(t.volume24h/1000).toFixed(0)}k | Liq:$${(t.liquidity/1000).toFixed(0)}k`
   ).join("\n");
 
   // Enrich position data with current prices
@@ -332,6 +392,10 @@ RISK LIMITS:
 - Min liquidity: $${((STRATEGY_RISKS[tradingMode]?.min_liquidity_usd || 50000) / 1000).toFixed(0)}k
 - Platform fee: 3% per trade (buy AND sell)
 
+IMPORTANT: You are an ACTIVE trading agent. Do NOT default to "hold" — you are paid to trade, not watch. 
+Always pick the BEST opportunity available. Only hold if EVERY token looks dangerous or overextended.
+When in doubt, BUY the strongest momentum token with good liquidity.
+
 Respond ONLY with JSON: {"action":"buy|sell|hold","token":"SYMBOL","tokenAddress":"0x...","confidence":0-100,"amountPct":5-25,"reasoning":"one sentence"}`;
 
   const userMsg = `PORTFOLIO:
@@ -357,9 +421,11 @@ Your move?`;
     d.action = ["buy", "sell", "hold"].includes(d.action) ? d.action : "hold";
     d.confidence = Math.min(100, Math.max(0, parseInt(d.confidence) || 0));
     d.amountPct = Math.min(25, Math.max(5, parseInt(d.amountPct) || 10));
-    if (d.action === "buy" && !d.tokenAddress) {
+    // Always resolve address from our token list (AI often returns placeholder addresses)
+    if (d.action === "buy") {
       const match = tokens.find(t => t.symbol.toLowerCase() === d.token?.toLowerCase());
-      if (match) d.tokenAddress = match.address; else d.action = "hold";
+      if (match) { d.tokenAddress = match.address; }
+      else if (!d.tokenAddress || d.tokenAddress.length < 42 || !d.tokenAddress.startsWith("0x")) { d.action = "hold"; }
     }
     return d;
   } catch (err: any) {
@@ -450,6 +516,194 @@ export async function runSLTPEngine() {
   }
 }
 
+// ═══ SINGLE USER INSTANT TRADING ═══
+// Called when user flips trading ON or requests immediate scan.
+// Lower confidence threshold for first trade to ensure action.
+export async function runSingleUserTrading(userId: string): Promise<{ action: string; token?: string; reasoning: string }> {
+  const { data: agent } = await supabaseAdmin.from("agent_balances")
+    .select("user_id, trading_enabled, risk_level, trading_mode, total_trading_pnl, total_fees, stop_loss_pct, take_profit_pct, trailing_stop_pct, max_daily_loss_pct, max_position_pct, max_slippage_pct, max_price_impact_pct, cooldown_minutes, max_concurrent_positions, trade_size_pct, auto_rebalance")
+    .eq("user_id", userId).eq("trading_enabled", true).single();
+
+  if (!agent) return { action: "skip", reasoning: "Trading not enabled" };
+
+  const { data: user } = await supabaseAdmin.from("users")
+    .select("wallet_address, wallet_encrypted_key, ai_api_key_encrypted")
+    .eq("id", userId).single();
+
+  if (!user?.wallet_address || !user?.wallet_encrypted_key || !user?.ai_api_key_encrypted)
+    return { action: "skip", reasoning: "Missing wallet or AI key" };
+
+  const walletBalance = await getWalletBalance(user.wallet_address);
+  if (walletBalance < 0.002) return { action: "skip", reasoning: "Balance too low (< 0.002 ETH)" };
+
+  const strategy = agent.trading_mode || "meme_scout";
+  const dbOverrides: Partial<RiskConfig> = {};
+  if (agent.stop_loss_pct != null) dbOverrides.stop_loss_pct = agent.stop_loss_pct;
+  if (agent.take_profit_pct != null) dbOverrides.take_profit_pct = agent.take_profit_pct;
+  if (agent.trailing_stop_pct != null) dbOverrides.trailing_stop_pct = agent.trailing_stop_pct;
+  if (agent.max_daily_loss_pct != null) dbOverrides.max_daily_loss_pct = agent.max_daily_loss_pct;
+  if (agent.max_position_pct != null) dbOverrides.max_position_pct = agent.max_position_pct;
+  if (agent.max_slippage_pct != null) dbOverrides.max_slippage_pct = agent.max_slippage_pct;
+  if (agent.max_price_impact_pct != null) dbOverrides.max_price_impact_pct = agent.max_price_impact_pct;
+  if (agent.cooldown_minutes != null) dbOverrides.cooldown_minutes = agent.cooldown_minutes;
+  if (agent.max_concurrent_positions != null) dbOverrides.max_concurrent_positions = agent.max_concurrent_positions;
+  const userTradeSizePct = agent.trade_size_pct || null;
+  const risk = new RiskManager(userId, strategy, dbOverrides);
+
+  const breaker = await risk.checkCircuitBreaker();
+  if (breaker.tripped) return { action: "skip", reasoning: "Circuit breaker tripped" };
+
+  // Fetch trending tokens
+  const trending = await fetchTrendingTokens();
+  if (!trending.length) return { action: "skip", reasoning: "No trending tokens found" };
+
+  const { data: positions } = await supabaseAdmin.from("trading_history")
+    .select("*").eq("user_id", userId).eq("action", "buy").is("closed_at", null).limit(10);
+
+  const { data: profile } = await supabaseAdmin.from("agent_profiles")
+    .select("soul").eq("user_id", userId).single();
+
+  const decision = await getAIDecision(
+    userId, trending, positions || [], walletBalance,
+    agent.risk_level, strategy, profile?.soul || null,
+  );
+
+  console.log(`[TRADE-V2] ${userId} | AI decision: ${decision.action} ${decision.token || ''} | confidence: ${decision.confidence}% | ${decision.reasoning?.slice(0,100)}`);
+
+  // Lower threshold for instant trigger — 40% confidence (vs 60% in cron)
+  // This ensures users SEE action quickly
+  if (decision.action === "hold" || decision.confidence < 40) {
+    console.log(`[TRADE-V2] ${userId} | HOLD — action=${decision.action} confidence=${decision.confidence}% (need 40%)`);
+    return { action: "hold", reasoning: decision.reasoning || "AI chose to hold" };
+  }
+
+  const riskConfig = risk.getConfig();
+
+  if (decision.action === "buy" && decision.tokenAddress) {
+    // Skip syndicate check for instant triggers — user wants action NOW
+    console.log(`[TRADE-V2] ${userId} | BUY flow start: ${decision.token} (${decision.tokenAddress}) | confidence: ${decision.confidence}%`);
+    const safety = await isTokenSafe(decision.tokenAddress);
+    console.log(`[TRADE-V2] ${userId} | Safety: ${safety.safe ? 'PASS' : 'FAIL'} — ${safety.reason}`);
+    if (!safety.safe) {
+      await supabaseAdmin.from("trading_history").insert({
+        user_id: userId, token_address: decision.tokenAddress,
+        token_symbol: decision.token || "?", action: "skip", amount_eth: 0,
+        reasoning: `Safety: ${safety.reason}`,
+      });
+      return { action: "skip", token: decision.token, reasoning: `Safety failed: ${safety.reason}` };
+    }
+
+    const tokenInfo = trending.find(t => t.address.toLowerCase() === decision.tokenAddress.toLowerCase());
+    console.log(`[TRADE-V2] ${userId} | Token in list: ${tokenInfo ? `YES liq=$${(tokenInfo.liquidity/1000).toFixed(0)}k` : 'NOT FOUND'}`);
+    if (tokenInfo && tokenInfo.liquidity < riskConfig.min_liquidity_usd) {
+      console.log(`[TRADE-V2] ${userId} | BLOCKED: Low liquidity $${(tokenInfo.liquidity/1000).toFixed(0)}k < $${(riskConfig.min_liquidity_usd/1000).toFixed(0)}k`);
+      return { action: "skip", token: decision.token, reasoning: `Low liquidity: $${(tokenInfo.liquidity/1000).toFixed(0)}k` };
+    }
+
+    const maxPct = userTradeSizePct || riskConfig.max_position_pct || 15;
+    const effectivePct = Math.min(decision.amountPct || maxPct, maxPct);
+    const tradeAmount = walletBalance * (effectivePct / 100);
+    console.log(`[TRADE-V2] ${userId} | Trade size: ${tradeAmount.toFixed(4)} ETH (${effectivePct}% of ${walletBalance.toFixed(4)})`);
+    const riskCheck = await risk.canTrade(decision.tokenAddress, tradeAmount, walletBalance);
+    console.log(`[TRADE-V2] ${userId} | Risk check: ${riskCheck.ok ? 'PASS' : 'FAIL'} — ${riskCheck.reason}`);
+    if (!riskCheck.ok) return { action: "skip", token: decision.token, reasoning: riskCheck.reason };
+
+    const amountIn = ethers.parseEther(tradeAmount.toFixed(18));
+    console.log(`[TRADE-V2] ${userId} | Finding route: ${tradeAmount.toFixed(4)} ETH → ${decision.tokenAddress} (max slip ${riskConfig.max_slippage_pct}%)`);
+    const quote = await findBestRoute(WETH_BASE, decision.tokenAddress, amountIn, riskConfig.max_slippage_pct);
+    console.log(`[TRADE-V2] ${userId} | Route: ${quote ? `FOUND fee=${quote.feeTier}` : 'NO ROUTE'}`);
+    if (!quote) return { action: "skip", token: decision.token, reasoning: "No liquidity route" };
+
+    // Price impact check
+    if (tokenInfo && tokenInfo.price > 0) {
+      const theoreticalTokens = tradeAmount / tokenInfo.price;
+      const theoreticalRaw = BigInt(Math.floor(theoreticalTokens * (10 ** 18)));
+      if (theoreticalRaw > 0n) {
+        const impactPct = Number((theoreticalRaw - quote.amountOut) * 10000n / theoreticalRaw) / 100;
+        if (impactPct > riskConfig.max_price_impact_pct) {
+          return { action: "skip", token: decision.token, reasoning: `Price impact ${impactPct.toFixed(1)}%` };
+        }
+      }
+    }
+
+    console.log(`[TRADE-V2] ${userId} | EXECUTING SWAP: ${tradeAmount.toFixed(4)} ETH → ${decision.token} via ${quote.feeTier} pool`);
+    const result = await executeSwapV2(
+      user.wallet_encrypted_key, WETH_BASE, decision.tokenAddress,
+      amountIn, quote.feeTier, quote.amountOutMin, true,
+    );
+    console.log(`[TRADE-V2] ${userId} | Swap result: ${result.success ? 'SUCCESS' : 'FAILED'} tx=${result.txHash || 'none'}`);
+
+    if (result.success) {
+      const fee = tradeAmount * FEES.TRADE_PCT;
+      await collectTradeFee(user.wallet_encrypted_key, tradeAmount, "buy", decision.token || "?");
+      await supabaseAdmin.from("trading_history").insert({
+        user_id: userId, token_address: decision.tokenAddress,
+        token_symbol: decision.token || "?", action: "buy", amount_eth: tradeAmount,
+        price_at_trade: tokenInfo?.price || 0, peak_price: tokenInfo?.price || 0,
+        stop_loss_pct: riskConfig.stop_loss_pct, take_profit_pct: riskConfig.take_profit_pct,
+        trailing_stop_pct: riskConfig.trailing_stop_pct,
+        tx_hash: result.txHash, fee_eth: fee,
+        reasoning: `[${decision.confidence}%] ${decision.reasoning} | Route: ${quote.feeTier/10000}% pool`,
+      });
+      await supabaseAdmin.from("notifications").insert({
+        user_id: userId, type: "agent_trade",
+        message: `🟢 Buy ${decision.token}: ${tradeAmount.toFixed(4)} ETH | ${decision.confidence}% confidence | ${decision.reasoning}`,
+      });
+      try {
+        const { writeFeedEvent } = await import("./reputation");
+        await writeFeedEvent(userId, "trade", `BUY ${decision.token}`,
+          `Your agent bought ${tradeAmount.toFixed(4)} ETH of ${decision.token}. ${decision.reasoning}`,
+          { action: "buy", token: decision.token, amount: tradeAmount, confidence: decision.confidence, tx_hash: result.txHash });
+      } catch {}
+      return { action: "buy", token: decision.token, reasoning: `Bought ${tradeAmount.toFixed(4)} ETH of ${decision.token}` };
+    }
+    return { action: "error", token: decision.token, reasoning: "Swap execution failed" };
+  }
+
+  if (decision.action === "sell") {
+    const pos = (positions || []).find(p => p.token_symbol?.toLowerCase() === decision.token?.toLowerCase());
+    if (!pos) return { action: "skip", reasoning: `No position in ${decision.token}` };
+
+    const provider = getProvider();
+    const token = new ethers.Contract(pos.token_address, ERC20_ABI, provider);
+    const { decrypt } = await import("./wallet");
+    const wallet = new ethers.Wallet(decrypt(user.wallet_encrypted_key), provider);
+    const balance = await token.balanceOf(wallet.address);
+    if (balance === 0n) return { action: "skip", reasoning: "Zero token balance" };
+
+    const quote = await findBestRoute(pos.token_address, WETH_BASE, balance, riskConfig.max_slippage_pct);
+    if (!quote) return { action: "skip", reasoning: "No sell route" };
+
+    const result = await executeSwapV2(
+      user.wallet_encrypted_key, pos.token_address, WETH_BASE,
+      balance, quote.feeTier, quote.amountOutMin, false,
+    );
+
+    if (result.success) {
+      const ethReceived = parseFloat(ethers.formatEther(quote.amountOut));
+      await collectTradeFee(user.wallet_encrypted_key, ethReceived, "sell", pos.token_symbol);
+      await supabaseAdmin.from("trading_history").update({
+        closed_at: new Date().toISOString(), pnl_eth: ethReceived - pos.amount_eth,
+        reasoning: `[${decision.confidence}%] ${decision.reasoning}`,
+      }).eq("id", pos.id);
+      await supabaseAdmin.from("notifications").insert({
+        user_id: userId, type: "agent_trade",
+        message: `🔴 Sell ${pos.token_symbol}: ${ethReceived.toFixed(4)} ETH | P&L: ${(ethReceived - pos.amount_eth).toFixed(4)} ETH`,
+      });
+      return { action: "sell", token: pos.token_symbol, reasoning: `Sold ${pos.token_symbol} for ${ethReceived.toFixed(4)} ETH` };
+    }
+    return { action: "error", token: pos.token_symbol, reasoning: "Sell execution failed" };
+  }
+
+  return { action: "hold", reasoning: decision.reasoning || "No action" };
+}
+
+// Debug logger — writes to debug_log table
+async function dlog(msg: string) {
+  console.log(msg);
+  try { await supabaseAdmin.from("debug_log").insert({ msg }); } catch {}
+}
+
 // ═══ MAIN TRADING LOOP V2 ═══
 export async function runAutonomousTradingV2(modeFilter?: string[]) {
   let query = supabaseAdmin.from("agent_balances")
@@ -462,10 +716,12 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
 
   const { data: agents } = await query;
 
-  if (!agents?.length) return;
+  if (!agents?.length) { dlog("[V2] No agents with trading enabled"); return; }
+  console.log(`[V2] Processing ${agents.length} agents`);
 
   const trending = await fetchTrendingTokens();
-  if (!trending.length) return;
+  if (!trending.length) { dlog("[V2] No trending tokens found — aborting"); return; }
+  console.log(`[V2] Found ${trending.length} tokens: ${trending.map(t=>t.symbol).join(', ')}`);
 
   for (const agent of agents) {
     try {
@@ -506,12 +762,18 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
         .select("soul").eq("user_id", agent.user_id).single();
 
       // AI decision
+      await dlog(`[V2] ${agent.user_id.slice(0,8)}: Calling AI (${strategy}, bal:${walletBalance.toFixed(4)} ETH, ${trending.length} tokens)`);
       const decision = await getAIDecision(
         agent.user_id, trending, positions || [], walletBalance,
         agent.risk_level, strategy, profile?.soul || null,
       );
 
-      if (decision.action === "hold" || decision.confidence < 60) continue;
+      if (decision.action === "hold" || decision.confidence < 60) {
+        await dlog(`[V2] ${agent.user_id.slice(0,8)}: AI said ${decision.action} (conf:${decision.confidence}) — ${decision.reasoning}`);
+        continue;
+      }
+      await dlog(`[V2] ${agent.user_id.slice(0,8)}: AI wants to ${decision.action} ${decision.token} (conf:${decision.confidence}, addr:${decision.tokenAddress})`);
+
 
       const riskConfig = risk.getConfig();
 
@@ -536,6 +798,7 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
         } catch (e) { console.error("[V2] Syndicate check error:", e); }
 
         // Safety check
+        await dlog(`[V2] ${agent.user_id.slice(0,8)}: Checking safety for ${decision.token} @ ${decision.tokenAddress}`);
         const safety = await isTokenSafe(decision.tokenAddress);
         if (!safety.safe) {
           await supabaseAdmin.from("trading_history").insert({
@@ -546,6 +809,7 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
           continue;
         }
 
+        await dlog(`[V2] ${agent.user_id.slice(0,8)}: Safety passed for ${decision.token}`);
         // Liquidity check
         const tokenInfo = trending.find(t => t.address.toLowerCase() === decision.tokenAddress.toLowerCase());
         if (tokenInfo && tokenInfo.liquidity < riskConfig.min_liquidity_usd) {
@@ -558,10 +822,10 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
         }
 
         // Risk check
-        // Use user's trade_size_pct if set, otherwise AI's suggestion, capped at user's max
         const maxPct = userTradeSizePct || riskConfig.max_position_pct || 15;
         const effectivePct = Math.min(decision.amountPct || maxPct, maxPct);
         const tradeAmount = walletBalance * (effectivePct / 100);
+        await dlog(`[V2] ${agent.user_id.slice(0,8)}: Risk check — trade ${tradeAmount.toFixed(6)} ETH (${effectivePct}% of ${walletBalance.toFixed(4)})`);
         const riskCheck = await risk.canTrade(decision.tokenAddress, tradeAmount, walletBalance);
         if (!riskCheck.ok) {
           await supabaseAdmin.from("trading_history").insert({
@@ -573,6 +837,7 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
         }
 
         // Smart route
+        await dlog(`[V2] ${agent.user_id.slice(0,8)}: Risk passed. Finding route for ${decision.token}...`);
         const amountIn = ethers.parseEther(tradeAmount.toFixed(18));
         const quote = await findBestRoute(WETH_BASE, decision.tokenAddress, amountIn, riskConfig.max_slippage_pct);
         if (!quote) {
@@ -603,11 +868,13 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
         }
 
         // Execute swap
+        await dlog(`[V2] ${agent.user_id.slice(0,8)}: EXECUTING swap ${tradeAmount.toFixed(6)} ETH -> ${decision.token} via fee tier ${quote.feeTier}`);
         const result = await executeSwapV2(
           user.wallet_encrypted_key, WETH_BASE, decision.tokenAddress,
           amountIn, quote.feeTier, quote.amountOutMin, true,
         );
 
+        await dlog(`[V2] ${agent.user_id.slice(0,8)}: Swap result: success=${result.success} tx=${result.txHash || 'none'}`);
         if (result.success) {
           const fee = tradeAmount * FEES.TRADE_PCT;
           await collectTradeFee(user.wallet_encrypted_key, tradeAmount, "buy", decision.token || "?");
@@ -689,6 +956,8 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
         }
       }
     } catch (err) {
+      const errMsg = err?.message || String(err);
+      await dlog(`[V2] CRASH for ${agent.user_id.slice(0,8)}: ${errMsg.slice(0,300)}`);
       console.error(`[V2] Trading error for ${agent.user_id}:`, err);
     }
   }

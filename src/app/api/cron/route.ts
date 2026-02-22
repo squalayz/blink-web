@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runAutonomousMatching, generateDailyReports } from "@/lib/matching";
-import { runAutonomousTrading, checkLowBalances } from "@/lib/trading";
+import { checkLowBalances } from "@/lib/trading";
+import { runAutonomousTradingV2 } from "@/lib/trading-v2";
 
 // Vercel Cron — every 15 min. Fully autonomous.
 // vercel.json: { "crons": [{ "path": "/api/cron", "schedule": "*/15 * * * *" }] }
@@ -24,12 +25,13 @@ export async function GET(req: NextRequest) {
     results.push("Matching pipeline completed");
 
     // 2. Autonomous trading (agents with trading enabled, from their own wallets)
-    await runAutonomousTrading();
-    results.push("Trading engine completed");
+    await runAutonomousTradingV2();
+    results.push("Trading engine V2 completed");
 
     // 2b. Syndicate signal resolution
     try {
       const { resolveSignal } = await import("@/lib/syndicate-engine");
+      const { supabaseAdmin } = await import("@/lib/supabase");
       const { data: expired } = await supabaseAdmin.from("syndicate_signals")
         .select("id").eq("status", "voting").lt("voting_deadline", new Date().toISOString());
       for (const s of expired || []) { await resolveSignal(s.id); }
