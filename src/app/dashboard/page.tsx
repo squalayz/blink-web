@@ -962,7 +962,7 @@ export default function Dashboard(){
       <style>{`nav.mm-global-nav{display:none!important}`}</style>
       {/* Base ETH Banner */}
       <div style={{position:"sticky",top:0,left:0,right:0,zIndex:1000,background:"linear-gradient(90deg,rgba(0,82,255,0.12),rgba(99,102,241,0.10),rgba(6,182,212,0.08))",borderBottom:"1px solid rgba(99,102,241,0.1)",padding:"6px 16px",textAlign:"center",fontSize:10,fontWeight:500,color:"rgba(165,180,252,0.8)",letterSpacing:"0.5px",display:"flex",alignItems:"center",justifyContent:"center",gap:8,animation:"banner-glow 4s ease-in-out infinite"}}>
-        <style>{`@keyframes banner-glow{0%,100%{background:linear-gradient(90deg,rgba(0,82,255,0.10),rgba(99,102,241,0.08),rgba(6,182,212,0.06))}50%{background:linear-gradient(90deg,rgba(0,82,255,0.18),rgba(99,102,241,0.14),rgba(6,182,212,0.10))}}@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(1.4)}}@keyframes mm-brain-pulse{0%,100%{opacity:0.5;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}@keyframes mm-brain-glow{0%,100%{box-shadow:0 0 8px rgba(99,102,241,0.15)}50%{box-shadow:0 0 18px rgba(99,102,241,0.35),0 0 8px rgba(6,182,212,0.2)}}`}</style>
+        <style>{`@keyframes banner-glow{0%,100%{background:linear-gradient(90deg,rgba(0,82,255,0.10),rgba(99,102,241,0.08),rgba(6,182,212,0.06))}50%{background:linear-gradient(90deg,rgba(0,82,255,0.18),rgba(99,102,241,0.14),rgba(6,182,212,0.10))}}@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(1.4)}}@keyframes mm-brain-pulse{0%,100%{opacity:0.5;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}@keyframes mm-brain-glow{0%,100%{box-shadow:0 0 8px rgba(99,102,241,0.15)}50%{box-shadow:0 0 18px rgba(99,102,241,0.35),0 0 8px rgba(6,182,212,0.2)}}@keyframes txn-slide{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}`}</style>
         <span style={{display:"inline-flex",alignItems:"center",gap:4}}><svg width="14" height="14" viewBox="0 0 111 111" style={{verticalAlign:"-2px"}} fill="none"><circle cx="55.5" cy="55.5" r="55.5" fill="#0052FF"/><path d="M55.7 14.7c-22.6 0-40.8 18.3-40.8 40.8s18.3 40.8 40.8 40.8 40.8-18.3 40.8-40.8H55.7V14.7z" fill="white"/></svg> Powered by AI & Base L2</span>
         <span style={{opacity:0.3}}>·</span>
         <span>All deposits & trades use ETH on Base</span>
@@ -1201,6 +1201,108 @@ export default function Dashboard(){
             <div style={{padding:"10px 16px",borderTop:"1px solid rgba(255,255,255,0.03)",fontSize:10,color:"rgba(255,255,255,0.2)",lineHeight:1.6,textAlign:"center"}}>
               Your AI analyzes DexScreener → GoPlus safety check → Uniswap V3 swap · 1% fee per trade
             </div>
+          </div>);})()}
+
+          {/* ═══ TRANSACTION ACTIVITY FEED ═══ */}
+          {(()=>{
+            const allTxns=[
+              // Combine trades, deposits, and fees into one timeline
+              ...(trades||[]).map((t:any)=>({...t,txType:"trade",time:t.created_at})),
+              ...(wallet?.recent_deposits||[]).map((d:any)=>({...d,txType:"deposit",time:d.created_at})),
+            ].sort((a:any,b:any)=>new Date(b.time).getTime()-new Date(a.time).getTime()).slice(0,20);
+            const hasTxns=allTxns.length>0;
+            return(
+          <div style={{marginTop:16,position:"relative"}}>
+            {/* Section header */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,padding:"0 4px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:28,height:28,borderRadius:8,background:"rgba(99,102,241,0.08)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                </div>
+                <div>
+                  <div style={{fontSize:14,fontWeight:700,color:C.text}}>Activity</div>
+                  <div style={{fontSize:10,color:C.muted}}>{hasTxns?`${allTxns.length} transactions`:"No activity yet"}</div>
+                </div>
+              </div>
+              {hasTxns&&<div style={{fontSize:9,color:C.dim,padding:"4px 10px",borderRadius:6,background:C.s2}}>LIVE</div>}
+            </div>
+
+            {/* Empty state */}
+            {!hasTxns&&(
+              <div style={{background:C.surface,borderRadius:14,border:`1px solid ${C.border}`,padding:"32px 20px",textAlign:"center"}}>
+                <div style={{fontSize:32,marginBottom:12,opacity:0.4}}>📊</div>
+                <div style={{fontSize:13,color:C.muted,marginBottom:4}}>No transactions yet</div>
+                <div style={{fontSize:11,color:C.dim}}>Fund your wallet and activate trading to see activity here</div>
+              </div>
+            )}
+
+            {/* Transaction list with fade effect */}
+            {hasTxns&&(
+              <div style={{position:"relative"}}>
+                <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                  {allTxns.map((tx:any,i:number)=>{
+                    const isBuy=tx.action==="buy";
+                    const isSell=tx.action==="sell";
+                    const isDeposit=tx.txType==="deposit";
+                    const isSkip=tx.action==="skip";
+                    const icon=isDeposit?"💰":isBuy?"🟢":isSell?"🔴":isSkip?"⚠️":"📋";
+                    const label=isDeposit?"Deposit":isBuy?"Buy":isSell?"Sell":isSkip?"Skipped":tx.action||"Event";
+                    const color=isDeposit?C.cold:isBuy?C.match:isSell?C.hot:C.muted;
+                    const amount=isDeposit?(tx.amount_eth||0).toFixed(4):(tx.amount_eth||0).toFixed(4);
+                    const symbol=isDeposit?"ETH":tx.token_symbol||"?";
+                    const fee=isDeposit?(tx.fee_eth||0).toFixed(6):(tx.fee_eth||0).toFixed(6);
+                    const timeStr=tx.time?new Date(tx.time).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",hour12:true}):"";
+                    const dateStr=tx.time?new Date(tx.time).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
+                    const reasoning=tx.reasoning?.replace(/^\[\d+%\]\s*/,"").slice(0,80);
+                    const txHash=tx.tx_hash||tx.fee_tx_hash;
+                    const opacity=Math.max(0.3,1-(i*0.08));
+                    
+                    return(
+                      <div key={i} style={{
+                        display:"flex",alignItems:"flex-start",gap:12,padding:"12px 14px",
+                        background:i===0?`${color}06`:C.surface,
+                        borderRadius:12,border:`1px solid ${i===0?color+"18":C.border}`,
+                        opacity,transition:"opacity 0.3s",
+                        animation:i<3?`txn-slide 0.4s ease-out ${i*0.08}s both`:"none",
+                      }}>
+                        {/* Icon */}
+                        <div style={{fontSize:18,lineHeight:1,marginTop:2,flexShrink:0}}>{icon}</div>
+                        
+                        {/* Content */}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
+                            <div style={{display:"flex",alignItems:"center",gap:6}}>
+                              <span style={{fontSize:12,fontWeight:700,color}}>{label}</span>
+                              <span style={{fontSize:12,fontWeight:600,color:C.text}}>{symbol}</span>
+                              {tx.confidence&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:4,background:`${color}15`,color,fontWeight:700}}>{tx.confidence}%</span>}
+                            </div>
+                            <div style={{fontSize:13,fontWeight:800,color,fontFamily:"'JetBrains Mono',monospace"}}>
+                              {isDeposit||isBuy?"+":"-"}{amount} ETH
+                            </div>
+                          </div>
+                          
+                          {/* Reasoning or details */}
+                          {reasoning&&<div style={{fontSize:10,color:C.muted,lineHeight:1.4,marginBottom:3}}>{reasoning}</div>}
+                          
+                          {/* Footer: time + fee + tx link */}
+                          <div style={{display:"flex",alignItems:"center",gap:8,fontSize:9,color:C.dim}}>
+                            <span>{dateStr} {timeStr}</span>
+                            {parseFloat(fee)>0&&<span>Fee: {fee} ETH</span>}
+                            {txHash&&<a href={`https://basescan.org/tx/${txHash}`} target="_blank" rel="noopener" style={{color:C.cold,textDecoration:"none"}}>View ↗</a>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Fade overlay at bottom */}
+                {allTxns.length>5&&(
+                  <div style={{position:"absolute",bottom:0,left:0,right:0,height:80,
+                    background:`linear-gradient(transparent,${C.bg})`,pointerEvents:"none",borderRadius:"0 0 14px 14px"}}/>
+                )}
+              </div>
+            )}
           </div>);})()}
 
           {/* Daily Report */}
