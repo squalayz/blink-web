@@ -2,65 +2,268 @@
 // MishMesh.ai — Autonomous Agent Trading (Base L2)
 //
 // Non-custodial: trades execute FROM user's own wallet.
-// Platform never holds user funds.
+// Each agent uses the USER'S OWN AI key for decisions.
+// Platform never holds funds. Platform never pays for inference.
 // 1% fee on EVERY trade (buy AND sell) sent to platform wallet.
 // ══════════════════════════════════════════════════════════════
 
 import { supabaseAdmin } from "./supabase";
-import { getWalletBalance, executeTrade, collectTradeFee, FEES } from "./wallet";
+import { getWalletBalance, collectTradeFee, FEES, getSigner, getProvider, PLATFORM_FEE_WALLET } from "./wallet";
+import { getUserAIConfig, callUserLLM } from "./ai-providers";
+import { ethers } from "ethers";
 
-const RISK_ALLOC = { conservative: 0, balanced: 0.05, degen: 0.20 } as const;
-const MAX_TRADE_PCT = { conservative: 0, balanced: 0.25, degen: 0.40 } as const;
-const TAKE_PROFIT = { conservative: 0, balanced: 1.5, degen: 2.0 } as const;
-const STOP_LOSS = { conservative: 0, balanced: 0.8, degen: 0.6 } as const;
-const TRADE_FEE = FEES.TRADE_PCT; // 1% per trade (buy AND sell)
+const TRADE_FEE = FEES.TRADE_PCT; // 1% per trade
 
+// ═══ DexScreener: Fetch real trending tokens on Base ═══
 interface TrendingToken {
   address: string;
   symbol: string;
+  name: string;
   price: number;
   volume24h: number;
   priceChange24h: number;
-  signal: "strong_buy" | "buy" | "hold" | "sell";
+  priceChange1h: number;
+  liquidity: number;
+  pairAddress: string;
 }
 
-async function detectTrendingTokens(): Promise<TrendingToken[]> {
-  // Production: DexScreener API
-  // const res = await fetch("https://api.dexscreener.com/latest/dex/search?q=base");
-  // Parse, filter by volume > $50k, momentum signals, etc.
-  return []; // Empty until real data source connected
+async function fetchTrendingTokens(): Promise<TrendingToken[]> {
+  try {
+    // DexScreener Base trending — sorted by volume
+    const res = await fetch("https://api.dexscreener.com/latest/dex/search?q=base%20WETH", {
+      headers: { "User-Agent": "MishMesh/1.0" },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const pairs = data.pairs || [];
+
+    // Filter: Base chain, decent volume, has liquidity, not stables
+    const stables = ["usdc", "usdt", "dai", "usdbc"];
+    return pairs
+      .filter((p: any) =>
+        p.chainId === "base" &&
+        p.quoteToken?.symbol?.toLowerCase() === "weth" &&
+        !stables.includes(p.baseToken?.symbol?.toLowerCase()) &&
+        (p.volume?.h24 || 0) > 10000 && // >$10k 24h volume
+        (p.liquidity?.usd || 0) > 50000 && // >$50k liquidity
+        p.baseToken?.address
+      )
+      .slice(0, 20) // Top 20
+      .map((p: any) => ({
+        address: p.baseToken.address,
+        symbol: p.baseToken.symbol,
+        name: p.baseToken.name,
+        price: parseFloat(p.priceUsd || "0"),
+        volume24h: p.volume?.h24 || 0,
+        priceChange24h: p.priceChange?.h24 || 0,
+        priceChange1h: p.priceChange?.h1 || 0,
+        liquidity: p.liquidity?.usd || 0,
+        pairAddress: p.pairAddress,
+      }));
+  } catch (err) {
+    console.error("DexScreener fetch error:", err);
+    return [];
+  }
 }
 
-async function shouldTrade(
-  token: TrendingToken, riskLevel: string,
-  positions: any[], walletBalance: number
-): Promise<{ action: "buy" | "sell" | "hold"; amount: number; reasoning: string }> {
-  if (riskLevel === "conservative") return { action: "hold", amount: 0, reasoning: "Conservative: ETH only" };
+// ═══ GoPlus: Honeypot/rug check ═══
+async function isTokenSafe(address: string): Promise<{ safe: boolean; reason: string }> {
+  try {
+    const res = await fetch(`https://api.gopluslabs.io/api/v1/token_security/8453?contract_addresses=${address}`);
+    if (!res.ok) return { safe: false, reason: "GoPlus API failed" };
+    const data = await res.json();
+    const info = data.result?.[address.toLowerCase()];
+    if (!info) return { safe: false, reason: "Token not found in GoPlus" };
 
-  const alloc = walletBalance * (RISK_ALLOC[riskLevel as keyof typeof RISK_ALLOC] || 0);
-  if (alloc < 0.0001) return { action: "hold", amount: 0, reasoning: "Insufficient balance for trading" };
+    if (info.is_honeypot === "1") return { safe: false, reason: "Honeypot detected" };
+    if (info.cannot_sell_all === "1") return { safe: false, reason: "Cannot sell" };
+    if (parseFloat(info.sell_tax || "0") > 0.10) return { safe: false, reason: `High sell tax: ${info.sell_tax}` };
+    if (parseFloat(info.buy_tax || "0") > 0.10) return { safe: false, reason: `High buy tax: ${info.buy_tax}` };
+    if (info.is_open_source === "0") return { safe: false, reason: "Not open source" };
 
-  const existing = positions.find(p => p.token_address === token.address && p.action === "buy");
-  if (existing) {
-    const ratio = token.price / (existing.price_at_trade || token.price);
-    const tp = TAKE_PROFIT[riskLevel as keyof typeof TAKE_PROFIT] || 1.5;
-    const sl = STOP_LOSS[riskLevel as keyof typeof STOP_LOSS] || 0.8;
-    if (ratio >= tp) return { action: "sell", amount: existing.amount_eth, reasoning: `Take profit at ${Math.round(ratio * 100)}%` };
-    if (ratio <= sl) return { action: "sell", amount: existing.amount_eth, reasoning: `Stop loss at ${Math.round(ratio * 100)}%` };
-    return { action: "hold", amount: 0, reasoning: `Holding at ${Math.round(ratio * 100)}%` };
+    return { safe: true, reason: "Passed all checks" };
+  } catch {
+    return { safe: false, reason: "Safety check failed" };
   }
+}
 
-  if (token.signal === "strong_buy" || token.signal === "buy") {
-    const maxTrade = alloc * (MAX_TRADE_PCT[riskLevel as keyof typeof MAX_TRADE_PCT] || 0.25);
-    if (maxTrade < 0.0001) return { action: "hold", amount: 0, reasoning: "Trade amount too small" };
-    return { action: "buy", amount: maxTrade, reasoning: `${token.signal}: ${token.symbol} ${token.priceChange24h > 0 ? "+" : ""}${token.priceChange24h}%` };
+// ═══ AI Trading Decision — uses USER'S OWN API key ═══
+interface TradeDecision {
+  action: "buy" | "sell" | "hold";
+  token?: string;
+  tokenAddress?: string;
+  confidence: number; // 0-100
+  amountPct: number; // % of balance to trade (5-30%)
+  reasoning: string;
+}
+
+async function getAITradeDecision(
+  userId: string,
+  tokens: TrendingToken[],
+  currentPositions: any[],
+  walletBalance: number,
+  riskLevel: string,
+  agentPersonality: string | null,
+): Promise<TradeDecision> {
+  const aiConfig = await getUserAIConfig(userId);
+  if (!aiConfig) return { action: "hold", confidence: 0, amountPct: 0, reasoning: "No AI key connected" };
+
+  // Build market data for the AI
+  const tokenData = tokens.slice(0, 10).map(t =>
+    `${t.symbol} ($${t.price.toFixed(6)}) | 1h: ${t.priceChange1h > 0 ? "+" : ""}${t.priceChange1h.toFixed(1)}% | 24h: ${t.priceChange24h > 0 ? "+" : ""}${t.priceChange24h.toFixed(1)}% | Vol: $${(t.volume24h / 1000).toFixed(0)}k | Liq: $${(t.liquidity / 1000).toFixed(0)}k`
+  ).join("\n");
+
+  const positionData = currentPositions.length > 0
+    ? currentPositions.map(p =>
+      `HOLDING: ${p.token_symbol} | Entry: $${p.price_at_trade} | Amount: ${p.amount_eth} ETH | P&L: ${((p.current_price / p.price_at_trade - 1) * 100).toFixed(1)}%`
+    ).join("\n")
+    : "No open positions.";
+
+  const riskConfig = {
+    conservative: "Only ETH. Never trade meme tokens. Hold only.",
+    balanced: "Moderate risk. Max 10% per trade. Take profit at 50%. Stop loss at 20%. Prefer tokens with >$100k liquidity.",
+    degen: "Aggressive. Max 25% per trade. Diamond hands to 2x. Cut at -30%. High volume momentum plays. Early entries on pumps.",
+  }[riskLevel] || "Moderate risk.";
+
+  const system = `You are an autonomous trading agent on Base L2. You analyze DexScreener data and make trading decisions.
+
+RISK PROFILE: ${riskLevel.toUpperCase()}
+${riskConfig}
+
+RULES:
+- You trade meme/DeFi tokens on Base using ETH
+- 1% platform fee on every trade (already factored in)
+- NEVER go all-in. Max single trade: 25% of balance
+- If nothing looks good, say HOLD. Patience > FOMO
+- Consider momentum (1h + 24h change), volume, and liquidity
+- Avoid tokens with <$50k liquidity (slippage risk)
+- Take profits. Don't let winners become losers
+
+${agentPersonality ? `PERSONALITY: ${agentPersonality}` : ""}
+
+Respond in EXACTLY this JSON format, nothing else:
+{"action":"buy|sell|hold","token":"SYMBOL","confidence":0-100,"amountPct":5-25,"reasoning":"one sentence"}`;
+
+  const userMsg = `WALLET: ${walletBalance.toFixed(4)} ETH ($${(walletBalance * 2800).toFixed(0)})
+
+TRENDING ON BASE:
+${tokenData}
+
+YOUR POSITIONS:
+${positionData}
+
+What's your move?`;
+
+  try {
+    const response = await callUserLLM(aiConfig, system, userMsg, 200);
+
+    // Parse JSON from response (handle markdown wrapping)
+    const jsonMatch = response.match(/\{[\s\S]*?\}/);
+    if (!jsonMatch) return { action: "hold", confidence: 0, amountPct: 0, reasoning: "AI returned invalid format" };
+
+    const decision = JSON.parse(jsonMatch[0]);
+
+    // Validate
+    if (!["buy", "sell", "hold"].includes(decision.action)) decision.action = "hold";
+    decision.confidence = Math.min(100, Math.max(0, parseInt(decision.confidence) || 0));
+    decision.amountPct = Math.min(25, Math.max(5, parseInt(decision.amountPct) || 10));
+
+    // Map token symbol to address
+    if (decision.action === "buy" && decision.token) {
+      const match = tokens.find(t => t.symbol.toLowerCase() === decision.token.toLowerCase());
+      if (match) {
+        decision.tokenAddress = match.address;
+      } else {
+        return { action: "hold", confidence: 0, amountPct: 0, reasoning: `Token ${decision.token} not found in trending` };
+      }
+    }
+
+    return decision;
+  } catch (err: any) {
+    console.error(`AI trade decision failed for ${userId}:`, err.message);
+    return { action: "hold", confidence: 0, amountPct: 0, reasoning: `AI error: ${err.message?.slice(0, 100)}` };
   }
-  return { action: "hold", amount: 0, reasoning: "No signal" };
+}
+
+// ═══ Execute Uniswap V3 Swap on Base ═══
+const WETH_BASE = "0x4200000000000000000000000000000000000006";
+const UNISWAP_V3_ROUTER = "0x2626664c2603336E57B271c5C0b26F421741e481"; // SwapRouter02 on Base
+
+const SWAP_ROUTER_ABI = [
+  "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)",
+  "function multicall(uint256 deadline, bytes[] calldata data) external payable returns (bytes[] memory results)",
+];
+
+async function executeSwap(
+  encryptedKey: string,
+  tokenAddress: string,
+  amountEth: number,
+  action: "buy" | "sell",
+): Promise<{ success: boolean; txHash: string; amountOut: string }> {
+  try {
+    const { decrypt } = await import("./wallet");
+    const privateKey = decrypt(encryptedKey);
+    const provider = getProvider();
+    const wallet = new ethers.Wallet(privateKey, provider);
+    const router = new ethers.Contract(UNISWAP_V3_ROUTER, SWAP_ROUTER_ABI, wallet);
+
+    const deadline = Math.floor(Date.now() / 1000) + 300; // 5 min
+    const fee = 3000; // 0.3% pool fee tier (most common)
+
+    if (action === "buy") {
+      // ETH → Token
+      const amountIn = ethers.parseEther(amountEth.toFixed(18));
+      const params = {
+        tokenIn: WETH_BASE,
+        tokenOut: tokenAddress,
+        fee,
+        recipient: wallet.address,
+        amountIn,
+        amountOutMinimum: 0n, // In production: calculate with slippage
+        sqrtPriceLimitX96: 0n,
+      };
+
+      const tx = await router.exactInputSingle(params, {
+        value: amountIn,
+        gasLimit: 300000n,
+      });
+      const receipt = await tx.wait();
+      return { success: true, txHash: receipt?.hash || tx.hash, amountOut: "pending" };
+
+    } else {
+      // Token → ETH (need to approve first)
+      const erc20Abi = ["function approve(address,uint256) external returns(bool)", "function balanceOf(address) view returns(uint256)"];
+      const token = new ethers.Contract(tokenAddress, erc20Abi, wallet);
+      const balance = await token.balanceOf(wallet.address);
+      if (balance === 0n) return { success: false, txHash: "", amountOut: "0" };
+
+      // Approve router
+      const approveTx = await token.approve(UNISWAP_V3_ROUTER, balance);
+      await approveTx.wait();
+
+      const params = {
+        tokenIn: tokenAddress,
+        tokenOut: WETH_BASE,
+        fee,
+        recipient: wallet.address,
+        amountIn: balance,
+        amountOutMinimum: 0n,
+        sqrtPriceLimitX96: 0n,
+      };
+
+      const tx = await router.exactInputSingle(params, { gasLimit: 350000n });
+      const receipt = await tx.wait();
+      return { success: true, txHash: receipt?.hash || tx.hash, amountOut: "pending" };
+    }
+  } catch (err: any) {
+    console.error("Swap execution error:", err.message);
+    return { success: false, txHash: "", amountOut: "0" };
+  }
 }
 
 // ═══ Run autonomous trading for all enabled agents ═══
 export async function runAutonomousTrading() {
-  // Get users with trading enabled + their wallet keys
+  // Get users with trading enabled
   const { data: agents } = await supabaseAdmin
     .from("agent_balances")
     .select("user_id, trading_enabled, risk_level, total_trading_pnl, total_fees")
@@ -69,75 +272,143 @@ export async function runAutonomousTrading() {
 
   if (!agents?.length) return;
 
-  const trending = await detectTrendingTokens();
+  // Fetch trending tokens once for all agents
+  const trending = await fetchTrendingTokens();
   if (!trending.length) return;
 
   for (const agent of agents) {
     try {
-      // Get user's wallet
+      // Get user's wallet + AI key
       const { data: user } = await supabaseAdmin
         .from("users")
-        .select("wallet_address, wallet_encrypted_key")
+        .select("wallet_address, wallet_encrypted_key, ai_api_key_encrypted")
         .eq("id", agent.user_id).single();
 
       if (!user?.wallet_address || !user?.wallet_encrypted_key) continue;
+      if (!user?.ai_api_key_encrypted) continue; // No AI key = no trading
 
       // Check real on-chain balance
       const walletBalance = await getWalletBalance(user.wallet_address);
-      if (walletBalance < 0.001) continue; // Skip if dust
+      if (walletBalance < 0.002) continue; // Need at least ~$5 worth to trade
 
+      // Get current positions
       const { data: positions } = await supabaseAdmin
-        .from("trading_history").select("*")
-        .eq("user_id", agent.user_id).eq("action", "buy")
-        .order("created_at", { ascending: false }).limit(10);
+        .from("trading_history")
+        .select("*")
+        .eq("user_id", agent.user_id)
+        .eq("action", "buy")
+        .is("closed_at", null)
+        .order("created_at", { ascending: false })
+        .limit(10);
 
-      for (const token of trending) {
-        const decision = await shouldTrade(token, agent.risk_level, positions || [], walletBalance);
-        if (decision.action === "hold") continue;
+      // Get agent personality for flavor
+      const { data: agentProfile } = await supabaseAdmin
+        .from("agent_profiles")
+        .select("soul")
+        .eq("user_id", agent.user_id)
+        .single();
 
-        // Execute trade FROM user's own wallet
-        const result = await executeTrade(
-          user.wallet_encrypted_key,
-          token.address,
-          decision.amount,
-          decision.action
-        );
+      // ── Ask the USER'S AI for a trading decision ──
+      const decision = await getAITradeDecision(
+        agent.user_id,
+        trending,
+        positions || [],
+        walletBalance,
+        agent.risk_level,
+        agentProfile?.soul || null,
+      );
 
-        if (result.success) {
-          // 1% fee on EVERY trade (buy AND sell) — sent to platform wallet
-          const fee = decision.amount * TRADE_FEE;
-          const feeResult = await collectTradeFee(
-            user.wallet_encrypted_key, decision.amount, decision.action, token.symbol
-          );
+      if (decision.action === "hold" || decision.confidence < 60) continue;
 
-          const pnl = decision.action === "sell" ? decision.amount * 0.1 : 0; // Placeholder PnL
-
+      // Safety check on buy targets
+      if (decision.action === "buy" && decision.tokenAddress) {
+        const safety = await isTokenSafe(decision.tokenAddress);
+        if (!safety.safe) {
+          // Log the skip
           await supabaseAdmin.from("trading_history").insert({
             user_id: agent.user_id,
-            token_address: token.address, token_symbol: token.symbol,
-            action: decision.action, amount_eth: decision.amount,
-            pnl_eth: decision.action === "sell" ? pnl - fee : -fee,
-            tx_hash: result.txHash, fee_tx_hash: feeResult.feeTxHash,
-            fee_eth: fee, reasoning: decision.reasoning,
+            token_address: decision.tokenAddress,
+            token_symbol: decision.token || "?",
+            action: "skip",
+            amount_eth: 0,
+            reasoning: `Safety blocked: ${safety.reason}. AI wanted: ${decision.reasoning}`,
           });
-
-          // Update PnL tracking (fee deducted from every trade)
-          await supabaseAdmin.from("agent_balances").update({
-            total_trading_pnl: (agent.total_trading_pnl || 0) + (decision.action === "sell" ? pnl - fee : -fee),
-            total_fees: (agent.total_fees || 0) + fee,
-          }).eq("user_id", agent.user_id);
-
-          // Notify user on sells
-          if (decision.action === "sell") {
-            try {
-              const { sendNotification } = await import("@/lib/notifications");
-              await sendNotification(agent.user_id, "agent_trade", {
-                token: token.symbol, pnl: pnl - fee,
-                action: "sell", amount: decision.amount, fee,
-              });
-            } catch {}
-          }
+          continue;
         }
+      }
+
+      // Calculate trade amount
+      const tradeAmount = walletBalance * (decision.amountPct / 100);
+      if (tradeAmount < 0.001) continue; // Min ~$2.50
+
+      // For sells, find the position to close
+      let tokenAddress = decision.tokenAddress;
+      let tokenSymbol = decision.token || "?";
+      if (decision.action === "sell") {
+        const pos = (positions || []).find(p =>
+          p.token_symbol?.toLowerCase() === decision.token?.toLowerCase()
+        );
+        if (!pos) continue;
+        tokenAddress = pos.token_address;
+        tokenSymbol = pos.token_symbol;
+      }
+
+      if (!tokenAddress) continue;
+
+      // ── Execute the swap ──
+      const swapResult = await executeSwap(
+        user.wallet_encrypted_key,
+        tokenAddress,
+        tradeAmount,
+        decision.action,
+      );
+
+      if (swapResult.success) {
+        // ── Collect 1% fee → platform wallet ──
+        const feeResult = await collectTradeFee(
+          user.wallet_encrypted_key,
+          tradeAmount,
+          decision.action,
+          tokenSymbol,
+        );
+
+        const fee = tradeAmount * TRADE_FEE;
+
+        // Get current token price for PnL tracking
+        const tokenInfo = trending.find(t => t.address.toLowerCase() === tokenAddress!.toLowerCase());
+
+        await supabaseAdmin.from("trading_history").insert({
+          user_id: agent.user_id,
+          token_address: tokenAddress,
+          token_symbol: tokenSymbol,
+          action: decision.action,
+          amount_eth: tradeAmount,
+          price_at_trade: tokenInfo?.price || 0,
+          pnl_eth: decision.action === "sell" ? tradeAmount * 0.05 - fee : -fee, // Rough PnL
+          tx_hash: swapResult.txHash,
+          fee_tx_hash: feeResult.feeTxHash,
+          fee_eth: fee,
+          reasoning: `[${decision.confidence}%] ${decision.reasoning}`,
+          closed_at: decision.action === "sell" ? new Date().toISOString() : null,
+        });
+
+        // Update cumulative PnL + fees
+        await supabaseAdmin.from("agent_balances").update({
+          total_trading_pnl: (agent.total_trading_pnl || 0) + (decision.action === "sell" ? tradeAmount * 0.05 - fee : -fee),
+          total_fees: (agent.total_fees || 0) + fee,
+          last_trade_at: new Date().toISOString(),
+        }).eq("user_id", agent.user_id);
+
+        // Notify user
+        await supabaseAdmin.from("notifications").insert({
+          user_id: agent.user_id,
+          type: "agent_trade",
+          message: `Agent ${decision.action === "buy" ? "bought" : "sold"} ${tokenSymbol}: ${tradeAmount.toFixed(4)} ETH (${decision.confidence}% confidence). Fee: ${fee.toFixed(6)} ETH. ${decision.reasoning}`,
+          metadata: JSON.stringify({
+            action: decision.action, token: tokenSymbol, amount: tradeAmount,
+            fee, confidence: decision.confidence, tx: swapResult.txHash,
+          }),
+        });
       }
     } catch (err) {
       console.error(`Trading error for ${agent.user_id}:`, err);
@@ -145,9 +416,8 @@ export async function runAutonomousTrading() {
   }
 }
 
-// ═══ Check low balances — queries on-chain for each active user ═══
+// ═══ Check low balances ═══
 export async function checkLowBalances() {
-  // Get all users with wallets who are onboarded
   const { data: users } = await supabaseAdmin
     .from("users")
     .select("id, wallet_address")
@@ -156,16 +426,16 @@ export async function checkLowBalances() {
 
   if (!users?.length) return;
 
-  const { sendNotification } = await import("@/lib/notifications");
-
   for (const user of users) {
     if (!user.wallet_address) continue;
     try {
       const balance = await getWalletBalance(user.wallet_address);
       if (balance < 0.005 && balance > 0) {
-        await sendNotification(user.id, "balance_low", {
-          balance, threshold: "0.005",
-          wallet_address: user.wallet_address,
+        await supabaseAdmin.from("notifications").insert({
+          user_id: user.id,
+          type: "balance_low",
+          message: `Low balance: ${balance.toFixed(4)} ETH. Fund your agent to keep trading.`,
+          metadata: JSON.stringify({ balance, wallet_address: user.wallet_address }),
         });
       }
     } catch {}
