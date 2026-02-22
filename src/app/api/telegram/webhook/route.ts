@@ -31,8 +31,20 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true });
       }
       
-      await handleMessage(update.message);
-      console.log("[TG] Message handled successfully");
+      try {
+        await handleMessage(update.message);
+        console.log("[TG] Message handled successfully");
+      } catch (handlerErr: any) {
+        console.error("[TG] CRASH:", handlerErr.message);
+        const token = process.env.TELEGRAM_BOT_TOKEN;
+        if (token && chatId) {
+          await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, text: `⚠️ Error: ${handlerErr.message?.slice(0, 200)}` }),
+          });
+        }
+      }
     }
 
     // Handle inline button presses
