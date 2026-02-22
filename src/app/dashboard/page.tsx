@@ -1263,6 +1263,34 @@ export default function Dashboard(){
               🧠 Connect your AI brain to start trading
             </div>)}
 
+            {/* ═══ OPEN TRADING DASHBOARD ═══ */}
+            <div style={{padding:"0 16px 14px"}}>
+              <button onClick={()=>router.push("/trading")} style={{
+                width:"100%",padding:"13px 16px",borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",
+                background:"linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(6,182,212,0.08) 100%)",
+                display:"flex",alignItems:"center",justifyContent:"space-between",
+                transition:"all 0.25s ease",position:"relative",overflow:"hidden",
+              }}
+              onMouseEnter={e=>{(e.target as HTMLElement).style.background="linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(6,182,212,0.14) 100%)";}}
+              onMouseLeave={e=>{(e.target as HTMLElement).style.background="linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(6,182,212,0.08) 100%)";}}
+              >
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:32,height:32,borderRadius:10,background:"linear-gradient(135deg, #6366f1, #06b6d4)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                  </div>
+                  <div style={{textAlign:"left"}}>
+                    <div style={{fontSize:13,fontWeight:700,color:C.text}}>Trading Dashboard</div>
+                    <div style={{fontSize:10,color:C.muted,marginTop:1}}>Live trades, positions & AI activity</div>
+                  </div>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </button>
+            </div>
+
             {/* ═══ EMERGENCY KILL SWITCH ═══ */}
             {isOn&&(wallet?.recent_trades||[]).some((t:any)=>t.action==="buy"&&!t.closed_at)&&(
               <div style={{padding:"0 16px 14px"}}>
