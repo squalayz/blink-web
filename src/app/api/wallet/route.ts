@@ -225,13 +225,13 @@ export async function GET(req: NextRequest) {
     supabaseAdmin.from("deposits").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(5),
   ]);
 
-  // Use trading wallet for balance (not identity/MetaMask wallet)
+  // Use trading wallet if set, otherwise identity wallet
   const tradingWallet = userRes.data?.trading_wallet_address;
   const identityWallet = userRes.data?.wallet_address;
   const walletAddress = tradingWallet || identityWallet;
   let onChainBalance = 0;
-  if (tradingWallet) {
-    onChainBalance = await getWalletBalance(tradingWallet);
+  if (walletAddress) {
+    onChainBalance = await getWalletBalance(walletAddress);
   }
 
   const agentBal = balRes.data;

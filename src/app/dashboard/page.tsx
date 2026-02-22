@@ -343,7 +343,7 @@ export default function Dashboard(){
   const[lbTab,setLbTab]=useState("builders");
   const chatEndRef=useRef<HTMLDivElement>(null);
   // Crypto + referrals + notifications state
-  const[wallet,setWallet]=useState<any>({risk_level:"conservative",trading_enabled:false});
+  const[wallet,setWallet]=useState<any>({risk_level:"conservative",trading_enabled:false,balance_eth:0,has_wallet:false});
   const[deposits,setDeposits]=useState<any[]>([]);
   const[trades,setTrades]=useState<any[]>([]);
   const[fuelStats,setFuelStats]=useState<any>(null);
