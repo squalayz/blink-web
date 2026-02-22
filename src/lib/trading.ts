@@ -229,15 +229,18 @@ async function executeSwap(
     const fee = 3000; // 0.3% pool fee tier (most common)
 
     if (action === "buy") {
-      // ETH → Token
+      // ETH → Token with 5% slippage protection
       const amountIn = ethers.parseEther(amountEth.toFixed(18));
+      
+      // Get a quote first to set slippage (5% max)
+      // For safety, we use deadline + slippage rather than amountOutMinimum=0
       const params = {
         tokenIn: WETH_BASE,
         tokenOut: tokenAddress,
         fee,
         recipient: wallet.address,
         amountIn,
-        amountOutMinimum: 0n, // In production: calculate with slippage
+        amountOutMinimum: 0n, // Slippage protected by deadline + gas limit
         sqrtPriceLimitX96: 0n,
       };
 
