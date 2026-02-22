@@ -344,6 +344,7 @@ export default function Dashboard(){
   const chatEndRef=useRef<HTMLDivElement>(null);
   // Crypto + referrals + notifications state
   const[wallet,setWallet]=useState<any>({risk_level:"conservative",trading_enabled:false,balance_eth:0,has_wallet:false});
+  const[stratOpen,setStratOpen]=useState(false);
   const[deposits,setDeposits]=useState<any[]>([]);
   const[trades,setTrades]=useState<any[]>([]);
   const[fuelStats,setFuelStats]=useState<any>(null);
@@ -1107,29 +1108,60 @@ export default function Dashboard(){
               </button>
             </div>
 
-            {/* ═══ TRADING MODES ═══ */}
-            <div style={{padding:"14px 16px"}}>
-              <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:700,marginBottom:10}}>Trading Strategy</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                {modes.map(m=>{
-                  const active=mode===m.id;
-                  return(<button key={m.id} onClick={()=>updateWalletSettings({trading_mode:m.id,risk_level:m.risk})} style={{
-                    padding:"12px",borderRadius:12,border:`1.5px solid ${active?m.color+"55":"rgba(255,255,255,0.06)"}`,
-                    background:active?`${m.color}10`:"rgba(255,255,255,0.02)",cursor:"pointer",textAlign:"left",fontFamily:"inherit",
-                    transition:"all 0.25s",position:"relative",overflow:"hidden",WebkitTapHighlightColor:"transparent",
-                    boxShadow:active?`0 0 15px ${m.color}15`:"none",
-                  }}>
-                    {active&&<div style={{position:"absolute",top:0,right:0,width:0,height:0,borderStyle:"solid",borderWidth:"0 24px 24px 0",borderColor:`transparent ${m.color} transparent transparent`,opacity:0.6}}/>}
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                      <span style={{fontSize:18}}>{m.emoji}</span>
-                      <span style={{fontSize:12,fontWeight:active?800:600,color:active?m.color:C.text}}>{m.name}</span>
+            {/* ═══ TRADING STRATEGY DROPDOWN ═══ */}
+            <div style={{padding:"0 16px 14px"}}>
+              {/* Dropdown trigger — shows current mode */}
+              <button onClick={()=>setStratOpen(!stratOpen)} style={{
+                width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",
+                padding:"12px 14px",borderRadius:12,cursor:"pointer",fontFamily:"inherit",
+                background:stratOpen?`${activeMode.color}08`:"rgba(255,255,255,0.02)",
+                border:`1px solid ${stratOpen?activeMode.color+"33":"rgba(255,255,255,0.06)"}`,
+                transition:"all 0.3s",WebkitTapHighlightColor:"transparent",
+              }}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:20}}>{activeMode.emoji}</span>
+                  <div style={{textAlign:"left"}}>
+                    <div style={{fontSize:12,fontWeight:700,color:activeMode.color}}>{activeMode.name}</div>
+                    <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginTop:1}}>
+                      <span style={{padding:"1px 5px",borderRadius:3,background:activeMode.risk==="degen"?"rgba(255,45,85,0.1)":activeMode.risk==="balanced"?"rgba(99,102,241,0.1)":"rgba(48,209,88,0.1)",color:activeMode.risk==="degen"?"#ff2d55":activeMode.risk==="balanced"?C.cold:C.match,fontWeight:700}}>{activeMode.risk}</span>
                     </div>
-                    <div style={{fontSize:10,color:active?C.muted:"rgba(255,255,255,0.3)",lineHeight:1.5}}>{m.desc}</div>
-                    <div style={{marginTop:6,display:"flex",alignItems:"center",gap:4}}>
-                      <span style={{fontSize:8,padding:"2px 6px",borderRadius:4,background:m.risk==="degen"?"rgba(255,45,85,0.1)":m.risk==="balanced"?"rgba(99,102,241,0.1)":"rgba(48,209,88,0.1)",color:m.risk==="degen"?"#ff2d55":m.risk==="balanced"?C.cold:C.match,fontWeight:700,textTransform:"uppercase"}}>{m.risk}</span>
-                    </div>
-                  </button>);
-                })}
+                  </div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontSize:9,color:C.muted}}>Strategy</span>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{transform:stratOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.3s cubic-bezier(0.4,0,0.2,1)"}}>
+                    <path d="M3 4.5L6 7.5L9 4.5" stroke={C.muted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+              </button>
+
+              {/* Dropdown panel — animated */}
+              <div style={{
+                maxHeight:stratOpen?"600px":"0px",overflow:"hidden",
+                transition:"max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
+                opacity:stratOpen?1:0,
+              }}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,paddingTop:8}}>
+                  {modes.map(m=>{
+                    const active=mode===m.id;
+                    return(<button key={m.id} onClick={()=>{updateWalletSettings({trading_mode:m.id,risk_level:m.risk});setStratOpen(false);}} style={{
+                      padding:"10px",borderRadius:10,border:`1.5px solid ${active?m.color+"55":"rgba(255,255,255,0.06)"}`,
+                      background:active?`${m.color}10`:"rgba(255,255,255,0.02)",cursor:"pointer",textAlign:"left",fontFamily:"inherit",
+                      transition:"all 0.2s",position:"relative",overflow:"hidden",WebkitTapHighlightColor:"transparent",
+                      boxShadow:active?`0 0 12px ${m.color}15`:"none",
+                    }}>
+                      {active&&<div style={{position:"absolute",top:0,right:0,width:0,height:0,borderStyle:"solid",borderWidth:"0 20px 20px 0",borderColor:`transparent ${m.color} transparent transparent`,opacity:0.5}}/>}
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                        <span style={{fontSize:16}}>{m.emoji}</span>
+                        <span style={{fontSize:11,fontWeight:active?800:600,color:active?m.color:C.text}}>{m.name}</span>
+                      </div>
+                      <div style={{fontSize:9,color:active?C.muted:"rgba(255,255,255,0.25)",lineHeight:1.4}}>{m.desc}</div>
+                      <div style={{marginTop:4}}>
+                        <span style={{fontSize:7,padding:"2px 5px",borderRadius:3,background:m.risk==="degen"?"rgba(255,45,85,0.1)":m.risk==="balanced"?"rgba(99,102,241,0.1)":"rgba(48,209,88,0.1)",color:m.risk==="degen"?"#ff2d55":m.risk==="balanced"?C.cold:C.match,fontWeight:700,textTransform:"uppercase"}}>{m.risk}</span>
+                      </div>
+                    </button>);
+                  })}
+                </div>
               </div>
             </div>
 
