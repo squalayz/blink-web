@@ -18,6 +18,14 @@ const SWAP_ROUTER = "0x2626664c2603336E57B271c5C0b26F421741e481";
 const QUOTER_V2 = "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a";
 const FEE_TIERS = [100, 500, 3000, 10000]; // 0.01%, 0.05%, 0.3%, 1%
 
+// ═══ GAS RESERVE — NEVER SPEND BELOW THIS ═══
+// Base L2 gas is ~0.0001-0.001 ETH per tx. We need enough to:
+// 1. Approve token (if selling) ~0.0002 ETH
+// 2. Execute sell swap ~0.0005 ETH
+// 3. Buffer for gas spikes ~0.0003 ETH
+// Total: ~0.001 ETH minimum. We use 0.002 as safe reserve.
+const GAS_RESERVE_ETH = 0.002;
+
 // ETH price cache
 let _cachedEthPrice = 1950;
 let _ethPriceCacheTime = 0;
@@ -82,6 +90,12 @@ export class RiskManager {
   }
 
   async canTrade(tokenAddress: string, amountEth: number, walletBalance: number): Promise<{ ok: boolean; reason: string }> {
+    // Gas reserve check — NEVER let balance drop below reserve
+    const availableBalance = walletBalance - GAS_RESERVE_ETH;
+    if (amountEth > availableBalance) {
+      return { ok: false, reason: `Trade ${amountEth.toFixed(4)} ETH would breach gas reserve (available: ${availableBalance.toFixed(4)}, reserve: ${GAS_RESERVE_ETH})` };
+    }
+
     // Check position size limit
     const positionPct = (amountEth / walletBalance) * 100;
     if (positionPct > this.config.max_position_pct) {
@@ -378,6 +392,10 @@ async function getAIDecision(
 
   const portfolioValue = walletBalance * ethPrice;
 
+  const gasReserveWarning = walletBalance < 0.005
+    ? `\n⚠️ LOW BALANCE WARNING: Only ${walletBalance.toFixed(4)} ETH left. Gas reserve is ${GAS_RESERVE_ETH} ETH. You MUST keep enough to sell positions! Consider selling a position to free up ETH.`
+    : "";
+
   const system = `You are an autonomous trading agent on Base L2.
 
 STRATEGY: ${modePrompts[tradingMode] || modePrompts.meme_scout}
@@ -391,10 +409,21 @@ RISK LIMITS:
 - Max concurrent positions: ${STRATEGY_RISKS[tradingMode]?.max_concurrent_positions || 5}
 - Min liquidity: $${((STRATEGY_RISKS[tradingMode]?.min_liquidity_usd || 50000) / 1000).toFixed(0)}k
 - Platform fee: 3% per trade (buy AND sell)
+- Gas reserve: ${GAS_RESERVE_ETH} ETH (NEVER spend below this — you need gas to sell!)
+${gasReserveWarning}
 
-IMPORTANT: You are an ACTIVE trading agent. Do NOT default to "hold" — you are paid to trade, not watch. 
-Always pick the BEST opportunity available. Only hold if EVERY token looks dangerous or overextended.
-When in doubt, BUY the strongest momentum token with good liquidity.
+CRITICAL RULES:
+1. TAKE PROFITS — if any position is up >${STRATEGY_RISKS[tradingMode]?.take_profit_pct || 80}%, SELL IT. Unrealized gains are NOT real gains.
+2. CUT LOSSES — if any position is down >${Math.abs(STRATEGY_RISKS[tradingMode]?.stop_loss_pct || -25)}%, SELL IT. Don't hold losers.
+3. SELL BEFORE BUY — if you have open positions AND want to buy something new, sell the weakest position FIRST to free capital.
+4. GAS AWARENESS — you need at least ${GAS_RESERVE_ETH} ETH to execute sells. If balance is low, SELL a position to recover ETH.
+5. PROFIT IS THE GOAL — a completed sell at profit > a bag you hold forever.
+
+PRIORITY ORDER:
+1. Check positions — any hitting TP or SL? → SELL
+2. Check positions — any stale (no momentum for 30min+)? → SELL  
+3. If capital available and strong opportunity → BUY
+4. If nothing compelling → HOLD (but rarely — be active!)
 
 Respond ONLY with JSON: {"action":"buy|sell|hold","token":"SYMBOL","tokenAddress":"0x...","confidence":0-100,"amountPct":5-25,"reasoning":"one sentence"}`;
 
@@ -433,6 +462,52 @@ Your move?`;
   }
 }
 
+// ═══ EMERGENCY GAS RECOVERY ═══
+// If wallet is below gas reserve and has open positions, force-sell the smallest one
+async function emergencyGasRecovery(userId: string, walletAddress: string, encryptedKey: string): Promise<boolean> {
+  const balance = await getWalletBalance(walletAddress);
+  if (balance >= GAS_RESERVE_ETH) return false; // we're fine
+
+  console.log(`[EMERGENCY] ${userId.slice(0,8)}: Balance ${balance.toFixed(6)} ETH < gas reserve ${GAS_RESERVE_ETH}. Force-selling smallest position.`);
+
+  const { data: positions } = await supabaseAdmin.from("trading_history")
+    .select("*").eq("user_id", userId).eq("action", "buy").is("closed_at", null)
+    .order("amount_eth", { ascending: true }).limit(1);
+
+  if (!positions?.length) return false;
+  const pos = positions[0];
+
+  try {
+    const provider = getProvider();
+    const token = new ethers.Contract(pos.token_address, ERC20_ABI, provider);
+    const { decrypt } = await import("./wallet");
+    const wallet = new ethers.Wallet(decrypt(encryptedKey), provider);
+    const tokenBalance = await token.balanceOf(wallet.address);
+    if (tokenBalance === 0n) return false;
+
+    const quote = await findBestRoute(pos.token_address, WETH_BASE, tokenBalance, 10); // wider slippage for emergency
+    if (!quote) return false;
+
+    const result = await executeSwapV2(encryptedKey, pos.token_address, WETH_BASE, tokenBalance, quote.feeTier, quote.amountOutMin, false);
+    if (result.success) {
+      const ethReceived = parseFloat(ethers.formatEther(quote.amountOut));
+      await supabaseAdmin.from("trading_history").update({
+        closed_at: new Date().toISOString(), pnl_eth: ethReceived - pos.amount_eth,
+        reasoning: `🚨 EMERGENCY GAS RECOVERY — balance was ${balance.toFixed(6)} ETH, needed ${GAS_RESERVE_ETH} to operate`,
+      }).eq("id", pos.id);
+      await supabaseAdmin.from("notifications").insert({
+        user_id: userId, type: "emergency_sell",
+        message: `🚨 Emergency sell: ${pos.token_symbol} — Balance too low for gas (${balance.toFixed(4)} ETH). Recovered ${ethReceived.toFixed(4)} ETH.`,
+      });
+      console.log(`[EMERGENCY] ${userId.slice(0,8)}: Sold ${pos.token_symbol} for ${ethReceived.toFixed(4)} ETH`);
+      return true;
+    }
+  } catch (err: any) {
+    console.error(`[EMERGENCY] Sell failed for ${userId.slice(0,8)}:`, err.message);
+  }
+  return false;
+}
+
 // ═══ STOP LOSS / TAKE PROFIT ENGINE ═══
 export async function runSLTPEngine() {
   const { data: openPositions } = await supabaseAdmin.from("trading_history")
@@ -440,6 +515,15 @@ export async function runSLTPEngine() {
     .eq("action", "buy").is("closed_at", null);
 
   if (!openPositions?.length) return;
+
+  // First: check for any users with dangerously low gas
+  const checkedUsers = new Set<string>();
+  for (const pos of openPositions) {
+    if (!checkedUsers.has(pos.user_id) && pos.users?.wallet_address && pos.users?.wallet_encrypted_key) {
+      checkedUsers.add(pos.user_id);
+      await emergencyGasRecovery(pos.user_id, pos.users.wallet_address, pos.users.wallet_encrypted_key);
+    }
+  }
 
   for (const pos of openPositions) {
     try {
@@ -602,8 +686,13 @@ export async function runSingleUserTrading(userId: string): Promise<{ action: st
 
     const maxPct = userTradeSizePct || riskConfig.max_position_pct || 15;
     const effectivePct = Math.min(decision.amountPct || maxPct, maxPct);
-    const tradeAmount = walletBalance * (effectivePct / 100);
-    console.log(`[TRADE-V2] ${userId} | Trade size: ${tradeAmount.toFixed(4)} ETH (${effectivePct}% of ${walletBalance.toFixed(4)})`);
+    const availableForTrading = Math.max(0, walletBalance - GAS_RESERVE_ETH);
+    const tradeAmount = Math.min(availableForTrading, walletBalance * (effectivePct / 100));
+    if (tradeAmount < 0.0005) {
+      console.log(`[TRADE-V2] ${userId} | BLOCKED: Trade amount ${tradeAmount.toFixed(6)} ETH too small after gas reserve`);
+      return { action: "skip", token: decision.token, reasoning: `Balance too low after gas reserve (avail: ${availableForTrading.toFixed(4)} ETH)` };
+    }
+    console.log(`[TRADE-V2] ${userId} | Trade size: ${tradeAmount.toFixed(4)} ETH (${effectivePct}% of ${walletBalance.toFixed(4)}, gas reserve: ${GAS_RESERVE_ETH})`);
     const riskCheck = await risk.canTrade(decision.tokenAddress, tradeAmount, walletBalance);
     console.log(`[TRADE-V2] ${userId} | Risk check: ${riskCheck.ok ? 'PASS' : 'FAIL'} — ${riskCheck.reason}`);
     if (!riskCheck.ok) return { action: "skip", token: decision.token, reasoning: riskCheck.reason };
@@ -661,17 +750,24 @@ export async function runSingleUserTrading(userId: string): Promise<{ action: st
   }
 
   if (decision.action === "sell") {
-    const pos = (positions || []).find(p => p.token_symbol?.toLowerCase() === decision.token?.toLowerCase());
+    // Match by symbol OR address (AI sometimes uses either)
+    const pos = (positions || []).find(p =>
+      p.token_symbol?.toLowerCase() === decision.token?.toLowerCase() ||
+      p.token_address?.toLowerCase() === decision.tokenAddress?.toLowerCase()
+    );
     if (!pos) return { action: "skip", reasoning: `No position in ${decision.token}` };
 
+    console.log(`[TRADE-V2] ${userId} | SELL flow: ${pos.token_symbol} (${pos.token_address})`);
     const provider = getProvider();
     const token = new ethers.Contract(pos.token_address, ERC20_ABI, provider);
     const { decrypt } = await import("./wallet");
     const wallet = new ethers.Wallet(decrypt(user.wallet_encrypted_key), provider);
     const balance = await token.balanceOf(wallet.address);
+    console.log(`[TRADE-V2] ${userId} | Token balance: ${balance.toString()}`);
     if (balance === 0n) return { action: "skip", reasoning: "Zero token balance" };
 
     const quote = await findBestRoute(pos.token_address, WETH_BASE, balance, riskConfig.max_slippage_pct);
+    console.log(`[TRADE-V2] ${userId} | Sell route: ${quote ? `FOUND fee=${quote.feeTier}` : 'NO ROUTE'}`);
     if (!quote) return { action: "skip", reasoning: "No sell route" };
 
     const result = await executeSwapV2(
@@ -690,6 +786,14 @@ export async function runSingleUserTrading(userId: string): Promise<{ action: st
         user_id: userId, type: "agent_trade",
         message: `🔴 Sell ${pos.token_symbol}: ${ethReceived.toFixed(4)} ETH | P&L: ${(ethReceived - pos.amount_eth).toFixed(4)} ETH`,
       });
+      console.log(`[TRADE-V2] ${userId} | SELL SUCCESS: ${pos.token_symbol} → ${ethReceived.toFixed(4)} ETH | PnL: ${(ethReceived - pos.amount_eth).toFixed(4)} ETH`);
+      try {
+        const { writeFeedEvent } = await import("./reputation");
+        const pnl = ethReceived - pos.amount_eth;
+        await writeFeedEvent(userId, "trade", `SELL ${pos.token_symbol}`,
+          `Your agent sold ${pos.token_symbol} for ${ethReceived.toFixed(4)} ETH. P&L: ${pnl >= 0 ? "+" : ""}${pnl.toFixed(4)} ETH`,
+          { action: "sell", token: pos.token_symbol, amount: ethReceived, pnl, tx_hash: result.txHash });
+      } catch {}
       return { action: "sell", token: pos.token_symbol, reasoning: `Sold ${pos.token_symbol} for ${ethReceived.toFixed(4)} ETH` };
     }
     return { action: "error", token: pos.token_symbol, reasoning: "Sell execution failed" };
@@ -821,11 +925,13 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
           continue;
         }
 
-        // Risk check
+        // Risk check — respect gas reserve
         const maxPct = userTradeSizePct || riskConfig.max_position_pct || 15;
         const effectivePct = Math.min(decision.amountPct || maxPct, maxPct);
-        const tradeAmount = walletBalance * (effectivePct / 100);
-        await dlog(`[V2] ${agent.user_id.slice(0,8)}: Risk check — trade ${tradeAmount.toFixed(6)} ETH (${effectivePct}% of ${walletBalance.toFixed(4)})`);
+        const availableForTrading = Math.max(0, walletBalance - GAS_RESERVE_ETH);
+        const tradeAmount = Math.min(availableForTrading, walletBalance * (effectivePct / 100));
+        if (tradeAmount < 0.0005) { await dlog(`[V2] ${agent.user_id.slice(0,8)}: Balance too low after gas reserve`); continue; }
+        await dlog(`[V2] ${agent.user_id.slice(0,8)}: Risk check — trade ${tradeAmount.toFixed(6)} ETH (${effectivePct}% of ${walletBalance.toFixed(4)}, reserve: ${GAS_RESERVE_ETH})`);
         const riskCheck = await risk.canTrade(decision.tokenAddress, tradeAmount, walletBalance);
         if (!riskCheck.ok) {
           await supabaseAdmin.from("trading_history").insert({
