@@ -189,7 +189,24 @@ export default function TradingDashboard() {
   const [trades, setTrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [orbState, setOrbState] = useState<"idle"|"scanning"|"buy"|"sell">("idle");
+  const [toggling, setToggling] = useState(false);
   const prevTradeCount = useRef(0);
+
+  async function toggleEngine() {
+    if (toggling) return;
+    const newState = !wallet?.trading_enabled;
+    if (newState && (wallet?.balance_eth || 0) < 0.002) { alert("Fund your wallet first (min 0.002 ETH)"); return; }
+    setToggling(true);
+    setWallet((w: any) => ({ ...w, trading_enabled: newState }));
+    setOrbState(newState ? "scanning" : "idle");
+    try {
+      await fetch("/api/wallet", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "settings", trading_enabled: newState }),
+      });
+    } catch (e) { console.error(e); }
+    setToggling(false);
+  }
 
   useEffect(() => {
     async function load() {
@@ -264,9 +281,27 @@ export default function TradingDashboard() {
           Dashboard
         </button>
         <div style={{fontSize:14,fontWeight:700,letterSpacing:"0.02em"}}>AI Trading</div>
-        <div style={{display:"flex",alignItems:"center",gap:6}}>
-          {isOn && <span style={{width:6,height:6,borderRadius:"50%",background:C.match,animation:"pulse-dot 1.5s infinite"}} />}
-          <span style={{fontSize:11,color:isOn ? C.match : C.muted,fontWeight:600}}>{isOn ? "Live" : "Off"}</span>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:10,color:isOn ? C.match : C.muted,fontWeight:600}}>{isOn ? "Live" : "Off"}</span>
+          <button onClick={toggleEngine} disabled={toggling} style={{
+            width:52,height:28,borderRadius:14,border:"none",cursor:toggling?"wait":"pointer",position:"relative",
+            background:isOn?"linear-gradient(135deg,#30d158,#34c759)":"rgba(255,255,255,0.08)",
+            boxShadow:isOn?"0 0 16px rgba(48,209,88,0.3),inset 0 1px 2px rgba(255,255,255,0.15)":"inset 0 1px 3px rgba(0,0,0,0.3)",
+            transition:"all 0.3s cubic-bezier(0.4,0,0.2,1)",WebkitTapHighlightColor:"transparent",
+          }}>
+            <div style={{
+              width:22,height:22,borderRadius:"50%",background:"white",position:"absolute",top:3,
+              left:isOn?27:3,transition:"all 0.3s cubic-bezier(0.4,0,0.2,1)",
+              boxShadow:isOn?"0 2px 6px rgba(0,0,0,0.15)":"0 2px 4px rgba(0,0,0,0.3)",
+              display:"flex",alignItems:"center",justifyContent:"center",
+            }}>
+              {isOn ? (
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#30d158" strokeWidth="3" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              ) : (
+                <div style={{width:7,height:2,background:"#999",borderRadius:1}}/>
+              )}
+            </div>
+          </button>
         </div>
       </div>
 
