@@ -190,6 +190,8 @@ export default function TradingDashboard() {
   const [loading, setLoading] = useState(true);
   const [orbState, setOrbState] = useState<"idle"|"scanning"|"buy"|"sell">("idle");
   const [toggling, setToggling] = useState(false);
+  const [scan, setScan] = useState<any>(null);
+  const [scanTokenIdx, setScanTokenIdx] = useState(0);
   const prevTradeCount = useRef(0);
 
   async function toggleEngine() {
@@ -223,6 +225,22 @@ export default function TradingDashboard() {
     }
     load();
 
+    // Scan feed — poll every 3s when engine on
+    const scanIv = setInterval(async () => {
+      try {
+        const r = await fetch("/api/trading/scan", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+        });
+        if (r.ok) {
+          const d = await r.json();
+          setScan(d);
+          if (d.scanning) {
+            setScanTokenIdx(prev => (prev + 1) % Math.max(1, d.tokens?.length || 1));
+          }
+        }
+      } catch {}
+    }, 3000);
+
     const iv = setInterval(async () => {
       try {
         const r = await fetch("/api/wallet");
@@ -242,7 +260,7 @@ export default function TradingDashboard() {
         }
       } catch {}
     }, 10000);
-    return () => clearInterval(iv);
+    return () => { clearInterval(iv); clearInterval(scanIv); };
   }, []);
 
   if (loading) return (
@@ -412,30 +430,119 @@ export default function TradingDashboard() {
         </div>
       )}
 
-      {/* ═══ AI THINKING — shows when scanning ═══ */}
-      {isOn && orbState === "scanning" && (
+      {/* ═══ LIVE SCANNER ═══ */}
+      {isOn && scan?.scanning && (
         <div style={{padding:"0 16px",marginBottom:16}}>
+          {/* Phase indicator */}
           <div style={{
             background:`linear-gradient(135deg,${C.surface},rgba(99,102,241,0.04))`,
-            borderRadius:12,padding:"12px 14px",border:`1px solid rgba(99,102,241,0.1)`,
-            display:"flex",alignItems:"center",gap:10,
+            borderRadius:12,padding:"12px 14px",border:`1px solid rgba(99,102,241,0.1)`,marginBottom:8,
           }}>
-            <div style={{width:28,height:28,borderRadius:8,background:"rgba(99,102,241,0.08)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.indigo} strokeWidth="2" strokeLinecap="round">
-                <path d="M9.5 2A3.5 3.5 0 0 0 6 5.5v.7A3.5 3.5 0 0 0 4 9.5v.5a3.5 3.5 0 0 0 .7 2.1A3.5 3.5 0 0 0 6 15.5v.5A3.5 3.5 0 0 0 9.5 19.5h1V2z"/>
-                <path d="M14.5 2A3.5 3.5 0 0 1 18 5.5v.7a3.5 3.5 0 0 1 2 3.3v.5a3.5 3.5 0 0 1-.7 2.1 3.5 3.5 0 0 1 .7 3.4v.5a3.5 3.5 0 0 1-3.5 3.5h-1V2z"/>
-              </svg>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <div style={{width:6,height:6,borderRadius:"50%",background:
+                  scan.phase==="ai_decision"?C.purple:scan.phase==="safety"?"#f59e0b":
+                  scan.phase==="routing"?C.cyan:C.indigo,
+                  animation:"pulse-dot 1s infinite"}}/>
+                <span style={{fontSize:11,fontWeight:700,color:C.indigo,textTransform:"uppercase",letterSpacing:"0.05em"}}>
+                  {scan.phase==="fetching"?"Fetching Tokens":scan.phase==="analyzing"?"Analyzing":
+                   scan.phase==="safety"?"Safety Check":scan.phase==="ai_decision"?"AI Deciding":
+                   scan.phase==="routing"?"Finding Route":"Monitoring"}
+                </span>
+              </div>
+              <span style={{fontSize:9,color:C.dim,fontFamily:"'JetBrains Mono',monospace"}}>
+                Next cycle: {scan.nextScan}m
+              </span>
             </div>
-            <div>
-              <div style={{fontSize:11,fontWeight:600,color:C.indigo}}>Agent thinking</div>
-              <div style={{fontSize:10,color:C.muted,marginTop:1}}>Analyzing trending tokens, checking safety, evaluating entry</div>
+            <div style={{fontSize:10,color:C.muted,lineHeight:1.4,animation:"float-up 0.3s ease-out"}} key={scan.phaseDetail}>
+              {scan.phaseDetail}
             </div>
-            <div style={{marginLeft:"auto",display:"flex",gap:2}}>
-              {[0,1,2].map(i=>(
-                <div key={i} style={{width:4,height:4,borderRadius:"50%",background:C.indigo,animation:`pulse-dot 1.2s ${i*0.2}s infinite`}}/>
-              ))}
+            {/* Cycle progress bar */}
+            <div style={{height:2,borderRadius:1,background:C.s2,marginTop:8,overflow:"hidden"}}>
+              <div style={{height:"100%",width:`${scan.cycleProgress}%`,borderRadius:1,
+                background:`linear-gradient(90deg,${C.indigo},${C.cyan})`,transition:"width 1s linear"}}/>
             </div>
           </div>
+
+          {/* Token scan grid */}
+          {scan.tokens?.length > 0 && (
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
+              {scan.tokens.slice(0, 8).map((t: any, i: number) => {
+                const isActive = i === scanTokenIdx;
+                const isUp = (t.change1h || 0) >= 0;
+                const vol = t.volume24h >= 1000000 ? `$${(t.volume24h/1000000).toFixed(1)}M` : `$${(t.volume24h/1000).toFixed(0)}k`;
+                const liq = t.liquidity >= 1000000 ? `$${(t.liquidity/1000000).toFixed(1)}M` : `$${(t.liquidity/1000).toFixed(0)}k`;
+                return (
+                  <div key={t.address || i} style={{
+                    background: isActive ? `${mode.orbColor}08` : C.surface,
+                    borderRadius: 8, padding: "8px 10px",
+                    border: `1px solid ${isActive ? mode.orbColor + "33" : C.border}`,
+                    transition: "all 0.3s",
+                    animation: isActive ? "glow-pulse 2s infinite" : "none",
+                  }}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontSize:11,fontWeight:700,color:isActive?C.text:C.muted}}>{t.symbol}</span>
+                      <span style={{fontSize:10,fontWeight:700,color:isUp?C.match:C.hot,fontFamily:"'JetBrains Mono',monospace"}}>
+                        {isUp?"+":""}{(t.change1h||0).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",marginTop:3,fontSize:8,color:C.dim}}>
+                      <span>${t.price < 0.01 ? t.price?.toFixed(6) : t.price < 1 ? t.price?.toFixed(4) : t.price?.toFixed(2)}</span>
+                      <span>Vol {vol}</span>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",marginTop:1,fontSize:8,color:C.dim}}>
+                      <span>Liq {liq}</span>
+                      <span>{t.txns||0} txns/1h</span>
+                    </div>
+                    {/* Scanning indicator on active token */}
+                    {isActive && (
+                      <div style={{marginTop:4,height:2,borderRadius:1,background:C.s2,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:"100%",borderRadius:1,
+                          background:`linear-gradient(90deg,transparent,${mode.orbColor},transparent)`,
+                          animation:"shimmer 1.5s ease-in-out infinite"}}/>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Recent trades by your agent (last hour) */}
+          {scan.recentTrades?.length > 0 && (
+            <div style={{marginTop:8}}>
+              <div style={{fontSize:9,color:C.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>
+                Recent Executions
+              </div>
+              {scan.recentTrades.slice(0, 3).map((t: any, i: number) => (
+                <div key={i} style={{
+                  display:"flex",alignItems:"center",gap:8,padding:"6px 10px",
+                  background:t.action==="buy"?`${C.match}06`:`${C.hot}06`,
+                  borderRadius:6,border:`1px solid ${t.action==="buy"?C.match:C.hot}15`,
+                  marginBottom:3,animation:`txn-enter 0.3s ease-out ${i*0.1}s both`,
+                }}>
+                  <div style={{width:4,height:20,borderRadius:2,background:t.action==="buy"?C.match:C.hot}}/>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontSize:10,fontWeight:700,color:t.action==="buy"?C.match:C.hot}}>
+                        {t.action?.toUpperCase()} {t.token_symbol}
+                      </span>
+                      <span style={{fontSize:9,color:C.dim}}>
+                        {t.created_at ? (() => {
+                          const m = Math.floor((Date.now() - new Date(t.created_at).getTime()) / 60000);
+                          return m < 1 ? "just now" : m < 60 ? `${m}m ago` : `${Math.floor(m/60)}h ago`;
+                        })() : ""}
+                      </span>
+                    </div>
+                    <div style={{fontSize:8,color:C.muted,marginTop:1}}>{t.reasoning?.slice(0, 60)}</div>
+                  </div>
+                  <span style={{fontSize:10,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color:C.text}}>
+                    {t.amount_eth?.toFixed(4)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
