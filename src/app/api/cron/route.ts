@@ -36,7 +36,14 @@ export async function GET(req: NextRequest) {
       if (expired?.length) results.push(`Resolved ${expired.length} syndicate signals`);
     } catch (e: any) { console.error("Syndicate resolution error:", e.message); }
 
-    // 2c. SL/TP engine — check all open positions for stop-loss, take-profit, trailing stops
+    // 2c. Reputation updates (every cycle)
+    try {
+      const { updateAllReputations } = await import("@/lib/reputation");
+      await updateAllReputations();
+      results.push("Reputations updated");
+    } catch (e: any) { console.error("Reputation update error:", e.message); }
+
+    // 2d. SL/TP engine — check all open positions for stop-loss, take-profit, trailing stops
     try {
       const { runSLTPEngine } = await import("@/lib/trading-v2");
       await runSLTPEngine();

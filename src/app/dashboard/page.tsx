@@ -19,7 +19,7 @@ const supabase = createClient(
 /* ═══ THEME ═══ */
 const C = {
   hot:"#FF2D55", cold:"#6366f1", match:"#30D158", warn:"#FF9F0A",
-  cyan:"#06b6d4", purple:"#a855f7", pink:"#ec4899",
+  cyan:"#06b6d4", purple:"#a855f7", pink:"#ec4899", gold:"#ffd700",
   bg:"#0a0a0f", surface:"#111118", s2:"#1a1a24", s3:"#222233",
   text:"#f0f0f5", muted:"#6b6b80", dim:"#3a3a4a",
   border:"rgba(255,255,255,0.07)",
@@ -377,6 +377,8 @@ export default function Dashboard(){
   const[emergencyResult,setEmergencyResult]=useState<any>(null);
   const[showEmergencyConfirm,setShowEmergencyConfirm]=useState(false);
   const[showReEnableConfirm,setShowReEnableConfirm]=useState(false);
+  const[feedEvents,setFeedEvents]=useState<any[]>([]);
+  const[feedStats,setFeedStats]=useState<any>(null);
 
   const[form,setForm]=useState({name:"",bio:"",industry:"",building:"",looking_for:"",location:"",website:"",x_handle:"",linkedin:"",avatar_url:"",agent_style:"professional",agent_instructions:""});
   const[obStep,setObStep]=useState(1);
@@ -458,6 +460,25 @@ export default function Dashboard(){
     setChallenges((ch||[]).map(c=>({...c,progress:(prog||[]).find((p:any)=>p.challenge_id===c.id)})));
   }
   async function loadReport(uid:string){const{data}=await supabase.from("agent_reports").select("*").eq("user_id",uid).order("report_date",{ascending:false}).limit(1).maybeSingle(); setReport(data);}
+
+  async function loadFeed(){
+    try{
+      const[evRes,stRes]=await Promise.all([
+        fetch("/api/feed",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"list",limit:30})}),
+        fetch("/api/feed",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"stats"})}),
+      ]);
+      const[evData,stData]=await Promise.all([evRes.json(),stRes.json()]);
+      if(evData.events)setFeedEvents(evData.events);
+      if(stData.reputation!=null)setFeedStats(stData);
+    }catch{}
+  }
+
+  // Poll feed every 10s
+  useEffect(()=>{
+    loadFeed();
+    const iv=setInterval(loadFeed,10000);
+    return()=>clearInterval(iv);
+  },[]);
 
   async function loadWallet(){
     setWalletLoading(true);
@@ -1517,6 +1538,160 @@ export default function Dashboard(){
 
             {(!wallet?.trades||wallet.trades.length===0)&&<div style={{marginTop:12,textAlign:"center",padding:16,color:C.dim,fontSize:11}}>No trades yet. Fund your wallet to enable autonomous trading.</div>}
           </div>
+
+          {/* ═══ STAT CARDS — Reputation, Syndicate, Positions ═══ */}
+          <div style={{display:"flex",gap:6,marginTop:16,marginBottom:16}}>
+            {/* Reputation */}
+            <div style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center"}}>
+              <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em"}}>Reputation</div>
+              <div style={{fontSize:26,fontWeight:900,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginTop:2}}>
+                {feedStats?.reputation||50}
+              </div>
+              <div style={{fontSize:8,color:C.dim}}>visible to others</div>
+            </div>
+            {/* Syndicate */}
+            <div onClick={()=>feedStats?.syndicate?router.push("/dashboard/syndicates"):router.push("/dashboard/syndicates")} style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center",cursor:"pointer"}}>
+              <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em"}}>Syndicate</div>
+              {feedStats?.syndicate?(
+                <>
+                  <div style={{fontSize:13,fontWeight:700,marginTop:4}}>{feedStats.syndicate.emoji} {feedStats.syndicate.name}</div>
+                  <div style={{fontSize:9,color:feedStats.syndicate.profitable_today>0?C.match:C.dim,marginTop:2}}>
+                    {feedStats.syndicate.profitable_today}/{feedStats.syndicate.signals_today} signals profitable
+                  </div>
+                </>
+              ):(
+                <div style={{fontSize:11,color:C.cold,fontWeight:600,marginTop:6}}>Find a Syndicate →</div>
+              )}
+            </div>
+            {/* Positions */}
+            <div onClick={()=>router.push("/trading")} style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center",cursor:"pointer"}}>
+              <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em"}}>Positions</div>
+              <div style={{fontSize:20,fontWeight:800,marginTop:2}}>{feedStats?.positions?.count||0}</div>
+              {(feedStats?.positions?.count||0)>0?(
+                <div style={{fontSize:9,color:C.dim,marginTop:2}}>
+                  <span style={{color:C.match}}>+{(feedStats.positions.best_pct||0).toFixed(1)}%</span>
+                  {" | "}
+                  <span style={{color:C.hot}}>{(feedStats.positions.worst_pct||0).toFixed(1)}%</span>
+                </div>
+              ):(
+                <div style={{fontSize:9,color:C.dim,marginTop:2}}>open</div>
+              )}
+            </div>
+          </div>
+
+          {/* ═══ ACTIVITY FEED ═══ */}
+          <div style={{marginBottom:8,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              Activity
+            </div>
+            {feedEvents.length>0&&(
+              <div style={{fontSize:9,color:C.dim,padding:"3px 8px",borderRadius:5,background:C.s2,display:"flex",alignItems:"center",gap:4}}>
+                <span style={{width:4,height:4,borderRadius:"50%",background:C.match,animation:"pulse-dot 1.5s infinite"}}/>
+                LIVE
+              </div>
+            )}
+          </div>
+
+          {feedEvents.length===0?(
+            <div style={{background:C.surface,borderRadius:14,border:`1px solid ${C.border}`,padding:"32px 20px",textAlign:"center"}}>
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="1.5" strokeLinecap="round" style={{margin:"0 auto 12px"}}>
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+              <div style={{fontSize:13,fontWeight:600,color:C.muted}}>Your feed is empty</div>
+              <div style={{fontSize:11,color:C.dim,marginTop:4}}>Trades, matches, signals, and milestones will appear here.</div>
+            </div>
+          ):(
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              {feedEvents.slice(0,30).map((ev:any,i:number)=>{
+                const t=ev.event_type;
+                const borderColor=t==="trade"?(ev.metadata?.action==="buy"?C.match:C.hot):
+                  t==="match"?"#a855f7":t==="signal"?"#f59e0b":t==="debate"?C.hot:
+                  t==="milestone"?C.gold:t==="reputation_change"?C.cold:
+                  t==="pnl_summary"?C.cyan:C.border;
+                const isDebate=t==="debate";
+                const isPinned=ev.pinned;
+                const time=ev.created_at?new Date(ev.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):"";
+                const ago=ev.created_at?(() => {
+                  const d=Math.floor((Date.now()-new Date(ev.created_at).getTime())/60000);
+                  return d<1?"just now":d<60?`${d}m ago`:d<1440?`${Math.floor(d/60)}h ago`:`${Math.floor(d/1440)}d ago`;
+                })():"";
+
+                return(
+                  <div key={ev.id||i} style={{
+                    background:isPinned?`${borderColor}06`:C.surface,borderRadius:12,
+                    padding:"12px 14px",border:`1px solid ${isPinned?borderColor+"22":C.border}`,
+                    borderLeft:`3px solid ${borderColor}`,
+                    animation:i<3?`float-up 0.3s ease-out ${i*0.06}s both`:"none",
+                  }}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                      <div style={{fontSize:11,fontWeight:700,color:borderColor,textTransform:"uppercase",letterSpacing:"0.03em"}}>
+                        {ev.title}
+                      </div>
+                      <span style={{fontSize:9,color:C.dim}}>{ago}</span>
+                    </div>
+                    {ev.body&&<div style={{fontSize:11,color:C.text,lineHeight:1.5}}>{ev.body}</div>}
+
+                    {/* Trade-specific: confidence + syndicate */}
+                    {t==="trade"&&ev.metadata?.confidence&&(
+                      <div style={{display:"flex",gap:8,marginTop:6,fontSize:9,color:C.dim}}>
+                        <span>Confidence: {ev.metadata.confidence}%</span>
+                        {ev.metadata.syndicate_confidence&&<span>Syndicate: {ev.metadata.syndicate_confidence}%</span>}
+                        {ev.metadata.tx_hash&&(
+                          <a href={`https://basescan.org/tx/${ev.metadata.tx_hash}`} target="_blank" rel="noopener" style={{color:C.cold,textDecoration:"none"}}>View on Chain →</a>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Signal-specific: vote bar */}
+                    {t==="signal"&&ev.metadata?.approve_votes!=null&&(
+                      <div style={{marginTop:6}}>
+                        <div style={{height:5,borderRadius:3,background:C.s2,overflow:"hidden"}}>
+                          <div style={{height:"100%",width:`${((ev.metadata.approve_votes||0)/Math.max(1,(ev.metadata.approve_votes||0)+(ev.metadata.reject_votes||0)))*100}%`,borderRadius:3,background:`linear-gradient(90deg,${C.match},${C.cyan})`}}/>
+                        </div>
+                        <div style={{display:"flex",justifyContent:"space-between",fontSize:8,color:C.dim,marginTop:3}}>
+                          <span style={{color:C.match}}>{ev.metadata.approve_votes} approve</span>
+                          <span style={{color:C.hot}}>{ev.metadata.reject_votes} reject</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Match-specific: agent info */}
+                    {t==="match"&&ev.metadata?.agent_name&&(
+                      <div style={{display:"flex",gap:8,marginTop:6,fontSize:9,color:C.dim}}>
+                        <span style={{fontWeight:600,color:C.text}}>@{ev.metadata.agent_name}</span>
+                        {ev.metadata.strategy&&<span>{ev.metadata.strategy}</span>}
+                        {ev.metadata.reputation&&<span>Rep: {ev.metadata.reputation}</span>}
+                        {ev.metadata.win_rate&&<span>WR: {ev.metadata.win_rate}%</span>}
+                      </div>
+                    )}
+
+                    {/* Debate: watch button */}
+                    {isDebate&&(
+                      <button onClick={()=>router.push("/dashboard/syndicates")} style={{marginTop:6,padding:"5px 10px",borderRadius:6,border:`1px solid ${C.hot}33`,background:"transparent",color:C.hot,fontSize:9,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+                        Watch Full Debate →
+                      </button>
+                    )}
+
+                    {/* Milestone: gold shimmer */}
+                    {t==="milestone"&&(
+                      <div style={{marginTop:4,fontSize:10,color:C.gold,fontStyle:"italic"}}>
+                        {ev.metadata?.agent_note||""}
+                      </div>
+                    )}
+
+                    {/* Reputation: score badge */}
+                    {t==="reputation_change"&&ev.metadata?.new_score&&(
+                      <div style={{marginTop:4,display:"inline-block",padding:"3px 8px",borderRadius:6,background:`${C.cold}10`,fontSize:10,fontWeight:700,color:C.cold}}>
+                        Rep: {ev.metadata.new_score} ({ev.metadata.diff>0?"+":""}{ev.metadata.diff})
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
         </div>)}
 
         {/* ════ PENDING (Agent found these) ════ */}

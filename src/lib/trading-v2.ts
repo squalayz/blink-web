@@ -622,6 +622,17 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
             message: `🟢 Buy ${decision.token}: ${tradeAmount.toFixed(4)} ETH | ${decision.confidence}% confidence | SL:${riskConfig.stop_loss_pct}% TP:+${riskConfig.take_profit_pct}% | ${decision.reasoning}`,
           });
 
+          // Feed event
+          try {
+            const { writeFeedEvent } = await import("./reputation");
+            await writeFeedEvent(agent.user_id, "trade",
+              `BUY ${decision.token}`,
+              `Your agent bought ${tradeAmount.toFixed(4)} ETH of ${decision.token}. ${decision.reasoning}`,
+              { action: "buy", token: decision.token, amount: tradeAmount, confidence: decision.confidence,
+                reasoning: decision.reasoning, tx_hash: result.txHash },
+            );
+          } catch {}
+
           // Referral reward
           try {
             const { data: ref } = await supabaseAdmin.from("users").select("referred_by").eq("id", agent.user_id).single();

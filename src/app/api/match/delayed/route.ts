@@ -201,6 +201,16 @@ async function notifyMatch(userId: string, score: number, synergy: string, match
     metadata: { match_id: matchId },
   });
 
+  // Feed event
+  try {
+    await supabaseAdmin.from("feed_events").insert({
+      user_id: userId, event_type: "match",
+      title: "NEW MATCH",
+      body: `${score}% compatibility — ${synergy}`,
+      metadata: { match_id: matchId, score },
+    });
+  } catch {}
+
   // Telegram push if connected
   try {
     const { data: tg } = await supabaseAdmin.from("telegram_users")
