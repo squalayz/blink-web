@@ -234,6 +234,79 @@ export async function GET(req: NextRequest) {
     onChainBalance = await getWalletBalance(walletAddress);
   }
 
+  // ═══ INSTANT DEPOSIT DETECTION & 5% FEE COLLECTION ═══
+  // Runs on every balance poll (~30s). Detects new deposits and auto-collects fee.
+  let depositCollected = false;
+  let depositInfo: any = null;
+  if (walletAddress && onChainBalance > 0.0001) {
+    try {
+      const { data: tracking } = await supabaseAdmin
+        .from("deposit_tracking")
+        .select("last_known_balance")
+        .eq("user_id", userId)
+        .single();
+
+      const lastKnown = tracking?.last_known_balance || 0;
+      const diff = onChainBalance - lastKnown;
+
+      if (diff > 0.0001) {
+        // New deposit detected — collect 5% immediately
+        const { data: userData } = await supabaseAdmin
+          .from("users")
+          .select("wallet_encrypted_key")
+          .eq("id", userId)
+          .single();
+
+        if (userData?.wallet_encrypted_key) {
+          const result = await collectDepositFee(userData.wallet_encrypted_key, diff);
+
+          if (result.success) {
+            depositCollected = true;
+            depositInfo = { amount: diff, fee: result.fee, net: result.net, tx: result.feeTxHash };
+
+            // Update on-chain balance (post-fee)
+            onChainBalance = onChainBalance - result.fee;
+
+            // Log deposit
+            await supabaseAdmin.from("deposits").insert({
+              user_id: userId,
+              amount_eth: diff,
+              fee_eth: result.fee,
+              net_eth: result.net,
+              fee_tx_hash: result.feeTxHash,
+              status: "confirmed",
+            });
+
+            // Update tracking
+            await supabaseAdmin.from("deposit_tracking").upsert({
+              user_id: userId,
+              last_known_balance: onChainBalance,
+              last_checked_at: new Date().toISOString(),
+            }, { onConflict: "user_id" });
+
+            // Notify user
+            await supabaseAdmin.from("notifications").insert({
+              user_id: userId,
+              type: "deposit",
+              message: `Deposit: ${diff.toFixed(4)} ETH received. Fee: ${result.fee.toFixed(6)} ETH (5%). Credited: ${result.net.toFixed(4)} ETH.`,
+              metadata: JSON.stringify(depositInfo),
+            });
+          }
+        }
+      } else {
+        // No new deposit — keep tracking in sync
+        await supabaseAdmin.from("deposit_tracking").upsert({
+          user_id: userId,
+          last_known_balance: onChainBalance,
+          last_checked_at: new Date().toISOString(),
+        }, { onConflict: "user_id" });
+      }
+    } catch (e) {
+      // Don't break the balance response if deposit detection fails
+      console.error("Deposit detection error:", e);
+    }
+  }
+
   const agentBal = balRes.data;
   const estDays = onChainBalance > 0 ? Math.floor(onChainBalance / 0.0003) : 0;
 
@@ -265,5 +338,7 @@ export async function GET(req: NextRequest) {
     platform_fee_wallet: PLATFORM_FEE_WALLET,
     chain: "Base (L2)",
     chain_id: 8453,
+    // Instant deposit info (null if no new deposit this poll)
+    deposit_just_collected: depositCollected ? depositInfo : null,
   });
 }
