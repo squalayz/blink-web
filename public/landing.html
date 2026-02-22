@@ -164,7 +164,7 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
 @keyframes scroll-bob{0%,100%{opacity:1;transform:translateX(-50%) translateY(0)}50%{opacity:0.3;transform:translateX(-50%) translateY(8px)}}
 
 /* NAVBAR */
-.navbar{position:fixed;top:0;left:0;right:0;z-index:500;display:flex;align-items:center;justify-content:space-between;padding:16px 28px;transition:all 0.4s}
+.navbar{position:fixed;top:30px;left:0;right:0;z-index:500;display:flex;align-items:center;justify-content:space-between;padding:16px 28px;transition:all 0.4s}
 .navbar.scrolled{background:rgba(5,5,8,0.75);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.04);padding:12px 28px}
 .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text);font-weight:800;font-size:18px;letter-spacing:-0.02em}
 .nav-logo .logo-orbs{width:28px;height:28px;position:relative}
@@ -317,6 +317,11 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
 </style>
 </head>
 <body>
+<div id="topBanner" style="position:fixed;top:0;left:0;right:0;z-index:1000;background:linear-gradient(90deg,#0052FF,#6366f1);padding:8px 16px;text-align:center;font-size:11px;font-weight:600;color:white;letter-spacing:0.5px;display:flex;align-items:center;justify-content:center;gap:8px">
+  <span style="display:inline-flex;align-items:center;gap:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="white"/><path d="M12 6l4 6H8l4-6z" fill="#0052FF"/></svg> Powered by AI & Base L2</span>
+  <span style="opacity:0.6">·</span>
+  <span>All deposits & trades use ETH on Base</span>
+</div>
 <div class="preload" id="preload"><div class="dot"></div></div>
 <div class="scroll-hint" id="scrollHint"><span></span></div>
 <canvas id="mesh"></canvas>
@@ -582,7 +587,7 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
 <!-- S10: FOOTER -->
 <section id="footer">
   <div class="section-inner">
-    <div class="tagline">Built by humans. Powered by agents.</div>
+    <div class="tagline">Built by humans. Powered by AI & Base L2.</div>
     <div class="links">
       <a href="/leaderboard">Leaderboard</a>
       <a href="/terms">Terms</a>

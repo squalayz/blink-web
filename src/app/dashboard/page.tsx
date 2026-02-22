@@ -941,6 +941,12 @@ export default function Dashboard(){
     <div style={{minHeight:"100vh",background:C.bg}}>
       {/* Hide global navbar */}
       <style>{`nav.mm-global-nav{display:none!important}`}</style>
+      {/* Base ETH Banner */}
+      <div style={{position:"sticky",top:0,left:0,right:0,zIndex:1000,background:"linear-gradient(90deg,#0052FF,#6366f1)",padding:"7px 16px",textAlign:"center",fontSize:11,fontWeight:600,color:"white",letterSpacing:"0.5px",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+        <span style={{display:"inline-flex",alignItems:"center",gap:4}}>⚡ Powered by AI & Base L2</span>
+        <span style={{opacity:0.5}}>·</span>
+        <span>All deposits & trades use ETH on Base</span>
+      </div>
       {showWalletDrop&&<div onClick={()=>setShowWalletDrop(false)} style={{position:"fixed",inset:0,zIndex:998}}/>}
       {/* ── Nav ── */}
       <nav style={{padding:"4px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
