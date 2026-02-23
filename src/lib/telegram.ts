@@ -27,7 +27,7 @@ export async function sendTelegramMessage(
     body.reply_markup = { inline_keyboard: inlineKeyboard };
   }
 
-  const res = await fetch(`${getAPI()}/sendMessage`, {
+  let res = await fetch(`${getAPI()}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -36,6 +36,15 @@ export async function sendTelegramMessage(
   if (!res.ok) {
     const err = await res.text();
     console.error("[TG] Send error:", res.status, err);
+    // Retry without parse_mode (Markdown can fail on special chars)
+    const fallback = { ...body };
+    delete fallback.parse_mode;
+    res = await fetch(`${getAPI()}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fallback),
+    });
+    if (!res.ok) console.error("[TG] Fallback also failed:", res.status, await res.text());
   }
   return res.ok;
 }

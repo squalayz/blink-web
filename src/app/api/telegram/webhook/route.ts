@@ -409,3 +409,5 @@ async function getUserByChatId(chatId: number) {
     .from("users").select("*").eq("id", data.user_id).single();
   return user;
 }
+
+export const runtime = "nodejs";
