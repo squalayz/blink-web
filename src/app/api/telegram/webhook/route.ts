@@ -6,12 +6,34 @@ import {
   statusMessage, balanceMessage, pendingMatchMessage, settingsMessage,
 } from "@/lib/telegram";
 
+// Direct Telegram API send — bypasses all library code
+async function directSend(chatId: number | string, text: string, keyboard?: any[][]) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) { console.error("[TG] NO TOKEN"); return; }
+  const body: any = { chat_id: chatId, text, disable_web_page_preview: true };
+  if (keyboard?.length) body.reply_markup = { inline_keyboard: keyboard };
+  // Try with Markdown first
+  const r1 = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...body, parse_mode: "Markdown" }),
+  });
+  if (!r1.ok) {
+    console.error("[TG] Markdown send failed:", await r1.text());
+    // Retry without parse_mode
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+}
+
 // POST /api/telegram/webhook — receives updates from Telegram
 export async function POST(req: NextRequest) {
   try {
     const update = await req.json();
-    console.log("[TG] BOT_TOKEN set:", !!process.env.TELEGRAM_BOT_TOKEN, "len:", process.env.TELEGRAM_BOT_TOKEN?.length);
-    console.log("[TG] Webhook received:", JSON.stringify(update).slice(0, 200));
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    console.log("[TG] BOT_TOKEN set:", !!token, "len:", token?.length);
+    console.log("[TG] Webhook received:", JSON.stringify(update).slice(0, 300));
 
     // Handle commands (text messages)
     if (update.message?.text) {
@@ -21,13 +43,31 @@ export async function POST(req: NextRequest) {
       
       // Direct send test — bypass all logic
       if (text === "/ping") {
-        const token = process.env.TELEGRAM_BOT_TOKEN;
-        const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: chatId, text: `🏓 Pong! Token len: ${token?.length || 0}` }),
-        });
-        console.log("[TG] Ping response:", r.status, await r.text());
+        await directSend(chatId, `🏓 Pong! Token len: ${token?.length || 0}`);
+        return NextResponse.json({ ok: true });
+      }
+
+      // /start — use direct send to guarantee delivery
+      if (text.startsWith("/start")) {
+        const userId = text.split(" ")[1];
+        if (userId) {
+          try {
+            const { data: user } = await supabaseAdmin.from("users").select("name").eq("id", userId).single();
+            if (user) {
+              await supabaseAdmin.from("notification_settings").upsert({
+                user_id: userId, telegram_chat_id: String(chatId),
+              }, { onConflict: "user_id" });
+              const msg = welcomeLinkedMessage(user.name || update.message.from?.first_name || "there");
+              await directSend(chatId, msg.text, msg.keyboard);
+              return NextResponse.json({ ok: true });
+            }
+          } catch (e: any) {
+            console.error("[TG] Link error:", e.message);
+          }
+        }
+        // Generic welcome
+        const msg = welcomeMessage();
+        await directSend(chatId, msg.text, msg.keyboard);
         return NextResponse.json({ ok: true });
       }
       
@@ -36,14 +76,7 @@ export async function POST(req: NextRequest) {
         console.log("[TG] Message handled successfully");
       } catch (handlerErr: any) {
         console.error("[TG] CRASH:", handlerErr.message);
-        const token = process.env.TELEGRAM_BOT_TOKEN;
-        if (token && chatId) {
-          await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chatId, text: `⚠️ Error: ${handlerErr.message?.slice(0, 200)}` }),
-          });
-        }
+        await directSend(chatId, `⚠️ Error: ${handlerErr.message?.slice(0, 200)}`);
       }
     }
 
