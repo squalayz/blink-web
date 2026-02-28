@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session";
 import { supabaseAdmin as supabase } from "@/lib/supabase";
 
-const PLATFORM_WALLET = "0xEe9D166D9620af58248F5A7b4e86d3177E96c280";
+const PLATFORM_WALLET = "0xae055E5e11Eb9Da449fF049e97FfbCbc904d91a1";
 const MINT_FEE = 0.01;
 
 export async function POST(req: NextRequest) {

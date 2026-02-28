@@ -1,0 +1,54 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
+// This page checks auth state:
+// - Logged in → redirect to /dashboard
+// - Not logged in → show landing page (BoostAI)
+
+export default function Home() {
+  const router = useRouter();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    // Check if user has a session
+    fetch("/api/auth/siwe/session")
+      .then((r) => r.json())
+      .then((session) => {
+        if (session?.user) {
+          router.push("/dashboard");
+        } else {
+          setChecking(false);
+        }
+      })
+      .catch(() => setChecking(false));
+  }, [router]);
+
+  if (checking) {
+    return (
+      <div style={{
+        minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+        background: "#05040f", color: "#f0eeff"
+      }}>
+        <div style={{ textAlign: "center" }}>
+          <img src="/boostai-logo.png" alt="BoostAI" style={{ width: 80, height: 80, filter: "drop-shadow(0 0 20px rgba(168,85,247,0.5))" }} />
+          <div style={{
+            fontFamily: "'Orbitron', sans-serif",
+            fontWeight: 800, fontSize: 24, marginTop: 16, letterSpacing: "4px",
+            background: "linear-gradient(135deg, #a855f7, #22d3ee)",
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent"
+          }}>BOOSTAI</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Render landing page inline via iframe — fill entire viewport, hide nav
+  return (
+    <>
+      <style>{`nav, header { display: none !important; } body { overflow: hidden; }`}</style>
+      <iframe src="/landing.html" style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", border: "none", zIndex: 9999 }} />
+    </>
+  );
+}

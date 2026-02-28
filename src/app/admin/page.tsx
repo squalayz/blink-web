@@ -322,7 +322,7 @@ export default function AdminPanel() {
 
           <div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:8}}>PLATFORM WALLET</div>
           <div style={{background:C.surface,borderRadius:10,padding:12,border:`1px solid ${C.border}`,fontSize:10}}>
-            <div style={{fontFamily:"'JetBrains Mono',monospace",color:C.cyan,marginBottom:4}}>0xEe9D166D9620af58248F5A7b4e86d3177E96c280</div>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",color:C.cyan,marginBottom:4}}>0xae055E5e11Eb9Da449fF049e97FfbCbc904d91a1</div>
             <div style={{color:C.dim}}>All deposit + trade fees auto-send here</div>
           </div>
         </div>

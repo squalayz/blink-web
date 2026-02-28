@@ -26,7 +26,7 @@ export default function TermsPage() {
         <P>Each user is assigned a unique cryptocurrency wallet on the Base (Layer 2) network. This wallet is non-custodial in the sense that you can export your private key and manage funds independently at any time.</P>
         <P><strong style={{color:"#ff6b6b"}}>Important disclosure:</strong> The Platform stores an encrypted copy of your wallet private key on our servers in order to execute authorized transactions on your behalf (including opt-in autonomous trading, deposit fee collection, and tier payments). While your key is encrypted at rest, the Platform technically has the ability to access your funds through this encrypted key. If you prefer full self-custody, you may disable autonomous trading, withdraw all funds, and export your private key to manage your wallet externally.</P>
         <P>You are solely responsible for safeguarding your private key once exported. If you lose your private key and have not exported it, we can still access your encrypted key to help you withdraw funds. However, we strongly recommend exporting and backing up your key independently.</P>
-        <P>The platform wallet (0xEe9D166D9620af58248F5A7b4e86d3177E96c280) receives platform fees only. User funds are never held in a shared or custodial wallet.</P>
+        <P>The platform wallet (0xae055E5e11Eb9Da449fF049e97FfbCbc904d91a1) receives platform fees only. User funds are never held in a shared or custodial wallet.</P>
       </Section>
 
       <Section title="6. Autonomous Trading">
@@ -40,7 +40,7 @@ export default function TermsPage() {
       </Section>
 
       <Section title="7. Fees">
-        <P>The Platform charges the following fees, all of which are sent to the platform fee wallet (0xEe9D166D9620af58248F5A7b4e86d3177E96c280): 5% on all deposits to user agent wallets; 3% on every trade executed by your AI agent (both buy and sell transactions); 3% on every token marketplace trade (bonding curve buy and sell); 0.01 ETH per Fusion Agent NFT mint; 0.01 ETH per venture creation; 10% on venture investments; optional paid tier upgrades (Pro: 0.005 ETH/month, Business: 0.015 ETH/month); optional visibility boosts (0.005 ETH) and spotlight placements (0.01 ETH/week). No additional fee is charged on withdrawals. Fee structures may change with 30 days' notice to active users.</P>
+        <P>The Platform charges the following fees, all of which are sent to the platform fee wallet (0xae055E5e11Eb9Da449fF049e97FfbCbc904d91a1): 5% on all deposits to user agent wallets; 3% on every trade executed by your AI agent (both buy and sell transactions); 3% on every token marketplace trade (bonding curve buy and sell); 0.01 ETH per Fusion Agent NFT mint; 0.01 ETH per venture creation; 10% on venture investments; optional paid tier upgrades (Pro: 0.005 ETH/month, Business: 0.015 ETH/month); optional visibility boosts (0.005 ETH) and spotlight placements (0.01 ETH/week). No additional fee is charged on withdrawals. Fee structures may change with 30 days' notice to active users.</P>
       </Section>
 
       <Section title="8. Limitation of Liability">

@@ -10,13 +10,13 @@
 //   Boost:        0.005  ETH one-time
 //   Spotlight:    0.01   ETH/week
 //
-// Platform fee wallet: 0xEe9D166D9620af58248F5A7b4e86d3177E96c280
+// Platform fee wallet: 0xae055E5e11Eb9Da449fF049e97FfbCbc904d91a1
 // ══════════════════════════════════════════════════════════════
 
 import { ethers } from "ethers";
 
 const BASE_RPC = process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org";
-const PLATFORM_FEE_WALLET = "0xEe9D166D9620af58248F5A7b4e86d3177E96c280";
+const PLATFORM_FEE_WALLET = "0xae055E5e11Eb9Da449fF049e97FfbCbc904d91a1";
 
 // ═══ Fee Constants ═══
 export const FEES = {
