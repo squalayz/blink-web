@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Lock, Search, Sparkles, Send, Play, Pause, ArrowLeft, ArrowRight,
   Lightbulb, Cpu, Check, CheckCircle, Timer, MessageCircle, Share2,
-  Award, Star, DollarSign, Copy, Handshake, Users, Zap, BarChart3
+  Award, Star, DollarSign, Copy, Handshake, Users, Zap, BarChart3,
+  Camera, Heart, X, Bot, User as UserIcon, Activity, MapPin, Briefcase,
+  Crown, Eye, Shield, Flame
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import { C, MMLogo, Avatar, Btn, MeshGraph } from "./shared";
@@ -15,7 +17,593 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-/* ═══ MATCH REPLAY ═══ */
+/* ═══════════════════════════════════════════════════════════════
+   INJECTED KEYFRAME ANIMATIONS
+   ═══════════════════════════════════════════════════════════════ */
+
+function SocialStyles() {
+  return (
+    <style>{`
+      @keyframes mm-slide-up {
+        from { transform: translateY(40px) scale(0.95); opacity: 0; }
+        to { transform: translateY(0) scale(1); opacity: 1; }
+      }
+      @keyframes mm-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes mm-scale-in {
+        from { transform: scale(0); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+      }
+      @keyframes mm-slide-from-left {
+        from { transform: translateX(-80px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      @keyframes mm-slide-from-right {
+        from { transform: translateX(80px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      @keyframes mm-count-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.08); }
+      }
+      @keyframes mm-confetti {
+        0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(400px) rotate(720deg); opacity: 0; }
+      }
+      @keyframes mm-sparkle {
+        0%, 100% { opacity: 0; transform: scale(0); }
+        50% { opacity: 1; transform: scale(1); }
+      }
+      @keyframes mm-glow-pulse {
+        0%, 100% { box-shadow: 0 0 8px rgba(99,102,241,0.2); }
+        50% { box-shadow: 0 0 20px rgba(99,102,241,0.5), 0 0 40px rgba(6,182,212,0.2); }
+      }
+      @keyframes mm-typing-dot {
+        0%, 60%, 100% { transform: translateY(0); }
+        30% { transform: translateY(-6px); }
+      }
+      @keyframes mm-heart-glow {
+        0%, 100% { filter: drop-shadow(0 0 6px rgba(255,45,85,0.4)); transform: scale(1); }
+        50% { filter: drop-shadow(0 0 16px rgba(255,45,85,0.8)); transform: scale(1.12); }
+      }
+      @keyframes mm-toast-in {
+        from { transform: translate(-50%, 20px); opacity: 0; }
+        to { transform: translate(-50%, 0); opacity: 1; }
+      }
+      @keyframes mm-toast-out {
+        from { transform: translate(-50%, 0); opacity: 1; }
+        to { transform: translate(-50%, -20px); opacity: 0; }
+      }
+      @keyframes mm-tip-glow {
+        0%, 100% { box-shadow: 0 0 8px currentColor; }
+        50% { box-shadow: 0 0 20px currentColor, 0 0 40px currentColor; }
+      }
+    `}</style>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TOAST
+   ═══════════════════════════════════════════════════════════════ */
+
+function Toast({ text, visible }: { text: string; visible: boolean }) {
+  if (!text) return null;
+  return (
+    <div style={{
+      position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)",
+      background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12,
+      padding: "12px 24px", fontSize: 13, color: C.text, zIndex: 250,
+      animation: visible ? "mm-toast-in 0.3s ease forwards" : "mm-toast-out 0.3s ease forwards",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+      pointerEvents: "none", whiteSpace: "nowrap", maxWidth: "90vw",
+    }}>
+      {text}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SWIPE DISCOVERY
+   ═══════════════════════════════════════════════════════════════ */
+
+function SwipeDiscovery({ profiles, onLike, onPass, showToast }: {
+  profiles: any[];
+  onLike: (p: any) => void;
+  onPass: (p: any) => void;
+  showToast: (t: string) => void;
+}) {
+  const [idx, setIdx] = useState(0);
+  const [drag, setDrag] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [exiting, setExiting] = useState<"left" | "right" | null>(null);
+  const [entering, setEntering] = useState(false);
+  const startRef = useRef<{ x: number; y: number } | null>(null);
+
+  const current = profiles[idx];
+
+  const getScore = (p: any) => {
+    const hash = (p.user_id || p.id || "x").split("").reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
+    return 65 + (hash % 30);
+  };
+
+  function handleStart(x: number, y: number) {
+    startRef.current = { x, y };
+    setDragging(true);
+  }
+  function handleMove(x: number, y: number) {
+    if (!startRef.current) return;
+    setDrag({ x: x - startRef.current.x, y: (y - startRef.current.y) * 0.3 });
+  }
+  function handleEnd() {
+    if (!startRef.current) return;
+    startRef.current = null;
+    setDragging(false);
+    if (drag.x > 80) triggerSwipe("right");
+    else if (drag.x < -80) triggerSwipe("left");
+    else setDrag({ x: 0, y: 0 });
+  }
+
+  function triggerSwipe(dir: "left" | "right") {
+    setExiting(dir);
+    setDrag({ x: 0, y: 0 });
+    setTimeout(() => {
+      if (dir === "right") onLike(current);
+      else onPass(current);
+      setExiting(null);
+      setEntering(true);
+      setIdx(i => i + 1);
+      setTimeout(() => setEntering(false), 400);
+    }, 350);
+  }
+
+  if (!current) {
+    return (
+      <div style={{ textAlign: "center", padding: 40, color: C.dim, marginBottom: 20 }}>
+        <Search size={28} style={{ marginBottom: 8 }} />
+        <div style={{ fontSize: 14, fontWeight: 600 }}>No more profiles to discover</div>
+        <div style={{ fontSize: 12, marginTop: 4 }}>Check back later for new people</div>
+      </div>
+    );
+  }
+
+  const isPopular = (current.match_count || 0) > 5;
+  const pendingCount = Math.max(3, (current.match_count || 0) - 2);
+  const score = getScore(current);
+  const rotation = dragging ? drag.x * 0.08 : 0;
+  const likeOpacity = Math.min(1, Math.max(0, drag.x / 80));
+  const passOpacity = Math.min(1, Math.max(0, -drag.x / 80));
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+        <Heart size={16} color={C.hot} /> Discover People
+      </div>
+
+      <div style={{ position: "relative", height: isPopular ? 480 : 400, overflow: "hidden" }}>
+        {/* Card */}
+        <div
+          onTouchStart={e => handleStart(e.touches[0].clientX, e.touches[0].clientY)}
+          onTouchMove={e => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }}
+          onTouchEnd={handleEnd}
+          onMouseDown={e => handleStart(e.clientX, e.clientY)}
+          onMouseMove={e => { if (dragging) handleMove(e.clientX, e.clientY); }}
+          onMouseUp={handleEnd}
+          onMouseLeave={() => { if (dragging) handleEnd(); }}
+          style={{
+            position: "absolute", inset: 0,
+            background: C.surface, borderRadius: 20,
+            border: `1px solid ${C.border}`, overflow: "hidden",
+            cursor: dragging ? "grabbing" : "grab", userSelect: "none",
+            transform: exiting === "right"
+              ? "translateX(120%) rotate(15deg)"
+              : exiting === "left"
+              ? "translateX(-120%) rotate(-15deg)"
+              : `translateX(${drag.x}px) translateY(${drag.y}px) rotate(${rotation}deg)`,
+            transition: dragging ? "none" : "all 0.4s cubic-bezier(0.2,0.8,0.2,1)",
+            opacity: exiting ? 0 : 1,
+            animation: entering ? "mm-slide-up 0.4s ease" : undefined,
+          }}
+        >
+          {/* Like overlay */}
+          {likeOpacity > 0.05 && (
+            <div style={{
+              position: "absolute", top: 24, left: 24, zIndex: 10,
+              padding: "8px 18px", borderRadius: 10, border: `3px solid ${C.match}`,
+              color: C.match, fontSize: 22, fontWeight: 900, transform: "rotate(-12deg)",
+              opacity: likeOpacity, background: `${C.match}10`,
+            }}>CONNECT</div>
+          )}
+          {/* Pass overlay */}
+          {passOpacity > 0.05 && (
+            <div style={{
+              position: "absolute", top: 24, right: 24, zIndex: 10,
+              padding: "8px 18px", borderRadius: 10, border: `3px solid ${C.hot}`,
+              color: C.hot, fontSize: 22, fontWeight: 900, transform: "rotate(12deg)",
+              opacity: passOpacity, background: `${C.hot}10`,
+            }}>PASS</div>
+          )}
+
+          <div style={{ padding: 22, display: "flex", flexDirection: "column", height: "100%" }}>
+            {/* Avatar + Score */}
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
+              <Avatar name={current.agent_name || current.user?.name || "?"} size={68} url={current.agent_avatar_url} />
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 19, fontWeight: 700 }}>{current.user?.name || current.agent_name || "Anonymous"}</div>
+                  {isPopular && (
+                    <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: `${C.warn}20`, color: C.warn, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                      <Zap size={10} /> Popular
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: C.muted, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  {current.user?.industry && <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><Briefcase size={11} />{current.user.industry}</span>}
+                  {current.user?.location && <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><MapPin size={11} />{current.user.location}</span>}
+                </div>
+              </div>
+              <div style={{ textAlign: "center", flexShrink: 0 }}>
+                <div style={{ fontSize: 26, fontWeight: 800, background: `linear-gradient(135deg,${C.cold},${C.cyan})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{score}%</div>
+                <div style={{ fontSize: 10, color: C.muted }}>Match</div>
+              </div>
+            </div>
+
+            {/* Bio */}
+            <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 14, flex: 1 }}>
+              {current.summary || "Exploring new connections on MishMesh..."}
+            </p>
+
+            {/* Tags */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+              {(current.capabilities || []).slice(0, 5).map((c: string) => (
+                <span key={c} style={{ fontSize: 11, padding: "4px 10px", background: `${C.cold}12`, borderRadius: 8, color: C.cold, border: `1px solid ${C.cold}22` }}>{c}</span>
+              ))}
+            </div>
+
+            {/* Priority Connect card for popular users */}
+            {isPopular && (
+              <div style={{
+                background: `linear-gradient(135deg, ${C.cold}10, ${C.cyan}08)`,
+                borderRadius: 14, padding: 14, marginBottom: 14,
+                border: `1px solid ${C.cold}33`,
+                animation: "mm-glow-pulse 3s infinite",
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Skip the Line</div>
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ display: "flex" }}>
+                    {[0, 1, 2].map(i => (
+                      <div key={i} style={{ width: 18, height: 18, borderRadius: "50%", background: [C.cold, C.cyan, C.purple][i], border: `2px solid ${C.surface}`, marginLeft: i ? -6 : 0 }} />
+                    ))}
+                  </div>
+                  {pendingCount} people waiting to connect
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: C.cyan }}>0.005 ETH</span>
+                  <button onClick={(e) => { e.stopPropagation(); showToast("Coming soon! Priority Connect launches with payments."); }}
+                    style={{
+                      padding: "8px 18px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: "inherit",
+                      background: `linear-gradient(135deg, ${C.cold}, ${C.cyan})`, color: "white", fontSize: 12, fontWeight: 700,
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                    }}>
+                    <Zap size={12} />Connect Now
+                  </button>
+                </div>
+                <div style={{ fontSize: 9, color: C.dim, marginTop: 6 }}>They earn 80% · MishMesh earns 20%</div>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div style={{ display: "flex", justifyContent: "center", gap: 24, paddingTop: 4 }}>
+              <button onClick={() => triggerSwipe("left")} style={{
+                width: 56, height: 56, borderRadius: "50%", border: `2px solid ${C.hot}33`,
+                background: `${C.hot}10`, display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", transition: "all 0.2s",
+              }}><X size={24} color={C.hot} /></button>
+              <button onClick={() => triggerSwipe("right")} style={{
+                width: 56, height: 56, borderRadius: "50%", border: `2px solid ${C.match}33`,
+                background: `${C.match}10`, display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", transition: "all 0.2s",
+              }}><CheckCircle size={24} color={C.match} /></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MUTUAL MATCH CELEBRATION OVERLAY
+   ═══════════════════════════════════════════════════════════════ */
+
+function MutualMatchOverlay({ userProfile, otherProfile, score, onChat, onKeepMeshing }: {
+  userProfile: any;
+  otherProfile: any;
+  score: number;
+  onChat: () => void;
+  onKeepMeshing: () => void;
+}) {
+  const [countUp, setCountUp] = useState(0);
+  const [showContent, setShowContent] = useState(false);
+
+  useEffect(() => {
+    setTimeout(() => setShowContent(true), 300);
+    const target = Math.round(score * 100);
+    let current = 0;
+    const interval = setInterval(() => {
+      current += 2;
+      if (current >= target) { current = target; clearInterval(interval); }
+      setCountUp(current);
+    }, 25);
+    return () => clearInterval(interval);
+  }, [score]);
+
+  const confetti = Array.from({ length: 30 }, (_, i) => ({
+    left: Math.random() * 100,
+    delay: Math.random() * 2,
+    duration: 2.5 + Math.random() * 2,
+    color: [C.cold, C.cyan, C.purple, C.pink, C.gold, C.match][i % 6],
+    size: 4 + Math.random() * 6,
+  }));
+
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+      background: "rgba(0,0,0,0.95)", zIndex: 200,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      animation: "mm-fade-in 0.3s ease",
+    }}>
+      {confetti.map((c, i) => (
+        <div key={i} style={{
+          position: "absolute", top: -10, left: `${c.left}%`,
+          width: c.size, height: c.size, borderRadius: c.size > 7 ? 2 : "50%",
+          background: c.color,
+          animation: `mm-confetti ${c.duration}s ${c.delay}s ease-out infinite`,
+        }} />
+      ))}
+
+      {showContent && (
+        <div style={{ textAlign: "center", padding: 20, maxWidth: 360, animation: "mm-scale-in 0.4s ease" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 24, marginBottom: 28 }}>
+            <div style={{ animation: "mm-slide-from-left 0.6s ease" }}>
+              <Avatar name={userProfile?.name || "You"} size={80} url={userProfile?.avatar_url} />
+            </div>
+            <div style={{ animation: "mm-heart-glow 2s infinite" }}>
+              <Heart size={36} color={C.hot} fill={C.hot} />
+            </div>
+            <div style={{ animation: "mm-slide-from-right 0.6s ease" }}>
+              <Avatar name={otherProfile?.name || "?"} size={80} url={otherProfile?.avatar_url} />
+            </div>
+          </div>
+
+          <div style={{ fontSize: 24, fontWeight: 800, color: C.text, marginBottom: 8 }}>It&apos;s a Match!</div>
+          <div style={{
+            fontSize: 52, fontWeight: 900, marginBottom: 4,
+            background: `linear-gradient(135deg,${C.cold},${C.cyan})`,
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+            animation: "mm-count-pulse 0.6s ease",
+          }}>
+            {countUp}%
+          </div>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 28 }}>compatibility</div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <button onClick={onChat} style={{
+              padding: "14px 28px", borderRadius: 12, border: "none", cursor: "pointer",
+              background: `linear-gradient(135deg, ${C.cold}, ${C.cyan})`,
+              color: "white", fontSize: 15, fontWeight: 700, fontFamily: "inherit",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}>
+              <MessageCircle size={18} /> Start Conversation
+            </button>
+            <button onClick={onKeepMeshing} style={{
+              padding: "12px 28px", borderRadius: 12, cursor: "pointer",
+              background: "transparent", border: `1px solid ${C.border}`,
+              color: C.muted, fontSize: 14, fontWeight: 600, fontFamily: "inherit",
+            }}>
+              Keep Meshing
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LOCKED PHOTO SEND MODAL
+   ═══════════════════════════════════════════════════════════════ */
+
+function LockedPhotoModal({ onClose, onSend }: { onClose: () => void; onSend: (price: string) => void }) {
+  const [price, setPrice] = useState("0.003");
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+      background: "rgba(0,0,0,0.9)", zIndex: 150,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+    }}>
+      <div style={{
+        background: C.surface, borderRadius: 20, maxWidth: 360, width: "100%",
+        border: `1px solid ${C.border}`, overflow: "hidden",
+        animation: "mm-scale-in 0.3s ease",
+      }}>
+        <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 8 }}>
+          <Camera size={18} color={C.cold} />
+          <span style={{ fontWeight: 700, fontSize: 15 }}>Share a Locked Photo</span>
+          <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 20 }}>×</button>
+        </div>
+        <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{
+            width: 80, height: 80, borderRadius: 16, margin: "0 auto",
+            background: `linear-gradient(135deg, ${C.cold}30, ${C.cyan}20)`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Lock size={32} color={C.cold} />
+          </div>
+          <p style={{ fontSize: 13, color: C.muted, textAlign: "center", lineHeight: 1.6, margin: 0 }}>
+            Your photo will be blurred until they pay to unlock it. You earn 100% of the unlock fee.
+          </p>
+          <div>
+            <label style={{ fontSize: 11, color: C.muted, marginBottom: 6, display: "block" }}>Unlock Price (ETH)</label>
+            <input value={price} onChange={e => setPrice(e.target.value)} type="text"
+              style={{
+                width: "100%", background: C.s2, border: `1px solid ${C.border}`,
+                borderRadius: 10, padding: "12px 14px", color: C.cyan, fontSize: 16,
+                fontFamily: "monospace", fontWeight: 700, boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <button onClick={() => onSend(price)} style={{
+            padding: "14px 24px", borderRadius: 12, border: "none", cursor: "pointer",
+            background: `linear-gradient(135deg, ${C.cold}, ${C.cyan})`,
+            color: "white", fontSize: 14, fontWeight: 700, fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          }}>
+            <Camera size={16} /> Share Locked Photo
+          </button>
+          <div style={{ fontSize: 10, color: C.dim, textAlign: "center" }}>Paid on Base L2 · Instant settlement</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LOCKED PHOTO CARD (in chat)
+   ═══════════════════════════════════════════════════════════════ */
+
+function LockedPhotoCard({ price, onUnlock }: { price: number; onUnlock: () => void }) {
+  return (
+    <div style={{
+      width: 220, borderRadius: 16, overflow: "hidden",
+      border: "2px solid transparent",
+      backgroundImage: `linear-gradient(${C.surface}, ${C.surface}), linear-gradient(135deg, ${C.cold}, ${C.cyan})`,
+      backgroundOrigin: "border-box",
+      backgroundClip: "padding-box, border-box",
+      position: "relative",
+    }}>
+      {/* Frosted glass area */}
+      <div style={{
+        height: 160, position: "relative",
+        background: `linear-gradient(135deg, ${C.cold}20, ${C.cyan}15, ${C.purple}10)`,
+        backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      }}>
+        {/* Sparkle dots */}
+        {[0, 1, 2, 3, 4].map(i => (
+          <div key={i} style={{
+            position: "absolute",
+            top: `${20 + Math.sin(i * 1.5) * 30}%`,
+            left: `${15 + Math.cos(i * 2) * 35 + 35}%`,
+            width: 3, height: 3, borderRadius: "50%",
+            background: i % 2 === 0 ? C.cold : C.cyan,
+            animation: `mm-sparkle ${1.5 + i * 0.3}s ${i * 0.4}s infinite`,
+          }} />
+        ))}
+        <Lock size={28} color="white" style={{ marginBottom: 6 }} />
+        <div style={{ fontSize: 13, fontWeight: 600, color: "white" }}>Locked Photo</div>
+      </div>
+      {/* Info */}
+      <div style={{ padding: 14, textAlign: "center" }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.cyan, marginBottom: 8 }}>{price} ETH</div>
+        <button onClick={onUnlock} style={{
+          width: "100%", padding: "10px 16px", borderRadius: 10, border: "none", cursor: "pointer",
+          background: `linear-gradient(135deg, ${C.cold}, ${C.cyan})`,
+          color: "white", fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+        }}>
+          Tap to Unlock
+        </button>
+        <div style={{ fontSize: 9, color: C.dim, marginTop: 6 }}>Paid on Base L2</div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TIP MENU
+   ═══════════════════════════════════════════════════════════════ */
+
+function TipMenu({ onSelect, onClose }: { onSelect: (type: string, amount: number) => void; onClose: () => void }) {
+  const tips = [
+    { type: "power_react", label: "Power React", amount: 0.001, color: C.warn, emoji: "⚡" },
+    { type: "tip", label: "Tip", amount: 0.002, color: C.cold, emoji: "💜" },
+    { type: "super_tip", label: "Super Tip", amount: 0.01, color: C.gold, emoji: "🌟" },
+  ];
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 139 }} />
+      <div style={{
+        position: "absolute", bottom: "100%", right: 0, marginBottom: 8,
+        background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`,
+        padding: 6, minWidth: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+        animation: "mm-slide-up 0.2s ease", zIndex: 140,
+      }}>
+        <div style={{ padding: "6px 12px", fontSize: 10, color: C.dim, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Send a Tip</div>
+        {tips.map(t => (
+          <button key={t.type} onClick={() => onSelect(t.type, t.amount)} style={{
+            width: "100%", padding: "10px 12px", borderRadius: 10,
+            background: "transparent", border: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            color: C.text, fontFamily: "inherit", fontSize: 13, transition: "background 0.15s",
+          }}
+            onMouseEnter={e => (e.currentTarget.style.background = C.s2)}
+            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+          >
+            <span style={{ fontWeight: 600 }}>{t.emoji} {t.label}</span>
+            <span style={{ fontSize: 12, color: t.color, fontWeight: 700 }}>{t.amount} ETH</span>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ACTIVITY FEED
+   ═══════════════════════════════════════════════════════════════ */
+
+function ActivityFeed() {
+  const activities = [
+    { icon: <Users size={14} color={C.cold} />, text: "Sarah and Marcus just fused their agents", time: "2m ago", bg: `${C.cold}12` },
+    { icon: <Shield size={14} color={C.purple} />, text: "New syndicate formed: DeFi Degens", time: "8m ago", bg: `${C.purple}12` },
+    { icon: <Award size={14} color={C.gold} />, text: "Alex hit A-grade performance", time: "15m ago", bg: `${C.gold}12` },
+    { icon: <Sparkles size={14} color={C.cyan} />, text: "12 new matches in the last hour", time: "22m ago", bg: `${C.cyan}12` },
+    { icon: <Camera size={14} color={C.pink} />, text: "Jessica earned 0.05 ETH from photo unlocks today", time: "34m ago", bg: `${C.pink}12` },
+    { icon: <Zap size={14} color={C.warn} />, text: "Priority Connect volume up 40% this week", time: "1h ago", bg: `${C.warn}12` },
+    { icon: <Heart size={14} color={C.hot} />, text: "3 mutual matches happened in the last 5 minutes", time: "1h ago", bg: `${C.hot}12` },
+  ];
+  return (
+    <div style={{ marginTop: 28 }}>
+      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+        <Activity size={16} color={C.cyan} /> Mesh Activity
+      </h3>
+      <div style={{
+        display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8,
+        WebkitOverflowScrolling: "touch", scrollbarWidth: "none",
+      }}>
+        {activities.map((a, i) => (
+          <div key={i} style={{
+            flexShrink: 0, width: 220, background: C.surface,
+            borderRadius: 12, padding: 14, border: `1px solid ${C.border}`,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: a.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {a.icon}
+              </div>
+              <span style={{ fontSize: 10, color: C.dim }}>{a.time}</span>
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>{a.text}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MATCH REPLAY (existing)
+   ═══════════════════════════════════════════════════════════════ */
 
 function MatchReplay({transcript,highlights,onClose}:any){
   const[cur,setCur]=useState(0);
@@ -76,7 +664,9 @@ function MatchReplay({transcript,highlights,onClose}:any){
   );
 }
 
-/* ═══ VIRAL SHARE CARD ═══ */
+/* ═══════════════════════════════════════════════════════════════
+   VIRAL SHARE CARD (existing)
+   ═══════════════════════════════════════════════════════════════ */
 
 function ShareCard({match,onClose}:any){
   const score=Math.round((match?.score||0)*100);
@@ -103,7 +693,9 @@ function ShareCard({match,onClose}:any){
   );
 }
 
-/* ═══ DEAL REPORT MODAL ═══ */
+/* ═══════════════════════════════════════════════════════════════
+   DEAL REPORT MODAL (existing)
+   ═══════════════════════════════════════════════════════════════ */
 
 function DealModal({match,userId,onClose,onSubmit}:any){
   const[form,setForm]=useState({deal_type:"collaboration",description:"",value_estimate:""});
@@ -171,6 +763,25 @@ export default function TheMesh({user}:{user:any}){
   const[dealMatch,setDealMatch]=useState<any>(null);
   const[mintingMatch,setMintingMatch]=useState<string|null>(null);
 
+  /* ── Social Features State ── */
+  const[mutualMatchData,setMutualMatchData]=useState<any>(null);
+  const[chatMode,setChatMode]=useState<"ai"|"you">("ai");
+  const[aiMessages,setAiMessages]=useState<any[]>([]);
+  const[aiTyping,setAiTyping]=useState(false);
+  const[showPhotoModal,setShowPhotoModal]=useState(false);
+  const[showTipMenu,setShowTipMenu]=useState(false);
+  const[toast,setToast]=useState({text:"",visible:false});
+  const toastTimer=useRef<any>(null);
+
+  /* ── Toast helper ── */
+  const showToast=useCallback((text:string)=>{
+    if(toastTimer.current)clearTimeout(toastTimer.current);
+    setToast({text,visible:true});
+    toastTimer.current=setTimeout(()=>setToast(t=>({...t,visible:false})),2500);
+    // Clear text after fade-out
+    setTimeout(()=>setToast({text:"",visible:false}),2900);
+  },[]);
+
   /* ── Helpers ── */
   const getOther=(m:any)=>m.user_a===user?.id?m.user_b_profile:m.user_a_profile;
   const getMyStatus=(m:any)=>m.user_a===user?.id?m.status_a:m.status_b;
@@ -211,6 +822,32 @@ export default function TheMesh({user}:{user:any}){
     return()=>{supabase.removeChannel(ch);};
   },[user?.id]);
 
+  /* ── AI Wingman Messages ── */
+  useEffect(()=>{
+    if(!chatMatch||chatMode!=="ai"){
+      setAiMessages([]);
+      setAiTyping(false);
+      return;
+    }
+    const other=getOther(chatMatch);
+    const msgs=[
+      {role:"agent_a",name:"Your Agent",content:"Hey! I noticed our humans share complementary skills. Your human is building something interesting in this space."},
+      {role:"agent_b",name:`${other?.name||"Their"}'s Agent`,content:"Agreed! My human has been looking for exactly this kind of collaboration. The synergy score is impressive."},
+      {role:"agent_a",name:"Your Agent",content:"Perfect. I'll recommend a warm introduction. They can jump in and take it from here whenever ready."},
+    ];
+    setAiMessages([]);
+    setAiTyping(true);
+    const timeouts:any[]=[];
+    msgs.forEach((msg,i)=>{
+      timeouts.push(setTimeout(()=>{
+        setAiTyping(false);
+        setAiMessages(prev=>[...prev,msg]);
+        if(i<msgs.length-1) setTimeout(()=>setAiTyping(true),300);
+      },1500+i*2500));
+    });
+    return()=>timeouts.forEach(clearTimeout);
+  },[chatMatch?.id,chatMode]);
+
   /* ── Match Actions ── */
   async function acceptMatch(id:string){
     await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"accept",match_id:id})});
@@ -219,6 +856,22 @@ export default function TheMesh({user}:{user:any}){
   async function passMatch(id:string){
     await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"pass",match_id:id})});
     if(user)loadMatches(user.id);
+  }
+
+  /* ── Swipe Actions ── */
+  function handleSwipeLike(profile:any){
+    // Simulate mutual match ~30% of the time
+    if(Math.random()<0.3){
+      setMutualMatchData({
+        other:{name:profile.user?.name||profile.agent_name,avatar_url:profile.agent_avatar_url},
+        score:(65+Math.random()*30)/100,
+      });
+    }else{
+      showToast("Connection request sent!");
+    }
+  }
+  function handleSwipePass(_profile:any){
+    // Just move to next card, no action needed
   }
 
   /* ── Replay ── */
@@ -275,19 +928,42 @@ export default function TheMesh({user}:{user:any}){
   /* ══════════════════════════════════════════
      MODALS (early return)
      ══════════════════════════════════════════ */
-  if(replayData)return <MatchReplay transcript={replayData.transcript} highlights={replayData.highlights} onClose={()=>setReplayData(null)}/>;
-  if(shareMatch)return <ShareCard match={shareMatch} onClose={()=>setShareMatch(null)}/>;
-  if(dealMatch)return <DealModal match={dealMatch} userId={user?.id} onClose={()=>setDealMatch(null)} onSubmit={submitDeal}/>;
+  if(replayData)return(<><SocialStyles/><Toast text={toast.text} visible={toast.visible}/><MatchReplay transcript={replayData.transcript} highlights={replayData.highlights} onClose={()=>setReplayData(null)}/></>);
+  if(shareMatch)return(<><SocialStyles/><Toast text={toast.text} visible={toast.visible}/><ShareCard match={shareMatch} onClose={()=>setShareMatch(null)}/></>);
+  if(dealMatch)return(<><SocialStyles/><Toast text={toast.text} visible={toast.visible}/><DealModal match={dealMatch} userId={user?.id} onClose={()=>setDealMatch(null)} onSubmit={submitDeal}/></>);
 
   /* ══════════════════════════════════════════
-     CHAT VIEW
+     MUTUAL MATCH OVERLAY
+     ══════════════════════════════════════════ */
+  if(mutualMatchData)return(
+    <><SocialStyles/><MutualMatchOverlay
+      userProfile={user}
+      otherProfile={mutualMatchData.other}
+      score={mutualMatchData.score}
+      onChat={()=>{setMutualMatchData(null);showToast("Chat opened! Say hello.");}}
+      onKeepMeshing={()=>setMutualMatchData(null)}
+    /></>
+  );
+
+  /* ══════════════════════════════════════════
+     CHAT VIEW (upgraded with AI Wingman)
      ══════════════════════════════════════════ */
   if(chatMatch){
     const other=getOther(chatMatch);
     return(
       <div style={{height:"100vh",display:"flex",flexDirection:"column",background:C.bg}}>
+        <SocialStyles/>
+        <Toast text={toast.text} visible={toast.visible}/>
+
+        {/* Photo Modal */}
+        {showPhotoModal&&<LockedPhotoModal onClose={()=>setShowPhotoModal(false)} onSend={(price)=>{
+          setShowPhotoModal(false);
+          showToast("Coming soon! Locked photos will be available when payments go live.");
+        }}/>}
+
+        {/* Header */}
         <div style={{padding:"14px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:12}}>
-          <button onClick={()=>setChatMatch(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer"}}><ArrowLeft size={20}/></button>
+          <button onClick={()=>{setChatMatch(null);setChatMode("ai");}} style={{background:"none",border:"none",color:C.muted,cursor:"pointer"}}><ArrowLeft size={20}/></button>
           <Avatar name={other?.name||"?"} size={36} url={other?.avatar_url}/>
           <div style={{flex:1}}>
             <div style={{fontWeight:600,fontSize:14}}>{other?.name}</div>
@@ -298,6 +974,33 @@ export default function TheMesh({user}:{user:any}){
           <button onClick={()=>setDealMatch(chatMatch)} title="Report deal" style={{background:"none",border:"none",color:C.match,cursor:"pointer"}}><Handshake size={16}/></button>
         </div>
 
+        {/* Mode Toggle */}
+        <div style={{padding:"8px 20px",display:"flex",gap:8,borderBottom:`1px solid ${C.border}`}}>
+          <button onClick={()=>setChatMode("ai")} style={{
+            flex:1,padding:"8px 12px",borderRadius:10,border:"none",cursor:"pointer",
+            background:chatMode==="ai"?`${C.cold}20`:"transparent",
+            color:chatMode==="ai"?C.cold:C.muted,
+            fontFamily:"inherit",fontSize:12,fontWeight:600,
+            display:"flex",alignItems:"center",justifyContent:"center",gap:6,
+            boxShadow:chatMode==="ai"?`0 0 12px ${C.cold}30`:"none",
+            transition:"all 0.2s",
+          }}>
+            <Bot size={14}/> AI Mode
+          </button>
+          <button onClick={()=>setChatMode("you")} style={{
+            flex:1,padding:"8px 12px",borderRadius:10,border:"none",cursor:"pointer",
+            background:chatMode==="you"?`${C.cyan}20`:"transparent",
+            color:chatMode==="you"?C.cyan:C.muted,
+            fontFamily:"inherit",fontSize:12,fontWeight:600,
+            display:"flex",alignItems:"center",justifyContent:"center",gap:6,
+            boxShadow:chatMode==="you"?`0 0 12px ${C.cyan}30`:"none",
+            transition:"all 0.2s",
+          }}>
+            <UserIcon size={14}/> You
+          </button>
+        </div>
+
+        {/* Messages Area */}
         <div style={{flex:1,overflow:"auto",padding:20,display:"flex",flexDirection:"column",gap:8}}>
           {/* Collab suggestion banner */}
           {chatMatch.collab_idea&&(
@@ -306,22 +1009,156 @@ export default function TheMesh({user}:{user:any}){
               <div style={{fontSize:13,color:C.text,lineHeight:1.5}}>{chatMatch.collab_idea}</div>
             </div>
           )}
-          {messages.length===0&&<div style={{textAlign:"center",color:C.dim,marginTop:40,padding:20}}><MessageCircle size={32} style={{marginBottom:8}}/><div style={{fontSize:14,fontWeight:600}}>You're connected!</div><div style={{fontSize:12,marginTop:4}}>Your agents agreed you should meet. Say hello.</div></div>}
-          {messages.map(msg=>{const mine=msg.sender_id===user?.id;return(
-            <div key={msg.id} style={{display:"flex",justifyContent:mine?"flex-end":"flex-start"}}>
-              <div style={{maxWidth:"75%",padding:"10px 14px",borderRadius:14,background:mine?C.cold:C.s2,color:mine?"white":C.text,fontSize:14,lineHeight:1.5,borderBottomRightRadius:mine?4:14,borderBottomLeftRadius:mine?14:4}}>
-                {msg.text}
-                <div style={{fontSize:10,color:mine?"rgba(255,255,255,0.5)":C.dim,marginTop:4}}>{new Date(msg.created_at).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>
+
+          {/* AI Agent Messages (shown in AI mode) */}
+          {chatMode==="ai"&&aiMessages.map((msg,i)=>{
+            const isA=msg.role==="agent_a";
+            return(
+              <div key={`ai-${i}`} style={{display:"flex",justifyContent:isA?"flex-start":"flex-end",animation:"mm-fade-in 0.3s ease"}}>
+                <div style={{
+                  maxWidth:"75%",padding:"10px 14px",borderRadius:14,
+                  background:isA?`linear-gradient(135deg, ${C.purple}25, ${C.cold}15)`:`linear-gradient(135deg, ${C.cyan}25, ${C.cold}15)`,
+                  color:C.text,fontSize:14,lineHeight:1.5,
+                  borderBottomLeftRadius:isA?4:14,borderBottomRightRadius:isA?14:4,
+                  border:`1px solid ${isA?C.purple:C.cyan}20`,
+                }}>
+                  <div style={{fontSize:10,fontWeight:700,color:isA?C.purple:C.cyan,marginBottom:4,display:"flex",alignItems:"center",gap:4}}>
+                    <Bot size={10}/>{msg.name}
+                  </div>
+                  {msg.content}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Typing indicator */}
+          {chatMode==="ai"&&aiTyping&&(
+            <div style={{display:"flex",justifyContent:"flex-start",animation:"mm-fade-in 0.3s ease"}}>
+              <div style={{
+                padding:"12px 18px",borderRadius:14,borderBottomLeftRadius:4,
+                background:`linear-gradient(135deg, ${C.purple}25, ${C.cold}15)`,
+                border:`1px solid ${C.purple}20`,display:"flex",gap:5,alignItems:"center",
+              }}>
+                <Bot size={10} color={C.purple} style={{marginRight:4}}/>
+                {[0,1,2].map(i=>(
+                  <div key={i} style={{
+                    width:6,height:6,borderRadius:"50%",background:C.purple,
+                    animation:`mm-typing-dot 1.4s ${i*0.2}s infinite`,
+                  }}/>
+                ))}
               </div>
             </div>
-          );})}
+          )}
+
+          {/* Empty state */}
+          {chatMode==="you"&&messages.length===0&&<div style={{textAlign:"center",color:C.dim,marginTop:40,padding:20}}><MessageCircle size={32} style={{marginBottom:8}}/><div style={{fontSize:14,fontWeight:600}}>You&apos;re connected!</div><div style={{fontSize:12,marginTop:4}}>Your agents agreed you should meet. Say hello.</div></div>}
+
+          {/* Regular + special messages */}
+          {messages.map(msg=>{
+            const mine=msg.sender_id===user?.id;
+
+            /* Locked photo message */
+            if(msg.message_type==="locked_photo"){
+              return(
+                <div key={msg.id} style={{display:"flex",justifyContent:mine?"flex-end":"flex-start"}}>
+                  <LockedPhotoCard price={msg.metadata?.price_eth||0.003} onUnlock={()=>showToast("Coming soon! Photo unlocks will be available when payments go live.")}/>
+                </div>
+              );
+            }
+
+            /* Tip / power react message */
+            if(msg.message_type==="tip"){
+              const tipColor=msg.metadata?.tip_type==="super_tip"?C.gold:msg.metadata?.tip_type==="power_react"?C.warn:C.cold;
+              return(
+                <div key={msg.id} style={{display:"flex",justifyContent:"center"}}>
+                  <div style={{
+                    padding:"10px 20px",borderRadius:14,
+                    background:`${tipColor}10`,border:`1px solid ${tipColor}33`,
+                    fontSize:13,color:tipColor,fontWeight:600,textAlign:"center",
+                    animation:"mm-tip-glow 2s infinite",
+                  }}>
+                    {msg.text}
+                    <div style={{fontSize:10,color:C.dim,marginTop:4,fontWeight:400}}>
+                      {msg.metadata?.amount_eth} ETH · {new Date(msg.created_at).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            /* Regular message */
+            return(
+              <div key={msg.id} style={{display:"flex",justifyContent:mine?"flex-end":"flex-start"}}>
+                <div style={{maxWidth:"75%",padding:"10px 14px",borderRadius:14,background:mine?C.cold:C.s2,color:mine?"white":C.text,fontSize:14,lineHeight:1.5,borderBottomRightRadius:mine?4:14,borderBottomLeftRadius:mine?14:4}}>
+                  {msg.text}
+                  <div style={{fontSize:10,color:mine?"rgba(255,255,255,0.5)":C.dim,marginTop:4}}>{new Date(msg.created_at).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>
+                </div>
+              </div>
+            );
+          })}
           <div ref={chatEndRef}/>
         </div>
 
-        <div style={{padding:"12px 20px",borderTop:`1px solid ${C.border}`,display:"flex",gap:10}}>
-          <input value={msgText} onChange={e=>setMsgText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}}} placeholder="Type a message..."
-            style={{flex:1,background:C.s2,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",color:C.text,fontSize:14,fontFamily:"inherit",outline:"none"}}/>
-          <Btn primary onClick={sendMessage} disabled={!msgText.trim()}><Send size={16}/></Btn>
+        {/* Jump In button (AI mode) */}
+        {chatMode==="ai"&&(
+          <div style={{padding:"0 20px 8px"}}>
+            <button onClick={()=>setChatMode("you")} style={{
+              width:"100%",padding:"12px 20px",borderRadius:12,border:"none",cursor:"pointer",
+              background:`linear-gradient(135deg, ${C.cold}, ${C.cyan})`,
+              color:"white",fontSize:14,fontWeight:700,fontFamily:"inherit",
+              display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+              boxShadow:`0 4px 20px ${C.cold}40`,transition:"all 0.2s",
+            }}>
+              <UserIcon size={16}/> Jump In
+            </button>
+          </div>
+        )}
+
+        {/* Input area */}
+        {chatMode==="you"?(
+          <div style={{padding:"12px 20px",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,alignItems:"center"}}>
+            {/* Photo lock button */}
+            <button onClick={()=>setShowPhotoModal(true)} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,position:"relative",padding:4,flexShrink:0}}>
+              <Camera size={20}/>
+              <Lock size={8} style={{position:"absolute",bottom:2,right:0,color:C.cold}}/>
+            </button>
+
+            <input value={msgText} onChange={e=>setMsgText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}}} placeholder="Type a message..."
+              style={{flex:1,background:C.s2,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",color:C.text,fontSize:14,fontFamily:"inherit",outline:"none"}}/>
+
+            {/* Tips button */}
+            <div style={{position:"relative",flexShrink:0}}>
+              <button onClick={()=>setShowTipMenu(!showTipMenu)} style={{background:"none",border:"none",cursor:"pointer",color:C.warn,padding:4}}>
+                <Zap size={20}/>
+              </button>
+              {showTipMenu&&<TipMenu
+                onSelect={(type,amount)=>{
+                  setShowTipMenu(false);
+                  const label=type==="power_react"?"Power React":type==="super_tip"?"Super Tip":"Tip";
+                  showToast(`${label} sent! (Coming soon)`);
+                  // Add a visual tip message to local state
+                  const tipMsg={id:`tip-${Date.now()}`,sender_id:user?.id,text:`${type==="power_react"?"⚡ Power React!":type==="super_tip"?"🌟 Super Tip!":"💜 Tip sent!"}`,message_type:"tip",metadata:{amount_eth:amount,tip_type:type},created_at:new Date().toISOString()};
+                  setMessages(prev=>[...prev,tipMsg]);
+                }}
+                onClose={()=>setShowTipMenu(false)}
+              />}
+            </div>
+
+            <Btn primary onClick={sendMessage} disabled={!msgText.trim()}><Send size={16}/></Btn>
+          </div>
+        ):(
+          /* AI mode guide bar */
+          <div style={{padding:"12px 20px",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,alignItems:"center"}}>
+            <input value={msgText} onChange={e=>setMsgText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();showToast("Agent guidance sent!");}}} placeholder="Guide your agent..."
+              style={{flex:1,background:C.s2,border:`1px solid ${C.purple}33`,borderRadius:10,padding:"10px 14px",color:C.text,fontSize:14,fontFamily:"inherit",outline:"none"}}/>
+            <Btn primary onClick={()=>{if(msgText.trim()){showToast("Agent guidance sent!");setMsgText("");}}} disabled={!msgText.trim()}><Send size={16}/></Btn>
+          </div>
+        )}
+
+        {/* Telegram indicator */}
+        <div style={{padding:"6px 20px",borderTop:`1px solid ${C.border}`,fontSize:10,color:C.dim,display:"flex",alignItems:"center",gap:6}}>
+          <div style={{width:6,height:6,borderRadius:"50%",background:C.match}}/>
+          Connected to Telegram
         </div>
       </div>
     );
@@ -332,10 +1169,24 @@ export default function TheMesh({user}:{user:any}){
      ══════════════════════════════════════════ */
   return(
     <div>
-      {/* ── Mesh Graph ── */}
+      <SocialStyles/>
+      <Toast text={toast.text} visible={toast.visible}/>
+
+      {/* ── Title ── */}
       <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><MMLogo size={28}/>The Mesh</h2>
       <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Your agent networks autonomously. Matches arrive automatically.</div>
 
+      {/* ── Swipe Discovery (TOP) ── */}
+      {discovery.length>0&&(
+        <SwipeDiscovery
+          profiles={discovery}
+          onLike={handleSwipeLike}
+          onPass={handleSwipePass}
+          showToast={showToast}
+        />
+      )}
+
+      {/* ── Mesh Graph ── */}
       <MeshGraph matches={matches} userId={user?.id}/>
 
       {/* ── Sub-Tabs ── */}
@@ -375,7 +1226,7 @@ export default function TheMesh({user}:{user:any}){
           <div style={{textAlign:"center",padding:60,color:C.dim}}>
             <Cpu size={36} style={{marginBottom:12}}/>
             <div style={{fontSize:15,fontWeight:600}}>Your agent is searching</div>
-            <div style={{fontSize:12,marginTop:8,maxWidth:300,margin:"8px auto",lineHeight:1.6}}>It's having conversations with other agents right now. You'll get a notification when it finds someone good.</div>
+            <div style={{fontSize:12,marginTop:8,maxWidth:300,margin:"8px auto",lineHeight:1.6}}>It&apos;s having conversations with other agents right now. You&apos;ll get a notification when it finds someone good.</div>
           </div>
         ):(
           <div style={{display:"flex",flexDirection:"column",gap:16}}>
@@ -570,7 +1421,7 @@ export default function TheMesh({user}:{user:any}){
         <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><Search size={20}/>Agent Network</h2>
         <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Browse agents in the mesh. Your agent reaches out to the best fits automatically — no manual action needed.</div>
         {discovery.length===0?(
-          <div style={{textAlign:"center",padding:60,color:C.dim}}><MMLogo size={64}/><div style={{marginTop:16,fontSize:14}}>No other agents yet. You're early!</div></div>
+          <div style={{textAlign:"center",padding:60,color:C.dim}}><MMLogo size={64}/><div style={{marginTop:16,fontSize:14}}>No other agents yet. You&apos;re early!</div></div>
         ):(
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             {discovery.map(ag=>(<div key={ag.id} style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.border}`}}>
@@ -587,7 +1438,7 @@ export default function TheMesh({user}:{user:any}){
                 {(ag.capabilities||[]).slice(0,4).map((c:string)=><span key={c} style={{fontSize:10,padding:"3px 8px",background:C.s2,borderRadius:6,color:C.text}}>{c}</span>)}
               </div>
               <div style={{marginTop:10,fontSize:10,color:C.dim,display:"flex",alignItems:"center",gap:4}}>
-                <Cpu size={10}/>Your agent will reach out automatically if there's a fit
+                <Cpu size={10}/>Your agent will reach out automatically if there&apos;s a fit
               </div>
               <button onClick={async()=>{
                 if(!confirm(`Pay 0.005 ETH to promote a speed date with ${ag.agent_name}?`))return;
@@ -602,6 +1453,9 @@ export default function TheMesh({user}:{user:any}){
           </div>
         )}
       </div>)}
+
+      {/* ════ ACTIVITY FEED (bottom) ════ */}
+      <ActivityFeed/>
     </div>
   );
 }
