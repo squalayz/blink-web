@@ -380,6 +380,11 @@ export default function Dashboard(){
   const[showReEnableConfirm,setShowReEnableConfirm]=useState(false);
   const[feedEvents,setFeedEvents]=useState<any[]>([]);
   const[feedStats,setFeedStats]=useState<any>(null);
+  // Buzz tab state
+  const[buzzPerf,setBuzzPerf]=useState<any>(null);
+  const[buzzTrades,setBuzzTrades]=useState<any[]>([]);
+  const[buzzPnlSeries,setBuzzPnlSeries]=useState<any[]>([]);
+  const[buzzTimeframe,setBuzzTimeframe]=useState<"daily"|"weekly"|"all">("all");
 
   const[form,setForm]=useState({name:"",bio:"",industry:"",building:"",looking_for:"",location:"",website:"",x_handle:"",linkedin:"",avatar_url:"",agent_style:"professional",agent_instructions:""});
   const[obStep,setObStep]=useState(1);
@@ -597,6 +602,16 @@ export default function Dashboard(){
     if(!user)return;
     const{data}=await supabase.from("notification_settings").select("*").eq("user_id",user.id).single();
     setNotifSettings(data);
+  }
+
+  async function loadBuzzData(){
+    try{
+      const res=await fetch("/api/performance");
+      const data=await res.json();
+      setBuzzPerf(data.performance||null);
+      setBuzzTrades(data.recent_trades||[]);
+      setBuzzPnlSeries(data.pnl_series||[]);
+    }catch(e){console.error("Buzz load error:",e);}
   }
 
   async function loadAiSettings(){
@@ -1110,18 +1125,13 @@ export default function Dashboard(){
       {/* ── Tabs ── */}
       <div style={{padding:"8px 16px 10px",display:"flex",gap:6,borderBottom:`1px solid ${C.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",msOverflowStyle:"none"}}>
         {[
-          {id:"mesh",label:"Mesh",icon:<BarChart3 size={13}/>},
-          {id:"syndicates",label:"AI Social",icon:<Sparkles size={13}/>},
-          {id:"pending",label:`New${pendingMatches.length?` (${pendingMatches.length})`:""}`,icon:<Users size={13}/>},
-          {id:"matches",label:`Connected${acceptedMatches.length?` (${acceptedMatches.length})`:""}`,icon:<MessageCircle size={13}/>},
-          {id:"leaderboard",label:"Ranks",icon:<Trophy size={13}/>},
-          {id:"wallet",label:"Agent Fuel",icon:<Zap size={13}/>},
-          {id:"nfts",label:`NFTs${nfts.length?` (${nfts.length})`:""}`,icon:<Award size={13}/>},
-          {id:"groups",label:"Group Mesh",icon:<Users size={13}/>},
-          {id:"referrals",label:"Referrals",icon:<Share2 size={13}/>},
-          {id:"settings",label:"AI Brain",icon:<Cpu size={13}/>},
+          {id:"mesh",label:"The Mesh",icon:<BarChart3 size={13}/>},
+          {id:"brew",label:"The Brew",icon:<Cpu size={13}/>},
+          {id:"buzz",label:"The Buzz",icon:<TrendingUp size={13}/>},
+          {id:"evolve",label:"Evolve",icon:<Sparkles size={13}/>},
         ].map(t=>(
-          <button key={t.id} onClick={()=>{if(t.id==="syndicates"){router.push("/dashboard/syndicates");return;}setView(t.id);if(t.id==="wallet"&&!wallet)loadWallet();if(t.id==="nfts"&&!nfts.length)loadNfts();if(t.id==="groups"&&!groupMeshes.length)loadGroupMeshes();if(t.id==="referrals"&&!referralStats)loadReferralStats();if(t.id==="settings"&&!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();};}} style={{
+          <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="mesh"&&!groupMeshes.length)loadGroupMeshes();if(t.id==="brew"){if(!wallet)loadWallet();if(!nfts.length)loadNfts();if(!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();}}if(t.id==="buzz")loadBuzzData();if(t.id==="evolve"&&!referralStats)loadReferralStats();}} style={{
+            flex:1,
             background:view===t.id?"linear-gradient(135deg, rgba(99,102,241,0.25), rgba(6,182,212,0.15))":"rgba(255,255,255,0.03)",
             border:view===t.id?`1px solid rgba(99,102,241,0.5)`:`1px solid rgba(255,255,255,0.06)`,
             borderRadius:22,
@@ -1133,6 +1143,7 @@ export default function Dashboard(){
             fontFamily:"inherit",
             display:"flex",
             alignItems:"center",
+            justifyContent:"center",
             gap:6,
             whiteSpace:"nowrap",
             transition:"all 0.2s ease",
@@ -1143,419 +1154,36 @@ export default function Dashboard(){
 
       <div style={{padding:20,maxWidth:720,margin:"0 auto"}}>
 
-        {/* ════ MESH (Home) ════ */}
+
+        {/* ═══════════════════════════════════════════════════════════
+           TAB 1: THE MESH — Social Hub
+           ═══════════════════════════════════════════════════════════ */}
         {view==="mesh"&&(<div>
-          <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><MMLogo size={28}/>Your Mesh</h2>
+          <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><MMLogo size={28}/>The Mesh</h2>
           <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Your agent networks autonomously. Matches arrive automatically.</div>
 
           <MeshGraph matches={matches} userId={user?.id}/>
 
-          {/* ═══ AI TRADING ENGINE ═══ */}
-          {(()=>{
-            const isOn=wallet?.trading_enabled;
-            const hasBalance=(wallet?.balance_eth||0)>=0.002;
-            const hasAI=!!user?.ai_api_key_encrypted;
-            const mode=wallet?.trading_mode||"meme_scout";
-            const risk=wallet?.risk_level||"conservative";
-            const totalPnl=wallet?.total_trading_pnl||0;
-            const totalFees=wallet?.total_fees_paid||0;
-            const lastTrade=wallet?.recent_trades?.[0];
-            const modes=[
-              {id:"meme_scout",emoji:"🔥",name:"Meme Scout",desc:"Hunts trending meme tokens on Base. High risk, high reward. Your AI finds pumps early.",risk:"degen",color:"#ff2d55"},
-              {id:"blue_chip",emoji:"💎",name:"Blue Chip DeFi",desc:"Trades established tokens — AERO, BRETT, DEGEN. Lower risk, steady gains.",risk:"balanced",color:C.cold},
-              {id:"momentum",emoji:"🚀",name:"Momentum Rider",desc:"Follows 1h/24h momentum. Buys what's pumping, sells when momentum fades.",risk:"degen",color:"#f59e0b"},
-              {id:"mean_revert",emoji:"🔄",name:"Mean Reversion",desc:"Buys dips on oversold tokens, sells rips on overbought. Contrarian plays.",risk:"balanced",color:C.cyan},
-              {id:"sniper",emoji:"🎯",name:"New Launch Sniper",desc:"Detects new token launches on Base, buys within minutes. Extreme risk, 10x potential.",risk:"degen",color:"#a855f7"},
-              {id:"hodl_dca",emoji:"📈",name:"Auto DCA",desc:"Dollar-cost averages into ETH and top Base tokens every cycle. Set it and forget it.",risk:"conservative",color:C.match},
-            ];
-            const activeMode=modes.find(m=>m.id===mode)||modes[0];
-            return(
-          <div style={{background:`linear-gradient(135deg,${C.surface},${isOn?"rgba(99,102,241,0.06)":"rgba(255,255,255,0.01)"})`,borderRadius:16,padding:0,border:`1px solid ${isOn?"rgba(99,102,241,0.3)":C.border}`,marginTop:16,overflow:"hidden",transition:"all 0.4s ease",boxShadow:isOn?"0 0 30px rgba(99,102,241,0.08)":"none"}}>
-            {/* Header */}
-            <div style={{padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${isOn?"rgba(99,102,241,0.15)":"rgba(255,255,255,0.04)"}`}}>
-              <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:42,height:42,borderRadius:12,background:isOn?`linear-gradient(135deg,${activeMode.color},${C.cyan})`:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.4s",boxShadow:isOn?`0 0 20px ${activeMode.color}40`:"none",fontSize:20}}>
-                  {isOn?activeMode.emoji:<Zap size={20} color="#6b6b80"/>}
-                </div>
-                <div>
-                  <div style={{fontWeight:800,fontSize:15,color:C.text}}>AI Trading Engine</div>
-                  <div style={{fontSize:11,color:isOn?C.match:C.muted,display:"flex",alignItems:"center",gap:5,marginTop:2}}>
-                    {isOn&&<span style={{width:6,height:6,borderRadius:"50%",background:C.match,boxShadow:`0 0 6px ${C.match}`,animation:"pulse 1.5s infinite"}}/>}
-                    {isOn?`${activeMode.name} — Live`:"Choose a strategy to begin"}
-                  </div>
-                </div>
-              </div>
-              <button onClick={()=>{
-                if(!hasBalance&&!isOn){alert("Fund your wallet first (min 0.002 ETH)");return;}
-                if(!hasAI&&!isOn){alert("Connect your AI brain first (tap the brain icon)");return;}
-                updateWalletSettings({trading_enabled:!isOn,risk_level:isOn?risk:(activeMode.risk||"balanced")});
-                // Instant trigger — don't wait for cron, fire first trade NOW
-                if(!isOn){
-                  setTimeout(()=>{
-                    fetch("/api/trading/trigger",{method:"POST"}).then(r=>r.json()).then(d=>{
-                      if(d.ok&&d.action==="buy"){loadWallet();}
-                    }).catch(()=>{});
-                  },1500); // slight delay for settings to save
-                }
-              }}
-                style={{width:64,height:34,borderRadius:17,background:isOn?"linear-gradient(135deg,#30d158,#34c759)":"rgba(255,255,255,0.08)",border:isOn?"2px solid rgba(48,209,88,0.4)":"2px solid rgba(255,255,255,0.1)",cursor:"pointer",position:"relative",transition:"all 0.3s cubic-bezier(0.4,0,0.2,1)",boxShadow:isOn?"0 0 20px rgba(48,209,88,0.25),inset 0 1px 2px rgba(255,255,255,0.15)":"inset 0 1px 3px rgba(0,0,0,0.3)",WebkitTapHighlightColor:"transparent"}}>
-                <div style={{width:26,height:26,borderRadius:"50%",background:"white",position:"absolute",top:2,left:isOn?34:2,transition:"all 0.3s cubic-bezier(0.4,0,0.2,1)",boxShadow:isOn?"0 2px 8px rgba(0,0,0,0.15)":"0 2px 6px rgba(0,0,0,0.3)",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  {isOn?<Zap size={12} color="#30d158"/>:<div style={{width:8,height:2,background:"#999",borderRadius:1}}/>}
-                </div>
-              </button>
+          {/* ═══ STAT CARDS ═══ */}
+          <div style={{display:"flex",gap:6,marginTop:16,marginBottom:16}}>
+            <div style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center"}}>
+              <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em"}}>Reputation</div>
+              <div style={{fontSize:26,fontWeight:900,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginTop:2}}>{feedStats?.reputation||50}</div>
+              <div style={{fontSize:8,color:C.dim}}>visible to others</div>
             </div>
-
-            {/* ═══ TRADING STRATEGY DROPDOWN ═══ */}
-            <div style={{padding:"0 16px 14px"}}>
-              {/* Dropdown trigger — shows current mode */}
-              <button onClick={()=>setStratOpen(!stratOpen)} style={{
-                width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",
-                padding:"12px 14px",borderRadius:12,cursor:"pointer",fontFamily:"inherit",
-                background:stratOpen?`${activeMode.color}08`:"rgba(255,255,255,0.02)",
-                border:`1px solid ${stratOpen?activeMode.color+"33":"rgba(255,255,255,0.06)"}`,
-                transition:"all 0.3s",WebkitTapHighlightColor:"transparent",
-              }}>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <span style={{fontSize:20}}>{activeMode.emoji}</span>
-                  <div style={{textAlign:"left"}}>
-                    <div style={{fontSize:12,fontWeight:700,color:activeMode.color}}>{activeMode.name}</div>
-                    <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginTop:1}}>
-                      <span style={{padding:"1px 5px",borderRadius:3,background:activeMode.risk==="degen"?"rgba(255,45,85,0.1)":activeMode.risk==="balanced"?"rgba(99,102,241,0.1)":"rgba(48,209,88,0.1)",color:activeMode.risk==="degen"?"#ff2d55":activeMode.risk==="balanced"?C.cold:C.match,fontWeight:700}}>{activeMode.risk}</span>
-                    </div>
-                  </div>
-                </div>
-                <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{fontSize:9,color:C.muted}}>Strategy</span>
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{transform:stratOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.3s cubic-bezier(0.4,0,0.2,1)"}}>
-                    <path d="M3 4.5L6 7.5L9 4.5" stroke={C.muted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-              </button>
-
-              {/* Dropdown panel — animated */}
-              <div style={{
-                maxHeight:stratOpen?"600px":"0px",overflow:"hidden",
-                transition:"max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
-                opacity:stratOpen?1:0,
-              }}>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,paddingTop:8}}>
-                  {modes.map(m=>{
-                    const active=mode===m.id;
-                    return(<button key={m.id} onClick={()=>{updateWalletSettings({trading_mode:m.id,risk_level:m.risk});setStratOpen(false);}} style={{
-                      padding:"10px",borderRadius:10,border:`1.5px solid ${active?m.color+"55":"rgba(255,255,255,0.06)"}`,
-                      background:active?`${m.color}10`:"rgba(255,255,255,0.02)",cursor:"pointer",textAlign:"left",fontFamily:"inherit",
-                      transition:"all 0.2s",position:"relative",overflow:"hidden",WebkitTapHighlightColor:"transparent",
-                      boxShadow:active?`0 0 12px ${m.color}15`:"none",
-                    }}>
-                      {active&&<div style={{position:"absolute",top:0,right:0,width:0,height:0,borderStyle:"solid",borderWidth:"0 20px 20px 0",borderColor:`transparent ${m.color} transparent transparent`,opacity:0.5}}/>}
-                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-                        <span style={{fontSize:16}}>{m.emoji}</span>
-                        <span style={{fontSize:11,fontWeight:active?800:600,color:active?m.color:C.text}}>{m.name}</span>
-                      </div>
-                      <div style={{fontSize:9,color:active?C.muted:"rgba(255,255,255,0.25)",lineHeight:1.4}}>{m.desc}</div>
-                      <div style={{marginTop:4}}>
-                        <span style={{fontSize:7,padding:"2px 5px",borderRadius:3,background:m.risk==="degen"?"rgba(255,45,85,0.1)":m.risk==="balanced"?"rgba(99,102,241,0.1)":"rgba(48,209,88,0.1)",color:m.risk==="degen"?"#ff2d55":m.risk==="balanced"?C.cold:C.match,fontWeight:700,textTransform:"uppercase"}}>{m.risk}</span>
-                      </div>
-                    </button>);
-                  })}
-                </div>
-              </div>
+            <div onClick={()=>router.push("/dashboard/syndicates")} style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center",cursor:"pointer"}}>
+              <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em"}}>Syndicate</div>
+              {feedStats?.syndicate?(<><div style={{fontSize:13,fontWeight:700,marginTop:4}}>{feedStats.syndicate.emoji} {feedStats.syndicate.name}</div><div style={{fontSize:9,color:feedStats.syndicate.profitable_today>0?C.match:C.dim,marginTop:2}}>{feedStats.syndicate.profitable_today}/{feedStats.syndicate.signals_today} signals profitable</div></>):(<div style={{fontSize:11,color:C.cold,fontWeight:600,marginTop:6}}>Find a Syndicate →</div>)}
             </div>
-
-            {/* ═══ RISK & POSITION SETTINGS ═══ */}
-            <div style={{padding:"0 16px 14px"}}>
-              <button onClick={()=>setRiskOpen(!riskOpen)} style={{
-                width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",
-                padding:"12px 14px",borderRadius:12,cursor:"pointer",fontFamily:"inherit",
-                background:riskOpen?"rgba(255,159,10,0.06)":"rgba(255,255,255,0.02)",
-                border:`1px solid ${riskOpen?"rgba(255,159,10,0.25)":"rgba(255,255,255,0.06)"}`,
-                transition:"all 0.3s",WebkitTapHighlightColor:"transparent",
-              }}>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <Shield size={16} color={riskOpen?C.warn:C.muted}/>
-                  <div style={{textAlign:"left"}}>
-                    <div style={{fontSize:12,fontWeight:700,color:riskOpen?C.warn:C.text}}>Risk & Position Settings</div>
-                    <div style={{fontSize:9,color:C.muted,marginTop:1}}>Trade size, stop loss, take profit & more</div>
-                  </div>
-                </div>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{transform:riskOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.3s cubic-bezier(0.4,0,0.2,1)"}}>
-                  <path d="M3 4.5L6 7.5L9 4.5" stroke={C.muted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-
-              <div style={{
-                maxHeight:riskOpen?"900px":"0px",overflow:"hidden",
-                transition:"max-height 0.5s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
-                opacity:riskOpen?1:0,
-              }}>
-                <div style={{paddingTop:10,display:"flex",flexDirection:"column",gap:8}}>
-                  {/* Trade Size Per Trade */}
-                  {(()=>{
-                    const fields=[
-                      {key:"trade_size_pct",label:"Trade Size",desc:"% of portfolio per trade",min:1,max:100,step:1,suffix:"%",icon:"📊",default:15},
-                      {key:"max_position_pct",label:"Max Position",desc:"Max % of portfolio in one token",min:5,max:100,step:5,suffix:"%",icon:"🎯",default:15},
-                      {key:"stop_loss_pct",label:"Stop Loss",desc:"Auto-sell if price drops this much",min:-80,max:-5,step:5,suffix:"%",icon:"🛑",default:-25,negative:true},
-                      {key:"take_profit_pct",label:"Take Profit",desc:"Auto-sell if price rises this much",min:10,max:500,step:10,suffix:"%",icon:"💰",default:80},
-                      {key:"trailing_stop_pct",label:"Trailing Stop",desc:"Trail behind peak by this %",min:5,max:50,step:5,suffix:"%",icon:"📉",default:20},
-                      {key:"max_daily_loss_pct",label:"Daily Loss Limit",desc:"Stop trading if daily loss exceeds",min:-80,max:-5,step:5,suffix:"%",icon:"🚫",default:-30,negative:true},
-                      {key:"max_slippage_pct",label:"Max Slippage",desc:"Reject swaps with higher slippage",min:1,max:20,step:1,suffix:"%",icon:"⚡",default:8},
-                      {key:"max_price_impact_pct",label:"Max Price Impact",desc:"Skip tokens with high price impact",min:1,max:15,step:1,suffix:"%",icon:"💥",default:5},
-                      {key:"cooldown_minutes",label:"Cooldown",desc:"Minutes between trades on same token",min:5,max:120,step:5,suffix:" min",icon:"⏱️",default:15},
-                      {key:"max_concurrent_positions",label:"Max Positions",desc:"Maximum open positions at once",min:1,max:20,step:1,suffix:"",icon:"📦",default:5},
-                    ];
-                    return fields.map(f=>{
-                      const val=wallet?.[f.key]??f.default;
-                      const displayVal=f.negative?Math.abs(val):val;
-                      return(
-                        <div key={f.key} style={{background:"rgba(255,255,255,0.025)",borderRadius:10,padding:"10px 12px"}}>
-                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                            <div style={{display:"flex",alignItems:"center",gap:6}}>
-                              <span style={{fontSize:13}}>{f.icon}</span>
-                              <div>
-                                <div style={{fontSize:11,fontWeight:700,color:C.text}}>{f.label}</div>
-                                <div style={{fontSize:9,color:C.muted}}>{f.desc}</div>
-                              </div>
-                            </div>
-                            <div style={{fontSize:14,fontWeight:800,color:C.warn,minWidth:50,textAlign:"right"}}>
-                              {f.negative?"-":""}{displayVal}{f.suffix}
-                            </div>
-                          </div>
-                          <div style={{display:"flex",alignItems:"center",gap:8}}>
-                            <input type="range" min={f.negative?Math.abs(f.max):f.min} max={f.negative?Math.abs(f.min):f.max} step={f.step} value={displayVal}
-                              onChange={(e)=>{
-                                const raw=parseFloat(e.target.value);
-                                const newVal=f.negative?-raw:raw;
-                                setWallet((w:any)=>({...w,[f.key]:newVal}));
-                                updateWalletSettings({[f.key]:newVal});
-                              }}
-                              style={{flex:1,height:4,WebkitAppearance:"none",appearance:"none",background:`linear-gradient(to right, ${C.warn} ${((displayVal-(f.negative?Math.abs(f.max):f.min))/((f.negative?Math.abs(f.min):f.max)-(f.negative?Math.abs(f.max):f.min)))*100}%, rgba(255,255,255,0.08) ${((displayVal-(f.negative?Math.abs(f.max):f.min))/((f.negative?Math.abs(f.min):f.max)-(f.negative?Math.abs(f.max):f.min)))*100}%)`,borderRadius:4,outline:"none",cursor:"pointer"}}
-                            />
-                          </div>
-                        </div>
-                      );
-                    });
-                  })()}
-
-                  {/* Reset to defaults button */}
-                  <button onClick={()=>{
-                    const defaults={trade_size_pct:15,max_position_pct:15,stop_loss_pct:-25,take_profit_pct:80,trailing_stop_pct:20,max_daily_loss_pct:-30,max_slippage_pct:8,max_price_impact_pct:5,cooldown_minutes:15,max_concurrent_positions:5};
-                    setWallet((w:any)=>({...w,...defaults}));
-                    updateWalletSettings(defaults);
-                  }} style={{
-                    width:"100%",padding:"8px",borderRadius:8,border:`1px solid ${C.border}`,
-                    background:"transparent",color:C.muted,fontSize:10,fontWeight:600,
-                    cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",
-                  }}>
-                    Reset to Default Settings
-                  </button>
-                </div>
-              </div>
+            <div onClick={()=>router.push("/trading")} style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center",cursor:"pointer"}}>
+              <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em"}}>Positions</div>
+              <div style={{fontSize:20,fontWeight:800,marginTop:2}}>{feedStats?.positions?.count||0}</div>
+              {(feedStats?.positions?.count||0)>0?(<div style={{fontSize:9,color:C.dim,marginTop:2}}><span style={{color:C.match}}>+{(feedStats.positions.best_pct||0).toFixed(1)}%</span>{" | "}<span style={{color:C.hot}}>{(feedStats.positions.worst_pct||0).toFixed(1)}%</span></div>):(<div style={{fontSize:9,color:C.dim,marginTop:2}}>open</div>)}
             </div>
-
-            {/* ═══ STATS (always visible) ═══ */}
-            <div style={{padding:"0 16px 14px"}}>
-              <div style={{display:"flex",gap:6}}>
-                <div style={{flex:1,background:"rgba(255,255,255,0.025)",borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
-                  <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>Trades</div>
-                  <div style={{fontSize:16,fontWeight:800,color:C.text}}>{wallet?.recent_trades?.length||0}</div>
-                </div>
-                <div style={{flex:1,background:"rgba(255,255,255,0.025)",borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
-                  <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>P&L</div>
-                  <div style={{fontSize:16,fontWeight:800,color:totalPnl>=0?C.match:C.hot}}>{totalPnl>=0?"+":""}{totalPnl.toFixed(4)}</div>
-                </div>
-                <div style={{flex:1,background:"rgba(255,255,255,0.025)",borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
-                  <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>Win Rate</div>
-                  <div style={{fontSize:16,fontWeight:800,color:C.text}}>—</div>
-                </div>
-                <div style={{flex:1,background:"rgba(255,255,255,0.025)",borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
-                  <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>Fees</div>
-                  <div style={{fontSize:16,fontWeight:800,color:C.dim}}>{totalFees.toFixed(4)}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Last trade + warnings */}
-            {lastTrade&&(<div style={{padding:"0 16px 10px",fontSize:11,color:C.dim,display:"flex",alignItems:"center",gap:6}}>
-              <div style={{width:4,height:4,borderRadius:"50%",background:lastTrade.action==="buy"?C.match:C.hot}}/>
-              Last: {lastTrade.action} {lastTrade.token_symbol} — {lastTrade.amount_eth?.toFixed(4)} ETH
-            </div>)}
-
-            {!hasAI&&(<div style={{margin:"0 16px 14px",padding:"10px 14px",borderRadius:10,background:"rgba(255,45,85,0.06)",border:"1px solid rgba(255,45,85,0.15)",fontSize:11,color:C.hot,display:"flex",alignItems:"center",gap:6}}>
-              🧠 Connect your AI brain to start trading
-            </div>)}
-
-            {/* ═══ OPEN TRADING DASHBOARD ═══ */}
-            <div style={{padding:"0 16px 14px"}}>
-              <button onClick={()=>router.push("/trading")} style={{
-                width:"100%",padding:"13px 16px",borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",
-                background:"linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(6,182,212,0.08) 100%)",
-                display:"flex",alignItems:"center",justifyContent:"space-between",
-                transition:"all 0.25s ease",position:"relative",overflow:"hidden",
-              }}
-              onMouseEnter={e=>{(e.target as HTMLElement).style.background="linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(6,182,212,0.14) 100%)";}}
-              onMouseLeave={e=>{(e.target as HTMLElement).style.background="linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(6,182,212,0.08) 100%)";}}
-              >
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <div style={{width:32,height:32,borderRadius:10,background:"linear-gradient(135deg, #6366f1, #06b6d4)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-                    </svg>
-                  </div>
-                  <div style={{textAlign:"left"}}>
-                    <div style={{fontSize:13,fontWeight:700,color:C.text}}>Trading Dashboard</div>
-                    <div style={{fontSize:10,color:C.muted,marginTop:1}}>Live trades, positions & AI activity</div>
-                  </div>
-                </div>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 18l6-6-6-6"/>
-                </svg>
-              </button>
-            </div>
-
-            {/* ═══ EMERGENCY KILL SWITCH ═══ */}
-            {isOn&&(wallet?.recent_trades||[]).some((t:any)=>t.action==="buy"&&!t.closed_at)&&(
-              <div style={{padding:"0 16px 14px"}}>
-                <button onClick={()=>setShowEmergencyConfirm(true)} disabled={emergencySelling}
-                  style={{width:"100%",padding:"12px",background:"rgba(255,45,85,0.08)",border:"1.5px solid rgba(255,45,85,0.3)",borderRadius:10,cursor:emergencySelling?"wait":"pointer",color:"#ff2d55",fontSize:13,fontWeight:700,fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"all 0.2s"}}>
-                  {emergencySelling?"⏳ Selling all positions...":"🛑 SELL ALL — EMERGENCY STOP"}
-                </button>
-                {emergencyResult&&(
-                  <div style={{marginTop:8,padding:"10px 14px",borderRadius:8,background:emergencyResult.ok?`${C.match}10`:`${C.hot}10`,border:`1px solid ${emergencyResult.ok?C.match:C.hot}33`,fontSize:11,color:emergencyResult.ok?C.match:C.hot}}>
-                    {emergencyResult.ok
-                      ?`✅ ${emergencyResult.positions_closed} positions closed. Received ${emergencyResult.total_eth_received?.toFixed(4)} ETH.`
-                      :`❌ ${emergencyResult.error||"Failed"}`}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Re-enable after emergency stop */}
-            {!isOn&&emergencyResult?.ok&&(
-              <div style={{padding:"0 16px 14px"}}>
-                <button onClick={()=>setShowReEnableConfirm(true)}
-                  style={{width:"100%",padding:"10px",background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:8,cursor:"pointer",color:C.cold,fontSize:12,fontWeight:600,fontFamily:"inherit"}}>
-                  Re-enable Trading
-                </button>
-              </div>
-            )}
-
-            {/* How it works footer */}
-            <div style={{padding:"10px 16px",borderTop:"1px solid rgba(255,255,255,0.03)",fontSize:10,color:"rgba(255,255,255,0.2)",lineHeight:1.6,textAlign:"center"}}>
-              Your AI analyzes DexScreener → GoPlus safety check → Uniswap V3 swap · 3% fee per trade
-            </div>
-          </div>);})()}
-
-          {/* ═══ TRANSACTION ACTIVITY FEED ═══ */}
-          {(()=>{
-            const allTxns=[
-              // Combine trades, deposits, and fees into one timeline — filter out skip noise
-              ...(trades||[]).filter((t:any)=>t.action!=="skip").map((t:any)=>({...t,txType:"trade",time:t.created_at})),
-              ...(wallet?.recent_deposits||[]).map((d:any)=>({...d,txType:"deposit",time:d.created_at})),
-            ].sort((a:any,b:any)=>new Date(b.time).getTime()-new Date(a.time).getTime()).slice(0,20);
-            const hasTxns=allTxns.length>0;
-            return(
-          <div style={{marginTop:16,position:"relative"}}>
-            {/* Section header */}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,padding:"0 4px"}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <div style={{width:28,height:28,borderRadius:8,background:"rgba(99,102,241,0.08)",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                </div>
-                <div>
-                  <div style={{fontSize:14,fontWeight:700,color:C.text}}>Activity</div>
-                  <div style={{fontSize:10,color:C.muted}}>{hasTxns?`${allTxns.length} transactions`:"No activity yet"}</div>
-                </div>
-              </div>
-              {hasTxns&&<div style={{fontSize:9,color:C.dim,padding:"4px 10px",borderRadius:6,background:C.s2}}>LIVE</div>}
-            </div>
-
-            {/* Empty state */}
-            {!hasTxns&&(
-              <div style={{background:C.surface,borderRadius:14,border:`1px solid ${C.border}`,padding:"32px 20px",textAlign:"center"}}>
-                <div style={{fontSize:32,marginBottom:12,opacity:0.4}}>📊</div>
-                <div style={{fontSize:13,color:C.muted,marginBottom:4}}>No transactions yet</div>
-                <div style={{fontSize:11,color:C.dim}}>Fund your wallet and activate trading to see activity here</div>
-              </div>
-            )}
-
-            {/* Transaction list with fade effect */}
-            {hasTxns&&(
-              <div style={{position:"relative"}}>
-                <div style={{display:"flex",flexDirection:"column",gap:2}}>
-                  {allTxns.map((tx:any,i:number)=>{
-                    const isBuy=tx.action==="buy";
-                    const isSell=tx.action==="sell";
-                    const isDeposit=tx.txType==="deposit";
-                    const isSkip=tx.action==="skip";
-                    const icon=isDeposit?"💰":isBuy?"🟢":isSell?"🔴":isSkip?"⚠️":"📋";
-                    const label=isDeposit?"Deposit":isBuy?"Buy":isSell?"Sell":isSkip?"Skipped":tx.action||"Event";
-                    const color=isDeposit?C.cold:isBuy?C.match:isSell?C.hot:C.muted;
-                    const amount=isDeposit?(tx.amount_eth||0).toFixed(4):(tx.amount_eth||0).toFixed(4);
-                    const symbol=isDeposit?"ETH":tx.token_symbol||"?";
-                    const fee=isDeposit?(tx.fee_eth||0).toFixed(6):(tx.fee_eth||0).toFixed(6);
-                    const timeStr=tx.time?new Date(tx.time).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",hour12:true}):"";
-                    const dateStr=tx.time?new Date(tx.time).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
-                    const reasoning=tx.reasoning?.replace(/^\[\d+%\]\s*/,"").slice(0,80);
-                    const txHash=tx.tx_hash||tx.fee_tx_hash;
-                    const opacity=Math.max(0.3,1-(i*0.08));
-                    
-                    return(
-                      <div key={i} style={{
-                        display:"flex",alignItems:"flex-start",gap:12,padding:"12px 14px",
-                        background:i===0?`${color}06`:C.surface,
-                        borderRadius:12,border:`1px solid ${i===0?color+"18":C.border}`,
-                        opacity,transition:"opacity 0.3s",
-                        animation:i<3?`txn-slide 0.4s ease-out ${i*0.08}s both`:"none",
-                      }}>
-                        {/* Icon */}
-                        <div style={{fontSize:18,lineHeight:1,marginTop:2,flexShrink:0}}>{icon}</div>
-                        
-                        {/* Content */}
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
-                            <div style={{display:"flex",alignItems:"center",gap:6}}>
-                              <span style={{fontSize:12,fontWeight:700,color}}>{label}</span>
-                              <span style={{fontSize:12,fontWeight:600,color:C.text}}>{symbol}</span>
-                              {tx.confidence&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:4,background:`${color}15`,color,fontWeight:700}}>{tx.confidence}%</span>}
-                            </div>
-                            <div style={{fontSize:13,fontWeight:800,color,fontFamily:"'JetBrains Mono',monospace"}}>
-                              {isDeposit||isBuy?"+":"-"}{amount} ETH
-                            </div>
-                          </div>
-                          
-                          {/* Reasoning or details */}
-                          {reasoning&&<div style={{fontSize:10,color:C.muted,lineHeight:1.4,marginBottom:3}}>{reasoning}</div>}
-                          
-                          {/* Footer: time + PnL + fee + tx link */}
-                          <div style={{display:"flex",alignItems:"center",gap:8,fontSize:9,color:C.dim}}>
-                            <span>{dateStr} {timeStr}</span>
-                            {tx.pnl_eth!=null&&tx.closed_at&&(
-                              <span style={{color:tx.pnl_eth>=0?C.match:C.hot,fontWeight:700}}>
-                                P&L: {tx.pnl_eth>=0?"+":""}{tx.pnl_eth.toFixed(4)}
-                              </span>
-                            )}
-                            {tx.closed_at&&<span style={{color:C.cold}}>closed</span>}
-                            {!tx.closed_at&&isBuy&&<span style={{color:C.match}}>open</span>}
-                            {parseFloat(fee)>0&&<span>Fee: {fee} ETH</span>}
-                            {txHash&&<a href={`https://basescan.org/tx/${txHash}`} target="_blank" rel="noopener" style={{color:C.cold,textDecoration:"none"}}>View ↗</a>}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                
-                {/* Fade overlay at bottom */}
-                {allTxns.length>5&&(
-                  <div style={{position:"absolute",bottom:0,left:0,right:0,height:80,
-                    background:`linear-gradient(transparent,${C.bg})`,pointerEvents:"none",borderRadius:"0 0 14px 14px"}}/>
-                )}
-              </div>
-            )}
-          </div>);})()}
+          </div>
 
           {/* Daily Report */}
-          {report&&report.convos_count>0&&(<div style={{background:C.s2,borderRadius:14,padding:16,marginTop:12,border:`1px solid ${C.border}`}}>
+          {report&&report.convos_count>0&&(<div style={{background:C.s2,borderRadius:14,padding:16,marginBottom:16,border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}><FileText size={11}/>Today's Agent Report</div>
             <div style={{fontSize:13,color:C.text,lineHeight:1.6}}>
               Your agent had <strong>{report.convos_count}</strong> conversations{report.matches_above_85>0&&<>, <strong style={{color:C.match}}>{report.matches_above_85} above 85%</strong></>}
@@ -1563,126 +1191,159 @@ export default function Dashboard(){
             </div>
           </div>)}
 
-          {/* ── Agent Wallet ── */}
-          <div style={{background:C.surface,borderRadius:14,padding:20,marginTop:16,border:`1px solid ${C.border}`}}>
-            <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:14,display:"flex",alignItems:"center",gap:4}}><Zap size={11}/>Agent Wallet</div>
-            
-            {/* Balance */}
-            <div style={{textAlign:"center",marginBottom:16}}>
-              <div style={{fontSize:36,fontWeight:900,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
-                {wallet?.balance_eth != null ? wallet.balance_eth.toFixed(4) : "..."} ETH
-              </div>
-              <div style={{fontSize:11,color:C.dim,marginTop:4}}>Base L2 · 5% deposit fee · 3% trade fee</div>
-            </div>
-
-            {/* Fund Wallet Button */}
-            <button onClick={()=>{
-              const addr=wallet?.wallet_address||user?.wallet_address;
-              if(addr){navigator.clipboard?.writeText(addr);alert("Wallet address copied!\\n\\n"+addr+"\\n\\nSend ETH on Base L2 to this address.");}
-            }} style={{width:"100%",padding:"14px",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:12,color:"white",fontSize:14,fontWeight:700,cursor:"pointer",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:`0 4px 20px rgba(99,102,241,0.3)`}}>
-              <Zap size={16}/>Fund Wallet
-            </button>
-
-            {/* Wallet Address */}
-            {(wallet?.wallet_address||user?.wallet_address) && <div style={{display:"flex",alignItems:"center",gap:8,background:C.s2,borderRadius:10,padding:"10px 12px",marginBottom:12}}>
-              <div style={{flex:1,fontSize:11,color:C.muted,fontFamily:"'JetBrains Mono',monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wallet?.wallet_address||user?.wallet_address}</div>
-              <button onClick={()=>{navigator.clipboard?.writeText(wallet?.wallet_address||user?.wallet_address);}} style={{background:"rgba(99,102,241,0.15)",border:`1px solid rgba(99,102,241,0.3)`,borderRadius:8,padding:"6px 12px",cursor:"pointer",color:C.cold,fontSize:10,fontWeight:600,display:"flex",alignItems:"center",gap:3,flexShrink:0}}><Copy size={10}/>Copy</button>
-            </div>}
-
-            {/* Send Section */}
-            <div style={{marginTop:12}}>
-              <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:600}}>Send ETH</div>
-              <input 
-                placeholder="Recipient address (0x...)" 
-                value={sendTo} 
-                onChange={e=>{setSendTo(e.target.value);}}
-                style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",color:C.text,fontSize:12,fontFamily:"inherit",outline:"none",marginBottom:6,boxSizing:"border-box"}}
-              />
-              <div style={{display:"flex",gap:6}}>
-                <input 
-                  placeholder="Amount" 
-                  type="number" step="0.001"
-                  value={sendAmt} 
-                  onChange={e=>{setSendAmt(e.target.value);}}
-                  style={{flex:1,background:C.s2,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",color:C.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}
-                />
-                <button onClick={async()=>{
-                  const to=sendTo.trim(), amt=parseFloat(sendAmt);
-                  if(!to||!amt||amt<=0){alert("Enter address and amount");return;}
-                  if(!confirm(`Send ${amt} ETH to ${to.slice(0,8)}...?`))return;
-                  try{
-                    const res=await fetch("/api/wallet",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"withdraw",to_address:to,amount:amt})});
-                    const d=await res.json();
-                    if(d.error){alert(d.error);return;}
-                    alert(`Sent! TX: ${d.txHash?.slice(0,16)}...`);
-                    setSendTo("");setSendAmt("");
-                    loadWallet();
-                  }catch(e:any){alert("Failed: "+e.message);}
-                }} style={{background:`linear-gradient(135deg,${C.cold},#8b5cf6)`,border:"none",borderRadius:10,padding:"10px 18px",cursor:"pointer",color:"white",fontSize:12,fontWeight:700,flexShrink:0}}>Send</button>
-              </div>
-            </div>
-
-            {/* Trade History */}
-            {wallet?.trades && wallet.trades.length > 0 && <div style={{marginTop:16}}>
-              <div style={{fontSize:11,color:C.muted,marginBottom:8,fontWeight:600}}>Recent Trades</div>
-              {wallet.trades.slice(0,5).map((t:any,i:number)=>(
-                <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:i<Math.min(wallet.trades.length-1,4)?`1px solid ${C.border}`:"none"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{width:6,height:6,borderRadius:3,background:t.action==="buy"?C.match:C.hot}}/>
-                    <div>
-                      <div style={{fontSize:12,fontWeight:600}}>{t.action==="buy"?"Bought":"Sold"} {t.token_symbol||"ETH"}</div>
-                      <div style={{fontSize:10,color:C.dim}}>{new Date(t.created_at).toLocaleDateString()}</div>
-                    </div>
-                  </div>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:12,fontWeight:600}}>{t.amount_eth?.toFixed(4)} ETH</div>
-                    {t.pnl_eth!=null&&t.pnl_eth!==0&&<div style={{fontSize:10,color:t.pnl_eth>0?C.match:C.hot}}>{t.pnl_eth>0?"+":""}{t.pnl_eth.toFixed(4)}</div>}
+          {/* ═══ PENDING MATCHES ═══ */}
+          {(pendingMatches.length>0||waitingMatches.length>0)&&(<div style={{marginBottom:16}}>
+            <div style={{fontSize:14,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}}><Sparkles size={14} color={C.cold}/>Agent Found These{pendingMatches.length>0&&<span style={{fontSize:11,color:C.muted,fontWeight:400}}>({pendingMatches.length} new)</span>}</div>
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {pendingMatches.map(match=>(<div key={match.id} style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.cold}33`}}>
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                  <div style={{width:48,height:48,borderRadius:"50%",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center"}}><Lock size={20} color="white"/></div>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,fontSize:17,display:"flex",alignItems:"center",gap:6}}>{Math.round(match.score*100)}%{match.score>=0.9&&<span style={{fontSize:10,padding:"2px 6px",borderRadius:4,background:`${C.hot}20`,color:C.hot,fontWeight:700}}>Hot</span>}</div>
+                    <div style={{fontSize:12,color:C.muted}}>{match.synergy}</div>
                   </div>
                 </div>
-              ))}
-            </div>}
+                <p style={{fontSize:13,color:C.muted,lineHeight:1.7,marginBottom:10}}>{match.agent_reasoning}</p>
+                {match.collab_idea&&(<div style={{background:C.s2,borderRadius:10,padding:12,marginBottom:10}}>
+                  <div style={{fontSize:10,color:C.match,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4,display:"flex",alignItems:"center",gap:4}}><Lightbulb size={11}/>Proposed Collaboration</div>
+                  <p style={{fontSize:13,color:C.text,lineHeight:1.6}}>{match.collab_idea}</p>
+                </div>)}
+                {(match.strengths?.length>0||match.risks?.length>0)&&(<div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
+                  {(match.strengths||[]).map((s:string,i:number)=><span key={i} style={{fontSize:10,padding:"3px 8px",background:`${C.match}15`,borderRadius:6,color:C.match}}>{s}</span>)}
+                  {(match.risks||[]).map((r:string,i:number)=><span key={i} style={{fontSize:10,padding:"3px 8px",background:`${C.warn}15`,borderRadius:6,color:C.warn}}>{r}</span>)}
+                </div>)}
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <Btn primary onClick={()=>acceptMatch(match.id)}><CheckCircle size={14}/>Accept</Btn>
+                  <Btn ghost onClick={()=>passMatch(match.id)}>Pass</Btn>
+                  <Btn ghost onClick={()=>openReplay(match.id)}><Play size={12}/>Replay</Btn>
+                  <Btn ghost onClick={()=>setShareMatch(match)}><Share2 size={12}/>Share</Btn>
+                </div>
+              </div>))}
+              {waitingMatches.map(match=>(<div key={match.id} style={{background:C.surface,borderRadius:14,padding:14,border:`1px solid ${C.border}`,opacity:0.7}}>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <Timer size={18} color={C.muted}/>
+                  <div><div style={{fontWeight:600,fontSize:13}}>{Math.round(match.score*100)}% — Waiting for them</div><div style={{fontSize:11,color:C.muted}}>You accepted. Their agent will notify them.</div></div>
+                </div>
+              </div>))}
+            </div>
+          </div>)}
 
-            {(!wallet?.trades||wallet.trades.length===0)&&<div style={{marginTop:12,textAlign:"center",padding:16,color:C.dim,fontSize:11}}>No trades yet. Fund your wallet to enable autonomous trading.</div>}
+          {pendingMatches.length===0&&waitingMatches.length===0&&acceptedMatches.length===0&&(
+            <div style={{textAlign:"center",padding:40,color:C.dim,background:C.surface,borderRadius:14,border:`1px solid ${C.border}`,marginBottom:16}}>
+              <Cpu size={32} style={{marginBottom:8}}/>
+              <div style={{fontSize:14,fontWeight:600}}>Your agent is searching</div>
+              <div style={{fontSize:12,marginTop:6,maxWidth:300,margin:"6px auto",lineHeight:1.6}}>It's having conversations with other agents. You'll get a notification when it finds someone good.</div>
+            </div>
+          )}
+
+          {/* ═══ CONNECTIONS ═══ */}
+          {acceptedMatches.length>0&&(<div style={{marginBottom:16}}>
+            <div style={{fontSize:14,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}}><MessageCircle size={14} color={C.match}/>Connections<span style={{fontSize:11,color:C.muted,fontWeight:400}}>({acceptedMatches.length})</span></div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {acceptedMatches.map(match=>{const other=getOther(match);return(
+                <div key={match.id} style={{background:C.surface,borderRadius:14,padding:14,border:`1px solid ${C.border}`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,cursor:"pointer"}} onClick={()=>setChatMatch(match)}>
+                    <Avatar name={other?.name||"?"} size={42} url={other?.avatar_url}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:14}}>{other?.name}</div>
+                      <div style={{fontSize:11,color:C.muted}}>{other?.industry}{other?.location?` · ${other.location}`:""}</div>
+                      <div style={{fontSize:10,color:C.dim,marginTop:1}}>{match.synergy}</div>
+                    </div>
+                    <div style={{fontSize:20,fontWeight:800,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{Math.round(match.score*100)}%</div>
+                  </div>
+                  <div style={{marginTop:8,display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <Btn ghost onClick={()=>setChatMatch(match)} style={{padding:"5px 10px",fontSize:10}}><MessageCircle size={10}/>Chat</Btn>
+                    <Btn ghost onClick={()=>openReplay(match.id)} style={{padding:"5px 10px",fontSize:10}}><Play size={10}/>Replay</Btn>
+                    <Btn ghost onClick={()=>setShareMatch(match)} style={{padding:"5px 10px",fontSize:10}}><Share2 size={10}/>Share</Btn>
+                    <Btn ghost onClick={()=>setDealMatch(match)} style={{padding:"5px 10px",fontSize:10,color:C.match,borderColor:`${C.match}33`}}><Handshake size={10}/>Deal</Btn>
+                    {!match.nft_minted?(
+                      <Btn ghost onClick={()=>mintNft(match.id)} style={{padding:"5px 10px",fontSize:10,color:"#A855F7",borderColor:"#A855F733"}} disabled={mintingMatch===match.id}>
+                        <Award size={10}/>{mintingMatch===match.id?"Minting...":"Mint NFT"}
+                      </Btn>
+                    ):(
+                      <a href={`https://basescan.org/tx/${match.nft_tx_hash}`} target="_blank" rel="noopener" style={{display:"inline-flex",alignItems:"center",gap:4,padding:"5px 10px",fontSize:10,background:"#A855F715",border:"1px solid #A855F733",borderRadius:8,color:"#A855F7",textDecoration:"none"}}><Award size={10}/>NFT Minted</a>
+                    )}
+                  </div>
+                </div>
+              );})}
+            </div>
+          </div>)}
+
+          {/* ═══ SYNDICATE ACTIVITY ═══ */}
+          <div onClick={()=>router.push("/dashboard/syndicates")} style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.purple}22`,marginBottom:16,cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:40,height:40,borderRadius:10,background:`${C.purple}15`,display:"flex",alignItems:"center",justifyContent:"center"}}><Users size={18} color={C.purple}/></div>
+            <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>Syndicate Activity</div><div style={{fontSize:11,color:C.muted}}>View agent councils, signals & debates</div></div>
+            <ArrowRight size={16} color={C.muted}/>
           </div>
 
-          {/* ═══ STAT CARDS — Reputation, Syndicate, Positions ═══ */}
-          <div style={{display:"flex",gap:6,marginTop:16,marginBottom:16}}>
-            {/* Reputation */}
-            <div style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center"}}>
-              <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em"}}>Reputation</div>
-              <div style={{fontSize:26,fontWeight:900,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginTop:2}}>
-                {feedStats?.reputation||50}
-              </div>
-              <div style={{fontSize:8,color:C.dim}}>visible to others</div>
+          {/* ═══ GROUP MESH ═══ */}
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:14,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}}><Users size={14} color={C.cyan}/>Group Mesh</div>
+            <div style={{background:C.surface,borderRadius:14,padding:14,border:`1px solid ${C.border}`,marginBottom:8}}>
+              <input value={groupMeshTopic} onChange={e=>setGroupMeshTopic(e.target.value)} placeholder="What should agents discuss?"
+                style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:13,fontFamily:"inherit",marginBottom:8}}/>
+              <button onClick={createGroupMesh} disabled={groupMeshCreating||!groupMeshTopic.trim()}
+                style={{padding:"8px 16px",background:C.cold,color:"white",border:"none",borderRadius:8,cursor:groupMeshCreating?"wait":"pointer",fontSize:12,fontWeight:600,fontFamily:"inherit",opacity:groupMeshCreating||!groupMeshTopic.trim()?0.5:1}}>
+                {groupMeshCreating?"Finding team...":"Start Group Mesh — 0.01 ETH"}
+              </button>
             </div>
-            {/* Syndicate */}
-            <div onClick={()=>feedStats?.syndicate?router.push("/dashboard/syndicates"):router.push("/dashboard/syndicates")} style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center",cursor:"pointer"}}>
-              <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em"}}>Syndicate</div>
-              {feedStats?.syndicate?(
-                <>
-                  <div style={{fontSize:13,fontWeight:700,marginTop:4}}>{feedStats.syndicate.emoji} {feedStats.syndicate.name}</div>
-                  <div style={{fontSize:9,color:feedStats.syndicate.profitable_today>0?C.match:C.dim,marginTop:2}}>
-                    {feedStats.syndicate.profitable_today}/{feedStats.syndicate.signals_today} signals profitable
+            {groupMeshes.slice(0,3).map(mesh=>(
+              <div key={mesh.id} style={{background:C.surface,borderRadius:12,padding:14,border:`1px solid ${C.border}`,marginBottom:6}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <Users size={16} color={C.cold}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:13}}>{mesh.title||mesh.topic}</div>
+                    <div style={{fontSize:10,color:C.muted}}>{mesh.members?.length||0} agents · {mesh.status}</div>
                   </div>
-                </>
-              ):(
-                <div style={{fontSize:11,color:C.cold,fontWeight:600,marginTop:6}}>Find a Syndicate →</div>
-              )}
-            </div>
-            {/* Positions */}
-            <div onClick={()=>router.push("/trading")} style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center",cursor:"pointer"}}>
-              <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em"}}>Positions</div>
-              <div style={{fontSize:20,fontWeight:800,marginTop:2}}>{feedStats?.positions?.count||0}</div>
-              {(feedStats?.positions?.count||0)>0?(
-                <div style={{fontSize:9,color:C.dim,marginTop:2}}>
-                  <span style={{color:C.match}}>+{(feedStats.positions.best_pct||0).toFixed(1)}%</span>
-                  {" | "}
-                  <span style={{color:C.hot}}>{(feedStats.positions.worst_pct||0).toFixed(1)}%</span>
+                  <div style={{fontSize:9,padding:"3px 8px",borderRadius:6,fontWeight:600,background:mesh.status==="completed"?`${C.match}15`:mesh.status==="running"?`${C.cyan}15`:`${C.dim}15`,color:mesh.status==="completed"?C.match:mesh.status==="running"?C.cyan:C.dim}}>{mesh.status}</div>
                 </div>
-              ):(
-                <div style={{fontSize:9,color:C.dim,marginTop:2}}>open</div>
-              )}
+                {mesh.summary&&mesh.status==="completed"&&(<div style={{marginTop:8,padding:10,background:C.s2,borderRadius:8,fontSize:12,color:C.text,lineHeight:1.5}}>{mesh.summary}</div>)}
+              </div>
+            ))}
+          </div>
+
+          {/* ═══ DISCOVERY ═══ */}
+          {discovery.length>0&&(<div style={{marginBottom:16}}>
+            <div style={{fontSize:14,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}}><Search size={14} color={C.cyan}/>Agent Network</div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:8}}>Browse agents in the mesh. Your agent reaches out automatically — no manual action needed.</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {discovery.slice(0,6).map(ag=>(<div key={ag.id} style={{background:C.surface,borderRadius:12,padding:14,border:`1px solid ${C.border}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                  <Avatar name={ag.agent_name||ag.user?.name||"?"} size={36} url={ag.agent_avatar_url}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:13}}>{ag.agent_name}</div>
+                    <div style={{fontSize:10,color:C.muted}}>{ag.user?.industry}{ag.user?.location?` · ${ag.user.location}`:""}</div>
+                  </div>
+                  <div style={{fontSize:9,color:C.dim}}>{ag.match_count} matches</div>
+                </div>
+                <p style={{fontSize:12,color:C.muted,lineHeight:1.5,marginBottom:6}}>{ag.summary?.slice(0,120)}{(ag.summary?.length||0)>120?"...":""}</p>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                  {(ag.capabilities||[]).slice(0,3).map((c:string)=><span key={c} style={{fontSize:9,padding:"2px 6px",background:C.s2,borderRadius:5,color:C.text}}>{c}</span>)}
+                </div>
+              </div>))}
             </div>
+          </div>)}
+
+          {/* ═══ LEADERBOARD ═══ */}
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:14,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}}><Trophy size={14} color={C.gold}/>Leaderboard</div>
+            <div style={{display:"flex",gap:6,marginBottom:10}}>
+              {(["builders","match_rate","deal_closers"] as const).map(t=>(
+                <button key={t} onClick={()=>setLbTab(t)} style={{background:lbTab===t?C.s2:"transparent",border:`1px solid ${lbTab===t?C.border:"transparent"}`,borderRadius:8,padding:"6px 12px",color:lbTab===t?C.text:C.muted,cursor:"pointer",fontSize:11,fontFamily:"inherit",textTransform:"capitalize"}}>{t.replace(/_/g," ")}</button>
+              ))}
+            </div>
+            {leaderboard.length===0?<div style={{textAlign:"center",padding:20,color:C.dim,fontSize:12}}>No data yet.</div>:
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {leaderboard.slice(0,10).map((u,i)=>{
+                const medal=i===0?"#FFD700":i===1?"#C0C0C0":i===2?"#CD7F32":null;
+                return(<div key={u.id} style={{display:"flex",alignItems:"center",gap:10,background:C.surface,borderRadius:10,padding:12,border:`1px solid ${medal?C.cold+"33":C.border}`}}>
+                  <div style={{width:24,height:24,borderRadius:"50%",background:medal||C.s2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:medal?"white":C.muted}}>{i+1}</div>
+                  <Avatar name={u.name} size={30} url={u.avatar_url}/>
+                  <div style={{flex:1}}><div style={{fontWeight:600,fontSize:12}}>{u.name}</div><div style={{fontSize:10,color:C.muted}}>{u.agent_name}</div></div>
+                  <div style={{fontWeight:800,fontSize:14,color:C.cold}}>{lbTab==="match_rate"?`${u.match_rate}%`:lbTab==="deal_closers"?u.deals_closed:u.match_count}</div>
+                </div>);
+              })}
+            </div>}
           </div>
 
           {/* ═══ ACTIVITY FEED ═══ */}
@@ -1691,845 +1352,550 @@ export default function Dashboard(){
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
               Activity
             </div>
-            {feedEvents.length>0&&(
-              <div style={{fontSize:9,color:C.dim,padding:"3px 8px",borderRadius:5,background:C.s2,display:"flex",alignItems:"center",gap:4}}>
-                <span style={{width:4,height:4,borderRadius:"50%",background:C.match,animation:"pulse-dot 1.5s infinite"}}/>
-                LIVE
-              </div>
-            )}
+            {feedEvents.length>0&&(<div style={{fontSize:9,color:C.dim,padding:"3px 8px",borderRadius:5,background:C.s2,display:"flex",alignItems:"center",gap:4}}><span style={{width:4,height:4,borderRadius:"50%",background:C.match,animation:"pulse-dot 1.5s infinite"}}/>LIVE</div>)}
           </div>
-
           {feedEvents.length===0?(
-            <div style={{background:C.surface,borderRadius:14,border:`1px solid ${C.border}`,padding:"32px 20px",textAlign:"center"}}>
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="1.5" strokeLinecap="round" style={{margin:"0 auto 12px"}}>
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-              </svg>
-              <div style={{fontSize:13,fontWeight:600,color:C.muted}}>Your feed is empty</div>
+            <div style={{background:C.surface,borderRadius:14,border:`1px solid ${C.border}`,padding:"24px 20px",textAlign:"center"}}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="1.5" strokeLinecap="round" style={{margin:"0 auto 8px"}}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              <div style={{fontSize:12,fontWeight:600,color:C.muted}}>Your feed is empty</div>
               <div style={{fontSize:11,color:C.dim,marginTop:4}}>Trades, matches, signals, and milestones will appear here.</div>
             </div>
           ):(
             <div style={{display:"flex",flexDirection:"column",gap:4}}>
-              {feedEvents.slice(0,30).map((ev:any,i:number)=>{
+              {feedEvents.slice(0,20).map((ev:any,i:number)=>{
                 const t=ev.event_type;
-                const borderColor=t==="trade"?(ev.metadata?.action==="buy"?C.match:C.hot):
-                  t==="match"?"#a855f7":t==="signal"?"#f59e0b":t==="debate"?C.hot:
-                  t==="milestone"?C.gold:t==="reputation_change"?C.cold:
-                  t==="pnl_summary"?C.cyan:C.border;
-                const isDebate=t==="debate";
-                const isPinned=ev.pinned;
-                const time=ev.created_at?new Date(ev.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):"";
-                const ago=ev.created_at?(() => {
-                  const d=Math.floor((Date.now()-new Date(ev.created_at).getTime())/60000);
-                  return d<1?"just now":d<60?`${d}m ago`:d<1440?`${Math.floor(d/60)}h ago`:`${Math.floor(d/1440)}d ago`;
-                })():"";
-
+                const borderColor=t==="trade"?(ev.metadata?.action==="buy"?C.match:C.hot):t==="match"?"#a855f7":t==="signal"?"#f59e0b":t==="debate"?C.hot:t==="milestone"?C.gold:t==="reputation_change"?C.cold:t==="pnl_summary"?C.cyan:C.border;
+                const ago=ev.created_at?(() => {const d=Math.floor((Date.now()-new Date(ev.created_at).getTime())/60000);return d<1?"just now":d<60?`${d}m ago`:d<1440?`${Math.floor(d/60)}h ago`:`${Math.floor(d/1440)}d ago`;})():"";
                 return(
-                  <div key={ev.id||i} style={{
-                    background:isPinned?`${borderColor}06`:C.surface,borderRadius:12,
-                    padding:"12px 14px",border:`1px solid ${isPinned?borderColor+"22":C.border}`,
-                    borderLeft:`3px solid ${borderColor}`,
-                    animation:i<3?`float-up 0.3s ease-out ${i*0.06}s both`:"none",
-                  }}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                      <div style={{fontSize:11,fontWeight:700,color:borderColor,textTransform:"uppercase",letterSpacing:"0.03em"}}>
-                        {ev.title}
-                      </div>
+                  <div key={ev.id||i} style={{background:ev.pinned?`${borderColor}06`:C.surface,borderRadius:10,padding:"10px 12px",border:`1px solid ${ev.pinned?borderColor+"22":C.border}`,borderLeft:`3px solid ${borderColor}`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                      <div style={{fontSize:10,fontWeight:700,color:borderColor,textTransform:"uppercase",letterSpacing:"0.03em"}}>{ev.title}</div>
                       <span style={{fontSize:9,color:C.dim}}>{ago}</span>
                     </div>
                     {ev.body&&<div style={{fontSize:11,color:C.text,lineHeight:1.5}}>{ev.body}</div>}
-
-                    {/* Trade-specific: confidence + syndicate */}
-                    {t==="trade"&&ev.metadata?.confidence&&(
-                      <div style={{display:"flex",gap:8,marginTop:6,fontSize:9,color:C.dim}}>
-                        <span>Confidence: {ev.metadata.confidence}%</span>
-                        {ev.metadata.syndicate_confidence&&<span>Syndicate: {ev.metadata.syndicate_confidence}%</span>}
-                        {ev.metadata.tx_hash&&(
-                          <a href={`https://basescan.org/tx/${ev.metadata.tx_hash}`} target="_blank" rel="noopener" style={{color:C.cold,textDecoration:"none"}}>View on Chain →</a>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Signal-specific: vote bar */}
-                    {t==="signal"&&ev.metadata?.approve_votes!=null&&(
-                      <div style={{marginTop:6}}>
-                        <div style={{height:5,borderRadius:3,background:C.s2,overflow:"hidden"}}>
-                          <div style={{height:"100%",width:`${((ev.metadata.approve_votes||0)/Math.max(1,(ev.metadata.approve_votes||0)+(ev.metadata.reject_votes||0)))*100}%`,borderRadius:3,background:`linear-gradient(90deg,${C.match},${C.cyan})`}}/>
-                        </div>
-                        <div style={{display:"flex",justifyContent:"space-between",fontSize:8,color:C.dim,marginTop:3}}>
-                          <span style={{color:C.match}}>{ev.metadata.approve_votes} approve</span>
-                          <span style={{color:C.hot}}>{ev.metadata.reject_votes} reject</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Match-specific: agent info */}
-                    {t==="match"&&ev.metadata?.agent_name&&(
-                      <div style={{display:"flex",gap:8,marginTop:6,fontSize:9,color:C.dim}}>
-                        <span style={{fontWeight:600,color:C.text}}>@{ev.metadata.agent_name}</span>
-                        {ev.metadata.strategy&&<span>{ev.metadata.strategy}</span>}
-                        {ev.metadata.reputation&&<span>Rep: {ev.metadata.reputation}</span>}
-                        {ev.metadata.win_rate&&<span>WR: {ev.metadata.win_rate}%</span>}
-                      </div>
-                    )}
-
-                    {/* Debate: watch button */}
-                    {isDebate&&(
-                      <button onClick={()=>router.push("/dashboard/syndicates")} style={{marginTop:6,padding:"5px 10px",borderRadius:6,border:`1px solid ${C.hot}33`,background:"transparent",color:C.hot,fontSize:9,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
-                        Watch Full Debate →
-                      </button>
-                    )}
-
-                    {/* Milestone: gold shimmer */}
-                    {t==="milestone"&&(
-                      <div style={{marginTop:4,fontSize:10,color:C.gold,fontStyle:"italic"}}>
-                        {ev.metadata?.agent_note||""}
-                      </div>
-                    )}
-
-                    {/* Reputation: score badge */}
-                    {t==="reputation_change"&&ev.metadata?.new_score&&(
-                      <div style={{marginTop:4,display:"inline-block",padding:"3px 8px",borderRadius:6,background:`${C.cold}10`,fontSize:10,fontWeight:700,color:C.cold}}>
-                        Rep: {ev.metadata.new_score} ({ev.metadata.diff>0?"+":""}{ev.metadata.diff})
-                      </div>
-                    )}
+                    {t==="trade"&&ev.metadata?.confidence&&(<div style={{display:"flex",gap:8,marginTop:4,fontSize:9,color:C.dim}}>
+                      <span>Confidence: {ev.metadata.confidence}%</span>
+                      {ev.metadata.tx_hash&&<a href={`https://basescan.org/tx/${ev.metadata.tx_hash}`} target="_blank" rel="noopener" style={{color:C.cold,textDecoration:"none"}}>View on Chain →</a>}
+                    </div>)}
+                    {t==="match"&&ev.metadata?.agent_name&&(<div style={{display:"flex",gap:8,marginTop:4,fontSize:9,color:C.dim}}>
+                      <span style={{fontWeight:600,color:C.text}}>@{ev.metadata.agent_name}</span>
+                      {ev.metadata.win_rate&&<span>WR: {ev.metadata.win_rate}%</span>}
+                    </div>)}
                   </div>
                 );
               })}
             </div>
           )}
-
         </div>)}
 
-        {/* ════ PENDING (Agent found these) ════ */}
-        {view==="pending"&&(<div>
-          <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><Sparkles size={20}/>Your Agent Found These</h2>
-          <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Your AI agent had conversations with other agents and found potential matches. Accept to unlock profiles, or pass.</div>
+        {/* ═══════════════════════════════════════════════════════════
+           TAB 2: THE BREW — Agent Workshop
+           ═══════════════════════════════════════════════════════════ */}
+        {view==="brew"&&(<div>
+          <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><Cpu size={20}/>The Brew</h2>
+          <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Build, tweak, and fuel your agent. One page for everything.</div>
 
-          {pendingMatches.length===0&&waitingMatches.length===0?(
-            <div style={{textAlign:"center",padding:60,color:C.dim}}>
-              <Cpu size={36} style={{marginBottom:12}}/>
-              <div style={{fontSize:15,fontWeight:600}}>Your agent is searching</div>
-              <div style={{fontSize:12,marginTop:8,maxWidth:300,margin:"8px auto",lineHeight:1.6}}>It's having conversations with other agents right now. You'll get a notification when it finds someone good.</div>
+          {/* ═══ AGENT PERSONALITY ═══ */}
+          <div style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.border}`,marginBottom:16}}>
+            <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12,display:"flex",alignItems:"center",gap:4}}><Sparkles size={11}/>Agent Personality</div>
+            <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+              {(["professional","friendly","aggressive","custom"] as const).map(s=>(
+                <button key={s} onClick={()=>setForm(f=>({...f,agent_style:s}))} style={{
+                  padding:"8px 14px",fontSize:11,borderRadius:8,cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize",
+                  background:form.agent_style===s?C.cold:C.s2,color:form.agent_style===s?"white":C.muted,
+                  border:`1px solid ${form.agent_style===s?C.cold:C.border}`,fontWeight:form.agent_style===s?600:400,
+                }}>{s}</button>
+              ))}
             </div>
-          ):(
-            <div style={{display:"flex",flexDirection:"column",gap:16}}>
-              {pendingMatches.map(match=>(<div key={match.id} style={{background:C.surface,borderRadius:14,padding:20,border:`1px solid ${C.cold}33`}}>
-                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
-                  <div style={{width:52,height:52,borderRadius:"50%",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center"}}><Lock size={22} color="white"/></div>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:700,fontSize:18,display:"flex",alignItems:"center",gap:6}}>
-                      {Math.round(match.score*100)}%
-                      {match.score>=0.9&&<span style={{fontSize:10,padding:"2px 6px",borderRadius:4,background:`${C.hot}20`,color:C.hot,fontWeight:700}}>Hot</span>}
-                    </div>
-                    <div style={{fontSize:12,color:C.muted}}>{match.synergy}</div>
+            {form.agent_style==="custom"&&(
+              <textarea value={form.agent_instructions} onChange={e=>setForm(f=>({...f,agent_instructions:e.target.value}))} rows={2}
+                placeholder="e.g., Be direct, mention my track record in DeFi..."
+                style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:12,fontFamily:"inherit",resize:"vertical",marginBottom:8}}/>
+            )}
+            <button onClick={async()=>{if(user)await supabase.from("agent_profiles").update({agent_style:form.agent_style,agent_instructions:form.agent_instructions}).eq("user_id",user.id);}} style={{padding:"6px 14px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"inherit"}}>Save Personality</button>
+          </div>
+
+          {/* ═══ AI TRADING ENGINE ═══ */}
+          {(()=>{
+            const isOn=wallet?.trading_enabled;
+            const hasBalance=(wallet?.balance_eth||0)>=0.002;
+            const hasAI=!!user?.ai_api_key_encrypted;
+            const mode=wallet?.trading_mode||"meme_scout";
+            const modes=[
+              {id:"meme_scout",emoji:"🔥",name:"Meme Scout",desc:"Hunts trending meme tokens on Base.",risk:"degen",color:"#ff2d55"},
+              {id:"blue_chip",emoji:"💎",name:"Blue Chip DeFi",desc:"Trades established tokens — AERO, BRETT, DEGEN.",risk:"balanced",color:C.cold},
+              {id:"momentum",emoji:"🚀",name:"Momentum Rider",desc:"Follows 1h/24h momentum.",risk:"degen",color:"#f59e0b"},
+              {id:"mean_revert",emoji:"🔄",name:"Mean Reversion",desc:"Buys dips on oversold tokens.",risk:"balanced",color:C.cyan},
+              {id:"sniper",emoji:"🎯",name:"New Launch Sniper",desc:"Detects new token launches on Base.",risk:"degen",color:"#a855f7"},
+              {id:"hodl_dca",emoji:"📈",name:"Auto DCA",desc:"Dollar-cost averages into ETH and top Base tokens.",risk:"conservative",color:C.match},
+            ];
+            const activeMode=modes.find(m=>m.id===mode)||modes[0];
+            return(
+          <div style={{background:`linear-gradient(135deg,${C.surface},${isOn?"rgba(99,102,241,0.06)":"rgba(255,255,255,0.01)"})`,borderRadius:16,padding:0,border:`1px solid ${isOn?"rgba(99,102,241,0.3)":C.border}`,marginBottom:16,overflow:"hidden",transition:"all 0.4s ease",boxShadow:isOn?"0 0 30px rgba(99,102,241,0.08)":"none"}}>
+            <div style={{padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${isOn?"rgba(99,102,241,0.15)":"rgba(255,255,255,0.04)"}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:38,height:38,borderRadius:10,background:isOn?`linear-gradient(135deg,${activeMode.color},${C.cyan})`:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{isOn?activeMode.emoji:<Zap size={18} color="#6b6b80"/>}</div>
+                <div>
+                  <div style={{fontWeight:800,fontSize:14,color:C.text}}>AI Trading Engine</div>
+                  <div style={{fontSize:11,color:isOn?C.match:C.muted,display:"flex",alignItems:"center",gap:5,marginTop:1}}>
+                    {isOn&&<span style={{width:6,height:6,borderRadius:"50%",background:C.match,boxShadow:`0 0 6px ${C.match}`,animation:"pulse 1.5s infinite"}}/>}
+                    {isOn?`${activeMode.name} — Live`:"Choose a strategy to begin"}
                   </div>
                 </div>
-
-                <p style={{fontSize:13,color:C.muted,lineHeight:1.7,marginBottom:12}}>{match.agent_reasoning}</p>
-
-                {match.collab_idea&&(<div style={{background:C.s2,borderRadius:10,padding:14,marginBottom:14}}>
-                  <div style={{fontSize:10,color:C.match,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6,display:"flex",alignItems:"center",gap:4}}><Lightbulb size={11}/>Proposed Collaboration</div>
-                  <p style={{fontSize:13,color:C.text,lineHeight:1.6}}>{match.collab_idea}</p>
-                </div>)}
-
-                {(match.strengths?.length>0||match.risks?.length>0)&&(<div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
-                  {(match.strengths||[]).map((s:string,i:number)=><span key={i} style={{fontSize:10,padding:"3px 8px",background:`${C.match}15`,borderRadius:6,color:C.match}}>{s}</span>)}
-                  {(match.risks||[]).map((r:string,i:number)=><span key={i} style={{fontSize:10,padding:"3px 8px",background:`${C.warn}15`,borderRadius:6,color:C.warn}}>{r}</span>)}
-                </div>)}
-
-                <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-                  <Btn primary onClick={()=>acceptMatch(match.id)}><CheckCircle size={14}/>Accept Match</Btn>
-                  <Btn ghost onClick={()=>passMatch(match.id)}>Pass</Btn>
-                  <Btn ghost onClick={()=>openReplay(match.id)}><Play size={12}/>Watch Replay</Btn>
-                  <Btn ghost onClick={()=>setShareMatch(match)}><Share2 size={12}/>Share</Btn>
+              </div>
+              <button onClick={()=>{
+                if(!hasBalance&&!isOn){alert("Fund your wallet first (min 0.002 ETH)");return;}
+                if(!hasAI&&!isOn){alert("Connect your AI brain first");return;}
+                updateWalletSettings({trading_enabled:!isOn,risk_level:isOn?(wallet?.risk_level||"conservative"):(activeMode.risk||"balanced")});
+                if(!isOn){setTimeout(()=>{fetch("/api/trading/trigger",{method:"POST"}).then(r=>r.json()).then(d=>{if(d.ok&&d.action==="buy")loadWallet();}).catch(()=>{});},1500);}
+              }}
+                style={{width:58,height:30,borderRadius:15,background:isOn?"linear-gradient(135deg,#30d158,#34c759)":"rgba(255,255,255,0.08)",border:isOn?"2px solid rgba(48,209,88,0.4)":"2px solid rgba(255,255,255,0.1)",cursor:"pointer",position:"relative",transition:"all 0.3s"}}>
+                <div style={{width:22,height:22,borderRadius:"50%",background:"white",position:"absolute",top:2,left:isOn?30:2,transition:"all 0.3s",boxShadow:"0 2px 6px rgba(0,0,0,0.2)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  {isOn?<Zap size={10} color="#30d158"/>:<div style={{width:6,height:2,background:"#999",borderRadius:1}}/>}
                 </div>
-                <div style={{marginTop:10,fontSize:10,color:C.dim,display:"flex",alignItems:"center",gap:4}}><Lock size={10}/>Both sides must accept to reveal profiles and start chatting</div>
-              </div>))}
-
-              {waitingMatches.map(match=>(<div key={match.id} style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.border}`,opacity:0.7}}>
-                <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <Timer size={20} color={C.muted}/>
-                  <div><div style={{fontWeight:600,fontSize:14}}>{Math.round(match.score*100)}% — Waiting for them</div><div style={{fontSize:12,color:C.muted}}>You accepted. Their agent will notify them.</div></div>
-                </div>
-              </div>))}
+              </button>
             </div>
-          )}
-        </div>)}
 
-        {/* ════ CONNECTIONS ════ */}
-        {view==="matches"&&(<div>
-          <h2 style={{fontSize:20,fontWeight:700,marginBottom:16,display:"flex",alignItems:"center",gap:8}}><MessageCircle size={20}/>Your Connections</h2>
-          {acceptedMatches.length===0?(
-            <div style={{textAlign:"center",padding:60,color:C.dim}}><MMLogo size={64}/><div style={{marginTop:16,fontSize:14}}>No connections yet.</div><div style={{fontSize:12,marginTop:8}}>Accept a match to unlock profiles and start chatting.</div></div>
-          ):(
-            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              {acceptedMatches.map(match=>{const other=getOther(match);return(
-                <div key={match.id} style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.border}`}}>
-                  <div style={{display:"flex",alignItems:"center",gap:12,cursor:"pointer"}} onClick={()=>setChatMatch(match)}>
-                    <Avatar name={other?.name||"?"} size={48} url={other?.avatar_url}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:600,fontSize:15}}>{other?.name}</div>
-                      <div style={{fontSize:12,color:C.muted}}>{other?.industry}{other?.location?` · ${other.location}`:""}</div>
-                      <div style={{fontSize:11,color:C.dim,marginTop:2}}>{match.synergy}</div>
-                    </div>
-                    <div style={{textAlign:"right"}}>
-                      <div style={{fontSize:22,fontWeight:800,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{Math.round(match.score*100)}%</div>
-                    </div>
-                  </div>
-                  <div style={{marginTop:10,display:"flex",gap:6,flexWrap:"wrap"}}>
-                    <Btn ghost onClick={()=>setChatMatch(match)} style={{padding:"6px 12px",fontSize:11}}><MessageCircle size={11}/>Chat</Btn>
-                    <Btn ghost onClick={()=>openReplay(match.id)} style={{padding:"6px 12px",fontSize:11}}><Play size={11}/>Replay</Btn>
-                    <Btn ghost onClick={()=>setShareMatch(match)} style={{padding:"6px 12px",fontSize:11}}><Share2 size={11}/>Share</Btn>
-                    <Btn ghost onClick={()=>setDealMatch(match)} style={{padding:"6px 12px",fontSize:11,color:C.match,borderColor:`${C.match}33`}}><Handshake size={11}/>Deal Closed</Btn>
-                    {!match.nft_minted?(
-                      <Btn ghost onClick={()=>mintNft(match.id)} style={{padding:"6px 12px",fontSize:11,color:"#A855F7",borderColor:"#A855F733"}} disabled={mintingMatch===match.id}>
-                        <Award size={11}/>{mintingMatch===match.id?"Minting...":"Mint NFT (0.01 ETH)"}
-                      </Btn>
-                    ):(
-                      <a href={`https://basescan.org/tx/${match.nft_tx_hash}`} target="_blank" rel="noopener" style={{display:"inline-flex",alignItems:"center",gap:4,padding:"6px 12px",fontSize:11,background:"#A855F715",border:"1px solid #A855F733",borderRadius:8,color:"#A855F7",textDecoration:"none"}}><Award size={11}/>NFT Minted</a>
-                    )}
-                  </div>
-                  {/* Star Rating */}
+            {/* Strategy select */}
+            <div style={{padding:"0 16px 12px"}}>
+              <button onClick={()=>setStratOpen(!stratOpen)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",borderRadius:10,cursor:"pointer",fontFamily:"inherit",background:stratOpen?`${activeMode.color}08`:"rgba(255,255,255,0.02)",border:`1px solid ${stratOpen?activeMode.color+"33":"rgba(255,255,255,0.06)"}`,transition:"all 0.3s"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:18}}>{activeMode.emoji}</span>
+                  <div style={{textAlign:"left"}}><div style={{fontSize:11,fontWeight:700,color:activeMode.color}}>{activeMode.name}</div><div style={{fontSize:8,color:C.muted,textTransform:"uppercase",marginTop:1}}><span style={{padding:"1px 5px",borderRadius:3,background:activeMode.risk==="degen"?"rgba(255,45,85,0.1)":activeMode.risk==="balanced"?"rgba(99,102,241,0.1)":"rgba(48,209,88,0.1)",color:activeMode.risk==="degen"?"#ff2d55":activeMode.risk==="balanced"?C.cold:C.match,fontWeight:700}}>{activeMode.risk}</span></div></div>
+                </div>
+                <ChevronDown size={12} color={C.muted} style={{transform:stratOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.3s"}}/>
+              </button>
+              <div style={{maxHeight:stratOpen?"600px":"0px",overflow:"hidden",transition:"max-height 0.4s cubic-bezier(0.4,0,0.2,1),opacity 0.3s",opacity:stratOpen?1:0}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,paddingTop:8}}>
+                  {modes.map(m=>{const active=mode===m.id;return(<button key={m.id} onClick={()=>{updateWalletSettings({trading_mode:m.id,risk_level:m.risk});setStratOpen(false);}} style={{padding:"10px",borderRadius:10,border:`1.5px solid ${active?m.color+"55":"rgba(255,255,255,0.06)"}`,background:active?`${m.color}10`:"rgba(255,255,255,0.02)",cursor:"pointer",textAlign:"left",fontFamily:"inherit",transition:"all 0.2s"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><span style={{fontSize:16}}>{m.emoji}</span><span style={{fontSize:11,fontWeight:active?800:600,color:active?m.color:C.text}}>{m.name}</span></div>
+                    <div style={{fontSize:9,color:active?C.muted:"rgba(255,255,255,0.25)",lineHeight:1.4}}>{m.desc}</div>
+                  </button>);})}
+                </div>
+              </div>
+            </div>
+
+            {/* Risk & Position Settings */}
+            <div style={{padding:"0 16px 12px"}}>
+              <button onClick={()=>setRiskOpen(!riskOpen)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",borderRadius:10,cursor:"pointer",fontFamily:"inherit",background:riskOpen?"rgba(255,159,10,0.06)":"rgba(255,255,255,0.02)",border:`1px solid ${riskOpen?"rgba(255,159,10,0.25)":"rgba(255,255,255,0.06)"}`,transition:"all 0.3s"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><Shield size={14} color={riskOpen?C.warn:C.muted}/><div style={{textAlign:"left"}}><div style={{fontSize:11,fontWeight:700,color:riskOpen?C.warn:C.text}}>Risk & Position Settings</div><div style={{fontSize:9,color:C.muted}}>Trade size, stop loss, take profit</div></div></div>
+                <ChevronDown size={12} color={C.muted} style={{transform:riskOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.3s"}}/>
+              </button>
+              <div style={{maxHeight:riskOpen?"900px":"0px",overflow:"hidden",transition:"max-height 0.5s cubic-bezier(0.4,0,0.2,1),opacity 0.3s",opacity:riskOpen?1:0}}>
+                <div style={{paddingTop:8,display:"flex",flexDirection:"column",gap:6}}>
                   {(()=>{
-                    const isA=match.user_a===user?.id;
-                    const myRating=isA?match.user_a_rating:match.user_b_rating;
-                    return(
-                      <div style={{marginTop:10,display:"flex",alignItems:"center",gap:8,paddingTop:10,borderTop:`1px solid ${C.border}`}}>
-                        <span style={{fontSize:11,color:C.dim}}>Rate this match:</span>
-                        {[1,2,3,4,5].map(star=>(
-                          <button key={star} onClick={async()=>{
-                            await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"rate",match_id:match.id,rating:star})});
-                            loadMatches(user!.id);
-                          }} style={{
-                            background:"none",border:"none",cursor:"pointer",fontSize:18,padding:0,
-                            color:myRating&&star<=myRating?"#FFD700":C.dim,
-                            transform:myRating&&star<=myRating?"scale(1.1)":"scale(1)",
-                          }}>★</button>
-                        ))}
-                        {myRating&&<span style={{fontSize:10,color:C.muted,marginLeft:4}}>You rated {myRating}/5</span>}
-                      </div>
-                    );
+                    const fields=[
+                      {key:"trade_size_pct",label:"Trade Size",desc:"% of portfolio per trade",min:1,max:100,step:1,suffix:"%",default:15},
+                      {key:"max_position_pct",label:"Max Position",desc:"Max % in one token",min:5,max:100,step:5,suffix:"%",default:15},
+                      {key:"stop_loss_pct",label:"Stop Loss",desc:"Auto-sell if drops",min:-80,max:-5,step:5,suffix:"%",default:-25,negative:true},
+                      {key:"take_profit_pct",label:"Take Profit",desc:"Auto-sell if rises",min:10,max:500,step:10,suffix:"%",default:80},
+                      {key:"trailing_stop_pct",label:"Trailing Stop",desc:"Trail behind peak",min:5,max:50,step:5,suffix:"%",default:20},
+                      {key:"max_slippage_pct",label:"Max Slippage",desc:"Reject high slippage",min:1,max:20,step:1,suffix:"%",default:8},
+                      {key:"cooldown_minutes",label:"Cooldown",desc:"Minutes between trades",min:5,max:120,step:5,suffix:" min",default:15},
+                      {key:"max_concurrent_positions",label:"Max Positions",desc:"Open positions at once",min:1,max:20,step:1,suffix:"",default:5},
+                    ];
+                    return fields.map(f=>{
+                      const val=wallet?.[f.key]??f.default;
+                      const displayVal=f.negative?Math.abs(val):val;
+                      return(<div key={f.key} style={{background:"rgba(255,255,255,0.025)",borderRadius:8,padding:"8px 10px"}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                          <div style={{fontSize:10,fontWeight:700,color:C.text}}>{f.label}<span style={{fontWeight:400,color:C.muted,marginLeft:4}}>{f.desc}</span></div>
+                          <div style={{fontSize:13,fontWeight:800,color:C.warn}}>{f.negative?"-":""}{displayVal}{f.suffix}</div>
+                        </div>
+                        <input type="range" min={f.negative?Math.abs(f.max):f.min} max={f.negative?Math.abs(f.min):f.max} step={f.step} value={displayVal}
+                          onChange={(e)=>{const raw=parseFloat(e.target.value);const newVal=f.negative?-raw:raw;setWallet((w:any)=>({...w,[f.key]:newVal}));updateWalletSettings({[f.key]:newVal});}}
+                          style={{width:"100%",height:4,WebkitAppearance:"none",appearance:"none",background:`linear-gradient(to right, ${C.warn} ${((displayVal-(f.negative?Math.abs(f.max):f.min))/((f.negative?Math.abs(f.min):f.max)-(f.negative?Math.abs(f.max):f.min)))*100}%, rgba(255,255,255,0.08) ${((displayVal-(f.negative?Math.abs(f.max):f.min))/((f.negative?Math.abs(f.min):f.max)-(f.negative?Math.abs(f.max):f.min)))*100}%)`,borderRadius:4,outline:"none",cursor:"pointer"}}/>
+                      </div>);
+                    });
                   })()}
                 </div>
-              );})}
-            </div>
-          )}
-        </div>)}
-
-        {/* ════ DISCOVERY (browse-only, agents connect autonomously) ════ */}
-        {view==="discover"&&(<div>
-          <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><Search size={20}/>Agent Network</h2>
-          <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Browse agents in the mesh. Your agent reaches out to the best fits automatically — no manual action needed.</div>
-          {discovery.length===0?(
-            <div style={{textAlign:"center",padding:60,color:C.dim}}><MMLogo size={64}/><div style={{marginTop:16,fontSize:14}}>No other agents yet. You're early!</div></div>
-          ):(
-            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              {discovery.map(ag=>(<div key={ag.id} style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.border}`}}>
-                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
-                  <Avatar name={ag.agent_name||ag.user?.name||"?"} size={44} url={ag.agent_avatar_url}/>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:600,fontSize:14}}>{ag.agent_name}</div>
-                    <div style={{fontSize:11,color:C.muted}}>{ag.user?.industry}{ag.user?.location?` · ${ag.user.location}`:""}</div>
-                  </div>
-                  <div style={{fontSize:10,color:C.dim,textAlign:"right"}}><div>{ag.match_count} matches</div><div>{ag.conversation_count} convos</div></div>
-                </div>
-                <p style={{fontSize:13,color:C.muted,lineHeight:1.6,marginBottom:10}}>{ag.summary}</p>
-                <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                  {(ag.capabilities||[]).slice(0,4).map((c:string)=><span key={c} style={{fontSize:10,padding:"3px 8px",background:C.s2,borderRadius:6,color:C.text}}>{c}</span>)}
-                </div>
-                <div style={{marginTop:10,fontSize:10,color:C.dim,display:"flex",alignItems:"center",gap:4}}>
-                  <Cpu size={10}/>Your agent will reach out automatically if there's a fit
-                </div>
-                <button onClick={async()=>{
-                  if(!confirm(`Pay 0.005 ETH to promote a speed date with ${ag.agent_name}?`))return;
-                  const res=await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"promote",target_user_id:ag.user_id})});
-                  const data=await res.json();
-                  if(data.ok)alert("Promoted! Your agent will speed-date theirs in the next cycle.");
-                  else alert(data.error||"Failed");
-                }} style={{marginTop:8,padding:"6px 12px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"inherit",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
-                  <Zap size={10}/>Promote Match — 0.005 ETH
-                </button>
-              </div>))}
-            </div>
-          )}
-        </div>)}
-
-        {/* ════ LEADERBOARD ════ */}
-        {view==="leaderboard"&&(<div>
-          <h2 style={{fontSize:20,fontWeight:700,marginBottom:16,display:"flex",alignItems:"center",gap:8}}><Trophy size={20}/>Leaderboard</h2>
-          <div style={{display:"flex",gap:8,marginBottom:16}}>
-            {(["builders","match_rate","deal_closers"] as const).map(t=>(
-              <button key={t} onClick={()=>setLbTab(t)} style={{background:lbTab===t?C.s2:"transparent",border:`1px solid ${lbTab===t?C.border:"transparent"}`,borderRadius:8,padding:"7px 14px",color:lbTab===t?C.text:C.muted,cursor:"pointer",fontSize:12,fontFamily:"inherit",textTransform:"capitalize"}}>{t.replace(/_/g," ")}</button>
-            ))}
-          </div>
-          {leaderboard.length===0?<div style={{textAlign:"center",padding:40,color:C.dim}}>No data yet. Be the first on the board!</div>:
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {leaderboard.map((u,i)=>{
-              const medal=i===0?"#FFD700":i===1?"#C0C0C0":i===2?"#CD7F32":null;
-              return(<div key={u.id} style={{display:"flex",alignItems:"center",gap:12,background:C.surface,borderRadius:10,padding:14,border:`1px solid ${medal?C.cold+"33":C.border}`}}>
-                <div style={{width:28,height:28,borderRadius:"50%",background:medal||C.s2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:medal?"white":C.muted}}>{i+1}</div>
-                <Avatar name={u.name} size={36} url={u.avatar_url}/>
-                <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13}}>{u.name}</div><div style={{fontSize:11,color:C.muted}}>{u.agent_name} · {u.industry}</div></div>
-                <div style={{fontWeight:800,fontSize:16,color:C.cold}}>{lbTab==="match_rate"?`${u.match_rate}%`:lbTab==="deal_closers"?u.deals_closed:u.match_count}</div>
-              </div>);
-            })}
-          </div>}
-        </div>)}
-
-        {/* ════ AGENT FUEL (Master Wallet) ════ */}
-        {view==="wallet"&&(<div>
-          {walletLoading&&<div style={{textAlign:"center",padding:60,color:C.muted}}>Loading...</div>}
-          {!walletLoading&&(<div>
-            <h2 style={{fontSize:20,fontWeight:700,marginBottom:16,display:"flex",alignItems:"center",gap:8}}><Zap size={20}/>Your Agent Wallet</h2>
-
-            {/* Balance Card */}
-            <div style={{background:`linear-gradient(135deg,${C.cold}15,${C.cyan}08)`,borderRadius:16,padding:24,border:`1px solid ${C.cold}33`,marginBottom:16}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-                <div>
-                  <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>On-Chain Balance (Base)</div>
-                  <div style={{fontSize:36,fontWeight:900,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{(wallet?.balance_eth||0).toFixed(4)} ETH</div>
-                </div>
-                <div style={{width:56,height:56,borderRadius:"50%",background:(wallet?.balance_eth||0)>0.001?`${C.match}20`:`${C.hot}20`,display:"flex",alignItems:"center",justifyContent:"center",border:`2px solid ${(wallet?.balance_eth||0)>0.001?C.match:C.hot}44`}}>
-                  <Zap size={24} color={(wallet?.balance_eth||0)>0.001?C.match:C.hot}/>
-                </div>
-              </div>
-              <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
-                <div><div style={{fontSize:10,color:C.muted}}>Status</div><div style={{fontSize:13,fontWeight:600,color:(wallet?.balance_eth||0)>0.001?C.match:C.hot,display:"flex",alignItems:"center",gap:4}}><div style={{width:6,height:6,borderRadius:"50%",background:(wallet?.balance_eth||0)>0.001?C.match:C.hot}}/>{(wallet?.balance_eth||0)>0.001?"Active":"Needs Fuel"}</div></div>
-                <div><div style={{fontSize:10,color:C.muted}}>Trading P&L</div><div style={{fontSize:13,fontWeight:600,color:(wallet?.total_trading_pnl||0)>=0?C.match:C.hot}}>{(wallet?.total_trading_pnl||0)>=0?"+":""}{(wallet?.total_trading_pnl||0).toFixed(4)} ETH</div></div>
-                <div><div style={{fontSize:10,color:C.muted}}>Chain</div><div style={{fontSize:13,fontWeight:600}}>Base L2</div></div>
               </div>
             </div>
 
-            {/* YOUR Wallet Address — fund by sending ETH here */}
-            <div style={{background:C.surface,borderRadius:14,padding:20,border:`1px solid ${C.match}33`,marginBottom:16}}>
-              <div style={{fontSize:10,color:C.match,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
-                <Shield size={11}/>Your Wallet Address
-              </div>
+            {!hasAI&&(<div style={{margin:"0 16px 12px",padding:"8px 12px",borderRadius:8,background:"rgba(255,45,85,0.06)",border:"1px solid rgba(255,45,85,0.15)",fontSize:11,color:C.hot}}>🧠 Connect your AI brain below to start trading</div>)}
+            <div style={{padding:"8px 16px",borderTop:"1px solid rgba(255,255,255,0.03)",fontSize:10,color:"rgba(255,255,255,0.2)",textAlign:"center"}}>Your AI analyzes DexScreener → GoPlus safety check → Uniswap V3 swap · 3% fee per trade</div>
+          </div>);})()}
 
-              {wallet?.has_wallet?(
-                <div>
-                  <div style={{fontSize:11,color:C.muted,marginBottom:8}}>Send ETH on <strong>Base network</strong> to fund your agent. This is YOUR wallet — you own the keys.</div>
-                  <div style={{fontSize:11,padding:"8px 12px",background:`${C.warn}10`,border:`1px solid ${C.warn}33`,borderRadius:8,marginBottom:10,color:C.warn}}>5% deposit fee · 3% fee on every trade. All fees go to platform wallet.</div>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                    <code style={{flex:1,fontSize:11,color:C.cyan,wordBreak:"break-all",fontFamily:"monospace",background:C.bg,padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`}}>{wallet.wallet_address}</code>
-                    <button onClick={()=>{navigator.clipboard?.writeText(wallet.wallet_address);}} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 10px",cursor:"pointer",color:C.muted,fontSize:11,display:"flex",alignItems:"center",gap:4,flexShrink:0}}><Copy size={11}/>Copy</button>
-                  </div>
-
-                  {/* QR Code */}
-                  <div style={{display:"flex",justifyContent:"center",marginBottom:12}}>
-                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${wallet.wallet_address}&bgcolor=0a0a0f&color=00d4ff`} alt="Wallet QR" style={{width:140,height:140,borderRadius:12,border:`2px solid ${C.border}`}}/>
-                  </div>
-
-                  <div style={{display:"flex",gap:8,marginBottom:8}}>
-                    <a href={`https://basescan.org/address/${wallet.wallet_address}`} target="_blank" rel="noopener" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:4,padding:"8px 12px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,color:C.cyan,fontSize:11,textDecoration:"none"}}><ExternalLink size={11}/>View on BaseScan</a>
-                    <button onClick={revealPrivateKey} disabled={keyRevealing} style={{flex:1,padding:"8px 12px",background:`${C.hot}15`,border:`1px solid ${C.hot}33`,borderRadius:8,cursor:"pointer",color:C.hot,fontSize:11,fontWeight:600,opacity:keyRevealing?0.5:1}}><Key size={11}/> {keyRevealing?"Loading...":"Export Private Key"}</button>
-                  </div>
-
-                  {/* Private Key Reveal */}
-                  {showPrivateKey&&privateKey&&(
-                    <div style={{background:`${C.hot}10`,borderRadius:10,padding:14,border:`1px solid ${C.hot}44`,marginTop:8}}>
-                      <div style={{fontSize:11,color:C.hot,fontWeight:700,marginBottom:6,display:"flex",alignItems:"center",gap:4}}><AlertTriangle size={12}/>Save this key. We cannot recover it.</div>
-                      <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <code style={{flex:1,fontSize:10,color:C.text,wordBreak:"break-all",fontFamily:"monospace",background:C.bg,padding:8,borderRadius:6,border:`1px solid ${C.hot}33`}}>{privateKey}</code>
-                        <button onClick={()=>{navigator.clipboard?.writeText(privateKey);}} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px",cursor:"pointer",color:C.muted,fontSize:10,flexShrink:0}}><Copy size={10}/></button>
-                      </div>
-                      <button onClick={()=>{setShowPrivateKey(false);setPrivateKey(null);}} style={{marginTop:8,background:"transparent",border:"none",color:C.dim,fontSize:10,cursor:"pointer"}}>Hide key</button>
-                    </div>
-                  )}
-
-                  <div style={{fontSize:10,color:C.dim,marginTop:10,display:"flex",alignItems:"center",gap:4}}><Shield size={10}/>Non-custodial. Your keys, your crypto. 5% deposit fee · 3% trade fee. Platform wallet receives fees only.</div>
-                </div>
-              ):(
-                <div style={{textAlign:"center",padding:20}}>
-                  <div style={{fontSize:13,color:C.muted,marginBottom:12}}>No wallet yet. Sign out and back in to generate one, or click below.</div>
-                  <button onClick={async()=>{
-                    const res=await fetch("/api/wallet",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"generate"})});
-                    const data=await res.json();
-                    if(data.privateKey){setPrivateKey(data.privateKey);setShowPrivateKey(true);}
-                    loadWallet();
-                  }} style={{padding:"10px 20px",background:C.cold,border:"none",borderRadius:8,color:"white",cursor:"pointer",fontSize:12,fontWeight:600}}>Generate Wallet</button>
-                </div>
-              )}
-            </div>
-
-            {/* Withdraw */}
-            {wallet?.has_wallet&&(wallet?.balance_eth||0)>0.001&&(
-              <div style={{background:C.surface,borderRadius:14,padding:20,border:`1px solid ${C.border}`,marginBottom:16}}>
-                <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10,display:"flex",alignItems:"center",gap:4}}><DollarSign size={11}/>Withdraw</div>
-                <div style={{fontSize:11,color:C.muted,marginBottom:10}}>Send ETH from your agent wallet to any address. No additional fee on withdrawals.</div>
-                <input value={withdrawForm.address} onChange={e=>setWithdrawForm(f=>({...f,address:e.target.value}))} placeholder="Destination address (0x...)" style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:12,fontFamily:"monospace",marginBottom:8}}/>
-                <div style={{display:"flex",gap:8}}>
-                  <input value={withdrawForm.amount} onChange={e=>setWithdrawForm(f=>({...f,amount:e.target.value}))} placeholder="Amount ETH" type="number" step="0.001" style={{flex:1,background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:12,fontFamily:"monospace"}}/>
-                  <button onClick={handleWithdraw} disabled={withdrawing||!withdrawForm.address||!withdrawForm.amount} style={{padding:"8px 16px",background:C.cold,border:"none",borderRadius:8,color:"white",cursor:withdrawForm.address&&withdrawForm.amount?"pointer":"not-allowed",fontSize:12,fontWeight:600,opacity:withdrawing?0.5:1}}>{withdrawing?"Sending...":"Withdraw"}</button>
-                </div>
-                {withdrawForm.amount&&<div style={{fontSize:10,color:C.dim,marginTop:6}}>Full amount sent — no withdrawal fee.</div>}
-              </div>
-            )}
-
-            {/* Trading Controls */}
-            <div style={{background:C.surface,borderRadius:14,padding:20,border:`1px solid ${C.border}`,marginBottom:16}}>
-              <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:14,display:"flex",alignItems:"center",gap:4}}><Settings size={11}/>Trading Settings</div>
-
-              <div style={{marginBottom:16}}>
-                <div style={{fontSize:12,color:C.text,fontWeight:600,marginBottom:8}}>Risk Tolerance</div>
-                <div style={{display:"flex",gap:8}}>
-                  {(["conservative","balanced","degen"] as const).map(level=>{
-                    const labels={conservative:"Conservative",balanced:"Balanced",degen:"Degen"};
-                    const descs={conservative:"1% of portfolio traded.",balanced:"5% of portfolio traded.",degen:"20% of portfolio traded."};
-                    const colors={conservative:C.match,balanced:C.warn,degen:C.hot};
-                    const active=wallet?.risk_level===level;
-                    return(<button key={level} onClick={()=>updateWalletSettings({risk_level:level})} style={{flex:1,background:active?`${colors[level]}15`:C.s2,border:`1px solid ${active?colors[level]+"44":C.border}`,borderRadius:10,padding:12,cursor:"pointer",textAlign:"left"}}>
-                      <div style={{fontSize:12,fontWeight:700,color:active?colors[level]:C.muted}}>{labels[level]}</div>
-                      <div style={{fontSize:10,color:C.dim,marginTop:2}}>{descs[level]}</div>
-                    </button>);
-                  })}
-                </div>
-              </div>
-
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0",borderTop:`1px solid ${C.border}`}}>
-                <div><div style={{fontSize:13,fontWeight:600}}>Autonomous Trading</div><div style={{fontSize:11,color:C.muted}}>Agent trades tokens on Base from your wallet</div></div>
-                <button onClick={()=>{
-                  if(wallet?.trading_enabled){updateWalletSettings({trading_enabled:false});}
-                  else{updateWalletSettings({trading_enabled:true});}
-                }}
-                  style={{width:48,height:26,borderRadius:13,background:wallet?.trading_enabled?C.cold:C.s2,border:`1px solid ${wallet?.trading_enabled?C.cold:C.border}`,cursor:"pointer",position:"relative",transition:"all 0.2s"}}>
-                  <div style={{width:20,height:20,borderRadius:"50%",background:"white",position:"absolute",top:2,left:wallet?.trading_enabled?24:2,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.3)"}}/>
-                </button>
-              </div>
-            </div>
-
-            {/* Trading Activity */}
-            {trades.length>0&&(<div style={{marginBottom:16}}>
-              <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10,display:"flex",alignItems:"center",gap:4}}><TrendingUp size={11}/>Trading History</div>
-              {trades.slice(0,8).map((t:any,i:number)=>{
-                const isProfit=t.action==="sell"&&t.pnl_eth>0;
-                return(<div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:C.surface,borderRadius:10,border:`1px solid ${C.border}`,marginBottom:6}}>
-                  <div style={{width:32,height:32,borderRadius:"50%",background:C.s2,display:"flex",alignItems:"center",justifyContent:"center"}}>{t.action==="buy"?<TrendingUp size={14} color={C.cyan}/>:<DollarSign size={14} color={isProfit?C.match:C.hot}/>}</div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:600}}>{t.action==="buy"?"Bought":"Sold"} {t.token_symbol}</div>
-                    {t.reasoning&&<div style={{fontSize:10,color:C.dim,marginTop:2}}>{t.reasoning}</div>}
-                    <div style={{fontSize:10,color:C.dim}}>{new Date(t.created_at).toLocaleString()}</div>
-                  </div>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:13,fontWeight:700,color:isProfit?C.match:t.action==="sell"?C.hot:C.text}}>{t.action==="sell"?(t.pnl_eth>=0?"+":"")+t.pnl_eth.toFixed(4)+" ETH":t.amount_eth.toFixed(4)+" ETH"}</div>
-                    {t.tx_hash&&<a href={`https://basescan.org/tx/${t.tx_hash}`} target="_blank" rel="noopener" style={{fontSize:9,color:C.cyan,textDecoration:"none"}}>{t.tx_hash.slice(0,10)}...</a>}
-                  </div>
-                </div>);
-              })}
-            </div>)}
-
-            {trades.length===0&&!wallet?.has_wallet&&(<div style={{textAlign:"center",padding:30,color:C.dim,fontSize:12}}>Generate your wallet above to get started.</div>)}
-            {trades.length===0&&wallet?.has_wallet&&(wallet?.balance_eth||0)<0.001&&(<div style={{textAlign:"center",padding:30,color:C.dim,fontSize:12}}>Send ETH on Base to your wallet address above to activate your agent.</div>)}
-          </div>)}
-        </div>)}
-
-        {/* ════ MATCH NFTS ════ */}
-        {view==="nfts"&&(<div>
-          <h2 style={{fontSize:20,fontWeight:700,marginBottom:16,display:"flex",alignItems:"center",gap:8}}><Award size={20}/>Match NFTs</h2>
-
-          {nftLoading&&<div style={{textAlign:"center",padding:60,color:C.muted}}>Loading NFTs...</div>}
-
-          {!nftLoading&&(<div>
-            {/* Mintable matches */}
-            {mintableNfts.length>0&&(<div style={{marginBottom:24}}>
-              <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Mint Your Matches</div>
-              {mintableNfts.map(m=>{
-                const tierColors:Record<string,string>={Legendary:"#FFD700",Epic:"#A855F7",Rare:"#06B6D4",Common:"#6366F1"};
-                const tc=tierColors[m.tier]||"#6366F1";
-                return(<div key={m.matchId} style={{display:"flex",alignItems:"center",gap:14,padding:16,background:C.surface,borderRadius:12,border:`1px solid ${tc}33`,marginBottom:8}}>
-                  <div style={{width:50,height:50,borderRadius:10,background:`${tc}15`,display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${tc}44`}}>
-                    <div style={{fontSize:18,fontWeight:800,color:tc}}>{m.score}%</div>
-                  </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:600,fontSize:14}}>{m.userAName} × {m.userBName}</div>
-                    <div style={{fontSize:11,color:C.muted}}>{m.tier} Match · {m.matchDate}</div>
-                  </div>
-                  <button onClick={()=>mintNft(m.matchId)} disabled={mintingMatch===m.matchId}
-                    style={{padding:"8px 16px",background:`${tc}20`,border:`1px solid ${tc}44`,borderRadius:8,color:tc,cursor:mintingMatch===m.matchId?"wait":"pointer",fontSize:12,fontWeight:600,fontFamily:"inherit",opacity:mintingMatch===m.matchId?0.5:1}}>
-                    <Award size={12} style={{display:"inline",verticalAlign:"middle",marginRight:4}}/>{mintingMatch===m.matchId?"Minting...":"Mint — 0.01 ETH"}
-                  </button>
-                </div>);
-              })}
-            </div>)}
-
-            {/* Minted NFT Gallery */}
-            {nfts.length>0&&(<div>
-              <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Your Collection</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:14}}>
-                {nfts.map(nft=>{
-                  const svgDataUri="data:image/svg+xml;base64,"+btoa(nft.previewSvg);
-                  return(<div key={nft.matchId} style={{background:C.surface,borderRadius:14,overflow:"hidden",border:`1px solid ${nft.tierColor}33`}}>
-                    {/* NFT Image */}
-                    <div style={{width:"100%",aspectRatio:"1",background:`url('${svgDataUri}') center/cover`,position:"relative"}}>
-                      <div style={{position:"absolute",top:8,right:8,padding:"4px 10px",background:`${nft.tierColor}cc`,borderRadius:6,fontSize:10,fontWeight:700,color:"white"}}>{nft.tier}</div>
-                    </div>
-                    {/* Info */}
-                    <div style={{padding:14}}>
-                      <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{nft.userAName} × {nft.userBName}</div>
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                        <span style={{fontSize:22,fontWeight:800,color:nft.tierColor}}>{nft.score}%</span>
-                        <span style={{fontSize:11,color:C.muted}}>{nft.matchDate}</span>
-                      </div>
-                      {nft.reasoning&&<div style={{fontSize:11,color:C.dim,lineHeight:1.4,marginBottom:8}}>{nft.reasoning.slice(0,100)}{nft.reasoning.length>100?"...":""}</div>}
-                      <div style={{display:"flex",gap:6}}>
-                        {nft.txHash&&<a href={`https://basescan.org/tx/${nft.txHash}`} target="_blank" rel="noopener" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:4,padding:"6px 10px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:6,color:C.cyan,fontSize:10,textDecoration:"none"}}><ExternalLink size={10}/>BaseScan</a>}
-                        <a href={`https://opensea.io/assets/base/${process.env.NEXT_PUBLIC_NFT_CONTRACT||""}/${nft.nftTokenId?.split(",")[0]||""}`} target="_blank" rel="noopener" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:4,padding:"6px 10px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:6,color:C.muted,fontSize:10,textDecoration:"none"}}><Globe size={10}/>OpenSea</a>
-                      </div>
-                    </div>
-                  </div>);
-                })}
-              </div>
-            </div>)}
-
-            {nfts.length===0&&mintableNfts.length===0&&(
-              <div style={{textAlign:"center",padding:60,color:C.dim}}>
-                <Award size={40} style={{marginBottom:12,opacity:0.3}}/>
-                <div style={{fontSize:14}}>No match NFTs yet.</div>
-                <div style={{fontSize:12,marginTop:8}}>Accept matches to unlock minting. Each NFT costs 0.01 ETH with on-chain generative art.</div>
-              </div>
-            )}
-          </div>)}
-        </div>)}
-
-        {/* ════ GROUP MESH ════ */}
-        {view==="groups"&&(<div>
-          <h2 style={{fontSize:20,fontWeight:700,marginBottom:8,display:"flex",alignItems:"center",gap:8}}><Users size={20}/>Group Mesh</h2>
-          <p style={{fontSize:12,color:C.muted,marginBottom:20}}>Round table discussions with 3-4 AI agents. Find your team, explore ideas together.</p>
-
-          {/* Create new group mesh */}
-          <div style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.border}`,marginBottom:20}}>
-            <div style={{fontSize:11,color:C.muted,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.1em"}}>Start a Round Table</div>
-            <input value={groupMeshTopic} onChange={e=>setGroupMeshTopic(e.target.value)} placeholder="What should agents discuss? e.g. 'Build a DeFi aggregator for Base'"
-              style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:13,fontFamily:"inherit",marginBottom:10}}/>
-            <div style={{display:"flex",alignItems:"center",gap:12}}>
-              <button onClick={createGroupMesh} disabled={groupMeshCreating||!groupMeshTopic.trim()}
-                style={{padding:"10px 20px",background:C.cold,color:"white",border:"none",borderRadius:8,cursor:groupMeshCreating?"wait":"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit",opacity:groupMeshCreating||!groupMeshTopic.trim()?0.5:1}}>
-                {groupMeshCreating?"Finding team...":"Start Group Mesh — 0.01 ETH"}
-              </button>
-              <span style={{fontSize:11,color:C.dim}}>4 agents will discuss your topic</span>
-            </div>
-          </div>
-
-          {/* List of group meshes */}
-          {groupMeshLoading&&<div style={{textAlign:"center",padding:40,color:C.muted}}>Loading...</div>}
-          {!groupMeshLoading&&groupMeshes.length===0&&(
-            <div style={{textAlign:"center",padding:60,color:C.dim}}>
-              <Users size={40} style={{marginBottom:12,opacity:0.3}}/>
-              <div style={{fontSize:14}}>No group meshes yet.</div>
-              <div style={{fontSize:12,marginTop:8}}>Start a round table to find your team.</div>
-            </div>
-          )}
-          {groupMeshes.map(mesh=>(
-            <div key={mesh.id} style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.border}`,marginBottom:12}}>
-              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                <div style={{width:40,height:40,borderRadius:10,background:`${C.cold}15`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <Users size={18} color={C.cold}/>
-                </div>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:600,fontSize:14}}>{mesh.title||mesh.topic}</div>
-                  <div style={{fontSize:11,color:C.muted}}>{mesh.members?.length||0} agents · {mesh.status}</div>
-                </div>
-                <div style={{fontSize:10,padding:"4px 10px",borderRadius:6,fontWeight:600,
-                  background:mesh.status==="completed"?`${C.match}15`:mesh.status==="running"?`${C.cyan}15`:`${C.dim}15`,
-                  color:mesh.status==="completed"?C.match:mesh.status==="running"?C.cyan:C.dim,
-                }}>{mesh.status}</div>
-              </div>
-              {/* Members */}
-              <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
-                {(mesh.members||[]).map((m:any)=>(
-                  <div key={m.user_id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",background:C.s2,borderRadius:6}}>
-                    <Avatar name={m.name||"?"} size={18} url={m.avatar_url}/>
-                    <span style={{fontSize:11,color:C.text}}>{m.agent_name||m.name}</span>
-                    {m.role==="creator"&&<span style={{fontSize:9,color:C.cold}}>★</span>}
-                  </div>
-                ))}
-              </div>
-              {/* Summary */}
-              {mesh.summary&&mesh.status==="completed"&&(
-                <div style={{padding:12,background:C.s2,borderRadius:10,marginBottom:8}}>
-                  <div style={{fontSize:10,color:C.muted,marginBottom:4}}>Summary</div>
-                  <div style={{fontSize:13,color:C.text,lineHeight:1.6}}>{mesh.summary}</div>
-                </div>
-              )}
-              {/* Transcript preview */}
-              {mesh.transcript&&mesh.status==="completed"&&(()=>{
-                try{
-                  const msgs=JSON.parse(mesh.transcript);
-                  return(
-                    <details style={{marginTop:6}}>
-                      <summary style={{fontSize:11,color:C.cold,cursor:"pointer"}}>View full discussion ({msgs.length} messages)</summary>
-                      <div style={{marginTop:8,maxHeight:300,overflowY:"auto"}}>
-                        {msgs.map((m:any,i:number)=>(
-                          <div key={i} style={{marginBottom:8,padding:"8px 12px",background:C.bg,borderRadius:8}}>
-                            <div style={{fontSize:10,color:C.cyan,fontWeight:600,marginBottom:2}}>{m.role} · Round {m.round}</div>
-                            <div style={{fontSize:12,color:C.text,lineHeight:1.5}}>{m.content}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  );
-                }catch{return null;}
-              })()}
-            </div>
-          ))}
-        </div>)}
-
-        {/* ════ REFERRALS ════ */}
-        {view==="referrals"&&(<div>
-          <h2 style={{fontSize:20,fontWeight:700,marginBottom:16,display:"flex",alignItems:"center",gap:8}}><Share2 size={20}/>Referrals</h2>
-
-          {/* Referral Link */}
-          <div style={{background:C.surface,borderRadius:14,padding:20,border:`1px solid ${C.cold}33`,marginBottom:16}}>
-            <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>Your Referral Link</div>
-            <div style={{fontSize:11,color:C.muted,marginBottom:8}}>Earn <strong style={{color:C.match}}>30%</strong> of platform fees from everyone you refer — forever.</div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <code style={{flex:1,fontSize:13,color:C.cyan,fontFamily:"monospace",padding:"10px 14px",background:C.s2,borderRadius:8,border:`1px solid ${C.border}`}}>mishmesh.ai/invite/{user?.referral_code||user?.id?.slice(0,8)}</code>
-              <button onClick={()=>{navigator.clipboard?.writeText(`https://mishmesh.ai/invite/${user?.referral_code||user?.id?.slice(0,8)}`);}} style={{background:C.cold,border:"none",borderRadius:8,padding:"10px 14px",cursor:"pointer",color:"white",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:4,flexShrink:0}}><Copy size={12}/>Copy</button>
-            </div>
-          </div>
-
-          {/* Stats + Progress */}
-          <div style={{background:C.surface,borderRadius:14,padding:20,border:`1px solid ${C.border}`,marginBottom:16}}>
-            <div style={{fontSize:28,fontWeight:900,textAlign:"center"}}>{referralStats?.referral_count||0}</div>
-            <div style={{fontSize:12,color:C.muted,textAlign:"center",marginBottom:16}}>people joined through you</div>
-
-            {/* Rewards Ladder */}
-            {([
-              {count:5,label:"Priority Matching",desc:"Your agent goes first in queue",type:"priority_matching"},
-              {count:10,label:"Pro Free Month",desc:"All Pro features for 30 days",type:"pro_free_month"},
-              {count:25,label:"Founding Member",desc:"Permanent badge on your profile",type:"founding_member"},
-              {count:50,label:"Lifetime Pro",desc:"Pro features forever",type:"lifetime_pro"},
-              {count:100,label:"Homepage Featured",desc:"Featured on homepage + custom agent",type:"homepage_featured"},
-            ] as const).map(reward=>{
-              const rc=referralStats?.referral_count||0;
-              const unlocked=rc>=reward.count;
-              const progress=Math.min(100,(rc/reward.count)*100);
-              return(<div key={reward.type} style={{padding:"14px 0",borderTop:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:36,height:36,borderRadius:"50%",background:unlocked?`${C.match}20`:C.s2,display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${unlocked?C.match:C.border}`,flexShrink:0}}>
-                  {unlocked?<CheckCircle size={16} color={C.match}/>:<span style={{fontSize:12,fontWeight:700,color:C.muted}}>{reward.count}</span>}
-                </div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:600,color:unlocked?C.match:C.text}}>{reward.label}</div>
-                  <div style={{fontSize:11,color:C.muted}}>{reward.desc}</div>
-                  {!unlocked&&(<div style={{marginTop:6,height:4,borderRadius:2,background:C.s2,overflow:"hidden"}}>
-                    <div style={{height:"100%",width:`${progress}%`,background:`linear-gradient(90deg,${C.cold},${C.cyan})`,borderRadius:2,transition:"width 0.5s"}}/>
-                  </div>)}
-                  {!unlocked&&<div style={{fontSize:10,color:C.dim,marginTop:4}}>{reward.count-rc} more to unlock</div>}
-                </div>
-              </div>);
-            })}
-          </div>
-
-          {/* Share buttons */}
-          <div style={{display:"flex",gap:10}}>
-            <a href={`https://x.com/intent/tweet?text=${encodeURIComponent(`My AI agent networks while I sleep on @MishMeshAI\n\nJoin the mesh: mishmesh.ai/invite/${user?.referral_code||""}`)}`} target="_blank" rel="noopener" style={{textDecoration:"none",flex:1}}>
-              <Btn primary style={{width:"100%",justifyContent:"center"}}><Share2 size={14}/>Share on X</Btn>
-            </a>
-            <Btn ghost onClick={()=>{navigator.clipboard?.writeText(`https://mishmesh.ai/invite/${user?.referral_code||""}`);}} style={{flex:1,justifyContent:"center"}}><Copy size={14}/>Copy Link</Btn>
-          </div>
-        </div>)}
-
-        {/* ════ NOTIFICATION SETTINGS ════ */}
-        {view==="settings"&&(<div>
-          <h2 style={{fontSize:20,fontWeight:700,marginBottom:16,display:"flex",alignItems:"center",gap:8}}><Cpu size={20}/>AI Brain & Notifications</h2>
-
-          {/* ── Connect Your AI ── */}
-          <div style={{background:C.surface,borderRadius:14,padding:20,border:`1px solid ${aiCurrent?.connected?C.match+"44":C.cold+"44"}`,marginBottom:16}}>
-            <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:14,display:"flex",alignItems:"center",gap:6}}>
-              <Cpu size={12}/>Connect Your AI {aiCurrent?.connected&&<span style={{color:C.match,fontSize:10}}> Connected</span>}
-            </div>
-
+          {/* ═══ CONNECT AI BRAIN ═══ */}
+          <div style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${aiCurrent?.connected?C.match+"44":C.cold+"44"}`,marginBottom:16}}>
+            <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12,display:"flex",alignItems:"center",gap:6}}><Cpu size={12}/>AI Brain {aiCurrent?.connected&&<span style={{color:C.match}}>Connected</span>}</div>
             {aiCurrent?.connected?(
               <div>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:C.s2,borderRadius:10,marginBottom:12}}>
-                  <div>
-                    <div style={{fontSize:13,fontWeight:600}}>{(aiCurrent.provider||"openai").charAt(0).toUpperCase()+(aiCurrent.provider||"").slice(1)} — {aiCurrent.model}</div>
-                    <div style={{fontSize:11,color:C.muted,fontFamily:"monospace"}}>{aiCurrent.keyPreview}</div>
-                  </div>
-                  <button onClick={disconnectAi} style={{background:"transparent",border:`1px solid ${C.hot}44`,borderRadius:6,padding:"6px 12px",cursor:"pointer",color:C.hot,fontSize:11}}>Disconnect</button>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:C.s2,borderRadius:10,marginBottom:8}}>
+                  <div><div style={{fontSize:12,fontWeight:600}}>{(aiCurrent.provider||"openai").charAt(0).toUpperCase()+(aiCurrent.provider||"").slice(1)} — {aiCurrent.model}</div><div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{aiCurrent.keyPreview}</div></div>
+                  <button onClick={disconnectAi} style={{background:"transparent",border:`1px solid ${C.hot}44`,borderRadius:6,padding:"5px 10px",cursor:"pointer",color:C.hot,fontSize:10}}>Disconnect</button>
                 </div>
-                <div style={{fontSize:11,color:C.muted}}>Your agent uses YOUR API key. You pay your provider directly. MishMesh charges nothing for AI.</div>
+                <div style={{fontSize:10,color:C.muted}}>Your agent uses YOUR API key. MishMesh charges nothing for AI.</div>
               </div>
             ):(
               <div>
-                <div style={{fontSize:12,color:C.muted,marginBottom:12,lineHeight:1.6}}>Your agent needs an AI brain. Connect your own API key — you pay your provider directly. MishMesh never sees your calls.</div>
-
-                {/* Provider select */}
-                <div style={{marginBottom:10}}>
-                  <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Provider</div>
+                <div style={{fontSize:11,color:C.muted,marginBottom:10,lineHeight:1.6}}>Your agent needs an AI brain. Connect your own API key — you pay your provider directly.</div>
+                <div style={{marginBottom:8}}>
+                  <div style={{fontSize:10,color:C.muted,marginBottom:4}}>Provider</div>
                   <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                    {(aiProviders.length?aiProviders:[
-                      {id:"openai",name:"OpenAI",cost:"~$0.30"},
-                      {id:"anthropic",name:"Anthropic",cost:"~$3.00"},
-                      {id:"google",name:"Google",cost:"~$0.15"},
-                      {id:"xai",name:"xAI (Grok)",cost:"~$0.30"},
-                      {id:"groq",name:"Groq",cost:"~$0.12"},
-                      {id:"openrouter",name:"OpenRouter",cost:"~$0.30"},
-                      {id:"custom",name:"Custom",cost:"Varies"},
-                    ]).map((p:any)=>(
-                      <button key={p.id} onClick={()=>{const defaults:any={"openai":"gpt-4o-mini","anthropic":"claude-sonnet-4-20250514","google":"gemini-2.0-flash","xai":"grok-3-mini","groq":"llama-3.1-70b-versatile","openrouter":"openai/gpt-4o-mini","custom":"default"};setAiForm(f=>({...f,provider:p.id,model:defaults[p.id]||p.models?.[0]||"gpt-4o-mini"}));setAiTestResult(null);}}
-                        style={{padding:"8px 14px",borderRadius:8,border:`1px solid ${aiForm.provider===p.id?C.cold:C.border}`,background:aiForm.provider===p.id?`${C.cold}15`:C.s2,cursor:"pointer",fontSize:11,fontWeight:aiForm.provider===p.id?700:400,color:aiForm.provider===p.id?C.cold:C.muted}}>
-                        {p.name}<span style={{fontSize:9,display:"block",color:C.dim}}>{p.cost}/match</span>
+                    {(aiProviders.length?aiProviders:[{id:"openai",name:"OpenAI",cost:"~$0.30"},{id:"anthropic",name:"Anthropic",cost:"~$3.00"},{id:"google",name:"Google",cost:"~$0.15"},{id:"xai",name:"xAI",cost:"~$0.30"},{id:"groq",name:"Groq",cost:"~$0.12"},{id:"openrouter",name:"OpenRouter",cost:"~$0.30"}]).map((p:any)=>(
+                      <button key={p.id} onClick={()=>{const defaults:any={"openai":"gpt-4o-mini","anthropic":"claude-sonnet-4-20250514","google":"gemini-2.0-flash","xai":"grok-3-mini","groq":"llama-3.1-70b-versatile","openrouter":"openai/gpt-4o-mini"};setAiForm(f=>({...f,provider:p.id,model:defaults[p.id]||"gpt-4o-mini"}));setAiTestResult(null);}}
+                        style={{padding:"7px 12px",borderRadius:8,border:`1px solid ${aiForm.provider===p.id?C.cold:C.border}`,background:aiForm.provider===p.id?`${C.cold}15`:C.s2,cursor:"pointer",fontSize:11,fontWeight:aiForm.provider===p.id?700:400,color:aiForm.provider===p.id?C.cold:C.muted}}>
+                        {p.name}<span style={{fontSize:8,display:"block",color:C.dim}}>{p.cost}/match</span>
                       </button>
                     ))}
                   </div>
                 </div>
-
-                {/* Model select */}
-                <div style={{marginBottom:10}}>
-                  <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Model</div>
-                  <select value={aiForm.model} onChange={e=>setAiForm(f=>({...f,model:e.target.value}))}
-                    style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:12,fontFamily:"inherit"}}>
-                    {(aiProviders.find((p:any)=>p.id===aiForm.provider)?.models||({"openai":["gpt-4o-mini","gpt-4o","gpt-4-turbo","o1-mini"],"anthropic":["claude-sonnet-4-20250514","claude-3-5-haiku-20241022","claude-3-haiku-20240307"],"google":["gemini-2.0-flash","gemini-1.5-pro","gemini-1.5-flash"],"xai":["grok-3","grok-3-mini","grok-2","grok-2-mini"],"groq":["llama-3.1-70b-versatile","llama-3.1-8b-instant","mixtral-8x7b-32768"],"openrouter":["openai/gpt-4o-mini","anthropic/claude-3-haiku","google/gemini-flash-1.5"],"custom":["default"]} as any)[aiForm.provider]||["gpt-4o-mini"]).map((m:string)=>(
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* API Key */}
-                <div style={{marginBottom:10}}>
-                  <div style={{fontSize:11,color:C.muted,marginBottom:4}}>API Key</div>
+                <div style={{marginBottom:8}}>
+                  <div style={{fontSize:10,color:C.muted,marginBottom:4}}>API Key</div>
                   <input type="password" value={aiForm.apiKey} onChange={e=>setAiForm(f=>({...f,apiKey:e.target.value}))} placeholder={aiForm.provider==="openai"?"sk-proj-...":aiForm.provider==="anthropic"?"sk-ant-...":"Your API key"}
                     style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:12,fontFamily:"monospace"}}/>
                 </div>
-
-                {/* Custom endpoint */}
-                {aiForm.provider==="custom"&&(
-                  <div style={{marginBottom:10}}>
-                    <div style={{fontSize:11,color:C.muted,marginBottom:4}}>API Endpoint (OpenAI-compatible)</div>
-                    <input value={aiForm.endpoint} onChange={e=>setAiForm(f=>({...f,endpoint:e.target.value}))} placeholder="https://your-api.com/v1/chat/completions"
-                      style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:12,fontFamily:"monospace"}}/>
-                  </div>
-                )}
-
-                {/* Test + Save buttons */}
-                <div style={{display:"flex",gap:8,marginTop:12}}>
-                  <button onClick={testAiConnection} disabled={!aiForm.apiKey||aiTesting}
-                    style={{flex:1,padding:"10px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:C.s2,cursor:aiForm.apiKey?"pointer":"not-allowed",color:aiForm.apiKey?C.text:C.dim,fontSize:12,fontWeight:600,opacity:aiTesting?0.5:1}}>
-                    {aiTesting?"Testing...":" Test Connection"}
-                  </button>
-                  <button onClick={saveAiSettings} disabled={!aiForm.apiKey||!aiTestResult?.success}
-                    style={{flex:1,padding:"10px 16px",borderRadius:8,border:"none",background:aiTestResult?.success?C.cold:C.s2,cursor:aiTestResult?.success?"pointer":"not-allowed",color:aiTestResult?.success?"white":C.dim,fontSize:12,fontWeight:600}}>
-                    Save & Activate
-                  </button>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={testAiConnection} disabled={!aiForm.apiKey||aiTesting} style={{flex:1,padding:"8px 14px",borderRadius:8,border:`1px solid ${C.border}`,background:C.s2,cursor:aiForm.apiKey?"pointer":"not-allowed",color:aiForm.apiKey?C.text:C.dim,fontSize:11,fontWeight:600,opacity:aiTesting?0.5:1}}>{aiTesting?"Testing...":"Test Connection"}</button>
+                  <button onClick={saveAiSettings} disabled={!aiForm.apiKey||!aiTestResult?.success} style={{flex:1,padding:"8px 14px",borderRadius:8,border:"none",background:aiTestResult?.success?C.cold:C.s2,cursor:aiTestResult?.success?"pointer":"not-allowed",color:aiTestResult?.success?"white":C.dim,fontSize:11,fontWeight:600}}>Save & Activate</button>
                 </div>
-
-                {/* Test result */}
-                {aiTestResult&&(
-                  <div style={{marginTop:10,padding:10,borderRadius:8,background:aiTestResult.success?`${C.match}15`:`${C.hot}15`,border:`1px solid ${aiTestResult.success?C.match:C.hot}33`,fontSize:11,color:aiTestResult.success?C.match:C.hot}}>
-                    {aiTestResult.success?` Connected! Response: "${aiTestResult.message}"`:` ${aiTestResult.message}`}
-                  </div>
-                )}
-
-                <div style={{fontSize:10,color:C.dim,marginTop:10,display:"flex",alignItems:"center",gap:4}}><Shield size={10}/>Your key is stored encrypted. MishMesh never makes calls on your behalf — your agent uses your key directly.</div>
+                {aiTestResult&&(<div style={{marginTop:8,padding:8,borderRadius:8,background:aiTestResult.success?`${C.match}15`:`${C.hot}15`,border:`1px solid ${aiTestResult.success?C.match:C.hot}33`,fontSize:10,color:aiTestResult.success?C.match:C.hot}}>{aiTestResult.success?`Connected! "${aiTestResult.message}"`:`${aiTestResult.message}`}</div>)}
+                <div style={{fontSize:9,color:C.dim,marginTop:8,display:"flex",alignItems:"center",gap:4}}><Shield size={9}/>Stored encrypted. Your agent uses your key directly.</div>
               </div>
             )}
           </div>
 
-          {/* ── Notifications ── */}
-          <h3 style={{fontSize:16,fontWeight:700,marginBottom:12,display:"flex",alignItems:"center",gap:8}}><Bell size={16}/>Notifications</h3>
-
-          {/* Channels */}
-          <div style={{background:C.surface,borderRadius:14,padding:20,border:`1px solid ${C.border}`,marginBottom:16}}>
-            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:14}}>Channels</div>
-
-            {/* Email */}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0",borderBottom:`1px solid ${C.border}`}}>
-              <div><div style={{fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:6}}><Mail size={14}/>Email</div><div style={{fontSize:11,color:C.muted}}>Notifications to {user?.email}</div></div>
-              <button onClick={()=>updateNotifSettings({email_enabled:!notifSettings?.email_enabled})}
-                style={{width:48,height:26,borderRadius:13,background:notifSettings?.email_enabled?C.cold:C.s2,border:`1px solid ${notifSettings?.email_enabled?C.cold:C.border}`,cursor:"pointer",position:"relative",transition:"all 0.2s"}}>
-                <div style={{width:20,height:20,borderRadius:"50%",background:"white",position:"absolute",top:2,left:notifSettings?.email_enabled?24:2,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.3)"}}/>
-              </button>
+          {/* ═══ AGENT WALLET ═══ */}
+          <div style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.border}`,marginBottom:16}}>
+            <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12,display:"flex",alignItems:"center",gap:4}}><Zap size={11}/>Agent Wallet</div>
+            <div style={{textAlign:"center",marginBottom:14}}>
+              <div style={{fontSize:32,fontWeight:900,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{wallet?.balance_eth!=null?wallet.balance_eth.toFixed(4):"..."} ETH</div>
+              <div style={{fontSize:10,color:C.dim,marginTop:4}}>Base L2 · 5% deposit fee · 3% trade fee</div>
             </div>
-
-            {/* Telegram */}
-            <div style={{padding:"12px 0",borderBottom:`1px solid ${C.border}`}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <div>
-                  <div style={{fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:6}}><Send size={14}/>Telegram</div>
-                  <div style={{fontSize:11,color:C.muted}}>{notifSettings?.telegram_chat_id?"Connected — notifications active":"Get matches, trades, and alerts in Telegram"}</div>
-                </div>
-                {notifSettings?.telegram_chat_id?(
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:11,color:C.match,display:"flex",alignItems:"center",gap:4}}><CheckCircle size={12}/>Connected</span>
-                    <button onClick={()=>updateNotifSettings({telegram_chat_id:null})} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 8px",cursor:"pointer",color:C.dim,fontSize:10}}>Disconnect</button>
-                  </div>
-                ):(
-                  <a href={`https://t.me/MishMeshAiBot?start=${user?.id||""}`} target="_blank" rel="noopener"
-                    style={{background:`linear-gradient(135deg,#0088cc,#0066aa)`,border:"none",borderRadius:8,padding:"8px 16px",cursor:"pointer",color:"white",fontSize:12,fontWeight:600,textDecoration:"none",display:"flex",alignItems:"center",gap:6}}>
-                    <Send size={13}/>Connect Telegram
-                  </a>
-                )}
+            <button onClick={()=>{const addr=wallet?.wallet_address||user?.wallet_address;if(addr){navigator.clipboard?.writeText(addr);alert("Wallet address copied!\\n\\n"+addr+"\\n\\nSend ETH on Base L2.");}}} style={{width:"100%",padding:"12px",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:6,boxShadow:`0 4px 20px rgba(99,102,241,0.3)`}}><Zap size={14}/>Fund Wallet</button>
+            {(wallet?.wallet_address||user?.wallet_address)&&<div style={{display:"flex",alignItems:"center",gap:6,background:C.s2,borderRadius:8,padding:"8px 10px",marginBottom:10}}>
+              <div style={{flex:1,fontSize:10,color:C.muted,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wallet?.wallet_address||user?.wallet_address}</div>
+              <button onClick={()=>{navigator.clipboard?.writeText(wallet?.wallet_address||user?.wallet_address);}} style={{background:"rgba(99,102,241,0.15)",border:`1px solid rgba(99,102,241,0.3)`,borderRadius:6,padding:"4px 10px",cursor:"pointer",color:C.cold,fontSize:10,fontWeight:600,display:"flex",alignItems:"center",gap:3,flexShrink:0}}><Copy size={10}/>Copy</button>
+            </div>}
+            {/* Send */}
+            <div style={{marginTop:8}}>
+              <div style={{fontSize:10,color:C.muted,marginBottom:4,fontWeight:600}}>Send ETH</div>
+              <input placeholder="Recipient (0x...)" value={sendTo} onChange={e=>setSendTo(e.target.value)} style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:11,fontFamily:"inherit",marginBottom:4,boxSizing:"border-box"}}/>
+              <div style={{display:"flex",gap:6}}>
+                <input placeholder="Amount" type="number" step="0.001" value={sendAmt} onChange={e=>setSendAmt(e.target.value)} style={{flex:1,background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:11,fontFamily:"inherit",boxSizing:"border-box"}}/>
+                <button onClick={async()=>{const to=sendTo.trim(),amt=parseFloat(sendAmt);if(!to||!amt||amt<=0){alert("Enter address and amount");return;}if(!confirm(`Send ${amt} ETH to ${to.slice(0,8)}...?`))return;try{const res=await fetch("/api/wallet",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"withdraw",to_address:to,amount:amt})});const d=await res.json();if(d.error){alert(d.error);return;}alert(`Sent! TX: ${d.txHash?.slice(0,16)}...`);setSendTo("");setSendAmt("");loadWallet();}catch(e:any){alert("Failed: "+e.message);}}} style={{background:`linear-gradient(135deg,${C.cold},#8b5cf6)`,border:"none",borderRadius:8,padding:"8px 14px",cursor:"pointer",color:"white",fontSize:11,fontWeight:700}}>Send</button>
               </div>
             </div>
-
-            {/* Discord */}
-            <div style={{padding:"12px 0",borderBottom:`1px solid ${C.border}`}}>
-              <div style={{fontSize:13,fontWeight:600,marginBottom:6,display:"flex",alignItems:"center",gap:6}}><Globe size={14}/>Discord</div>
-              <input value={notifSettings?.discord_webhook_url||""} onChange={e=>updateNotifSettings({discord_webhook_url:e.target.value})} placeholder="Discord Webhook URL" style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:12,fontFamily:"inherit"}}/>
+            {/* Private key */}
+            <div style={{marginTop:10,display:"flex",gap:6}}>
+              {(wallet?.wallet_address)&&<a href={`https://basescan.org/address/${wallet.wallet_address}`} target="_blank" rel="noopener" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:4,padding:"6px 10px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:6,color:C.cyan,fontSize:10,textDecoration:"none"}}><ExternalLink size={10}/>BaseScan</a>}
+              <button onClick={revealPrivateKey} disabled={keyRevealing} style={{flex:1,padding:"6px 10px",background:`${C.hot}15`,border:`1px solid ${C.hot}33`,borderRadius:6,cursor:"pointer",color:C.hot,fontSize:10,fontWeight:600,opacity:keyRevealing?0.5:1}}><Key size={10}/> {keyRevealing?"...":"Export Key"}</button>
             </div>
-
-            {/* Webhook */}
-            <div style={{padding:"12px 0",borderBottom:`1px solid ${C.border}`}}>
-              <div style={{fontSize:13,fontWeight:600,marginBottom:6,display:"flex",alignItems:"center",gap:6}}><ExternalLink size={14}/>Custom Webhook</div>
-              <input value={notifSettings?.webhook_url||""} onChange={e=>updateNotifSettings({webhook_url:e.target.value})} placeholder="https://hooks.slack.com/... or any URL" style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:12,fontFamily:"inherit"}}/>
-              <div style={{fontSize:10,color:C.dim,marginTop:4}}>We POST JSON with event data. Works with Slack, Zapier, custom apps.</div>
-            </div>
-
-            {/* OpenClaw */}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0"}}>
-              <div><div style={{fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:6}}><Cpu size={14}/>OpenClaw</div><div style={{fontSize:11,color:C.muted}}>Route through your OpenClaw agent channels</div></div>
-              <button onClick={()=>updateNotifSettings({openclaw_enabled:!notifSettings?.openclaw_enabled})}
-                style={{width:48,height:26,borderRadius:13,background:notifSettings?.openclaw_enabled?C.cold:C.s2,border:`1px solid ${notifSettings?.openclaw_enabled?C.cold:C.border}`,cursor:"pointer",position:"relative",transition:"all 0.2s"}}>
-                <div style={{width:20,height:20,borderRadius:"50%",background:"white",position:"absolute",top:2,left:notifSettings?.openclaw_enabled?24:2,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.3)"}}/>
-              </button>
-            </div>
+            {showPrivateKey&&privateKey&&(<div style={{background:`${C.hot}10`,borderRadius:8,padding:10,border:`1px solid ${C.hot}44`,marginTop:8}}>
+              <div style={{fontSize:10,color:C.hot,fontWeight:700,marginBottom:4}}><AlertTriangle size={10}/> Save this key. We cannot recover it.</div>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                <code style={{flex:1,fontSize:9,color:C.text,wordBreak:"break-all",fontFamily:"monospace",background:C.bg,padding:6,borderRadius:4,border:`1px solid ${C.hot}33`}}>{privateKey}</code>
+                <button onClick={()=>{navigator.clipboard?.writeText(privateKey);}} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:4,padding:"4px 6px",cursor:"pointer",color:C.muted,fontSize:9}}><Copy size={9}/></button>
+              </div>
+              <button onClick={()=>{setShowPrivateKey(false);setPrivateKey(null);}} style={{marginTop:6,background:"transparent",border:"none",color:C.dim,fontSize:9,cursor:"pointer"}}>Hide</button>
+            </div>)}
           </div>
 
-          {/* Event Toggles */}
-          <div style={{background:C.surface,borderRadius:14,padding:20,border:`1px solid ${C.border}`}}>
-            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:14}}>Events</div>
-            {([
-              {key:"notify_matches",label:"Matches",desc:"New match found, accepted, passed"},
-              {key:"notify_messages",label:"Messages",desc:"New chat messages from connections"},
-              {key:"notify_trades",label:"Trading",desc:"Agent bought/sold tokens, P&L updates"},
-              {key:"notify_balance",label:"Balance",desc:"Low balance warnings, deposit confirmations"},
-            ] as const).map(({key,label,desc})=>(
-              <div key={key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
-                <div><div style={{fontSize:13,fontWeight:600}}>{label}</div><div style={{fontSize:11,color:C.muted}}>{desc}</div></div>
-                <button onClick={()=>updateNotifSettings({[key]:!(notifSettings as any)?.[key]})}
-                  style={{width:48,height:26,borderRadius:13,background:(notifSettings as any)?.[key]?C.cold:C.s2,border:`1px solid ${(notifSettings as any)?.[key]?C.cold:C.border}`,cursor:"pointer",position:"relative",transition:"all 0.2s"}}>
-                  <div style={{width:20,height:20,borderRadius:"50%",background:"white",position:"absolute",top:2,left:(notifSettings as any)?.[key]?24:2,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.3)"}}/>
-                </button>
+          {/* ═══ NFT BADGES ═══ */}
+          <div style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.border}`,marginBottom:16}}>
+            <div style={{fontSize:10,color:C.purple,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12,display:"flex",alignItems:"center",gap:4}}><Award size={11}/>NFT Badges</div>
+            {nfts.length>0?(
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8}}>
+                {nfts.map(nft=>(<div key={nft.matchId} style={{background:C.s2,borderRadius:10,padding:10,border:`1px solid ${nft.tierColor}33`,textAlign:"center"}}>
+                  <div style={{fontSize:18,fontWeight:800,color:nft.tierColor}}>{nft.score}%</div>
+                  <div style={{fontSize:10,fontWeight:600,marginTop:2}}>{nft.userAName} × {nft.userBName}</div>
+                  <div style={{fontSize:9,color:C.muted,marginTop:2}}>{nft.tier} · {nft.matchDate}</div>
+                </div>))}
+              </div>
+            ):(
+              <div style={{textAlign:"center",padding:16,color:C.dim,fontSize:11}}>No NFTs yet. Accept matches to mint.</div>
+            )}
+            {mintableNfts.length>0&&(<div style={{marginTop:10}}>
+              <div style={{fontSize:10,color:C.muted,marginBottom:6}}>Mintable:</div>
+              {mintableNfts.slice(0,3).map(m=>(<div key={m.matchId} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 10px",background:C.s2,borderRadius:8,marginBottom:4}}>
+                <span style={{fontSize:11}}>{m.userAName} × {m.userBName} ({m.score}%)</span>
+                <button onClick={()=>mintNft(m.matchId)} disabled={mintingMatch===m.matchId} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${C.purple}44`,background:`${C.purple}15`,color:C.purple,fontSize:10,fontWeight:600,cursor:"pointer"}}>{mintingMatch===m.matchId?"...":"Mint"}</button>
+              </div>))}
+            </div>)}
+          </div>
+
+          {/* ═══ EMERGENCY KILL SWITCH ═══ */}
+          {wallet?.trading_enabled&&(wallet?.recent_trades||[]).some((t:any)=>t.action==="buy"&&!t.closed_at)&&(
+            <div style={{marginBottom:16}}>
+              <button onClick={()=>setShowEmergencyConfirm(true)} disabled={emergencySelling}
+                style={{width:"100%",padding:"10px",background:"rgba(255,45,85,0.08)",border:"1.5px solid rgba(255,45,85,0.3)",borderRadius:10,cursor:emergencySelling?"wait":"pointer",color:"#ff2d55",fontSize:12,fontWeight:700,fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                {emergencySelling?"⏳ Selling all...":"🛑 SELL ALL — EMERGENCY STOP"}
+              </button>
+              {emergencyResult&&(<div style={{marginTop:6,padding:"8px 12px",borderRadius:8,background:emergencyResult.ok?`${C.match}10`:`${C.hot}10`,border:`1px solid ${emergencyResult.ok?C.match:C.hot}33`,fontSize:10,color:emergencyResult.ok?C.match:C.hot}}>
+                {emergencyResult.ok?`✅ ${emergencyResult.positions_closed} closed. Received ${emergencyResult.total_eth_received?.toFixed(4)} ETH.`:`❌ ${emergencyResult.error||"Failed"}`}
+              </div>)}
+            </div>
+          )}
+          {!wallet?.trading_enabled&&emergencyResult?.ok&&(
+            <button onClick={()=>setShowReEnableConfirm(true)} style={{width:"100%",padding:"8px",background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:8,cursor:"pointer",color:C.cold,fontSize:11,fontWeight:600,fontFamily:"inherit",marginBottom:16}}>Re-enable Trading</button>
+          )}
+        </div>)}
+
+        {/* ═══════════════════════════════════════════════════════════
+           TAB 3: THE BUZZ — Live Command Center
+           ═══════════════════════════════════════════════════════════ */}
+        {view==="buzz"&&(<div>
+          <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><TrendingUp size={20}/>The Buzz</h2>
+          <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Live performance. Every trade, every signal, every number.</div>
+
+          {/* ═══ AGENT STATUS ═══ */}
+          {(()=>{
+            const isOn=wallet?.trading_enabled;
+            const hasAI=!!user?.ai_api_key_encrypted;
+            const status=!hasAI?"no_brain":!isOn?"idle":isOn?"running":"idle";
+            const statusColor=status==="running"?C.match:status==="idle"?C.warn:C.hot;
+            const statusLabel=status==="running"?"Running":status==="idle"?"Idle":"No AI Brain";
+            return(
+              <div style={{background:`linear-gradient(135deg,${C.surface},${statusColor}08)`,borderRadius:14,padding:16,border:`1px solid ${statusColor}33`,marginBottom:16,display:"flex",alignItems:"center",gap:14}}>
+                <div style={{width:48,height:48,borderRadius:"50%",background:`${statusColor}15`,display:"flex",alignItems:"center",justifyContent:"center",border:`2px solid ${statusColor}44`,position:"relative"}}>
+                  <Cpu size={22} color={statusColor}/>
+                  <div style={{position:"absolute",bottom:0,right:0,width:12,height:12,borderRadius:"50%",background:statusColor,border:`2px solid ${C.surface}`,boxShadow:`0 0 8px ${statusColor}`,animation:status==="running"?"pulse 1.5s infinite":"none"}}/>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:15,fontWeight:800,color:C.text}}>Agent {statusLabel}</div>
+                  <div style={{fontSize:11,color:C.muted,marginTop:2}}>
+                    {status==="running"?`Strategy: ${wallet?.trading_mode||"meme_scout"} · Trading live`:status==="idle"?"Trading paused — activate in The Brew":"Connect AI brain in The Brew to start"}
+                  </div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:9,color:C.dim,textTransform:"uppercase"}}>Grade</div>
+                  <div style={{fontSize:28,fontWeight:900,color:statusColor}}>{buzzPerf?.current_grade||"—"}</div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ═══ PNL CHART ═══ */}
+          <div style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.border}`,marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{fontSize:13,fontWeight:700}}>P&L</div>
+              <div style={{display:"flex",gap:4}}>
+                {(["daily","weekly","all"] as const).map(tf=>(
+                  <button key={tf} onClick={()=>setBuzzTimeframe(tf)} style={{padding:"4px 10px",borderRadius:6,fontSize:10,fontWeight:buzzTimeframe===tf?700:400,background:buzzTimeframe===tf?`${C.cold}15`:"transparent",color:buzzTimeframe===tf?C.cold:C.muted,border:`1px solid ${buzzTimeframe===tf?C.cold+"33":"transparent"}`,cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize"}}>{tf}</button>
+                ))}
+              </div>
+            </div>
+            {/* SVG Line Chart */}
+            {(()=>{
+              const series=buzzPnlSeries.length>0?buzzPnlSeries:[{date:"",pnl:0,cumulative:0}];
+              const filtered=buzzTimeframe==="daily"?series.slice(-1):buzzTimeframe==="weekly"?series.slice(-7):series;
+              const values=filtered.map(p=>p.cumulative);
+              const minV=Math.min(0,...values);
+              const maxV=Math.max(0.001,...values);
+              const W=600,H=160,pad=20;
+              const scaleX=(i:number)=>pad+(i/(Math.max(1,filtered.length-1)))*(W-pad*2);
+              const scaleY=(v:number)=>H-pad-((v-minV)/(maxV-minV||1))*(H-pad*2);
+              const pathD=filtered.map((p,i)=>`${i===0?"M":"L"}${scaleX(i).toFixed(1)} ${scaleY(p.cumulative).toFixed(1)}`).join(" ");
+              const lastVal=filtered[filtered.length-1]?.cumulative||0;
+              const color=lastVal>=0?C.match:C.hot;
+              return(
+                <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:160}}>
+                  {/* Zero line */}
+                  <line x1={pad} y1={scaleY(0)} x2={W-pad} y2={scaleY(0)} stroke={C.dim} strokeWidth="0.5" strokeDasharray="4 4"/>
+                  {/* Area fill */}
+                  {filtered.length>1&&<path d={`${pathD} L${scaleX(filtered.length-1)} ${scaleY(0)} L${scaleX(0)} ${scaleY(0)} Z`} fill={`${color}15`}/>}
+                  {/* Line */}
+                  {filtered.length>1&&<path d={pathD} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>}
+                  {/* Dots */}
+                  {filtered.map((p,i)=><circle key={i} cx={scaleX(i)} cy={scaleY(p.cumulative)} r={i===filtered.length-1?4:2} fill={color} opacity={i===filtered.length-1?1:0.5}/>)}
+                  {/* End label */}
+                  {filtered.length>0&&<text x={scaleX(filtered.length-1)} y={scaleY(lastVal)-10} fill={color} fontSize="12" fontWeight="700" textAnchor="middle">{lastVal>=0?"+":""}{lastVal.toFixed(4)}</text>}
+                  {/* No data */}
+                  {buzzPnlSeries.length===0&&<text x={W/2} y={H/2} fill={C.dim} fontSize="13" textAnchor="middle">No trade data yet</text>}
+                </svg>
+              );
+            })()}
+          </div>
+
+          {/* ═══ PERFORMANCE STATS ═══ */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16}}>
+            {[
+              {label:"Total P&L",value:`${(buzzPerf?.total_pnl||0)>=0?"+":""}${(buzzPerf?.total_pnl||0).toFixed(4)}`,color:(buzzPerf?.total_pnl||0)>=0?C.match:C.hot,sub:"ETH"},
+              {label:"Win Rate",value:`${buzzPerf?.total_trades>0?Math.round((buzzPerf.winning_trades/buzzPerf.total_trades)*100):0}%`,color:C.cold,sub:`${buzzPerf?.winning_trades||0}/${buzzPerf?.total_trades||0}`},
+              {label:"Total Trades",value:`${buzzPerf?.total_trades||0}`,color:C.text,sub:"all time"},
+              {label:"Best Trade",value:`${(buzzPerf?.best_trade_pnl||0)>=0?"+":""}${(buzzPerf?.best_trade_pnl||0).toFixed(4)}`,color:C.match,sub:"ETH"},
+              {label:"Worst Trade",value:`${(buzzPerf?.worst_trade_pnl||0).toFixed(4)}`,color:C.hot,sub:"ETH"},
+              {label:"Sharpe Ratio",value:`${(buzzPerf?.sharpe_ratio||0).toFixed(2)}`,color:C.cyan,sub:"risk-adjusted"},
+            ].map(s=>(
+              <div key={s.label} style={{background:C.surface,borderRadius:12,padding:"14px 10px",border:`1px solid ${C.border}`,textAlign:"center"}}>
+                <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:4}}>{s.label}</div>
+                <div style={{fontSize:18,fontWeight:900,color:s.color,fontFamily:"'JetBrains Mono',monospace"}}>{s.value}</div>
+                <div style={{fontSize:8,color:C.dim,marginTop:2}}>{s.sub}</div>
               </div>
             ))}
           </div>
 
-          {/* Developer API Access */}
-          <div style={{background:C.surface,borderRadius:14,padding:20,border:`1px solid ${C.border}`,marginTop:16}}>
-            <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:14,display:"flex",alignItems:"center",gap:6}}>
-              <Key size={12}/>Developer API Access
+          {/* ═══ API COST TRACKER ═══ */}
+          <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16,display:"flex",alignItems:"center",gap:14}}>
+            <div style={{width:40,height:40,borderRadius:10,background:`${C.warn}12`,display:"flex",alignItems:"center",justifyContent:"center"}}><DollarSign size={18} color={C.warn}/></div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:12,fontWeight:700}}>API Costs</div>
+              <div style={{fontSize:11,color:C.muted}}>Total spent on AI provider calls</div>
             </div>
-            <p style={{fontSize:12,color:C.muted,marginBottom:12,lineHeight:1.5}}>Build your own interfaces, integrate matching into your apps, receive webhook notifications.</p>
+            <div style={{fontSize:20,fontWeight:900,color:C.warn,fontFamily:"'JetBrains Mono',monospace"}}>${(buzzPerf?.api_costs_total||0).toFixed(2)}</div>
+          </div>
 
-            {devApiKeys.length>0?(
-              <div style={{marginBottom:12}}>
-                {devApiKeys.map((k:any)=>(
-                  <div key={k.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:C.s2,borderRadius:10,marginBottom:6}}>
-                    <div>
-                      <div style={{fontSize:13,fontWeight:600}}>{k.name}</div>
-                      <div style={{fontSize:11,color:C.dim,fontFamily:"monospace"}}>mm_{'•'.repeat(20)}</div>
-                      <div style={{fontSize:10,color:C.muted}}>{k.calls_this_month} calls · expires {k.expires_at?new Date(k.expires_at).toLocaleDateString():"-"}</div>
-                    </div>
-                    <div style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:k.active?`${C.match}15`:`${C.hot}15`,color:k.active?C.match:C.hot}}>{k.active?"Active":"Expired"}</div>
-                  </div>
-                ))}
+          {/* ═══ SYNDICATE PIPELINE ═══ */}
+          {feedStats?.syndicate&&(
+            <div onClick={()=>router.push("/dashboard/syndicates")} style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.purple}22`,marginBottom:16,cursor:"pointer"}}>
+              <div style={{fontSize:10,color:C.purple,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>Syndicate Pipeline</div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{fontSize:20}}>{feedStats.syndicate.emoji}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:700}}>{feedStats.syndicate.name}</div>
+                  <div style={{fontSize:11,color:C.muted}}>{feedStats.syndicate.signals_today} signals today · {feedStats.syndicate.profitable_today} profitable</div>
+                </div>
+                <ArrowRight size={14} color={C.muted}/>
               </div>
-            ):null}
+            </div>
+          )}
 
-            <button onClick={generateDevApiKey} style={{padding:"10px 20px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"inherit"}}>
-              <Key size={12} style={{display:"inline",verticalAlign:"middle",marginRight:4}}/>{devApiKeys.length?"Add Another Key":"Generate API Key — 0.01 ETH/month"}
-            </button>
+          {/* ═══ REAL-TIME TRADE FEED ═══ */}
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              Trade Feed
+              {buzzTrades.length>0&&<span style={{fontSize:9,color:C.dim,padding:"2px 8px",borderRadius:5,background:C.s2}}>LIVE</span>}
+            </div>
+            {buzzTrades.length===0?(
+              <div style={{background:C.surface,borderRadius:14,border:`1px solid ${C.border}`,padding:"28px 20px",textAlign:"center"}}>
+                <div style={{fontSize:28,marginBottom:8,opacity:0.3}}>📊</div>
+                <div style={{fontSize:12,color:C.muted}}>No trades yet</div>
+                <div style={{fontSize:11,color:C.dim,marginTop:4}}>Activate trading in The Brew to see activity here</div>
+              </div>
+            ):(
+              <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                {buzzTrades.slice(0,30).map((tx:any,i:number)=>{
+                  const isBuy=tx.action==="buy";const isSell=tx.action==="sell";const isSignal=tx.action==="signal";
+                  const icon=isBuy?"🟢":isSell?"🔴":"📡";
+                  const color=isBuy?C.match:isSell?C.hot:C.cyan;
+                  const timeStr=tx.timestamp?new Date(tx.timestamp).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",hour12:true}):"";
+                  return(
+                    <div key={i} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",background:i===0?`${color}06`:C.surface,borderRadius:10,border:`1px solid ${i===0?color+"18":C.border}`,opacity:Math.max(0.4,1-(i*0.05))}}>
+                      <div style={{fontSize:16,marginTop:1}}>{icon}</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:2}}>
+                          <div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <span style={{fontSize:11,fontWeight:700,color}}>{tx.action?.toUpperCase()}</span>
+                            <span style={{fontSize:11,fontWeight:600,color:C.text}}>{tx.token_symbol}</span>
+                            {tx.grade&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:4,background:`${color}15`,color,fontWeight:700}}>{tx.grade}</span>}
+                          </div>
+                          <div style={{fontSize:12,fontWeight:800,color,fontFamily:"'JetBrains Mono',monospace"}}>{tx.amount?.toFixed(4)||"0"} ETH</div>
+                        </div>
+                        {tx.pnl!=null&&tx.pnl!==0&&(<div style={{fontSize:10,color:tx.pnl>=0?C.match:C.hot,fontWeight:700}}>P&L: {tx.pnl>=0?"+":""}{tx.pnl.toFixed(4)} ETH</div>)}
+                        <div style={{fontSize:9,color:C.dim,marginTop:2}}>{timeStr}{tx.tx_hash&&<>{" · "}<a href={`https://basescan.org/tx/${tx.tx_hash}`} target="_blank" rel="noopener" style={{color:C.cold,textDecoration:"none"}}>View ↗</a></>}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Open full trading dashboard */}
+          <button onClick={()=>router.push("/trading")} style={{width:"100%",padding:"12px 16px",borderRadius:12,border:"none",cursor:"pointer",fontFamily:"inherit",background:"linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(6,182,212,0.08) 100%)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{width:28,height:28,borderRadius:8,background:"linear-gradient(135deg, #6366f1, #06b6d4)",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+              <div style={{textAlign:"left"}}><div style={{fontSize:12,fontWeight:700,color:C.text}}>Full Trading Dashboard</div><div style={{fontSize:10,color:C.muted}}>Live positions & AI activity</div></div>
+            </div>
+            <ArrowRight size={14} color={C.muted}/>
+          </button>
+        </div>)}
+
+        {/* ═══════════════════════════════════════════════════════════
+           TAB 4: EVOLVE — Growth Engine
+           ═══════════════════════════════════════════════════════════ */}
+        {view==="evolve"&&(<div>
+          <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><Sparkles size={20}/>Evolve</h2>
+          <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Grow your agent. Earn rewards. Build your empire.</div>
+
+          {/* ═══ REFERRALS ═══ */}
+          <div style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.cold}33`,marginBottom:16}}>
+            <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>Referrals</div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:8}}>Earn <strong style={{color:C.match}}>30%</strong> of platform fees from everyone you refer — forever.</div>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}>
+              <code style={{flex:1,fontSize:12,color:C.cyan,fontFamily:"monospace",padding:"8px 12px",background:C.s2,borderRadius:8,border:`1px solid ${C.border}`}}>mishmesh.ai/invite/{user?.referral_code||user?.id?.slice(0,8)}</code>
+              <button onClick={()=>{navigator.clipboard?.writeText(`https://mishmesh.ai/invite/${user?.referral_code||user?.id?.slice(0,8)}`);}} style={{background:C.cold,border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",color:"white",fontSize:11,fontWeight:600,display:"flex",alignItems:"center",gap:4,flexShrink:0}}><Copy size={11}/>Copy</button>
+            </div>
+            <div style={{fontSize:24,fontWeight:900,textAlign:"center"}}>{referralStats?.referral_count||0}</div>
+            <div style={{fontSize:11,color:C.muted,textAlign:"center",marginBottom:12}}>people joined through you</div>
+            {/* Rewards Ladder */}
+            {([
+              {count:5,label:"Priority Matching",desc:"Your agent goes first"},
+              {count:10,label:"Pro Free Month",desc:"All Pro features 30 days"},
+              {count:25,label:"Founding Member",desc:"Permanent badge"},
+              {count:50,label:"Lifetime Pro",desc:"Pro features forever"},
+              {count:100,label:"Homepage Featured",desc:"Featured + custom agent"},
+            ] as const).map(reward=>{
+              const rc=referralStats?.referral_count||0;
+              const unlocked=rc>=reward.count;
+              const progress=Math.min(100,(rc/reward.count)*100);
+              return(<div key={reward.count} style={{padding:"10px 0",borderTop:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:30,height:30,borderRadius:"50%",background:unlocked?`${C.match}20`:C.s2,display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${unlocked?C.match:C.border}`,flexShrink:0}}>
+                  {unlocked?<CheckCircle size={14} color={C.match}/>:<span style={{fontSize:11,fontWeight:700,color:C.muted}}>{reward.count}</span>}
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:12,fontWeight:600,color:unlocked?C.match:C.text}}>{reward.label}</div>
+                  <div style={{fontSize:10,color:C.muted}}>{reward.desc}</div>
+                  {!unlocked&&(<div style={{marginTop:4,height:3,borderRadius:2,background:C.s2,overflow:"hidden"}}><div style={{height:"100%",width:`${progress}%`,background:`linear-gradient(90deg,${C.cold},${C.cyan})`,borderRadius:2}}/></div>)}
+                </div>
+              </div>);
+            })}
+            <div style={{display:"flex",gap:8,marginTop:10}}>
+              <a href={`https://x.com/intent/tweet?text=${encodeURIComponent(`My AI agent networks while I sleep on @MishMeshAI\n\nJoin: mishmesh.ai/invite/${user?.referral_code||""}`)}`} target="_blank" rel="noopener" style={{textDecoration:"none",flex:1}}><Btn primary style={{width:"100%",justifyContent:"center",fontSize:11}}><Share2 size={12}/>Share on X</Btn></a>
+              <Btn ghost onClick={()=>{navigator.clipboard?.writeText(`https://mishmesh.ai/invite/${user?.referral_code||""}`);}} style={{flex:1,justifyContent:"center",fontSize:11}}><Copy size={12}/>Copy</Btn>
+            </div>
+          </div>
+
+          {/* ═══ EVOLUTION PATHS ═══ */}
+          <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
+            {/* Fusion Lab */}
+            <div onClick={()=>router.push("/dashboard/fusions")} style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.purple}22`,cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:44,height:44,borderRadius:12,background:`linear-gradient(135deg,${C.purple}20,${C.pink}15)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🧬</div>
+              <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700}}>Fusion Lab</div><div style={{fontSize:11,color:C.muted}}>Breed two agents into new DNA. Combine strengths.</div></div>
+              <ArrowRight size={16} color={C.muted}/>
+            </div>
+
+            {/* Lineage Tree */}
+            <div onClick={()=>router.push("/dashboard/lineage")} style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.cyan}22`,cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:44,height:44,borderRadius:12,background:`linear-gradient(135deg,${C.cyan}20,${C.cold}15)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🌳</div>
+              <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700}}>Lineage Tree</div><div style={{fontSize:11,color:C.muted}}>Visual family tree of your fused agents.</div></div>
+              <ArrowRight size={16} color={C.muted}/>
+            </div>
+
+            {/* Ventures */}
+            <div onClick={()=>router.push("/dashboard/ventures")} style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.gold}22`,cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:44,height:44,borderRadius:12,background:`linear-gradient(135deg,${C.gold}20,${C.warn}15)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>💰</div>
+              <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700}}>Venture Investments</div><div style={{fontSize:11,color:C.muted}}>Invest in other agents. Earn from their success.</div></div>
+              <ArrowRight size={16} color={C.muted}/>
+            </div>
+
+            {/* Premium */}
+            <div style={{background:`linear-gradient(135deg,${C.surface},rgba(99,102,241,0.06))`,borderRadius:14,padding:16,border:`1px solid ${C.cold}33`}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:44,height:44,borderRadius:12,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center"}}><Crown size={20} color="white"/></div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:14,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>Go Pro<TierBadge tier={user?.tier||"free"}/></div>
+                  <div style={{fontSize:11,color:C.muted}}>Priority matching, advanced analytics, unlimited API calls</div>
+                </div>
+              </div>
+              {user?.tier==="free"&&(<button style={{marginTop:10,width:"100%",padding:"10px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"inherit"}}>Upgrade to Pro — 0.1 ETH/month</button>)}
+            </div>
+          </div>
+
+          {/* ═══ MINI LEADERBOARD ═══ */}
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}}><Trophy size={14} color={C.gold}/>Top Builders</div>
+            {leaderboard.slice(0,5).map((u,i)=>{
+              const medal=i===0?"#FFD700":i===1?"#C0C0C0":i===2?"#CD7F32":null;
+              return(<div key={u.id} style={{display:"flex",alignItems:"center",gap:10,background:C.surface,borderRadius:8,padding:10,border:`1px solid ${medal?C.cold+"33":C.border}`,marginBottom:4}}>
+                <div style={{width:22,height:22,borderRadius:"50%",background:medal||C.s2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:medal?"white":C.muted}}>{i+1}</div>
+                <Avatar name={u.name} size={26} url={u.avatar_url}/>
+                <div style={{flex:1,fontSize:12,fontWeight:600}}>{u.name}</div>
+                <div style={{fontWeight:800,fontSize:13,color:C.cold}}>{u.match_count}</div>
+              </div>);
+            })}
           </div>
         </div>)}
 
@@ -2538,10 +1904,7 @@ export default function Dashboard(){
           <h2 style={{fontSize:20,fontWeight:700,marginBottom:16}}>Your Profile</h2>
           <div style={{background:C.surface,borderRadius:14,padding:24,border:`1px solid ${C.border}`}}>
             <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:20}}>
-              <label style={{cursor:"pointer"}}>
-                <input type="file" accept="image/*" onChange={uploadPhoto} style={{display:"none"}}/>
-                <Avatar name={form.name} size={64} url={form.avatar_url}/>
-              </label>
+              <label style={{cursor:"pointer"}}><input type="file" accept="image/*" onChange={uploadPhoto} style={{display:"none"}}/><Avatar name={form.name} size={64} url={form.avatar_url}/></label>
               <div>
                 <div style={{fontWeight:700,fontSize:18,display:"flex",alignItems:"center",gap:8}}>{form.name}<TierBadge tier={user?.tier||"free"}/></div>
                 <div style={{fontSize:13,color:C.muted}}>{form.industry}</div>
@@ -2556,31 +1919,6 @@ export default function Dashboard(){
                 :<input value={(form as any)[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:13,fontFamily:"inherit"}}/>}
               </div>
             ))}
-
-            {/* Agent Personality */}
-            <div style={{marginTop:16,marginBottom:14,padding:16,background:C.s2,borderRadius:12,border:`1px solid ${C.border}`}}>
-              <div style={{fontSize:11,color:C.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.1em"}}>Agent Personality</div>
-              <label style={{fontSize:11,color:C.muted,marginBottom:4,display:"block"}}>How should your agent represent you?</label>
-              <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
-                {(["professional","friendly","aggressive","custom"] as const).map(s=>(
-                  <button key={s} onClick={()=>setForm(f=>({...f,agent_style:s}))} style={{
-                    padding:"6px 14px",fontSize:11,borderRadius:8,cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize",
-                    background:form.agent_style===s?C.cold:C.surface,color:form.agent_style===s?"white":C.muted,
-                    border:`1px solid ${form.agent_style===s?C.cold:C.border}`,fontWeight:form.agent_style===s?600:400,
-                  }}>{s}</button>
-                ))}
-              </div>
-              {form.agent_style==="custom"&&(
-                <div>
-                  <label style={{fontSize:11,color:C.muted,marginBottom:4,display:"block"}}>Custom Instructions</label>
-                  <textarea value={form.agent_instructions} onChange={e=>setForm(f=>({...f,agent_instructions:e.target.value}))} rows={3}
-                    placeholder="e.g., Be direct, mention my track record in DeFi, focus on technical synergies..."
-                    style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,fontSize:12,fontFamily:"inherit",resize:"vertical"}}/>
-                </div>
-              )}
-              <div style={{fontSize:10,color:C.dim,marginTop:8}}>This shapes how your agent talks during speed dates.</div>
-            </div>
-
             <div style={{display:"flex",gap:10,marginTop:10,flexWrap:"wrap"}}>
               <Btn primary onClick={async()=>{
                 if(!user)return;
@@ -2589,7 +1927,6 @@ export default function Dashboard(){
                 if(!error)alert("Profile saved!");
               }}><Check size={14}/>Save Changes</Btn>
               <Btn ghost onClick={()=>window.open(`/agent/${user?.id}`,"_blank")}><ExternalLink size={14}/>Public Profile</Btn>
-              <Btn ghost onClick={()=>{const url=`https://mishmesh.ai/agent/${form.x_handle||user?.id}`;navigator.clipboard?.writeText(url);}}><Copy size={14}/>Copy Profile Link</Btn>
               <Btn danger onClick={signOut}><LogOut size={14}/>Sign Out</Btn>
             </div>
           </div>
@@ -2606,8 +1943,8 @@ export default function Dashboard(){
               return(<div key={n.id} style={{background:n.read?C.surface:`${C.cold}08`,borderRadius:10,padding:14,border:`1px solid ${n.read?C.border:C.cold+"33"}`,cursor:"pointer",display:"flex",gap:12,alignItems:"flex-start"}}
                 onClick={async()=>{
                   await supabase.from("notifications").update({read:true}).eq("id",n.id);
-                  if(n.type==="new_match")setView("pending");
-                  else if(n.type==="match_accepted")setView("matches");
+                  if(n.type==="new_match")setView("mesh");
+                  else if(n.type==="match_accepted")setView("mesh");
                   loadNotifications(user.id);
                 }}>
                 <Ic size={16} color={n.read?C.dim:C.cold} style={{marginTop:2,flexShrink:0}}/>
