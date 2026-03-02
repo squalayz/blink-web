@@ -55,20 +55,13 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
   border:2px solid rgba(99,102,241,0.3);
   box-shadow:0 8px 40px rgba(99,102,241,0.2),0 0 80px rgba(99,102,241,0.08),inset 0 1px 0 rgba(255,255,255,0.05);
   overflow:hidden;
-  animation:hero-card-spin 12s ease-in-out infinite;
+  animation:hero-card-float-only 6s ease-in-out infinite;
   transform-style:preserve-3d;-webkit-transform-style:preserve-3d;
   will-change:transform;
 }
 .hero-card-face{
-  position:absolute;inset:0;border-radius:20px;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;
-}
-.hero-card-front{
+  position:absolute;inset:0;border-radius:20px;overflow:hidden;
   background:linear-gradient(165deg,#0e0e20 0%,#111128 40%,#0d1525 100%);
-}
-.hero-card-back{
-  background:linear-gradient(165deg,#0d1525 0%,#111128 40%,#0e0e20 100%);
-  transform:rotateY(180deg);
-  border:2px solid rgba(6,182,212,0.3);
 }
 .hero-profile-inner::before{
   content:'';position:absolute;inset:0;border-radius:20px;
@@ -111,12 +104,9 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
   pointer-events:none;z-index:3;
   animation:hero-sparkle 2.5s ease-in-out infinite;
 }
-@keyframes hero-card-spin{
-  0%{transform:rotateX(5deg) rotateY(0deg) translateY(0px)}
-  25%{transform:rotateX(3deg) rotateY(90deg) translateY(-10px)}
-  50%{transform:rotateX(5deg) rotateY(180deg) translateY(0px)}
-  75%{transform:rotateX(3deg) rotateY(270deg) translateY(-10px)}
-  100%{transform:rotateX(5deg) rotateY(360deg) translateY(0px)}
+@keyframes hero-card-float-only{
+  0%,100%{transform:rotateX(5deg) translateY(0px)}
+  50%{transform:rotateX(3deg) translateY(-10px)}
 }
 @keyframes holo-hero{
   0%{background-position:0% 0%}50%{background-position:100% 100%}100%{background-position:0% 0%}
@@ -642,30 +632,18 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
     <div class="hero-right" id="heroCard" style="opacity:0;transform:translateY(30px)">
       <div class="hero-profile-card">
         <div class="hero-profile-inner" id="heroProfileInner">
-          <!-- Front face -->
-          <div class="hero-card-face hero-card-front">
-            <img src="/jessica-profile.png" alt="Jessica Lane" class="hero-profile-photo"/>
+          <div class="hero-card-face" id="heroCardFace">
+            <img id="heroCardImg" src="/jessica-profile.png" alt="" class="hero-profile-photo"/>
             <div class="hero-profile-info">
-              <h3>Jessica Lane</h3>
-              <div class="loc">San Francisco</div>
-              <div class="tags">DeFi · Founder · AI/ML</div>
-              <div class="popular-badge">Popular · 47 waiting</div>
+              <h3 id="heroCardName">Jessica Lane</h3>
+              <div class="loc" id="heroCardLoc">San Francisco</div>
+              <div class="tags" id="heroCardTags">DeFi · Founder · AI/ML</div>
+              <div class="popular-badge" id="heroCardBadge">Popular · 47 waiting</div>
             </div>
             <div class="hero-profile-sparkle" style="top:15%;left:20%;animation-delay:0s;"></div>
             <div class="hero-profile-sparkle" style="top:35%;right:15%;animation-delay:0.7s;"></div>
             <div class="hero-profile-sparkle" style="top:60%;left:10%;animation-delay:1.4s;"></div>
             <div class="hero-profile-sparkle" style="bottom:20%;right:20%;animation-delay:2.1s;"></div>
-          </div>
-          <!-- Back face -->
-          <div class="hero-card-face hero-card-back">
-            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;">
-              <div style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--indigo),var(--cyan));display:flex;align-items:center;justify-content:center;">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              </div>
-              <div style="font-size:18px;font-weight:800;color:white;">94% Match</div>
-              <div style="font-size:12px;color:var(--muted);text-align:center;padding:0 20px;">AI agents found complementary skills in DeFi & machine learning</div>
-              <div style="margin-top:8px;padding:8px 20px;border-radius:12px;background:linear-gradient(135deg,var(--indigo),var(--cyan));font-size:13px;font-weight:700;color:white;">View Profile</div>
-            </div>
           </div>
         </div>
       </div>
@@ -1213,7 +1191,47 @@ function showHL(){
     setTimeout(()=>{gw.textContent=cycleWords[ci];gw.style.transform='translateY(6px)';requestAnimationFrame(()=>{gw.style.opacity='1';gw.style.transform='translateY(0)';});},280);
   },2500);
   setTimeout(()=>{document.getElementById('heroSub').style.transition='opacity 0.6s ease-out';document.getElementById('heroSub').style.opacity='1';},150);
-  setTimeout(()=>{const hc=document.getElementById('heroCard');if(hc){hc.style.transition='opacity 1s cubic-bezier(0.22,1,0.36,1),transform 1s cubic-bezier(0.22,1,0.36,1)';hc.style.opacity='1';hc.style.transform='translateY(0)';}},400);
+  setTimeout(()=>{const hc=document.getElementById('heroCard');if(hc){hc.style.transition='opacity 1s cubic-bezier(0.22,1,0.36,1),transform 1s cubic-bezier(0.22,1,0.36,1)';hc.style.opacity='1';hc.style.transform='translateY(0)';startHeroCardSpin();}},400);
+  function startHeroCardSpin(){
+    const profiles=[
+      {img:'/jessica-profile.png',name:'Jessica Lane',loc:'San Francisco',tags:'DeFi · Founder · AI/ML',badge:'Popular · 47 waiting'},
+      {img:'/profile-2.png',name:'Emma Chen',loc:'New York',tags:'NFTs · Creator · Web3',badge:'Popular · 32 waiting'},
+      {img:'/profile-3.png',name:'Marcus Rivera',loc:'Austin',tags:'Trading · Full-Stack · Crypto',badge:'Rising · 18 waiting'},
+      {img:'/profile-4.png',name:'Yuki Tanaka',loc:'Tokyo',tags:'DeFi · Analyst · Research',badge:'Popular · 39 waiting'},
+      {img:'/profile-5.png',name:'Andre Williams',loc:'Miami',tags:'Crypto · Founder · DAO',badge:'Trending · 28 waiting'},
+    ];
+    let idx=0;
+    const inner=document.getElementById('heroProfileInner');
+    const cardImg=document.getElementById('heroCardImg');
+    const cardName=document.getElementById('heroCardName');
+    const cardLoc=document.getElementById('heroCardLoc');
+    const cardTags=document.getElementById('heroCardTags');
+    const cardBadge=document.getElementById('heroCardBadge');
+    if(!inner)return;
+    function spinCycle(){
+      // Spin to 90deg (edge-on, card invisible)
+      inner.style.transition='transform 1.2s cubic-bezier(0.4,0,0.2,1)';
+      inner.style.transform='rotateY(90deg) rotateX(5deg)';
+      setTimeout(()=>{
+        // Swap content while invisible
+        idx=(idx+1)%profiles.length;
+        const p=profiles[idx];
+        cardImg.src=p.img;cardImg.alt=p.name;
+        cardName.textContent=p.name;
+        cardLoc.textContent=p.loc;
+        cardTags.textContent=p.tags;
+        cardBadge.textContent=p.badge;
+        // Continue spin from -90deg to 0deg (new face appears)
+        inner.style.transition='none';
+        inner.style.transform='rotateY(-90deg) rotateX(5deg)';
+        requestAnimationFrame(()=>{requestAnimationFrame(()=>{
+          inner.style.transition='transform 1.2s cubic-bezier(0.4,0,0.2,1)';
+          inner.style.transform='rotateY(0deg) rotateX(5deg)';
+        });});
+      },1200);
+    }
+    setInterval(spinCycle,5000);
+  }
   setTimeout(()=>{document.getElementById('heroCtas').style.transition='opacity 0.6s ease-out';document.getElementById('heroCtas').style.opacity='1';document.getElementById('scrollHint').style.opacity='1';},300);
   setTimeout(async()=>{const sp=document.getElementById('socialProof');const countEl=document.getElementById('agentCount');let target=72;try{const r=await fetch('/api/stats');if(r.ok){const d=await r.json();target=d.agents||72;}}catch(e){}
     // Animate counter up
