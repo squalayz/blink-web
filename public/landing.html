@@ -50,7 +50,7 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
   width:260px;perspective:900px;-webkit-perspective:900px;margin:0 auto;
 }
 .hero-profile-inner{
-  width:260px;height:360px;border-radius:20px;position:relative;
+  width:260px;height:400px;border-radius:20px;position:relative;
   background:linear-gradient(165deg,#0e0e20 0%,#111128 40%,#0d1525 100%);
   border:2px solid rgba(99,102,241,0.3);
   box-shadow:0 8px 40px rgba(99,102,241,0.2),0 0 80px rgba(99,102,241,0.08),inset 0 1px 0 rgba(255,255,255,0.05);
@@ -469,7 +469,7 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
   #hero .hero-layout{flex-direction:column}
   #hero .hero-right{margin-top:30px}
   .hero-profile-card{width:220px}
-  .hero-profile-inner{width:220px;height:310px}
+  .hero-profile-inner{width:220px;height:350px}
   .hero-profile-photo-placeholder{height:180px}
   .hero-profile-photo-placeholder .avatar-circle{width:70px;height:70px;font-size:32px}
   .hero-profile-info h3{font-size:17px}
@@ -1208,12 +1208,14 @@ function showHL(){
     const cardTags=document.getElementById('heroCardTags');
     const cardBadge=document.getElementById('heroCardBadge');
     if(!inner)return;
+    let rotation=0;
     function spinCycle(){
-      // Spin to 90deg (edge-on, card invisible)
-      inner.style.transition='transform 1.2s cubic-bezier(0.4,0,0.2,1)';
-      inner.style.transform='rotateY(90deg) rotateX(5deg)';
+      // Full 360 spin — swap content at 90deg and 270deg (when edge-on)
+      rotation+=360;
+      inner.style.transition='transform 3.5s cubic-bezier(0.4,0,0.2,1)';
+      inner.style.transform='rotateY('+rotation+'deg) rotateX(5deg)';
+      // Swap at ~90deg (edge-on, ~875ms into 3.5s)
       setTimeout(()=>{
-        // Swap content while invisible
         idx=(idx+1)%profiles.length;
         const p=profiles[idx];
         cardImg.src=p.img;cardImg.alt=p.name;
@@ -1221,14 +1223,7 @@ function showHL(){
         cardLoc.textContent=p.loc;
         cardTags.textContent=p.tags;
         cardBadge.textContent=p.badge;
-        // Continue spin from -90deg to 0deg (new face appears)
-        inner.style.transition='none';
-        inner.style.transform='rotateY(-90deg) rotateX(5deg)';
-        requestAnimationFrame(()=>{requestAnimationFrame(()=>{
-          inner.style.transition='transform 1.2s cubic-bezier(0.4,0,0.2,1)';
-          inner.style.transform='rotateY(0deg) rotateX(5deg)';
-        });});
-      },1200);
+      },875);
     }
     setInterval(spinCycle,5000);
   }
