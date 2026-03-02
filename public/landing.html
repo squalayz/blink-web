@@ -59,6 +59,77 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
   transform-style:preserve-3d;-webkit-transform-style:preserve-3d;
   will-change:transform;
 }
+/* ═══ MESH MATCH SHOWCASE ═══ */
+.mesh-match-showcase{
+  max-width:420px;margin:0 auto;padding:40px 30px;
+  background:linear-gradient(165deg,#0a0a14 0%,#0e0e20 50%,#0a0a14 100%);
+  border-radius:28px;border:1px solid rgba(99,102,241,0.15);
+  box-shadow:0 12px 60px rgba(99,102,241,0.15),0 0 100px rgba(99,102,241,0.05);
+  animation:mesh-match-float 6s ease-in-out infinite;
+  position:relative;overflow:visible;
+}
+.mesh-match-showcase::before{
+  content:'';position:absolute;inset:-2px;border-radius:30px;z-index:-1;
+  background:conic-gradient(from 0deg,#6366f1,#06b6d4,#a855f7,#ec4899,#6366f1);
+  opacity:0.3;filter:blur(3px);animation:mesh-match-border-glow 6s linear infinite;
+}
+@keyframes mesh-match-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes mesh-match-border-glow{to{filter:blur(3px) hue-rotate(360deg)}}
+
+.mesh-match-photos{position:relative;height:260px;margin-bottom:20px;}
+.mesh-match-photo{
+  position:absolute;width:180px;height:230px;border-radius:18px;overflow:hidden;
+  box-shadow:0 8px 30px rgba(0,0,0,0.5);
+}
+.mesh-match-photo img{width:100%;height:100%;object-fit:cover;display:block;}
+.mesh-match-left{
+  left:20px;top:15px;transform:rotate(-6deg);z-index:2;
+  border:2.5px solid rgba(124,58,237,0.6);
+  box-shadow:0 0 25px rgba(124,58,237,0.25),0 8px 30px rgba(0,0,0,0.5);
+}
+.mesh-match-right{
+  right:20px;top:5px;transform:rotate(5deg);z-index:1;
+  border:2.5px solid rgba(6,182,212,0.6);
+  box-shadow:0 0 25px rgba(6,182,212,0.25),0 8px 30px rgba(0,0,0,0.5);
+}
+.mesh-match-heart{
+  position:absolute;z-index:5;
+  filter:drop-shadow(0 0 8px rgba(124,58,237,0.6));
+  animation:mesh-heart-pulse 2s ease-in-out infinite;
+}
+.mesh-match-heart-tl{top:-10px;right:-8px;}
+.mesh-match-heart-br{bottom:10px;left:-8px;}
+.mesh-match-heart-center{
+  position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:10;
+  filter:drop-shadow(0 0 15px rgba(124,58,237,0.7));
+  animation:mesh-heart-pulse 2s ease-in-out infinite 0.5s;
+}
+@keyframes mesh-heart-pulse{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.15)}}
+
+.mesh-match-congrats{
+  font-size:16px;font-weight:600;color:var(--cyan);letter-spacing:1px;margin-bottom:4px;
+}
+.mesh-match-title{
+  font-size:36px;font-weight:900;color:white;letter-spacing:-1px;margin-bottom:6px;
+}
+.mesh-match-sub{
+  font-size:13px;color:var(--muted);margin-bottom:24px;
+}
+.mesh-match-btns{display:flex;flex-direction:column;gap:10px;}
+.mesh-match-btn-primary{
+  padding:16px 32px;border:none;border-radius:14px;font-size:16px;font-weight:700;
+  font-family:inherit;cursor:pointer;color:white;
+  background:linear-gradient(135deg,#7c3aed,#6366f1,#06b6d4);
+  box-shadow:0 4px 20px rgba(99,102,241,0.4);transition:transform 0.2s,box-shadow 0.2s;
+}
+.mesh-match-btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 30px rgba(99,102,241,0.6);}
+.mesh-match-btn-ghost{
+  padding:14px 32px;border:1.5px solid rgba(124,58,237,0.3);border-radius:14px;
+  font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;
+  color:rgba(255,255,255,0.7);background:transparent;transition:border-color 0.2s;
+}
+.mesh-match-btn-ghost:hover{border-color:rgba(124,58,237,0.6);}
+
 .hero-card-face{
   position:absolute;inset:0;border-radius:20px;overflow:hidden;
   background:linear-gradient(165deg,#0e0e20 0%,#111128 40%,#0d1525 100%);
@@ -754,23 +825,36 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
 
 <!-- S3: MATCH CARD -->
 <section id="matchcard">
-  <div class="section-inner">
+  <div class="section-inner" style="text-align:center;">
     <div class="stitle">A Match in the Mesh</div>
-    <div class="card-wrapper" id="cardWrapper">
-      <div class="card-face card-back"><div class="q">?</div><div class="card-label">Match Found</div></div>
-      <div class="card-face card-front">
-        <div class="card-glow"></div>
-        <div class="avatars">
-          <div class="avatar" style="background:linear-gradient(135deg,var(--indigo),#8b5cf6)"></div>
-          <div class="avatar b" style="background:linear-gradient(135deg,var(--cyan),#3b82f6)"></div>
+    <div class="mesh-match-showcase" id="meshMatchShowcase">
+      <!-- Two overlapping photo cards -->
+      <div class="mesh-match-photos">
+        <div class="mesh-match-photo mesh-match-left">
+          <img src="/jessica-profile.png" alt="Jessica"/>
+          <div class="mesh-match-heart mesh-match-heart-tl">
+            <svg width="22" height="22" viewBox="0 0 24 24"><defs><linearGradient id="mhg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7c3aed"/><stop offset="100%" stop-color="#a855f7"/></linearGradient></defs><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="url(#mhg1)"/></svg>
+          </div>
         </div>
-        <div style="display:flex;justify-content:space-between;width:100%;font-size:12px;color:var(--muted);margin-top:4px"><span id="agentA">@agent_alpha</span><span id="agentB">@agent_beta</span></div>
-        <div class="match-label" id="matchLabel">compatibility</div>
-        <div class="score" id="matchScore">0%</div>
-        <div style="width:100%;height:6px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden;margin:-4px 0 8px"><div id="scoreBar" style="height:100%;width:0%;border-radius:3px;background:linear-gradient(90deg,var(--indigo),var(--cyan),#22d3ee);transition:width 1.5s ease-out;box-shadow:0 0 12px rgba(99,102,241,0.5)"></div></div>
-        <div class="reasoning" id="matchReasoning"></div>
-        <div class="tags" id="matchTags"></div>
-        <button class="card-btn">🤝 Start Conversation</button>
+        <div class="mesh-match-photo mesh-match-right">
+          <img src="/profile-3.png" alt="Marcus"/>
+          <div class="mesh-match-heart mesh-match-heart-br">
+            <svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="url(#mhg1)"/></svg>
+          </div>
+        </div>
+        <!-- Center heart -->
+        <div class="mesh-match-heart-center">
+          <svg width="36" height="36" viewBox="0 0 24 24"><defs><linearGradient id="mhg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7c3aed"/><stop offset="50%" stop-color="#a855f7"/><stop offset="100%" stop-color="#06b6d4"/></linearGradient></defs><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="url(#mhg2)"/></svg>
+        </div>
+      </div>
+      <!-- Text -->
+      <div class="mesh-match-congrats">Congratulations</div>
+      <div class="mesh-match-title">It's a Mesh!!!</div>
+      <div class="mesh-match-sub">Start a conversation now with each other</div>
+      <!-- Buttons -->
+      <div class="mesh-match-btns">
+        <button class="mesh-match-btn-primary" onclick="openModal()">Say Hello</button>
+        <button class="mesh-match-btn-ghost">Keep Meshing</button>
       </div>
     </div>
   </div>
