@@ -32,9 +32,17 @@ interface Props {
   hasAI: boolean;
   hasPrefs: boolean;
   onSetupPrefs: () => void;
+  onConnectBrain?: () => void;
 }
 
-export default function MeshDiscoveryFeed({ userId, agentName, hasAI, hasPrefs, onSetupPrefs }: Props) {
+const PREVIEW_PROFILES = [
+  { name: 'Sophia R.', age: 28, role: 'DeFi Builder', img: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=300&h=400&fit=crop&crop=face' },
+  { name: 'Marcus T.', age: 31, role: 'Web3 Founder', img: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=400&fit=crop&crop=face' },
+  { name: 'Aria K.', age: 26, role: 'AI Engineer', img: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=300&h=400&fit=crop&crop=face' },
+  { name: 'Devon M.', age: 33, role: 'Crypto Trader', img: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&h=400&fit=crop&crop=face' },
+];
+
+export default function MeshDiscoveryFeed({ userId, agentName, hasAI, hasPrefs, onSetupPrefs, onConnectBrain }: Props) {
   const [actions, setActions] = useState<AgentAction[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [newMatchCount, setNewMatchCount] = useState(0);
@@ -178,44 +186,143 @@ export default function MeshDiscoveryFeed({ userId, agentName, hasAI, hasPrefs, 
     }
   }
 
-  // If no AI or prefs, show setup CTA
+  // Animated preview state for no-brain view
+  const [previewIdx, setPreviewIdx] = useState(0);
+
+  useEffect(() => {
+    if (hasAI && hasPrefs) return;
+    const iv = setInterval(() => setPreviewIdx(i => (i + 1) % PREVIEW_PROFILES.length), 3000);
+    return () => clearInterval(iv);
+  }, [hasAI, hasPrefs]);
+
+  // If no AI or prefs, show animated preview
   if (!hasAI || !hasPrefs) {
+    const back = PREVIEW_PROFILES[previewIdx];
+    const front = PREVIEW_PROFILES[(previewIdx + 1) % PREVIEW_PROFILES.length];
     return (
       <div
         style={{
           background: C.surface,
           borderRadius: 16,
           border: `1px solid ${C.border}`,
-          padding: 24,
+          padding: "28px 20px 20px",
           textAlign: "center",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
         }}
       >
-        <div
+        {/* Overlapping photo cards */}
+        <div style={{ position: "relative", width: 200, height: 220, marginBottom: 18 }}>
+          {/* Back card */}
+          <div
+            key={`back-${previewIdx}`}
+            style={{
+              position: "absolute",
+              left: 10,
+              top: 10,
+              width: 160,
+              height: 200,
+              borderRadius: 16,
+              overflow: "hidden",
+              transform: "rotate(-8deg)",
+              boxShadow: "0 0 20px #a855f7",
+              border: "2px solid #a855f766",
+              animation: "glowPulse 2s ease-in-out infinite",
+              transition: "opacity 0.5s",
+            }}
+          >
+            <img src={back.img} alt={back.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "8px", background: "linear-gradient(transparent, rgba(0,0,0,0.8))" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "white" }}>{back.name}, {back.age}</div>
+              <div style={{ fontSize: 9, color: "#ccc" }}>{back.role}</div>
+            </div>
+          </div>
+          {/* Front card */}
+          <div
+            key={`front-${previewIdx}`}
+            style={{
+              position: "absolute",
+              right: 0,
+              top: 0,
+              width: 160,
+              height: 200,
+              borderRadius: 16,
+              overflow: "hidden",
+              transform: "rotate(4deg)",
+              boxShadow: "0 0 20px #06b6d4",
+              border: "2px solid #06b6d466",
+              animation: "glowPulse 2s ease-in-out infinite",
+              zIndex: 1,
+              transition: "opacity 0.5s",
+            }}
+          >
+            <img src={front.img} alt={front.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "8px", background: "linear-gradient(transparent, rgba(0,0,0,0.8))" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "white" }}>{front.name}, {front.age}</div>
+              <div style={{ fontSize: 9, color: "#ccc" }}>{front.role}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Text */}
+        <div style={{ fontSize: 10, color: C.muted, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 6 }}>
+          YOUR AGENT IS EVALUATING...
+        </div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: C.text, marginBottom: 4 }}>
+          It&apos;s a Mesh.
+        </div>
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
+          Connect your brain to start
+        </div>
+
+        {/* Scanning bar */}
+        <div style={{ width: "100%", height: 3, borderRadius: 2, background: C.s2, overflow: "hidden", marginBottom: 16 }}>
+          <div style={{
+            width: "40%",
+            height: "100%",
+            borderRadius: 2,
+            background: "linear-gradient(90deg, #a855f7, #06b6d4)",
+            animation: "scanSlide 2s linear infinite",
+          }} />
+        </div>
+
+        {/* Separator */}
+        <div style={{ width: "100%", height: 1, background: C.border, marginBottom: 16 }} />
+
+        {/* Connect Brain button */}
+        <button
+          onClick={() => {
+            if (!hasAI && onConnectBrain) onConnectBrain();
+            else onSetupPrefs();
+          }}
           style={{
-            width: 48,
-            height: 48,
-            borderRadius: "50%",
-            background: `${C.cold}15`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            margin: "0 auto 12px",
+            width: "100%",
+            padding: "14px 0",
+            background: "linear-gradient(135deg, #a855f7, #06b6d4)",
+            border: "none",
+            borderRadius: 12,
+            color: "white",
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            transition: "all 0.2s",
           }}
         >
-          <Zap size={22} color={C.cold} />
-        </div>
-        <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>
-          Activate Discovery Engine
-        </div>
-        <div style={{ fontSize: 12, color: C.muted, marginBottom: 16, lineHeight: 1.6 }}>
-          {!hasAI
-            ? "Connect your AI brain in The Brew tab to let your agent swipe autonomously."
-            : "Set up your discovery preferences so your agent knows what to look for."}
-        </div>
-        <Btn primary onClick={onSetupPrefs}>
-          <Settings size={14} />
-          {!hasAI ? "Connect AI Brain" : "Set Preferences"}
-        </Btn>
+          {!hasAI ? "Connect Brain" : "Set Preferences"}
+        </button>
+
+        <style dangerouslySetInnerHTML={{__html:`
+          @keyframes glowPulse {
+            0%, 100% { box-shadow: 0 0 20px currentColor; opacity: 1; }
+            50% { box-shadow: 0 0 35px currentColor; opacity: 0.9; }
+          }
+          @keyframes scanSlide {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(350%); }
+          }
+        `}}/>
       </div>
     );
   }

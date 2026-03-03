@@ -77,6 +77,119 @@ function TierBadge({tier}:{tier:string}){
 }
 
 
+/* ═══ MESH GRAPH (Canvas 2D — animated network visualization) ═══ */
+
+function MeshGraph({matches,userId}:{matches:any[];userId:string}){
+  const ref=useRef<HTMLCanvasElement>(null);
+  useEffect(()=>{
+    const cv=ref.current; if(!cv)return;
+    const ctx=cv.getContext("2d"); if(!ctx)return;
+    const dpr=2;
+    const W=cv.offsetWidth, H=cv.offsetHeight;
+    cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
+
+    type N={x:number;y:number;vx:number;vy:number;color:string;label:string;r:number};
+    const nodes:N[]=[]; const edges:[number,number,number][]=[];
+    const seen=new Map<string,number>();
+
+    seen.set(userId,0);
+    nodes.push({x:W/2,y:H/2,vx:0,vy:0,color:C.cold,label:"You",r:10});
+
+    matches.forEach(m=>{
+      const oid=m.user_a===userId?m.user_b:m.user_a;
+      const o=m.user_a===userId?m.user_b_profile:m.user_a_profile;
+      if(!seen.has(oid)){
+        seen.set(oid,nodes.length);
+        const a=Math.random()*Math.PI*2, rad=50+Math.random()*70;
+        nodes.push({x:W/2+Math.cos(a)*rad,y:H/2+Math.sin(a)*rad,vx:(Math.random()-0.5)*0.2,vy:(Math.random()-0.5)*0.2,color:m.revealed?C.match:C.cyan,label:o?.name?.split(" ")[0]||"?",r:5});
+      }
+      edges.push([0,seen.get(oid)!,m.score]);
+    });
+
+    // Add ambient particles
+    const particles:N[]=Array.from({length:20},()=>({
+      x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-0.5)*0.5,vy:(Math.random()-0.5)*0.5,
+      color:Math.random()>0.6?C.cold:Math.random()>0.3?C.cyan:C.purple,label:"",r:1+Math.random()*1.5
+    }));
+
+    let t=0, raf:number;
+    function draw(){
+      t+=0.008; ctx!.clearRect(0,0,W,H);
+
+      // Draw mesh grid
+      ctx!.strokeStyle=`${C.dim}15`; ctx!.lineWidth=0.5;
+      for(let x=0;x<W;x+=30){ctx!.beginPath();ctx!.moveTo(x,0);ctx!.lineTo(x,H);ctx!.stroke();}
+      for(let y=0;y<H;y+=30){ctx!.beginPath();ctx!.moveTo(0,y);ctx!.lineTo(W,y);ctx!.stroke();}
+
+      // Drift particles
+      particles.forEach(p=>{
+        p.x+=p.vx; p.y+=p.vy;
+        if(p.x<0||p.x>W)p.vx*=-1;
+        if(p.y<0||p.y>H)p.vy*=-1;
+        ctx!.beginPath(); ctx!.arc(p.x,p.y,p.r,0,Math.PI*2);
+        ctx!.fillStyle=p.color+"30"; ctx!.fill();
+      });
+
+      // Drift all nodes (including "You")
+      nodes.forEach((n,i)=>{
+        if(i===0){
+          // "You" orb: slow wandering lissajous across the canvas
+          n.x=W/2+Math.sin(t*0.25)*W*0.18+Math.sin(t*0.4+1.5)*W*0.08;
+          n.y=H/2+Math.cos(t*0.2)*H*0.2+Math.cos(t*0.35+2)*H*0.06;
+          n.r=12+Math.sin(t*1.2)*1.2; // breathing pulse
+        }else{
+          n.x+=n.vx+Math.sin(t+i)*0.15;
+          n.y+=n.vy+Math.cos(t+i*1.3)*0.15;
+          if(n.x<30||n.x>W-30)n.vx*=-1;
+          if(n.y<30||n.y>H-30)n.vy*=-1;
+        }
+      });
+
+      // Edges
+      edges.forEach(([f,to,sc])=>{
+        const a=nodes[f],b=nodes[to];
+        ctx!.beginPath(); ctx!.moveTo(a.x,a.y); ctx!.lineTo(b.x,b.y);
+        const pulse=0.15+Math.sin(t*2+f+to)*0.1;
+        ctx!.strokeStyle=`rgba(99,102,241,${sc*0.25+pulse})`; ctx!.lineWidth=sc*2.5; ctx!.stroke();
+      });
+
+      // Nodes
+      nodes.forEach((n,i)=>{
+        // Outer glow (bigger for "You" orb)
+        const glowR=i===0?n.r*5:n.r*3;
+        const g=ctx!.createRadialGradient(n.x,n.y,0,n.x,n.y,glowR);
+        g.addColorStop(0,n.color+"40"); g.addColorStop(0.4,n.color+"15"); g.addColorStop(1,"transparent");
+        ctx!.beginPath(); ctx!.arc(n.x,n.y,glowR,0,Math.PI*2); ctx!.fillStyle=g; ctx!.fill();
+
+        if(i===0){
+          // 3D sphere: dark base
+          const baseG=ctx!.createRadialGradient(n.x-n.r*0.3,n.y-n.r*0.3,n.r*0.1,n.x,n.y,n.r);
+          baseG.addColorStop(0,"#a5b4fc"); baseG.addColorStop(0.5,n.color); baseG.addColorStop(1,"#312e81");
+          ctx!.beginPath(); ctx!.arc(n.x,n.y,n.r,0,Math.PI*2); ctx!.fillStyle=baseG; ctx!.fill();
+          // Specular highlight
+          const specG=ctx!.createRadialGradient(n.x-n.r*0.25,n.y-n.r*0.3,0,n.x-n.r*0.2,n.y-n.r*0.2,n.r*0.6);
+          specG.addColorStop(0,"rgba(255,255,255,0.6)"); specG.addColorStop(0.4,"rgba(255,255,255,0.1)"); specG.addColorStop(1,"transparent");
+          ctx!.beginPath(); ctx!.arc(n.x,n.y,n.r,0,Math.PI*2); ctx!.fillStyle=specG; ctx!.fill();
+          // Rim light
+          ctx!.beginPath(); ctx!.arc(n.x,n.y,n.r,0,Math.PI*2);
+          ctx!.strokeStyle="rgba(165,180,252,0.3)"; ctx!.lineWidth=1.5; ctx!.stroke();
+        }else{
+          // Regular nodes — simple filled
+          ctx!.beginPath(); ctx!.arc(n.x,n.y,n.r,0,Math.PI*2); ctx!.fillStyle=n.color; ctx!.fill();
+        }
+        // Label
+        if(n.label){ctx!.font=`${i===0?"600 12":"400 9"}px system-ui`; ctx!.fillStyle=i===0?C.text:C.muted; ctx!.textAlign="center"; ctx!.fillText(n.label,n.x,n.y+n.r+14);}
+      });
+
+      raf=requestAnimationFrame(draw);
+    }
+    raf=requestAnimationFrame(draw);
+    return()=>cancelAnimationFrame(raf);
+  },[matches,userId]);
+
+  return <canvas ref={ref} style={{width:"100%",height:220,borderRadius:14,background:C.s2,border:`1px solid ${C.border}`}}/>;
+}
+
 /* ═══ MATCH REPLAY ═══ */
 
 function MatchReplay({transcript,highlights,onClose}:any){
@@ -1093,14 +1206,22 @@ export default function Dashboard(){
           <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><MMLogo size={28}/>The Mesh</h2>
           <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Your agent networks autonomously. Matches arrive automatically.</div>
 
-          {/* ═══ AI DISCOVERY ENGINE ═══ */}
-          <div style={{marginBottom:16}}>
-            {showPrefSetup?(
-              <PreferenceSetup existingPrefs={userPrefs} onComplete={()=>{setShowPrefSetup(false);loadUserPrefs();}}/>
-            ):(
-              <MeshDiscoveryFeed userId={user?.id||""} agentName={agent?.agent_name} hasAI={!!user?.ai_api_key_encrypted} hasPrefs={!!(userPrefs?.connection_types?.length)} onSetupPrefs={()=>setShowPrefSetup(true)}/>
-            )}
+          {/* ═══ SPLIT LAYOUT: Orb + Discovery Feed ═══ */}
+          <div style={{display:"flex",gap:16,marginBottom:16,flexDirection:"inherit"}}>
+            {/* LEFT: Mesh Orb */}
+            <div style={{flex:"1 1 60%",minWidth:0}}>
+              <MeshGraph matches={matches} userId={user?.id}/>
+            </div>
+            {/* RIGHT: Discovery Feed */}
+            <div style={{flex:"1 1 40%",minWidth:260}}>
+              {showPrefSetup?(
+                <PreferenceSetup existingPrefs={userPrefs} onComplete={()=>{setShowPrefSetup(false);loadUserPrefs();}}/>
+              ):(
+                <MeshDiscoveryFeed userId={user?.id||""} agentName={agent?.agent_name} hasAI={!!user?.ai_api_key_encrypted} hasPrefs={!!(userPrefs?.connection_types?.length)} onSetupPrefs={()=>setShowPrefSetup(true)} onConnectBrain={()=>setView("brew")}/>
+              )}
+            </div>
           </div>
+          <style>{`@media(max-width:768px){[style*="flex: 1 1 60%"]{flex:1 1 100%!important}[style*="flex: 1 1 40%"]{flex:1 1 100%!important}}`}</style>
 
           {/* ═══ STAT CARDS ═══ */}
           <div style={{display:"flex",gap:6,marginTop:16,marginBottom:16}}>
@@ -1214,31 +1335,6 @@ export default function Dashboard(){
             <ArrowRight size={16} color={C.muted}/>
           </div>
 
-          {/* ═══ GROUP MESH ═══ */}
-          <div style={{marginBottom:16}}>
-            <div style={{fontSize:14,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}}><Users size={14} color={C.cyan}/>Group Mesh</div>
-            <div style={{background:C.surface,borderRadius:14,padding:14,border:`1px solid ${C.border}`,marginBottom:8}}>
-              <input value={groupMeshTopic} onChange={e=>setGroupMeshTopic(e.target.value)} placeholder="What should agents discuss?"
-                style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:13,fontFamily:"inherit",marginBottom:8}}/>
-              <button onClick={createGroupMesh} disabled={groupMeshCreating||!groupMeshTopic.trim()}
-                style={{padding:"8px 16px",background:C.cold,color:"white",border:"none",borderRadius:8,cursor:groupMeshCreating?"wait":"pointer",fontSize:12,fontWeight:600,fontFamily:"inherit",opacity:groupMeshCreating||!groupMeshTopic.trim()?0.5:1}}>
-                {groupMeshCreating?"Finding team...":"Start Group Mesh — 0.01 ETH"}
-              </button>
-            </div>
-            {groupMeshes.slice(0,3).map(mesh=>(
-              <div key={mesh.id} style={{background:C.surface,borderRadius:12,padding:14,border:`1px solid ${C.border}`,marginBottom:6}}>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <Users size={16} color={C.cold}/>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:600,fontSize:13}}>{mesh.title||mesh.topic}</div>
-                    <div style={{fontSize:10,color:C.muted}}>{mesh.members?.length||0} agents · {mesh.status}</div>
-                  </div>
-                  <div style={{fontSize:9,padding:"3px 8px",borderRadius:6,fontWeight:600,background:mesh.status==="completed"?`${C.match}15`:mesh.status==="running"?`${C.cyan}15`:`${C.dim}15`,color:mesh.status==="completed"?C.match:mesh.status==="running"?C.cyan:C.dim}}>{mesh.status}</div>
-                </div>
-                {mesh.summary&&mesh.status==="completed"&&(<div style={{marginTop:8,padding:10,background:C.s2,borderRadius:8,fontSize:12,color:C.text,lineHeight:1.5}}>{mesh.summary}</div>)}
-              </div>
-            ))}
-          </div>
 
 
 
