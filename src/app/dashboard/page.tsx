@@ -10,6 +10,9 @@ import {
   Play, Pause, ExternalLink, DollarSign, Copy, Heart, Handshake, ChevronDown, Key, Users
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
+import dynamic from "next/dynamic";
+const MeshDiscoveryFeed = dynamic(() => import("@/components/MeshDiscoveryFeed"), { ssr: false });
+const PreferenceSetup = dynamic(() => import("@/components/PreferenceSetup"), { ssr: false });
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -385,6 +388,9 @@ export default function Dashboard(){
   const[buzzTrades,setBuzzTrades]=useState<any[]>([]);
   const[buzzPnlSeries,setBuzzPnlSeries]=useState<any[]>([]);
   const[buzzTimeframe,setBuzzTimeframe]=useState<"daily"|"weekly"|"all">("all");
+  // Discovery Engine state
+  const[showPrefSetup,setShowPrefSetup]=useState(false);
+  const[userPrefs,setUserPrefs]=useState<any>(null);
 
   const[form,setForm]=useState({name:"",bio:"",industry:"",building:"",looking_for:"",location:"",website:"",x_handle:"",linkedin:"",avatar_url:"",agent_style:"professional",agent_instructions:""});
   const[obStep,setObStep]=useState(1);
@@ -549,6 +555,10 @@ export default function Dashboard(){
       else{alert(data.error||"Mint failed");}
     }catch(e){console.error(e);}
     setMintingMatch(null);
+  }
+
+  async function loadUserPrefs(){
+    try{const res=await fetch("/api/preferences");const data=await res.json();setUserPrefs(data.preferences);}catch(e){console.error(e);}
   }
 
   async function loadGroupMeshes(){
@@ -1163,7 +1173,7 @@ export default function Dashboard(){
           {id:"buzz",label:"The Buzz",icon:<TrendingUp size={13}/>},
           {id:"evolve",label:"Evolve",icon:<Sparkles size={13}/>},
         ].map(t=>(
-          <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="mesh"&&!groupMeshes.length)loadGroupMeshes();if(t.id==="brew"){if(!wallet)loadWallet();if(!nfts.length)loadNfts();if(!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();}}if(t.id==="buzz")loadBuzzData();if(t.id==="evolve"&&!referralStats)loadReferralStats();}} style={{
+          <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="mesh"){if(!groupMeshes.length)loadGroupMeshes();if(!userPrefs)loadUserPrefs();}if(t.id==="brew"){if(!wallet)loadWallet();if(!nfts.length)loadNfts();if(!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();}}if(t.id==="buzz")loadBuzzData();if(t.id==="evolve"&&!referralStats)loadReferralStats();}} style={{
             flex:1,
             background:view===t.id?"linear-gradient(135deg, rgba(99,102,241,0.25), rgba(6,182,212,0.15))":"rgba(255,255,255,0.03)",
             border:view===t.id?`1px solid rgba(99,102,241,0.5)`:`1px solid rgba(255,255,255,0.06)`,
@@ -1185,7 +1195,7 @@ export default function Dashboard(){
         ))}
       </div>
 
-      <div style={{padding:20,maxWidth:720,margin:"0 auto"}}>
+      <div style={{padding:20,maxWidth:view==="mesh"?1100:720,margin:"0 auto",transition:"max-width 0.3s"}}>
 
 
         {/* ═══════════════════════════════════════════════════════════
@@ -1195,7 +1205,22 @@ export default function Dashboard(){
           <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><MMLogo size={28}/>The Mesh</h2>
           <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Your agent networks autonomously. Matches arrive automatically.</div>
 
-          <MeshGraph matches={matches} userId={user?.id}/>
+          {/* ═══ SPLIT LAYOUT: Orb + Discovery Feed ═══ */}
+          <div style={{display:"flex",gap:16,marginBottom:16,flexDirection:"inherit"}}>
+            {/* LEFT: Mesh Orb */}
+            <div style={{flex:"1 1 60%",minWidth:0}}>
+              <MeshGraph matches={matches} userId={user?.id}/>
+            </div>
+            {/* RIGHT: Discovery Feed */}
+            <div style={{flex:"1 1 40%",minWidth:260}}>
+              {showPrefSetup?(
+                <PreferenceSetup existingPrefs={userPrefs} onComplete={()=>{setShowPrefSetup(false);loadUserPrefs();}}/>
+              ):(
+                <MeshDiscoveryFeed userId={user?.id||""} agentName={agent?.agent_name} hasAI={!!user?.ai_api_key_encrypted} hasPrefs={!!(userPrefs?.connection_types?.length)} onSetupPrefs={()=>setShowPrefSetup(true)}/>
+              )}
+            </div>
+          </div>
+          <style>{`@media(max-width:768px){[style*="flex: 1 1 60%"]{flex:1 1 100%!important}[style*="flex: 1 1 40%"]{flex:1 1 100%!important}}`}</style>
 
           {/* ═══ STAT CARDS ═══ */}
           <div style={{display:"flex",gap:6,marginTop:16,marginBottom:16}}>
