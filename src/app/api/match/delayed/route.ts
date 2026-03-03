@@ -43,7 +43,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, reason: "Already matched" });
     }
 
-    // Find a REAL candidate — another onboarded user with an agent
+    // ═══ GATE: New user MUST have AI connected to get matches ═══
+    const myConfig = await getUserAIConfig(user_id);
+    if (!myConfig) {
+      console.log(`[DelayedMatch] User ${user_id} has no AI key — skipping. They need to connect first.`);
+      // Notify them to connect AI
+      await supabaseAdmin.from("notifications").insert({
+        user_id, type: "system",
+        title: "Connect your AI brain to start matching",
+        body: "Your agent needs an AI provider to network. Go to The Brew → AI Brain to connect your API key.",
+        metadata: { action: "connect_ai" },
+      });
+      return NextResponse.json({ ok: false, reason: "No AI key — user must connect first" });
+    }
+
+    // Find a REAL candidate — another onboarded user with an agent AND AI connected
     const { data: candidates } = await supabaseAdmin.from("users")
       .select("id").eq("onboarded", true)
       .neq("id", user_id)
@@ -51,18 +65,8 @@ export async function POST(req: NextRequest) {
       .limit(20);
 
     if (!candidates?.length) {
-      // No other real users with AI — try matching with ANY onboarded user
-      const { data: fallback } = await supabaseAdmin.from("users")
-        .select("id").eq("onboarded", true).neq("id", user_id).limit(20);
-
-      if (!fallback?.length) {
-        console.log(`[DelayedMatch] No candidates for ${user_id}`);
-        return NextResponse.json({ ok: false, reason: "No candidates" });
-      }
-      // Pick a random one
-      const pick = fallback[Math.floor(Math.random() * fallback.length)];
-      await createQuickMatch(user_id, pick.id, user, myAgent);
-      return NextResponse.json({ ok: true, type: "quick_match" });
+      console.log(`[DelayedMatch] No AI-enabled candidates for ${user_id}`);
+      return NextResponse.json({ ok: false, reason: "No AI-enabled candidates yet" });
     }
 
     // Filter out users we've already matched with
@@ -78,9 +82,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, reason: "All candidates already matched" });
     }
 
-    // Pick the best candidate — try to run a real speed date if both have AI keys
+    // Pick the best candidate — both MUST have AI keys
     const candId = fresh[Math.floor(Math.random() * fresh.length)].id;
-    const myConfig = await getUserAIConfig(user_id);
     const candConfig = await getUserAIConfig(candId);
 
     const { data: candUser } = await supabaseAdmin.from("users").select("*").eq("id", candId).single();
@@ -90,53 +93,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, reason: "Candidate data missing" });
     }
 
-    if (myConfig && candConfig) {
-      // REAL speed date — both have AI
-      try {
-        const { runSpeedDate, scoreMatch } = await import("@/lib/matching");
-        const agentA = { ...myAgent, user, learned_preferences: myAgent.learned_preferences };
-        const agentB = { ...candAgent, user: candUser, learned_preferences: candAgent.learned_preferences };
+    if (!candConfig) {
+      console.log(`[DelayedMatch] Candidate ${candId} has no AI key — skipping`);
+      return NextResponse.json({ ok: false, reason: "Candidate has no AI" });
+    }
 
-        const { transcript, highlights, scoreA, scoreB } = await runSpeedDate(agentA, agentB, myConfig, candConfig);
-        const result = await scoreMatch(agentA, agentB, transcript, scoreA, scoreB, myConfig);
+    // REAL speed date — both have AI (the ONLY way matches happen)
+    try {
+      const { runSpeedDate, scoreMatch } = await import("@/lib/matching");
+      const agentA = { ...myAgent, user, learned_preferences: myAgent.learned_preferences };
+      const agentB = { ...candAgent, user: candUser, learned_preferences: candAgent.learned_preferences };
 
-        if (result.score >= 0.50) { // Lower threshold for first match — we want them to see SOMETHING
-          const { data: match } = await supabaseAdmin.from("matches").insert({
-            user_a: user_id, user_b: candId,
-            score: result.score, agent_reasoning: result.agent_reasoning,
-            collab_idea: result.collab_idea, synergy: result.synergy,
-            strengths: result.strengths, risks: result.risks, highlights,
-          }).select().single();
+      const { transcript, highlights, scoreA, scoreB } = await runSpeedDate(agentA, agentB, myConfig, candConfig);
+      const result = await scoreMatch(agentA, agentB, transcript, scoreA, scoreB, myConfig);
 
-          if (match) {
-            await supabaseAdmin.from("agent_conversations").insert({
-              match_id: match.id, agent_a: user_id, agent_b: candId,
-              transcript: JSON.stringify(transcript), score: result.score,
-            });
+      if (result.score >= 0.50) {
+        const { data: match } = await supabaseAdmin.from("matches").insert({
+          user_a: user_id, user_b: candId,
+          score: result.score, agent_reasoning: result.agent_reasoning,
+          collab_idea: result.collab_idea, synergy: result.synergy,
+          strengths: result.strengths, risks: result.risks, highlights,
+        }).select().single();
 
-            // Notify both users
-            const scorePercent = Math.round(result.score * 100);
-            await notifyMatch(user_id, scorePercent, result.synergy || "", match.id);
-            await notifyMatch(candId, scorePercent, result.synergy || "", match.id);
+        if (match) {
+          await supabaseAdmin.from("agent_conversations").insert({
+            match_id: match.id, agent_a: user_id, agent_b: candId,
+            transcript: JSON.stringify(transcript), score: result.score,
+          });
 
-            console.log(`[DelayedMatch] Real match! ${user_id} <-> ${candId} @ ${scorePercent}%`);
-            return NextResponse.json({ ok: true, type: "real_speed_date", score: result.score });
-          }
-        } else {
-          // Score too low — create a quick match anyway for the new user's experience
-          await createQuickMatch(user_id, candId, user, myAgent);
-          return NextResponse.json({ ok: true, type: "quick_match_low_score" });
+          const scorePercent = Math.round(result.score * 100);
+          await notifyMatch(user_id, scorePercent, result.synergy || "", match.id);
+          await notifyMatch(candId, scorePercent, result.synergy || "", match.id);
+
+          console.log(`[DelayedMatch] Real match! ${user_id} <-> ${candId} @ ${scorePercent}%`);
+          return NextResponse.json({ ok: true, type: "real_speed_date", score: result.score });
         }
-      } catch (e: any) {
-        console.error("[DelayedMatch] Speed date failed:", e.message);
-        // Fall back to quick match
-        await createQuickMatch(user_id, candId, user, myAgent);
-        return NextResponse.json({ ok: true, type: "quick_match_fallback" });
       }
-    } else {
-      // One or both don't have AI — create a profile-based quick match
-      await createQuickMatch(user_id, candId, user, myAgent);
-      return NextResponse.json({ ok: true, type: "quick_match_no_ai" });
+
+      console.log(`[DelayedMatch] Score too low (${Math.round(result.score * 100)}%) — no match created`);
+      return NextResponse.json({ ok: false, reason: "Score below threshold" });
+    } catch (e: any) {
+      console.error("[DelayedMatch] Speed date failed:", e.message);
+      return NextResponse.json({ ok: false, reason: e.message }, { status: 500 });
     }
 
   } catch (e: any) {
