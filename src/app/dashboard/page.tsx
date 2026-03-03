@@ -732,7 +732,7 @@ export default function Dashboard(){
         const ctx=canvas.getContext("2d")!;
         ctx.drawImage(bitmap,0,0);
         const blob=await new Promise<Blob>((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error("Conversion failed")),"image/jpeg",0.9));
-        file=new File([blob],file.name.replace(/\.\w+$/,".jpg"),{type:"image/jpeg"});
+        file=new File([blob],"avatar.jpg",{type:"image/jpeg"});
       }catch(convErr){
         console.error("Image conversion error:",convErr);
         alert("Could not process this image format. Try a JPEG or PNG instead.");
@@ -749,21 +749,22 @@ export default function Dashboard(){
         const ctx=canvas.getContext("2d")!;
         ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
         const blob=await new Promise<Blob>((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error("Resize failed")),"image/jpeg",0.9));
-        file=new File([blob],file.name.replace(/\.\w+$/,".jpg"),{type:"image/jpeg"});
+        file=new File([blob],"avatar.jpg",{type:"image/jpeg"});
       }
     }catch{}
-    const path=`${user.id}/${Date.now()}-${file.name}`;
-    const{error}=await supabase.storage.from("avatars").upload(path,file,{upsert:true,contentType:file.type});
-    if(error){
-      console.error("Upload error:",error);
-      alert("Photo upload failed: "+error.message);
-      return;
+    // Upload via server API (uses service role — bypasses storage RLS)
+    try{
+      const fd=new FormData();
+      fd.append("file",file);
+      const res=await fetch("/api/avatar",{method:"POST",body:fd});
+      const data=await res.json();
+      if(!res.ok||data.error){alert("Photo upload failed: "+(data.error||"Unknown error"));return;}
+      setForm(f=>({...f,avatar_url:data.avatar_url}));
+      setUser((u:any)=>({...u,avatar_url:data.avatar_url}));
+    }catch(err:any){
+      console.error("Upload error:",err);
+      alert("Photo upload failed: "+err.message);
     }
-    const{data:{publicUrl}}=supabase.storage.from("avatars").getPublicUrl(path);
-    setForm(f=>({...f,avatar_url:publicUrl}));
-    setUser((u:any)=>({...u,avatar_url:publicUrl}));
-    // Persist to DB immediately
-    await supabase.from("users").update({avatar_url:publicUrl}).eq("id",user.id);
   }
 
   async function signOut(){await fetch("/api/auth/siwe/logout",{method:"POST"}); router.push("/");}
