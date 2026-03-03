@@ -722,9 +722,38 @@ export default function Dashboard(){
   }
 
   async function uploadPhoto(e:React.ChangeEvent<HTMLInputElement>){
-    const file=e.target.files?.[0]; if(!file||!user)return;
+    let file=e.target.files?.[0]; if(!file||!user)return;
+    // Convert HEIC/HEIF or any non-web format to JPEG via canvas
+    if(!["image/jpeg","image/png","image/gif","image/webp"].includes(file.type)){
+      try{
+        const bitmap=await createImageBitmap(file);
+        const canvas=document.createElement("canvas");
+        canvas.width=bitmap.width; canvas.height=bitmap.height;
+        const ctx=canvas.getContext("2d")!;
+        ctx.drawImage(bitmap,0,0);
+        const blob=await new Promise<Blob>((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error("Conversion failed")),"image/jpeg",0.9));
+        file=new File([blob],file.name.replace(/\.\w+$/,".jpg"),{type:"image/jpeg"});
+      }catch(convErr){
+        console.error("Image conversion error:",convErr);
+        alert("Could not process this image format. Try a JPEG or PNG instead.");
+        return;
+      }
+    }
+    // Resize large images to max 800px for avatars
+    try{
+      const bitmap=await createImageBitmap(file);
+      if(bitmap.width>800||bitmap.height>800){
+        const scale=800/Math.max(bitmap.width,bitmap.height);
+        const canvas=document.createElement("canvas");
+        canvas.width=Math.round(bitmap.width*scale); canvas.height=Math.round(bitmap.height*scale);
+        const ctx=canvas.getContext("2d")!;
+        ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+        const blob=await new Promise<Blob>((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error("Resize failed")),"image/jpeg",0.9));
+        file=new File([blob],file.name.replace(/\.\w+$/,".jpg"),{type:"image/jpeg"});
+      }
+    }catch{}
     const path=`${user.id}/${Date.now()}-${file.name}`;
-    const{error}=await supabase.storage.from("avatars").upload(path,file,{upsert:true});
+    const{error}=await supabase.storage.from("avatars").upload(path,file,{upsert:true,contentType:file.type});
     if(error){
       console.error("Upload error:",error);
       alert("Photo upload failed: "+error.message);
