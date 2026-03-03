@@ -186,47 +186,20 @@ export default function MeshDiscoveryFeed({ userId, agentName, hasAI, hasPrefs, 
     }
   }
 
-  // ── Animated preview: 4 phases cycling
-  // 0=approach, 1=connecting, 2=explosion, 3=mesh-burst → repeat
-  const [phase, setPhase] = useState(0);
+  // ── Animated preview: pure CSS keyframe loop (no React state jitter)
   const [pairIdx, setPairIdx] = useState(0);
-  const phaseTimer = useRef<NodeJS.Timeout|null>(null);
 
   useEffect(() => {
     if (hasAI && hasPrefs) return;
-    const PHASE_DUR = [1800, 900, 900, 1200]; // ms per phase
-    const tick = () => {
-      setPhase(p => {
-        const next = (p + 1) % 4;
-        if (next === 0) setPairIdx(i => (i + 2) % PREVIEW_PROFILES.length);
-        phaseTimer.current = setTimeout(tick, PHASE_DUR[next]);
-        return next;
-      });
-    };
-    phaseTimer.current = setTimeout(tick, PHASE_DUR[0]);
-    return () => { if (phaseTimer.current) clearTimeout(phaseTimer.current); };
+    // Swap pairs every 6s to match CSS animation duration
+    const iv = setInterval(() => setPairIdx(i => (i + 2) % PREVIEW_PROFILES.length), 6000);
+    return () => clearInterval(iv);
   }, [hasAI, hasPrefs]);
 
-  // If no AI or prefs, show animated preview
+  // If no AI or prefs, show animated preview (pure CSS — no React state jitter)
   if (!hasAI || !hasPrefs) {
     const p1 = PREVIEW_PROFILES[pairIdx % PREVIEW_PROFILES.length];
     const p2 = PREVIEW_PROFILES[(pairIdx + 1) % PREVIEW_PROFILES.length];
-
-    // Phase-driven positions
-    // phase 0: cards far apart, slight rotation
-    // phase 1: cards slide toward center, glow intensifies
-    // phase 2: OVERLAP + white flash = MESH explosion
-    // phase 3: cards bounce back slightly, particles, "It's a Mesh!" big
-
-    const leftX = phase === 0 ? -30 : phase === 1 ? 10 : phase === 2 ? 30 : 20;
-    const rightX = phase === 0 ? 30 : phase === 1 ? -10 : phase === 2 ? -30 : -20;
-    const leftRot = phase === 0 ? -12 : phase === 1 ? -6 : phase === 2 ? -2 : -8;
-    const rightRot = phase === 0 ? 12 : phase === 1 ? 6 : phase === 2 ? 2 : 8;
-    const glowSize = phase === 2 ? 60 : phase === 1 ? 30 : 18;
-    const flashOpacity = phase === 2 ? 0.85 : 0;
-    const burstOpacity = phase === 3 ? 1 : 0;
-    const labelText = phase === 0 ? "YOUR AGENT IS SCANNING..." : phase === 1 ? "COMPATIBILITY DETECTED..." : phase === 2 ? "CONNECTING..." : "IT'S A MESH.";
-    const bigText = phase === 3 ? "It's a Mesh." : phase === 2 ? "Meshing..." : "";
 
     return (
       <div style={{
@@ -242,55 +215,84 @@ export default function MeshDiscoveryFeed({ userId, agentName, hasAI, hasPrefs, 
         position: "relative",
       }}>
 
-        {/* Explosion flash overlay */}
-        <div style={{
-          position: "absolute", inset: 0, borderRadius: 16,
-          background: "radial-gradient(circle, #a855f7aa, #06b6d4aa, transparent 70%)",
-          opacity: flashOpacity,
-          transition: "opacity 0.15s ease",
-          pointerEvents: "none", zIndex: 10,
-        }}/>
+        <style dangerouslySetInnerHTML={{__html:`
+          /* ── 6s loop: scan → approach → bloom → text → separate → reset ── */
+          @keyframes card1Move {
+            0%,8%   { transform: translateX(-38px) rotate(-12deg); box-shadow: 0 0 18px #a855f7; }
+            30%     { transform: translateX(-10px) rotate(-7deg);  box-shadow: 0 0 28px #a855f780; }
+            48%,58% { transform: translateX(18px)  rotate(-2deg);  box-shadow: 0 0 45px #a855f7; }
+            75%     { transform: translateX(-10px) rotate(-9deg);  box-shadow: 0 0 22px #a855f760; }
+            92%,100%{ transform: translateX(-38px) rotate(-12deg); box-shadow: 0 0 18px #a855f7; }
+          }
+          @keyframes card2Move {
+            0%,8%   { transform: translateX(38px)  rotate(12deg);  box-shadow: 0 0 18px #06b6d4; }
+            30%     { transform: translateX(10px)  rotate(7deg);   box-shadow: 0 0 28px #06b6d480; }
+            48%,58% { transform: translateX(-18px) rotate(2deg);   box-shadow: 0 0 45px #06b6d4; }
+            75%     { transform: translateX(10px)  rotate(9deg);   box-shadow: 0 0 22px #06b6d460; }
+            92%,100%{ transform: translateX(38px)  rotate(12deg);  box-shadow: 0 0 18px #06b6d4; }
+          }
+          /* Soft radial bloom at moment of connection */
+          @keyframes meshBloom {
+            0%,42%  { opacity:0; transform:translate(-50%,-50%) scale(0.2); }
+            50%     { opacity:0.9; transform:translate(-50%,-50%) scale(0.8); }
+            58%     { opacity:1; transform:translate(-50%,-50%) scale(1.1); }
+            70%     { opacity:0.5; transform:translate(-50%,-50%) scale(1.6); }
+            80%,100%{ opacity:0; transform:translate(-50%,-50%) scale(2); }
+          }
+          /* Second outer ring — slightly delayed */
+          @keyframes meshBloom2 {
+            0%,48%  { opacity:0; transform:translate(-50%,-50%) scale(0.1); }
+            58%     { opacity:0.6; transform:translate(-50%,-50%) scale(0.7); }
+            70%     { opacity:0.4; transform:translate(-50%,-50%) scale(1.4); }
+            82%,100%{ opacity:0; transform:translate(-50%,-50%) scale(2.2); }
+          }
+          /* "It's a Mesh." text reveal */
+          @keyframes meshTextIn {
+            0%,50%  { opacity:0; transform:scale(0.85) translateY(6px); }
+            60%     { opacity:1; transform:scale(1.05) translateY(-2px); }
+            65%,72% { opacity:1; transform:scale(1) translateY(0); }
+            82%,100%{ opacity:0; transform:scale(0.95) translateY(-4px); }
+          }
+          /* Status label cycling */
+          @keyframes labelScan {
+            0%,30%  { opacity:1; }
+            35%,100%{ opacity:0; }
+          }
+          @keyframes labelConnect {
+            0%,28% { opacity:0; }
+            32%,50%{ opacity:1; }
+            55%,100%{ opacity:0; }
+          }
+          @keyframes labelMesh {
+            0%,58%  { opacity:0; }
+            62%,78% { opacity:1; }
+            83%,100%{ opacity:0; }
+          }
+          /* Scanning progress bar */
+          @keyframes scanBar {
+            0%   { transform:translateX(-100%); }
+            100% { transform:translateX(350%); }
+          }
+          /* Subtle card float when separated */
+          @keyframes floatCard {
+            0%,100% { top: 10px; }
+            50%     { top: 4px; }
+          }
+        `}}/>
 
-        {/* Burst particles (phase 3) */}
-        {phase === 3 && (
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 9 }}>
-            {[...Array(12)].map((_, i) => {
-              const angle = (i / 12) * 360;
-              const dist = 80 + Math.random() * 40;
-              return (
-                <div key={i} style={{
-                  position: "absolute",
-                  top: "35%", left: "50%",
-                  width: 6, height: 6,
-                  borderRadius: "50%",
-                  background: i % 2 === 0 ? "#a855f7" : "#06b6d4",
-                  transform: `rotate(${angle}deg) translateX(${dist}px)`,
-                  opacity: burstOpacity,
-                  transition: "opacity 0.3s, transform 0.4s",
-                  animation: "particlePop 1.2s ease-out forwards",
-                  animationDelay: `${i * 30}ms`,
-                }}/>
-              );
-            })}
-          </div>
-        )}
+        {/* Cards stage */}
+        <div style={{ position:"relative", width:"100%", height:210, marginBottom:8 }}>
 
-        {/* Cards */}
-        <div style={{ position: "relative", width: "100%", height: 220, marginBottom: 16 }}>
-          {/* Card 1 — left */}
-          <div style={{
-            position: "absolute",
-            left: `calc(50% - 140px + ${leftX}px)`,
-            top: 10,
-            width: 130,
-            height: 170,
-            borderRadius: 16,
-            overflow: "hidden",
-            transform: `rotate(${leftRot}deg)`,
-            boxShadow: `0 0 ${glowSize}px #a855f7`,
-            border: "2px solid #a855f7aa",
-            transition: "all 0.5s cubic-bezier(0.34,1.56,0.64,1)",
-            zIndex: 2,
+          {/* Card 1 — left (purple) */}
+          <div key={`c1-${pairIdx}`} style={{
+            position:"absolute",
+            left:"calc(50% - 145px)",
+            top:10,
+            width:130, height:170,
+            borderRadius:16, overflow:"hidden",
+            border:"2px solid #a855f7aa",
+            animation:"card1Move 6s cubic-bezier(0.45,0,0.55,1) infinite, floatCard 3s ease-in-out infinite",
+            zIndex:2,
           }}>
             <img src={p1.img} alt={p1.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
             <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"6px 8px", background:"linear-gradient(transparent,rgba(0,0,0,0.85))" }}>
@@ -299,20 +301,16 @@ export default function MeshDiscoveryFeed({ userId, agentName, hasAI, hasPrefs, 
             </div>
           </div>
 
-          {/* Card 2 — right */}
-          <div style={{
-            position: "absolute",
-            left: `calc(50% + 10px + ${rightX}px)`,
-            top: 20,
-            width: 130,
-            height: 170,
-            borderRadius: 16,
-            overflow: "hidden",
-            transform: `rotate(${rightRot}deg)`,
-            boxShadow: `0 0 ${glowSize}px #06b6d4`,
-            border: "2px solid #06b6d4aa",
-            transition: "all 0.5s cubic-bezier(0.34,1.56,0.64,1)",
-            zIndex: 2,
+          {/* Card 2 — right (cyan) */}
+          <div key={`c2-${pairIdx}`} style={{
+            position:"absolute",
+            left:"calc(50% + 15px)",
+            top:20,
+            width:130, height:170,
+            borderRadius:16, overflow:"hidden",
+            border:"2px solid #06b6d4aa",
+            animation:"card2Move 6s cubic-bezier(0.45,0,0.55,1) infinite, floatCard 3.4s ease-in-out infinite",
+            zIndex:2,
           }}>
             <img src={p2.img} alt={p2.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
             <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"6px 8px", background:"linear-gradient(transparent,rgba(0,0,0,0.85))" }}>
@@ -321,84 +319,68 @@ export default function MeshDiscoveryFeed({ userId, agentName, hasAI, hasPrefs, 
             </div>
           </div>
 
-          {/* Mesh explosion ring (phase 2-3) */}
-          {(phase === 2 || phase === 3) && (
-            <div style={{
-              position:"absolute", top:"30%", left:"50%",
-              transform:"translate(-50%,-50%)",
-              width: phase===3 ? 160 : 80,
-              height: phase===3 ? 160 : 80,
-              borderRadius:"50%",
-              border: `2px solid ${phase===3 ? "#06b6d4" : "#a855f7"}`,
-              boxShadow: `0 0 30px ${phase===3?"#06b6d4":"#a855f7"}`,
-              opacity: phase===3 ? 0.6 : 0.9,
-              transition:"all 0.4s ease",
-              pointerEvents:"none", zIndex:3,
-            }}/>
-          )}
-        </div>
-
-        {/* Phase label */}
-        <div style={{ fontSize:10, color: phase===3 ? "#06b6d4" : C.muted, letterSpacing:"0.15em", textTransform:"uppercase", marginBottom:4, transition:"color 0.3s", fontWeight: phase===3 ? 700 : 400 }}>
-          {labelText}
-        </div>
-
-        {/* Big text — only phases 2 & 3 */}
-        <div style={{
-          fontSize: phase===3 ? 26 : phase===2 ? 18 : 0,
-          fontWeight: 800,
-          color: phase===3 ? "white" : "#a855f7",
-          marginBottom: 8,
-          transition: "all 0.3s ease",
-          height: 36,
-          overflow:"hidden",
-        }}>
-          {bigText}
-        </div>
-
-        <div style={{ fontSize:12, color:C.muted, marginBottom:16 }}>
-          Connect your brain to start
-        </div>
-
-        {/* Scanning bar */}
-        <div style={{ width:"100%", height:3, borderRadius:2, background:C.s2, overflow:"hidden", marginBottom:16 }}>
+          {/* Bloom ring 1 — appears at moment of connection */}
           <div style={{
-            width:"40%", height:"100%", borderRadius:2,
-            background:"linear-gradient(90deg, #a855f7, #06b6d4)",
-            animation:"scanSlide 2s linear infinite",
+            position:"absolute", top:"44%", left:"50%",
+            width:120, height:120,
+            borderRadius:"50%",
+            border:"1.5px solid #a855f7",
+            boxShadow:"0 0 20px #a855f766, inset 0 0 20px #a855f722",
+            background:"radial-gradient(circle, #a855f711, transparent 70%)",
+            animation:"meshBloom 6s ease-in-out infinite",
+            pointerEvents:"none", zIndex:3,
+          }}/>
+          {/* Bloom ring 2 — slightly larger, cyan */}
+          <div style={{
+            position:"absolute", top:"44%", left:"50%",
+            width:140, height:140,
+            borderRadius:"50%",
+            border:"1px solid #06b6d4",
+            boxShadow:"0 0 16px #06b6d444",
+            animation:"meshBloom2 6s ease-in-out infinite",
+            pointerEvents:"none", zIndex:3,
           }}/>
         </div>
 
-        <div style={{ width:"100%", height:1, background:C.border, marginBottom:16 }}/>
+        {/* Stacked status labels — each fades in/out on schedule */}
+        <div style={{ position:"relative", height:16, width:"100%", marginBottom:6 }}>
+          <div style={{ position:"absolute", inset:0, fontSize:10, color:C.muted, letterSpacing:"0.14em", textTransform:"uppercase", animation:"labelScan 6s ease infinite" }}>
+            YOUR AGENT IS SCANNING...
+          </div>
+          <div style={{ position:"absolute", inset:0, fontSize:10, color:"#a855f7", letterSpacing:"0.14em", textTransform:"uppercase", fontWeight:600, animation:"labelConnect 6s ease infinite" }}>
+            COMPATIBILITY DETECTED
+          </div>
+          <div style={{ position:"absolute", inset:0, fontSize:10, color:"#06b6d4", letterSpacing:"0.14em", textTransform:"uppercase", fontWeight:700, animation:"labelMesh 6s ease infinite" }}>
+            IT&apos;S A MESH.
+          </div>
+        </div>
 
-        {/* Connect Brain button */}
+        {/* "It's a Mesh." big reveal */}
+        <div style={{
+          fontSize:24, fontWeight:800,
+          background:"linear-gradient(135deg,#a855f7,#06b6d4)",
+          WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+          height:34, marginBottom:10,
+          animation:"meshTextIn 6s ease infinite",
+        }}>
+          It&apos;s a Mesh.
+        </div>
+
+        {/* Scanning bar */}
+        <div style={{ width:"100%", height:2, borderRadius:2, background:C.s2, overflow:"hidden", marginBottom:14 }}>
+          <div style={{ width:"35%", height:"100%", borderRadius:2, background:"linear-gradient(90deg,#a855f7,#06b6d4)", animation:"scanBar 2.2s linear infinite" }}/>
+        </div>
+
+        <div style={{ width:"100%", height:1, background:C.border, marginBottom:14 }}/>
+
+        <div style={{ fontSize:12, color:C.muted, marginBottom:14 }}>Connect your brain to start networking</div>
+
         <button
           onClick={() => { if (!hasAI && onConnectBrain) onConnectBrain(); else onSetupPrefs(); }}
-          style={{
-            width:"100%", padding:"14px 0",
-            background:"linear-gradient(135deg, #a855f7, #06b6d4)",
-            border:"none", borderRadius:12,
-            color:"white", fontSize:14, fontWeight:700,
-            cursor:"pointer", fontFamily:"inherit",
-          }}
+          style={{ width:"100%", padding:"13px 0", background:"linear-gradient(135deg,#a855f7,#06b6d4)", border:"none", borderRadius:12, color:"white", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit", letterSpacing:"0.02em" }}
         >
           {!hasAI ? "Connect Brain" : "Set Preferences"}
         </button>
-
-        <style dangerouslySetInnerHTML={{__html:`
-          @keyframes particlePop {
-            0% { opacity:1; transform: rotate(var(--angle,0deg)) translateX(0px) scale(1); }
-            100% { opacity:0; transform: rotate(var(--angle,0deg)) translateX(100px) scale(0.3); }
-          }
-          @keyframes glowPulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.8; }
-          }
-          @keyframes scanSlide {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(350%); }
-          }
-        `}}/>
       </div>
     );
   }
