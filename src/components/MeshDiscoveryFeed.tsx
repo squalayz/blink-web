@@ -186,137 +186,213 @@ export default function MeshDiscoveryFeed({ userId, agentName, hasAI, hasPrefs, 
     }
   }
 
-  // Animated preview state for no-brain view
-  const [previewIdx, setPreviewIdx] = useState(0);
+  // ── Animated preview: 4 phases cycling
+  // 0=approach, 1=connecting, 2=explosion, 3=mesh-burst → repeat
+  const [phase, setPhase] = useState(0);
+  const [pairIdx, setPairIdx] = useState(0);
+  const phaseTimer = useRef<NodeJS.Timeout|null>(null);
 
   useEffect(() => {
     if (hasAI && hasPrefs) return;
-    const iv = setInterval(() => setPreviewIdx(i => (i + 1) % PREVIEW_PROFILES.length), 3000);
-    return () => clearInterval(iv);
+    const PHASE_DUR = [1800, 900, 900, 1200]; // ms per phase
+    const tick = () => {
+      setPhase(p => {
+        const next = (p + 1) % 4;
+        if (next === 0) setPairIdx(i => (i + 2) % PREVIEW_PROFILES.length);
+        phaseTimer.current = setTimeout(tick, PHASE_DUR[next]);
+        return next;
+      });
+    };
+    phaseTimer.current = setTimeout(tick, PHASE_DUR[0]);
+    return () => { if (phaseTimer.current) clearTimeout(phaseTimer.current); };
   }, [hasAI, hasPrefs]);
 
   // If no AI or prefs, show animated preview
   if (!hasAI || !hasPrefs) {
-    const back = PREVIEW_PROFILES[previewIdx];
-    const front = PREVIEW_PROFILES[(previewIdx + 1) % PREVIEW_PROFILES.length];
+    const p1 = PREVIEW_PROFILES[pairIdx % PREVIEW_PROFILES.length];
+    const p2 = PREVIEW_PROFILES[(pairIdx + 1) % PREVIEW_PROFILES.length];
+
+    // Phase-driven positions
+    // phase 0: cards far apart, slight rotation
+    // phase 1: cards slide toward center, glow intensifies
+    // phase 2: OVERLAP + white flash = MESH explosion
+    // phase 3: cards bounce back slightly, particles, "It's a Mesh!" big
+
+    const leftX = phase === 0 ? -30 : phase === 1 ? 10 : phase === 2 ? 30 : 20;
+    const rightX = phase === 0 ? 30 : phase === 1 ? -10 : phase === 2 ? -30 : -20;
+    const leftRot = phase === 0 ? -12 : phase === 1 ? -6 : phase === 2 ? -2 : -8;
+    const rightRot = phase === 0 ? 12 : phase === 1 ? 6 : phase === 2 ? 2 : 8;
+    const glowSize = phase === 2 ? 60 : phase === 1 ? 30 : 18;
+    const flashOpacity = phase === 2 ? 0.85 : 0;
+    const burstOpacity = phase === 3 ? 1 : 0;
+    const labelText = phase === 0 ? "YOUR AGENT IS SCANNING..." : phase === 1 ? "COMPATIBILITY DETECTED..." : phase === 2 ? "CONNECTING..." : "IT'S A MESH.";
+    const bigText = phase === 3 ? "It's a Mesh." : phase === 2 ? "Meshing..." : "";
+
     return (
-      <div
-        style={{
-          background: C.surface,
-          borderRadius: 16,
-          border: `1px solid ${C.border}`,
-          padding: "28px 20px 20px",
-          textAlign: "center",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-        }}
-      >
-        {/* Overlapping photo cards */}
-        <div style={{ position: "relative", width: 200, height: 220, marginBottom: 18 }}>
-          {/* Back card */}
-          <div
-            key={`back-${previewIdx}`}
-            style={{
-              position: "absolute",
-              left: 10,
-              top: 10,
-              width: 160,
-              height: 200,
-              borderRadius: 16,
-              overflow: "hidden",
-              transform: "rotate(-8deg)",
-              boxShadow: "0 0 20px #a855f7",
-              border: "2px solid #a855f766",
-              animation: "glowPulse 2s ease-in-out infinite",
-              transition: "opacity 0.5s",
-            }}
-          >
-            <img src={back.img} alt={back.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "8px", background: "linear-gradient(transparent, rgba(0,0,0,0.8))" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "white" }}>{back.name}, {back.age}</div>
-              <div style={{ fontSize: 9, color: "#ccc" }}>{back.role}</div>
+      <div style={{
+        background: C.surface,
+        borderRadius: 16,
+        border: `1px solid ${C.border}`,
+        padding: "24px 20px 20px",
+        textAlign: "center",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        overflow: "hidden",
+        position: "relative",
+      }}>
+
+        {/* Explosion flash overlay */}
+        <div style={{
+          position: "absolute", inset: 0, borderRadius: 16,
+          background: "radial-gradient(circle, #a855f7aa, #06b6d4aa, transparent 70%)",
+          opacity: flashOpacity,
+          transition: "opacity 0.15s ease",
+          pointerEvents: "none", zIndex: 10,
+        }}/>
+
+        {/* Burst particles (phase 3) */}
+        {phase === 3 && (
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 9 }}>
+            {[...Array(12)].map((_, i) => {
+              const angle = (i / 12) * 360;
+              const dist = 80 + Math.random() * 40;
+              return (
+                <div key={i} style={{
+                  position: "absolute",
+                  top: "35%", left: "50%",
+                  width: 6, height: 6,
+                  borderRadius: "50%",
+                  background: i % 2 === 0 ? "#a855f7" : "#06b6d4",
+                  transform: `rotate(${angle}deg) translateX(${dist}px)`,
+                  opacity: burstOpacity,
+                  transition: "opacity 0.3s, transform 0.4s",
+                  animation: "particlePop 1.2s ease-out forwards",
+                  animationDelay: `${i * 30}ms`,
+                }}/>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Cards */}
+        <div style={{ position: "relative", width: "100%", height: 220, marginBottom: 16 }}>
+          {/* Card 1 — left */}
+          <div style={{
+            position: "absolute",
+            left: `calc(50% - 140px + ${leftX}px)`,
+            top: 10,
+            width: 130,
+            height: 170,
+            borderRadius: 16,
+            overflow: "hidden",
+            transform: `rotate(${leftRot}deg)`,
+            boxShadow: `0 0 ${glowSize}px #a855f7`,
+            border: "2px solid #a855f7aa",
+            transition: "all 0.5s cubic-bezier(0.34,1.56,0.64,1)",
+            zIndex: 2,
+          }}>
+            <img src={p1.img} alt={p1.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+            <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"6px 8px", background:"linear-gradient(transparent,rgba(0,0,0,0.85))" }}>
+              <div style={{ fontSize:10, fontWeight:700, color:"white" }}>{p1.name}, {p1.age}</div>
+              <div style={{ fontSize:8, color:"#ccc" }}>{p1.role}</div>
             </div>
           </div>
-          {/* Front card */}
-          <div
-            key={`front-${previewIdx}`}
-            style={{
-              position: "absolute",
-              right: 0,
-              top: 0,
-              width: 160,
-              height: 200,
-              borderRadius: 16,
-              overflow: "hidden",
-              transform: "rotate(4deg)",
-              boxShadow: "0 0 20px #06b6d4",
-              border: "2px solid #06b6d466",
-              animation: "glowPulse 2s ease-in-out infinite",
-              zIndex: 1,
-              transition: "opacity 0.5s",
-            }}
-          >
-            <img src={front.img} alt={front.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "8px", background: "linear-gradient(transparent, rgba(0,0,0,0.8))" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "white" }}>{front.name}, {front.age}</div>
-              <div style={{ fontSize: 9, color: "#ccc" }}>{front.role}</div>
+
+          {/* Card 2 — right */}
+          <div style={{
+            position: "absolute",
+            left: `calc(50% + 10px + ${rightX}px)`,
+            top: 20,
+            width: 130,
+            height: 170,
+            borderRadius: 16,
+            overflow: "hidden",
+            transform: `rotate(${rightRot}deg)`,
+            boxShadow: `0 0 ${glowSize}px #06b6d4`,
+            border: "2px solid #06b6d4aa",
+            transition: "all 0.5s cubic-bezier(0.34,1.56,0.64,1)",
+            zIndex: 2,
+          }}>
+            <img src={p2.img} alt={p2.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+            <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"6px 8px", background:"linear-gradient(transparent,rgba(0,0,0,0.85))" }}>
+              <div style={{ fontSize:10, fontWeight:700, color:"white" }}>{p2.name}, {p2.age}</div>
+              <div style={{ fontSize:8, color:"#ccc" }}>{p2.role}</div>
             </div>
           </div>
+
+          {/* Mesh explosion ring (phase 2-3) */}
+          {(phase === 2 || phase === 3) && (
+            <div style={{
+              position:"absolute", top:"30%", left:"50%",
+              transform:"translate(-50%,-50%)",
+              width: phase===3 ? 160 : 80,
+              height: phase===3 ? 160 : 80,
+              borderRadius:"50%",
+              border: `2px solid ${phase===3 ? "#06b6d4" : "#a855f7"}`,
+              boxShadow: `0 0 30px ${phase===3?"#06b6d4":"#a855f7"}`,
+              opacity: phase===3 ? 0.6 : 0.9,
+              transition:"all 0.4s ease",
+              pointerEvents:"none", zIndex:3,
+            }}/>
+          )}
         </div>
 
-        {/* Text */}
-        <div style={{ fontSize: 10, color: C.muted, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 6 }}>
-          YOUR AGENT IS EVALUATING...
+        {/* Phase label */}
+        <div style={{ fontSize:10, color: phase===3 ? "#06b6d4" : C.muted, letterSpacing:"0.15em", textTransform:"uppercase", marginBottom:4, transition:"color 0.3s", fontWeight: phase===3 ? 700 : 400 }}>
+          {labelText}
         </div>
-        <div style={{ fontSize: 24, fontWeight: 800, color: C.text, marginBottom: 4 }}>
-          It&apos;s a Mesh.
+
+        {/* Big text — only phases 2 & 3 */}
+        <div style={{
+          fontSize: phase===3 ? 26 : phase===2 ? 18 : 0,
+          fontWeight: 800,
+          color: phase===3 ? "white" : "#a855f7",
+          marginBottom: 8,
+          transition: "all 0.3s ease",
+          height: 36,
+          overflow:"hidden",
+        }}>
+          {bigText}
         </div>
-        <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
+
+        <div style={{ fontSize:12, color:C.muted, marginBottom:16 }}>
           Connect your brain to start
         </div>
 
         {/* Scanning bar */}
-        <div style={{ width: "100%", height: 3, borderRadius: 2, background: C.s2, overflow: "hidden", marginBottom: 16 }}>
+        <div style={{ width:"100%", height:3, borderRadius:2, background:C.s2, overflow:"hidden", marginBottom:16 }}>
           <div style={{
-            width: "40%",
-            height: "100%",
-            borderRadius: 2,
-            background: "linear-gradient(90deg, #a855f7, #06b6d4)",
-            animation: "scanSlide 2s linear infinite",
-          }} />
+            width:"40%", height:"100%", borderRadius:2,
+            background:"linear-gradient(90deg, #a855f7, #06b6d4)",
+            animation:"scanSlide 2s linear infinite",
+          }}/>
         </div>
 
-        {/* Separator */}
-        <div style={{ width: "100%", height: 1, background: C.border, marginBottom: 16 }} />
+        <div style={{ width:"100%", height:1, background:C.border, marginBottom:16 }}/>
 
         {/* Connect Brain button */}
         <button
-          onClick={() => {
-            if (!hasAI && onConnectBrain) onConnectBrain();
-            else onSetupPrefs();
-          }}
+          onClick={() => { if (!hasAI && onConnectBrain) onConnectBrain(); else onSetupPrefs(); }}
           style={{
-            width: "100%",
-            padding: "14px 0",
-            background: "linear-gradient(135deg, #a855f7, #06b6d4)",
-            border: "none",
-            borderRadius: 12,
-            color: "white",
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: "pointer",
-            fontFamily: "inherit",
-            transition: "all 0.2s",
+            width:"100%", padding:"14px 0",
+            background:"linear-gradient(135deg, #a855f7, #06b6d4)",
+            border:"none", borderRadius:12,
+            color:"white", fontSize:14, fontWeight:700,
+            cursor:"pointer", fontFamily:"inherit",
           }}
         >
           {!hasAI ? "Connect Brain" : "Set Preferences"}
         </button>
 
         <style dangerouslySetInnerHTML={{__html:`
+          @keyframes particlePop {
+            0% { opacity:1; transform: rotate(var(--angle,0deg)) translateX(0px) scale(1); }
+            100% { opacity:0; transform: rotate(var(--angle,0deg)) translateX(100px) scale(0.3); }
+          }
           @keyframes glowPulse {
-            0%, 100% { box-shadow: 0 0 20px currentColor; opacity: 1; }
-            50% { box-shadow: 0 0 35px currentColor; opacity: 0.9; }
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
           }
           @keyframes scanSlide {
             0% { transform: translateX(-100%); }

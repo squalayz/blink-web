@@ -187,7 +187,7 @@ function MeshGraph({matches,userId}:{matches:any[];userId:string}){
     return()=>cancelAnimationFrame(raf);
   },[matches,userId]);
 
-  return <canvas ref={ref} style={{width:"100%",height:220,borderRadius:14,background:C.s2,border:`1px solid ${C.border}`}}/>;
+  return <canvas ref={ref} style={{width:"100%",height:"100%",minHeight:420,borderRadius:14,background:C.s2,border:`1px solid ${C.border}`}}/>;
 }
 
 /* ═══ MATCH REPLAY ═══ */
@@ -1209,7 +1209,7 @@ export default function Dashboard(){
           {/* ═══ SPLIT LAYOUT: Orb + Discovery Feed ═══ */}
           <div style={{display:"flex",gap:16,marginBottom:16,flexDirection:"inherit"}}>
             {/* LEFT: Mesh Orb */}
-            <div style={{flex:"1 1 60%",minWidth:0}}>
+            <div style={{flex:"1 1 60%",minWidth:0,display:"flex",flexDirection:"column"}}>
               <MeshGraph matches={matches} userId={user?.id}/>
             </div>
             {/* RIGHT: Discovery Feed */}
