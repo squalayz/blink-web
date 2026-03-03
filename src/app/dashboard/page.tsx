@@ -390,7 +390,7 @@ export default function Dashboard(){
   const[obStep,setObStep]=useState(1);
   const[showWalletDrop,setShowWalletDrop]=useState(false);
   const obSteps=[{n:1,l:"Profile"},{n:2,l:"Industry & Goals"},{n:3,l:"AI Brain"},{n:4,l:"Personality"}];
-  const obCanNext=obStep===1?!!(form.name&&form.avatar_url):obStep===2?!!(form.building&&form.looking_for):true;
+  const obCanNext=obStep===1?!!(form.name):obStep===2?!!(form.building&&form.looking_for):true;
 
   /* ── Auth + Load ── */
   useEffect(()=>{checkAuth();},[]);
@@ -724,14 +724,17 @@ export default function Dashboard(){
   async function uploadPhoto(e:React.ChangeEvent<HTMLInputElement>){
     const file=e.target.files?.[0]; if(!file||!user)return;
     const path=`${user.id}/${Date.now()}-${file.name}`;
-    const{error}=await supabase.storage.from("avatars").upload(path,file);
-    if(!error){
-      const{data:{publicUrl}}=supabase.storage.from("avatars").getPublicUrl(path);
-      setForm(f=>({...f,avatar_url:publicUrl}));
-      setUser((u:any)=>({...u,avatar_url:publicUrl}));
-      // Persist to DB immediately
-      await supabase.from("users").update({avatar_url:publicUrl}).eq("id",user.id);
+    const{error}=await supabase.storage.from("avatars").upload(path,file,{upsert:true});
+    if(error){
+      console.error("Upload error:",error);
+      alert("Photo upload failed: "+error.message);
+      return;
     }
+    const{data:{publicUrl}}=supabase.storage.from("avatars").getPublicUrl(path);
+    setForm(f=>({...f,avatar_url:publicUrl}));
+    setUser((u:any)=>({...u,avatar_url:publicUrl}));
+    // Persist to DB immediately
+    await supabase.from("users").update({avatar_url:publicUrl}).eq("id",user.id);
   }
 
   async function signOut(){await fetch("/api/auth/siwe/logout",{method:"POST"}); router.push("/");}
@@ -790,7 +793,7 @@ export default function Dashboard(){
               <label style={{cursor:"pointer",display:"inline-block"}}>
                 <input type="file" accept="image/*" onChange={uploadPhoto} style={{display:"none"}}/>
                 {form.avatar_url?<img src={form.avatar_url} style={{width:88,height:88,borderRadius:"50%",objectFit:"cover",border:`3px solid ${C.cold}`}}/>:
-                <div style={{width:88,height:88,borderRadius:"50%",background:`linear-gradient(135deg,${C.cold}15,${C.cyan}10)`,border:`2px dashed ${C.cold}55`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}><Camera size={24} color={C.cold}/><span style={{fontSize:8,color:C.cold,fontWeight:600}}>REQUIRED</span></div>}
+                <div style={{width:88,height:88,borderRadius:"50%",background:`linear-gradient(135deg,${C.cold}15,${C.cyan}10)`,border:`2px dashed ${C.cold}55`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}><Camera size={24} color={C.cold}/><span style={{fontSize:8,color:C.muted,fontWeight:600}}>OPTIONAL</span></div>}
                 <div style={{fontSize:11,color:form.avatar_url?C.match:C.cold,marginTop:6,fontWeight:600}}>{form.avatar_url?"Looking good":"Tap to upload"}</div>
               </label>
             </div>
