@@ -76,118 +76,6 @@ function TierBadge({tier}:{tier:string}){
   return <span style={{fontSize:9,fontWeight:800,padding:"2px 6px",borderRadius:4,background:color,color:"white",textTransform:"uppercase",letterSpacing:"0.05em"}}>{tier}</span>;
 }
 
-/* ═══ MESH GRAPH (Canvas 2D — animated network visualization) ═══ */
-
-function MeshGraph({matches,userId}:{matches:any[];userId:string}){
-  const ref=useRef<HTMLCanvasElement>(null);
-  useEffect(()=>{
-    const cv=ref.current; if(!cv)return;
-    const ctx=cv.getContext("2d"); if(!ctx)return;
-    const dpr=2;
-    const W=cv.offsetWidth, H=cv.offsetHeight;
-    cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
-
-    type N={x:number;y:number;vx:number;vy:number;color:string;label:string;r:number};
-    const nodes:N[]=[]; const edges:[number,number,number][]=[];
-    const seen=new Map<string,number>();
-
-    seen.set(userId,0);
-    nodes.push({x:W/2,y:H/2,vx:0,vy:0,color:C.cold,label:"You",r:10});
-
-    matches.forEach(m=>{
-      const oid=m.user_a===userId?m.user_b:m.user_a;
-      const o=m.user_a===userId?m.user_b_profile:m.user_a_profile;
-      if(!seen.has(oid)){
-        seen.set(oid,nodes.length);
-        const a=Math.random()*Math.PI*2, rad=50+Math.random()*70;
-        nodes.push({x:W/2+Math.cos(a)*rad,y:H/2+Math.sin(a)*rad,vx:(Math.random()-0.5)*0.2,vy:(Math.random()-0.5)*0.2,color:m.revealed?C.match:C.cyan,label:o?.name?.split(" ")[0]||"?",r:5});
-      }
-      edges.push([0,seen.get(oid)!,m.score]);
-    });
-
-    // Add ambient particles
-    const particles:N[]=Array.from({length:20},()=>({
-      x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-0.5)*0.5,vy:(Math.random()-0.5)*0.5,
-      color:Math.random()>0.6?C.cold:Math.random()>0.3?C.cyan:C.purple,label:"",r:1+Math.random()*1.5
-    }));
-
-    let t=0, raf:number;
-    function draw(){
-      t+=0.008; ctx!.clearRect(0,0,W,H);
-
-      // Draw mesh grid
-      ctx!.strokeStyle=`${C.dim}15`; ctx!.lineWidth=0.5;
-      for(let x=0;x<W;x+=30){ctx!.beginPath();ctx!.moveTo(x,0);ctx!.lineTo(x,H);ctx!.stroke();}
-      for(let y=0;y<H;y+=30){ctx!.beginPath();ctx!.moveTo(0,y);ctx!.lineTo(W,y);ctx!.stroke();}
-
-      // Drift particles
-      particles.forEach(p=>{
-        p.x+=p.vx; p.y+=p.vy;
-        if(p.x<0||p.x>W)p.vx*=-1;
-        if(p.y<0||p.y>H)p.vy*=-1;
-        ctx!.beginPath(); ctx!.arc(p.x,p.y,p.r,0,Math.PI*2);
-        ctx!.fillStyle=p.color+"30"; ctx!.fill();
-      });
-
-      // Drift all nodes (including "You")
-      nodes.forEach((n,i)=>{
-        if(i===0){
-          // "You" orb: slow wandering lissajous across the canvas
-          n.x=W/2+Math.sin(t*0.25)*W*0.18+Math.sin(t*0.4+1.5)*W*0.08;
-          n.y=H/2+Math.cos(t*0.2)*H*0.2+Math.cos(t*0.35+2)*H*0.06;
-          n.r=12+Math.sin(t*1.2)*1.2; // breathing pulse
-        }else{
-          n.x+=n.vx+Math.sin(t+i)*0.15;
-          n.y+=n.vy+Math.cos(t+i*1.3)*0.15;
-          if(n.x<30||n.x>W-30)n.vx*=-1;
-          if(n.y<30||n.y>H-30)n.vy*=-1;
-        }
-      });
-
-      // Edges
-      edges.forEach(([f,to,sc])=>{
-        const a=nodes[f],b=nodes[to];
-        ctx!.beginPath(); ctx!.moveTo(a.x,a.y); ctx!.lineTo(b.x,b.y);
-        const pulse=0.15+Math.sin(t*2+f+to)*0.1;
-        ctx!.strokeStyle=`rgba(99,102,241,${sc*0.25+pulse})`; ctx!.lineWidth=sc*2.5; ctx!.stroke();
-      });
-
-      // Nodes
-      nodes.forEach((n,i)=>{
-        // Outer glow (bigger for "You" orb)
-        const glowR=i===0?n.r*5:n.r*3;
-        const g=ctx!.createRadialGradient(n.x,n.y,0,n.x,n.y,glowR);
-        g.addColorStop(0,n.color+"40"); g.addColorStop(0.4,n.color+"15"); g.addColorStop(1,"transparent");
-        ctx!.beginPath(); ctx!.arc(n.x,n.y,glowR,0,Math.PI*2); ctx!.fillStyle=g; ctx!.fill();
-
-        if(i===0){
-          // 3D sphere: dark base
-          const baseG=ctx!.createRadialGradient(n.x-n.r*0.3,n.y-n.r*0.3,n.r*0.1,n.x,n.y,n.r);
-          baseG.addColorStop(0,"#a5b4fc"); baseG.addColorStop(0.5,n.color); baseG.addColorStop(1,"#312e81");
-          ctx!.beginPath(); ctx!.arc(n.x,n.y,n.r,0,Math.PI*2); ctx!.fillStyle=baseG; ctx!.fill();
-          // Specular highlight
-          const specG=ctx!.createRadialGradient(n.x-n.r*0.25,n.y-n.r*0.3,0,n.x-n.r*0.2,n.y-n.r*0.2,n.r*0.6);
-          specG.addColorStop(0,"rgba(255,255,255,0.6)"); specG.addColorStop(0.4,"rgba(255,255,255,0.1)"); specG.addColorStop(1,"transparent");
-          ctx!.beginPath(); ctx!.arc(n.x,n.y,n.r,0,Math.PI*2); ctx!.fillStyle=specG; ctx!.fill();
-          // Rim light
-          ctx!.beginPath(); ctx!.arc(n.x,n.y,n.r,0,Math.PI*2);
-          ctx!.strokeStyle="rgba(165,180,252,0.3)"; ctx!.lineWidth=1.5; ctx!.stroke();
-        }else{
-          // Regular nodes — simple filled
-          ctx!.beginPath(); ctx!.arc(n.x,n.y,n.r,0,Math.PI*2); ctx!.fillStyle=n.color; ctx!.fill();
-        }
-        // Label
-        if(n.label){ctx!.font=`${i===0?"600 12":"400 9"}px system-ui`; ctx!.fillStyle=i===0?C.text:C.muted; ctx!.textAlign="center"; ctx!.fillText(n.label,n.x,n.y+n.r+14);}
-      });
-
-      raf=requestAnimationFrame(draw);
-    }
-    raf=requestAnimationFrame(draw);
-    return()=>cancelAnimationFrame(raf);
-  },[matches,userId]);
-
-  return <canvas ref={ref} style={{width:"100%",height:220,borderRadius:14,background:C.s2,border:`1px solid ${C.border}`}}/>;
-}
 
 /* ═══ MATCH REPLAY ═══ */
 
@@ -1205,22 +1093,14 @@ export default function Dashboard(){
           <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><MMLogo size={28}/>The Mesh</h2>
           <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Your agent networks autonomously. Matches arrive automatically.</div>
 
-          {/* ═══ SPLIT LAYOUT: Orb + Discovery Feed ═══ */}
-          <div style={{display:"flex",gap:16,marginBottom:16,flexDirection:"inherit"}}>
-            {/* LEFT: Mesh Orb */}
-            <div style={{flex:"1 1 60%",minWidth:0}}>
-              <MeshGraph matches={matches} userId={user?.id}/>
-            </div>
-            {/* RIGHT: Discovery Feed */}
-            <div style={{flex:"1 1 40%",minWidth:260}}>
-              {showPrefSetup?(
-                <PreferenceSetup existingPrefs={userPrefs} onComplete={()=>{setShowPrefSetup(false);loadUserPrefs();}}/>
-              ):(
-                <MeshDiscoveryFeed userId={user?.id||""} agentName={agent?.agent_name} hasAI={!!user?.ai_api_key_encrypted} hasPrefs={!!(userPrefs?.connection_types?.length)} onSetupPrefs={()=>setShowPrefSetup(true)}/>
-              )}
-            </div>
+          {/* ═══ AI DISCOVERY ENGINE ═══ */}
+          <div style={{marginBottom:16}}>
+            {showPrefSetup?(
+              <PreferenceSetup existingPrefs={userPrefs} onComplete={()=>{setShowPrefSetup(false);loadUserPrefs();}}/>
+            ):(
+              <MeshDiscoveryFeed userId={user?.id||""} agentName={agent?.agent_name} hasAI={!!user?.ai_api_key_encrypted} hasPrefs={!!(userPrefs?.connection_types?.length)} onSetupPrefs={()=>setShowPrefSetup(true)}/>
+            )}
           </div>
-          <style>{`@media(max-width:768px){[style*="flex: 1 1 60%"]{flex:1 1 100%!important}[style*="flex: 1 1 40%"]{flex:1 1 100%!important}}`}</style>
 
           {/* ═══ STAT CARDS ═══ */}
           <div style={{display:"flex",gap:6,marginTop:16,marginBottom:16}}>
@@ -1360,90 +1240,8 @@ export default function Dashboard(){
             ))}
           </div>
 
-          {/* ═══ DISCOVERY ═══ */}
-          {discovery.length>0&&(<div style={{marginBottom:16}}>
-            <div style={{fontSize:14,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}}><Search size={14} color={C.cyan}/>Agent Network</div>
-            <div style={{fontSize:11,color:C.muted,marginBottom:8}}>Browse agents in the mesh. Your agent reaches out automatically — no manual action needed.</div>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {discovery.slice(0,6).map(ag=>(<div key={ag.id} style={{background:C.surface,borderRadius:12,padding:14,border:`1px solid ${C.border}`}}>
-                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-                  <Avatar name={ag.agent_name||ag.user?.name||"?"} size={36} url={ag.agent_avatar_url}/>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:600,fontSize:13}}>{ag.agent_name}</div>
-                    <div style={{fontSize:10,color:C.muted}}>{ag.user?.industry}{ag.user?.location?` · ${ag.user.location}`:""}</div>
-                  </div>
-                  <div style={{fontSize:9,color:C.dim}}>{ag.match_count} matches</div>
-                </div>
-                <p style={{fontSize:12,color:C.muted,lineHeight:1.5,marginBottom:6}}>{ag.summary?.slice(0,120)}{(ag.summary?.length||0)>120?"...":""}</p>
-                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                  {(ag.capabilities||[]).slice(0,3).map((c:string)=><span key={c} style={{fontSize:9,padding:"2px 6px",background:C.s2,borderRadius:5,color:C.text}}>{c}</span>)}
-                </div>
-              </div>))}
-            </div>
-          </div>)}
 
-          {/* ═══ LEADERBOARD ═══ */}
-          <div style={{marginBottom:16}}>
-            <div style={{fontSize:14,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}}><Trophy size={14} color={C.gold}/>Leaderboard</div>
-            <div style={{display:"flex",gap:6,marginBottom:10}}>
-              {(["builders","match_rate","deal_closers"] as const).map(t=>(
-                <button key={t} onClick={()=>setLbTab(t)} style={{background:lbTab===t?C.s2:"transparent",border:`1px solid ${lbTab===t?C.border:"transparent"}`,borderRadius:8,padding:"6px 12px",color:lbTab===t?C.text:C.muted,cursor:"pointer",fontSize:11,fontFamily:"inherit",textTransform:"capitalize"}}>{t.replace(/_/g," ")}</button>
-              ))}
-            </div>
-            {leaderboard.length===0?<div style={{textAlign:"center",padding:20,color:C.dim,fontSize:12}}>No data yet.</div>:
-            <div style={{display:"flex",flexDirection:"column",gap:6}}>
-              {leaderboard.slice(0,10).map((u,i)=>{
-                const medal=i===0?"#FFD700":i===1?"#C0C0C0":i===2?"#CD7F32":null;
-                return(<div key={u.id} style={{display:"flex",alignItems:"center",gap:10,background:C.surface,borderRadius:10,padding:12,border:`1px solid ${medal?C.cold+"33":C.border}`}}>
-                  <div style={{width:24,height:24,borderRadius:"50%",background:medal||C.s2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:medal?"white":C.muted}}>{i+1}</div>
-                  <Avatar name={u.name} size={30} url={u.avatar_url}/>
-                  <div style={{flex:1}}><div style={{fontWeight:600,fontSize:12}}>{u.name}</div><div style={{fontSize:10,color:C.muted}}>{u.agent_name}</div></div>
-                  <div style={{fontWeight:800,fontSize:14,color:C.cold}}>{lbTab==="match_rate"?`${u.match_rate}%`:lbTab==="deal_closers"?u.deals_closed:u.match_count}</div>
-                </div>);
-              })}
-            </div>}
-          </div>
 
-          {/* ═══ ACTIVITY FEED ═══ */}
-          <div style={{marginBottom:8,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              Activity
-            </div>
-            {feedEvents.length>0&&(<div style={{fontSize:9,color:C.dim,padding:"3px 8px",borderRadius:5,background:C.s2,display:"flex",alignItems:"center",gap:4}}><span style={{width:4,height:4,borderRadius:"50%",background:C.match,animation:"pulse-dot 1.5s infinite"}}/>LIVE</div>)}
-          </div>
-          {feedEvents.length===0?(
-            <div style={{background:C.surface,borderRadius:14,border:`1px solid ${C.border}`,padding:"24px 20px",textAlign:"center"}}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="1.5" strokeLinecap="round" style={{margin:"0 auto 8px"}}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              <div style={{fontSize:12,fontWeight:600,color:C.muted}}>Your feed is empty</div>
-              <div style={{fontSize:11,color:C.dim,marginTop:4}}>Trades, matches, signals, and milestones will appear here.</div>
-            </div>
-          ):(
-            <div style={{display:"flex",flexDirection:"column",gap:4}}>
-              {feedEvents.slice(0,20).map((ev:any,i:number)=>{
-                const t=ev.event_type;
-                const borderColor=t==="trade"?(ev.metadata?.action==="buy"?C.match:C.hot):t==="match"?"#a855f7":t==="signal"?"#f59e0b":t==="debate"?C.hot:t==="milestone"?C.gold:t==="reputation_change"?C.cold:t==="pnl_summary"?C.cyan:C.border;
-                const ago=ev.created_at?(() => {const d=Math.floor((Date.now()-new Date(ev.created_at).getTime())/60000);return d<1?"just now":d<60?`${d}m ago`:d<1440?`${Math.floor(d/60)}h ago`:`${Math.floor(d/1440)}d ago`;})():"";
-                return(
-                  <div key={ev.id||i} style={{background:ev.pinned?`${borderColor}06`:C.surface,borderRadius:10,padding:"10px 12px",border:`1px solid ${ev.pinned?borderColor+"22":C.border}`,borderLeft:`3px solid ${borderColor}`}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                      <div style={{fontSize:10,fontWeight:700,color:borderColor,textTransform:"uppercase",letterSpacing:"0.03em"}}>{ev.title}</div>
-                      <span style={{fontSize:9,color:C.dim}}>{ago}</span>
-                    </div>
-                    {ev.body&&<div style={{fontSize:11,color:C.text,lineHeight:1.5}}>{ev.body}</div>}
-                    {t==="trade"&&ev.metadata?.confidence&&(<div style={{display:"flex",gap:8,marginTop:4,fontSize:9,color:C.dim}}>
-                      <span>Confidence: {ev.metadata.confidence}%</span>
-                      {ev.metadata.tx_hash&&<a href={`https://basescan.org/tx/${ev.metadata.tx_hash}`} target="_blank" rel="noopener" style={{color:C.cold,textDecoration:"none"}}>View on Chain →</a>}
-                    </div>)}
-                    {t==="match"&&ev.metadata?.agent_name&&(<div style={{display:"flex",gap:8,marginTop:4,fontSize:9,color:C.dim}}>
-                      <span style={{fontWeight:600,color:C.text}}>@{ev.metadata.agent_name}</span>
-                      {ev.metadata.win_rate&&<span>WR: {ev.metadata.win_rate}%</span>}
-                    </div>)}
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>)}
 
         {/* ═══════════════════════════════════════════════════════════

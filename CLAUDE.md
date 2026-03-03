@@ -1,0 +1,1 @@
+/Users/pasqualeceli/.openclaw/workspace/CLAUDE.md
