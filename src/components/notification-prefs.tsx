@@ -53,7 +53,7 @@ export default function NotificationPreferences() {
 
   const frequencies = [
     { id: "realtime", label: "Real-time", desc: "Instant for everything", icon: "" },
-    { id: "daily", label: "Daily Digest", desc: "Summary each morning", icon: "📬" },
+    { id: "daily", label: "Daily Digest", desc: "Summary each morning", icon: "" },
     { id: "weekly", label: "Weekly", desc: "One email per week", icon: "" },
     { id: "critical", label: "Critical Only", desc: "Matches + low balance only", icon: "" },
   ] as const;
@@ -116,7 +116,7 @@ export default function NotificationPreferences() {
         background: saved ? C.match : `linear-gradient(135deg, ${C.indigo}, ${C.cyan})`,
         color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
         transition: "all 0.2s",
-      }}>{saved ? "✓ Saved" : saving ? "Saving..." : "Save Preferences"}</button>
+      }}>{saved ? " Saved" : saving ? "Saving..." : "Save Preferences"}</button>
     </div>
   );
 }

@@ -370,7 +370,7 @@ export default function PreferenceSetup({ onComplete, existingPrefs }: Props) {
             fontSize: 14,
           }}
         >
-          🧠
+          
         </div>
         <div>
           <div style={{ fontWeight: 700, fontSize: 13, color: C.text }}>Discovery Setup</div>
@@ -418,7 +418,7 @@ export default function PreferenceSetup({ onComplete, existingPrefs }: Props) {
                     marginTop: 2,
                   }}
                 >
-                  🤖
+                  
                 </div>
               )}
               <div

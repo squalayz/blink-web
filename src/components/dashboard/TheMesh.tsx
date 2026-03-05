@@ -526,9 +526,9 @@ function LockedPhotoCard({ price, onUnlock }: { price: number; onUnlock: () => v
 
 function TipMenu({ onSelect, onClose }: { onSelect: (type: string, amount: number) => void; onClose: () => void }) {
   const tips = [
-    { type: "power_react", label: "Power React", amount: 0.001, color: C.warn, emoji: "⚡" },
-    { type: "tip", label: "Tip", amount: 0.002, color: C.cold, emoji: "💜" },
-    { type: "super_tip", label: "Super Tip", amount: 0.01, color: C.gold, emoji: "🌟" },
+    { type: "power_react", label: "Power React", amount: 0.001, color: C.warn, Icon: Zap },
+    { type: "tip", label: "Tip", amount: 0.002, color: C.cold, Icon: Heart },
+    { type: "super_tip", label: "Super Tip", amount: 0.01, color: C.gold, Icon: Star },
   ];
   return (
     <>
@@ -550,7 +550,7 @@ function TipMenu({ onSelect, onClose }: { onSelect: (type: string, amount: numbe
             onMouseEnter={e => (e.currentTarget.style.background = C.s2)}
             onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
           >
-            <span style={{ fontWeight: 600 }}>{t.emoji} {t.label}</span>
+            <span style={{ fontWeight: 600, display:"flex", alignItems:"center", gap:5 }}><t.Icon size={13}/> {t.label}</span>
             <span style={{ fontSize: 12, color: t.color, fontWeight: 700 }}>{t.amount} ETH</span>
           </button>
         ))}
@@ -1137,7 +1137,7 @@ export default function TheMesh({user}:{user:any}){
                   const label=type==="power_react"?"Power React":type==="super_tip"?"Super Tip":"Tip";
                   showToast(`${label} sent! (Coming soon)`);
                   // Add a visual tip message to local state
-                  const tipMsg={id:`tip-${Date.now()}`,sender_id:user?.id,text:`${type==="power_react"?"⚡ Power React!":type==="super_tip"?"🌟 Super Tip!":"💜 Tip sent!"}`,message_type:"tip",metadata:{amount_eth:amount,tip_type:type},created_at:new Date().toISOString()};
+                  const tipMsg={id:`tip-${Date.now()}`,sender_id:user?.id,text:`${type==="power_react"?"Power React!":type==="super_tip"?"Super Tip!":"Tip sent!"}`,message_type:"tip",metadata:{amount_eth:amount,tip_type:type},created_at:new Date().toISOString()};
                   setMessages(prev=>[...prev,tipMsg]);
                 }}
                 onClose={()=>setShowTipMenu(false)}
@@ -1321,7 +1321,7 @@ export default function TheMesh({user}:{user:any}){
                           background:"none",border:"none",cursor:"pointer",fontSize:18,padding:0,
                           color:myRating&&star<=myRating?"#FFD700":C.dim,
                           transform:myRating&&star<=myRating?"scale(1.1)":"scale(1)",
-                        }}>★</button>
+                        }}><Star size={14} fill={myRating&&star<=myRating?"#FFD700":"none"}/></button>
                       ))}
                       {myRating&&<span style={{fontSize:10,color:C.muted,marginLeft:4}}>You rated {myRating}/5</span>}
                     </div>
@@ -1382,7 +1382,7 @@ export default function TheMesh({user}:{user:any}){
                 <div key={m.user_id} style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",background:C.s2,borderRadius:6}}>
                   <Avatar name={m.name||"?"} size={18} url={m.avatar_url}/>
                   <span style={{fontSize:11,color:C.text}}>{m.agent_name||m.name}</span>
-                  {m.role==="creator"&&<span style={{fontSize:9,color:C.cold}}>★</span>}
+                  {m.role==="creator"&&<Star size={9} color={C.cold} fill={C.cold}/>}
                 </div>
               ))}
             </div>

@@ -270,7 +270,7 @@ export default function SignInPage() {
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.match} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               </div>
               <h3 style={{ fontSize: 22, fontWeight: 800, marginBottom: 6, color: C.text }}>Save Your Private Key</h3>
-              <p style={{ fontSize: 13, color: C.hot, fontWeight: 600, marginBottom: 6 }}>⚠️ This is shown ONCE. Save it now.</p>
+              <p style={{ fontSize: 13, color: C.hot, fontWeight: 600, marginBottom: 6 }}>! This is shown ONCE. Save it now.</p>
               <p style={{ fontSize: 11, color: C.muted, marginBottom: 20, lineHeight: 1.5 }}>This is your login key. Without it, you cannot access your wallet or funds. Copy it somewhere safe.</p>
 
               <div style={{ background: "rgba(99,102,241,0.06)", borderRadius: 12, padding: "12px 16px", marginBottom: 12, textAlign: "left" }}>

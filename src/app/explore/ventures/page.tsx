@@ -71,7 +71,7 @@ export default function ExploreVenturesPage() {
 
         {/* Sort */}
         <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
-          {([["synergy", " Synergy"], ["funded", " Most Funded"], ["newest", "🆕 Newest"]] as const).map(([key, label]) => (
+          {([["synergy", " Synergy"], ["funded", " Most Funded"], ["newest", " Newest"]] as const).map(([key, label]) => (
             <button key={key} onClick={() => setSort(key)} style={{
               padding: "4px 10px", borderRadius: 6, border: "none",
               background: sort === key ? C.s2 : "transparent",

@@ -7,7 +7,8 @@ import {
   Lightbulb, Cpu, Clipboard, Check, CheckCircle, AlertTriangle, ArrowLeft,
   ArrowRight, FileText, Camera, Trophy, Flame, TrendingUp, Timer, Bell,
   LogOut, MessageCircle, Share2, Award, Target, BarChart3, Crown, Star,
-  Play, Pause, ExternalLink, DollarSign, Copy, Heart, Handshake, ChevronDown, Key, Users
+  Play, Pause, ExternalLink, DollarSign, Copy, Heart, Handshake, ChevronDown, Key, Users,
+  Dna, Leaf, RefreshCw, Gem, Rocket, StopCircle, Brain, Radio, XCircle
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import dynamic from "next/dynamic";
@@ -995,13 +996,13 @@ export default function Dashboard(){
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.9)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:C.surface,borderRadius:20,maxWidth:420,width:"100%",border:`1px solid ${C.hot}44`}}>
         <div style={{padding:"20px 24px",textAlign:"center"}}>
-          <div style={{fontSize:48,marginBottom:12}}>🛑</div>
+          <div style={{width:64,height:64,borderRadius:20,background:"rgba(255,45,85,0.12)",border:"1px solid rgba(255,45,85,0.3)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}><StopCircle size={32} color="#ff2d55"/></div>
           <div style={{fontSize:20,fontWeight:800,color:C.hot,marginBottom:8}}>EMERGENCY STOP</div>
           <div style={{fontSize:13,color:C.muted,lineHeight:1.6,marginBottom:16}}>
             This will <strong style={{color:C.hot}}>immediately market-sell ALL open positions</strong> with up to 10% slippage tolerance. 3% trade fee applies to each sell.
           </div>
-          <div style={{padding:"10px 14px",background:`${C.hot}10`,borderRadius:8,border:`1px solid ${C.hot}33`,fontSize:11,color:C.hot,marginBottom:16}}>
-            ⚠️ Market sells may execute at unfavorable prices. This action cannot be undone.
+          <div style={{padding:"10px 14px",background:`${C.hot}10`,borderRadius:8,border:`1px solid ${C.hot}33`,fontSize:11,color:C.hot,marginBottom:16,display:"flex",alignItems:"center",gap:8}}>
+            <AlertTriangle size={13}/> Market sells may execute at unfavorable prices. This action cannot be undone.
           </div>
           <div style={{display:"flex",gap:10}}>
             <button onClick={()=>setShowEmergencyConfirm(false)} style={{flex:1,padding:"12px",borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
@@ -1015,8 +1016,8 @@ export default function Dashboard(){
                 if(data.ok){setWallet((w:any)=>({...w,trading_enabled:false}));loadWallet();}
               }catch(e:any){setEmergencyResult({ok:false,error:e.message});}
               setEmergencySelling(false);
-            }} style={{flex:1,padding:"12px",borderRadius:10,border:"none",background:C.hot,color:"white",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-              🛑 SELL ALL NOW
+            }} style={{flex:1,padding:"12px",borderRadius:10,border:"none",background:C.hot,color:"white",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+              <StopCircle size={14}/> SELL ALL NOW
             </button>
           </div>
         </div>
@@ -1029,7 +1030,7 @@ export default function Dashboard(){
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.9)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:C.surface,borderRadius:20,maxWidth:400,width:"100%",border:`1px solid ${C.cold}44`}}>
         <div style={{padding:"20px 24px",textAlign:"center"}}>
-          <div style={{fontSize:36,marginBottom:12}}>⚡</div>
+          <div style={{width:56,height:56,borderRadius:16,background:"rgba(6,182,212,0.12)",border:"1px solid rgba(6,182,212,0.3)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}><Zap size={26} color={C.cyan}/></div>
           <div style={{fontSize:18,fontWeight:700,marginBottom:8}}>Re-enable Trading?</div>
           <div style={{fontSize:13,color:C.muted,lineHeight:1.6,marginBottom:16}}>
             Your agent will resume autonomous trading with your current strategy and risk settings.
@@ -1374,19 +1375,19 @@ export default function Dashboard(){
             const hasAI=!!user?.ai_api_key_encrypted;
             const mode=wallet?.trading_mode||"meme_scout";
             const modes=[
-              {id:"meme_scout",emoji:"🔥",name:"Meme Scout",desc:"Hunts trending meme tokens on Base.",risk:"degen",color:"#ff2d55"},
-              {id:"blue_chip",emoji:"💎",name:"Blue Chip DeFi",desc:"Trades established tokens — AERO, BRETT, DEGEN.",risk:"balanced",color:C.cold},
-              {id:"momentum",emoji:"🚀",name:"Momentum Rider",desc:"Follows 1h/24h momentum.",risk:"degen",color:"#f59e0b"},
-              {id:"mean_revert",emoji:"🔄",name:"Mean Reversion",desc:"Buys dips on oversold tokens.",risk:"balanced",color:C.cyan},
-              {id:"sniper",emoji:"🎯",name:"New Launch Sniper",desc:"Detects new token launches on Base.",risk:"degen",color:"#a855f7"},
-              {id:"hodl_dca",emoji:"📈",name:"Auto DCA",desc:"Dollar-cost averages into ETH and top Base tokens.",risk:"conservative",color:C.match},
+              {id:"meme_scout",Icon:Flame,name:"Meme Scout",desc:"Hunts trending meme tokens on Base.",risk:"degen",color:"#ff2d55"},
+              {id:"blue_chip",Icon:Gem,name:"Blue Chip DeFi",desc:"Trades established tokens — AERO, BRETT, DEGEN.",risk:"balanced",color:C.cold},
+              {id:"momentum",Icon:Rocket,name:"Momentum Rider",desc:"Follows 1h/24h momentum.",risk:"degen",color:"#f59e0b"},
+              {id:"mean_revert",Icon:RefreshCw,name:"Mean Reversion",desc:"Buys dips on oversold tokens.",risk:"balanced",color:C.cyan},
+              {id:"sniper",Icon:Target,name:"New Launch Sniper",desc:"Detects new token launches on Base.",risk:"degen",color:"#a855f7"},
+              {id:"hodl_dca",Icon:TrendingUp,name:"Auto DCA",desc:"Dollar-cost averages into ETH and top Base tokens.",risk:"conservative",color:C.match},
             ];
             const activeMode=modes.find(m=>m.id===mode)||modes[0];
             return(
           <div style={{background:`linear-gradient(135deg,${C.surface},${isOn?"rgba(99,102,241,0.06)":"rgba(255,255,255,0.01)"})`,borderRadius:16,padding:0,border:`1px solid ${isOn?"rgba(99,102,241,0.3)":C.border}`,marginBottom:16,overflow:"hidden",transition:"all 0.4s ease",boxShadow:isOn?"0 0 30px rgba(99,102,241,0.08)":"none"}}>
             <div style={{padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${isOn?"rgba(99,102,241,0.15)":"rgba(255,255,255,0.04)"}`}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:38,height:38,borderRadius:10,background:isOn?`linear-gradient(135deg,${activeMode.color},${C.cyan})`:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{isOn?activeMode.emoji:<Zap size={18} color="#6b6b80"/>}</div>
+                <div style={{width:38,height:38,borderRadius:10,background:isOn?`linear-gradient(135deg,${activeMode.color},${C.cyan})`:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center"}}>{isOn?<activeMode.Icon size={18} color="white"/>:<Zap size={18} color="#6b6b80"/>}</div>
                 <div>
                   <div style={{fontWeight:800,fontSize:14,color:C.text}}>AI Trading Engine</div>
                   <div style={{fontSize:11,color:isOn?C.match:C.muted,display:"flex",alignItems:"center",gap:5,marginTop:1}}>
@@ -1412,7 +1413,7 @@ export default function Dashboard(){
             <div style={{padding:"0 16px 12px"}}>
               <button onClick={()=>setStratOpen(!stratOpen)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",borderRadius:10,cursor:"pointer",fontFamily:"inherit",background:stratOpen?`${activeMode.color}08`:"rgba(255,255,255,0.02)",border:`1px solid ${stratOpen?activeMode.color+"33":"rgba(255,255,255,0.06)"}`,transition:"all 0.3s"}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:18}}>{activeMode.emoji}</span>
+                  <activeMode.Icon size={18} color={activeMode.color}/>
                   <div style={{textAlign:"left"}}><div style={{fontSize:11,fontWeight:700,color:activeMode.color}}>{activeMode.name}</div><div style={{fontSize:8,color:C.muted,textTransform:"uppercase",marginTop:1}}><span style={{padding:"1px 5px",borderRadius:3,background:activeMode.risk==="degen"?"rgba(255,45,85,0.1)":activeMode.risk==="balanced"?"rgba(99,102,241,0.1)":"rgba(48,209,88,0.1)",color:activeMode.risk==="degen"?"#ff2d55":activeMode.risk==="balanced"?C.cold:C.match,fontWeight:700}}>{activeMode.risk}</span></div></div>
                 </div>
                 <ChevronDown size={12} color={C.muted} style={{transform:stratOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.3s"}}/>
@@ -1420,7 +1421,7 @@ export default function Dashboard(){
               <div style={{maxHeight:stratOpen?"600px":"0px",overflow:"hidden",transition:"max-height 0.4s cubic-bezier(0.4,0,0.2,1),opacity 0.3s",opacity:stratOpen?1:0}}>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,paddingTop:8}}>
                   {modes.map(m=>{const active=mode===m.id;return(<button key={m.id} onClick={()=>{updateWalletSettings({trading_mode:m.id,risk_level:m.risk});setStratOpen(false);}} style={{padding:"10px",borderRadius:10,border:`1.5px solid ${active?m.color+"55":"rgba(255,255,255,0.06)"}`,background:active?`${m.color}10`:"rgba(255,255,255,0.02)",cursor:"pointer",textAlign:"left",fontFamily:"inherit",transition:"all 0.2s"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><span style={{fontSize:16}}>{m.emoji}</span><span style={{fontSize:11,fontWeight:active?800:600,color:active?m.color:C.text}}>{m.name}</span></div>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><m.Icon size={14} color={active?m.color:C.muted}/><span style={{fontSize:11,fontWeight:active?800:600,color:active?m.color:C.text}}>{m.name}</span></div>
                     <div style={{fontSize:9,color:active?C.muted:"rgba(255,255,255,0.25)",lineHeight:1.4}}>{m.desc}</div>
                   </button>);})}
                 </div>
@@ -1464,7 +1465,7 @@ export default function Dashboard(){
               </div>
             </div>
 
-            {!hasAI&&(<div style={{margin:"0 16px 12px",padding:"8px 12px",borderRadius:8,background:"rgba(255,45,85,0.06)",border:"1px solid rgba(255,45,85,0.15)",fontSize:11,color:C.hot}}>🧠 Connect your AI brain below to start trading</div>)}
+            {!hasAI&&(<div style={{margin:"0 16px 12px",padding:"8px 12px",borderRadius:8,background:"rgba(255,45,85,0.06)",border:"1px solid rgba(255,45,85,0.15)",fontSize:11,color:C.hot,display:"flex",alignItems:"center",gap:6}}><Brain size={12}/> Connect your AI brain below to start trading</div>)}
             <div style={{padding:"8px 16px",borderTop:"1px solid rgba(255,255,255,0.03)",fontSize:10,color:"rgba(255,255,255,0.2)",textAlign:"center"}}>Your AI analyzes DexScreener → GoPlus safety check → Uniswap V3 swap · 3% fee per trade</div>
           </div>);})()}
 
@@ -1572,10 +1573,10 @@ export default function Dashboard(){
             <div style={{marginBottom:16}}>
               <button onClick={()=>setShowEmergencyConfirm(true)} disabled={emergencySelling}
                 style={{width:"100%",padding:"10px",background:"rgba(255,45,85,0.08)",border:"1.5px solid rgba(255,45,85,0.3)",borderRadius:10,cursor:emergencySelling?"wait":"pointer",color:"#ff2d55",fontSize:12,fontWeight:700,fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                {emergencySelling?"⏳ Selling all...":"🛑 SELL ALL — EMERGENCY STOP"}
+                {emergencySelling?<><Timer size={13}/> Selling all...</>:<><StopCircle size={13}/> SELL ALL — EMERGENCY STOP</>}
               </button>
               {emergencyResult&&(<div style={{marginTop:6,padding:"8px 12px",borderRadius:8,background:emergencyResult.ok?`${C.match}10`:`${C.hot}10`,border:`1px solid ${emergencyResult.ok?C.match:C.hot}33`,fontSize:10,color:emergencyResult.ok?C.match:C.hot}}>
-                {emergencyResult.ok?`✅ ${emergencyResult.positions_closed} closed. Received ${emergencyResult.total_eth_received?.toFixed(4)} ETH.`:`❌ ${emergencyResult.error||"Failed"}`}
+                {emergencyResult.ok?<><CheckCircle size={13} color={C.match}/> {emergencyResult.positions_closed} closed. Received {emergencyResult.total_eth_received?.toFixed(4)} ETH.</> : <><XCircle size={13} color={C.hot}/> {emergencyResult.error||"Failed"}</>}
               </div>)}
             </div>
           )}
@@ -1712,7 +1713,7 @@ export default function Dashboard(){
             </div>
             {buzzTrades.length===0?(
               <div style={{background:C.surface,borderRadius:14,border:`1px solid ${C.border}`,padding:"28px 20px",textAlign:"center"}}>
-                <div style={{fontSize:28,marginBottom:8,opacity:0.3}}>📊</div>
+                <div style={{marginBottom:8,opacity:0.3}}><BarChart3 size={28}/></div>
                 <div style={{fontSize:12,color:C.muted}}>No trades yet</div>
                 <div style={{fontSize:11,color:C.dim,marginTop:4}}>Activate trading in The Brew to see activity here</div>
               </div>
@@ -1720,7 +1721,7 @@ export default function Dashboard(){
               <div style={{display:"flex",flexDirection:"column",gap:4}}>
                 {buzzTrades.slice(0,30).map((tx:any,i:number)=>{
                   const isBuy=tx.action==="buy";const isSell=tx.action==="sell";const isSignal=tx.action==="signal";
-                  const icon=isBuy?"🟢":isSell?"🔴":"📡";
+                  const icon=isBuy?<span style={{width:8,height:8,borderRadius:"50%",background:"#30d158",display:"inline-block"}}/>:isSell?<span style={{width:8,height:8,borderRadius:"50%",background:"#ff2d55",display:"inline-block"}}/>:<Radio size={12} color="#6b6b80"/>;
                   const color=isBuy?C.match:isSell?C.hot:C.cyan;
                   const timeStr=tx.timestamp?new Date(tx.timestamp).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",hour12:true}):"";
                   return(
@@ -1804,21 +1805,21 @@ export default function Dashboard(){
           <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
             {/* Fusion Lab */}
             <div onClick={()=>router.push("/dashboard/fusions")} style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.purple}22`,cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
-              <div style={{width:44,height:44,borderRadius:12,background:`linear-gradient(135deg,${C.purple}20,${C.pink}15)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🧬</div>
+              <div style={{width:44,height:44,borderRadius:12,background:`linear-gradient(135deg,${C.purple}20,${C.pink}15)`,display:"flex",alignItems:"center",justifyContent:"center"}}><Dna size={22} color={C.purple}/></div>
               <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700}}>Fusion Lab</div><div style={{fontSize:11,color:C.muted}}>Breed two agents into new DNA. Combine strengths.</div></div>
               <ArrowRight size={16} color={C.muted}/>
             </div>
 
             {/* Lineage Tree */}
             <div onClick={()=>router.push("/dashboard/lineage")} style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.cyan}22`,cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
-              <div style={{width:44,height:44,borderRadius:12,background:`linear-gradient(135deg,${C.cyan}20,${C.cold}15)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🌳</div>
+              <div style={{width:44,height:44,borderRadius:12,background:`linear-gradient(135deg,${C.cyan}20,${C.cold}15)`,display:"flex",alignItems:"center",justifyContent:"center"}}><Leaf size={22} color={C.cyan}/></div>
               <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700}}>Lineage Tree</div><div style={{fontSize:11,color:C.muted}}>Visual family tree of your fused agents.</div></div>
               <ArrowRight size={16} color={C.muted}/>
             </div>
 
             {/* Ventures */}
             <div onClick={()=>router.push("/dashboard/ventures")} style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.gold}22`,cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
-              <div style={{width:44,height:44,borderRadius:12,background:`linear-gradient(135deg,${C.gold}20,${C.warn}15)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>💰</div>
+              <div style={{width:44,height:44,borderRadius:12,background:`linear-gradient(135deg,${C.gold}20,${C.warn}15)`,display:"flex",alignItems:"center",justifyContent:"center"}}><DollarSign size={22} color={C.gold}/></div>
               <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700}}>Venture Investments</div><div style={{fontSize:11,color:C.muted}}>Invest in other agents. Earn from their success.</div></div>
               <ArrowRight size={16} color={C.muted}/>
             </div>

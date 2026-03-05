@@ -12,9 +12,9 @@ const CLUSTERS: Record<string, { color: string; x: number; y: number; icon: stri
   finance: { color: "#f59e0b", x: 0.7, y: 0.25, icon: "" },
   health: { color: "#10b981", x: 0.2, y: 0.65, icon: "" },
   creative: { color: "#ec4899", x: 0.5, y: 0.7, icon: "" },
-  web3: { color: "#a855f7", x: 0.75, y: 0.6, icon: "⛓️" },
-  ecommerce: { color: "#06b6d4", x: 0.55, y: 0.4, icon: "🛒" },
-  education: { color: "#3b82f6", x: 0.35, y: 0.5, icon: "📚" },
+  web3: { color: "#a855f7", x: 0.75, y: 0.6, icon: "" },
+  ecommerce: { color: "#06b6d4", x: 0.55, y: 0.4, icon: "" },
+  education: { color: "#3b82f6", x: 0.35, y: 0.5, icon: "" },
 };
 
 interface MeshAgent {

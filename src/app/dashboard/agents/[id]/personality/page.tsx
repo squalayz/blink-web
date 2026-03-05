@@ -117,7 +117,7 @@ export default function PersonalityPage() {
                   }}
                 >
                   <span style={{ fontSize: 16 }}>
-                    {ms.type === "catchphrase_born" ? "" : ms.type === "quirk_retired" ? "🪦" : ms.type === "trait_shift" ? "" : ""}
+                    {ms.type === "catchphrase_born" ? "" : ms.type === "quirk_retired" ? "" : ms.type === "trait_shift" ? "" : ""}
                   </span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{ms.title}</div>
@@ -179,7 +179,7 @@ export default function PersonalityPage() {
                 cursor: "pointer", whiteSpace: "nowrap",
               }}
             >
-              {t === "overview" ? " Overview" : t === "quirks" ? " Quirks" : t === "evolution" ? " Evolution" : t === "strategy" ? " Playbook" : "💭 Memories"}
+              {t === "overview" ? " Overview" : t === "quirks" ? " Quirks" : t === "evolution" ? " Evolution" : t === "strategy" ? " Playbook" : " Memories"}
             </button>
           ))}
         </div>
@@ -209,7 +209,7 @@ export default function PersonalityPage() {
 
             {/* Memory Stats */}
             <div style={{ background: C.surface, borderRadius: 16, padding: 20, border: `1px solid ${C.dim}` }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 12 }}>💭 Memory Stats</h3>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 12 }}> Memory Stats</h3>
               <div style={{ fontSize: 28, fontWeight: 900, color: C.cyan, marginBottom: 8 }}>{data.memory_stats.total}</div>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>total memories</div>
               {Object.entries(data.memory_stats.by_type).slice(0, 5).map(([type, count]) => (
@@ -271,7 +271,7 @@ export default function PersonalityPage() {
                 )}
                 {data.lineage_traits.emergent.length > 0 && (
                   <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: C.green, marginBottom: 6 }}>🌱 Emerged Through Experience</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.green, marginBottom: 6 }}> Emerged Through Experience</div>
                     {data.lineage_traits.emergent.map((t, i) => (
                       <span key={i} style={{ display: "inline-block", fontSize: 11, background: `${C.green}22`, color: C.green, borderRadius: 6, padding: "2px 8px", marginRight: 6, marginBottom: 4 }}>{t}</span>
                     ))}
@@ -313,13 +313,13 @@ export default function PersonalityPage() {
 
             {data.retired_quirks.length > 0 && (
               <>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: C.muted, marginBottom: 12 }}>🪦 Retired Quirks</h3>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: C.muted, marginBottom: 12 }}> Retired Quirks</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
                   {data.retired_quirks.map((q, i) => (
                     <div key={i} style={{ background: C.surface, borderRadius: 12, padding: 16, border: `1px solid ${C.dim}`, opacity: 0.5 }}>
                       <div style={{ fontSize: 13, color: C.muted, textDecoration: "line-through" }}>{q.behavior}</div>
                       {q.retired_reason && (
-                        <div style={{ fontSize: 11, color: C.dim, marginTop: 4 }}>💀 {q.retired_reason}</div>
+                        <div style={{ fontSize: 11, color: C.dim, marginTop: 4 }}> {q.retired_reason}</div>
                       )}
                     </div>
                   ))}
@@ -437,7 +437,7 @@ export default function PersonalityPage() {
                   style={{ padding: "4px 10px", borderRadius: 6, fontSize: 11, background: C.surface2, border: `1px solid ${C.dim}`, color: C.muted, cursor: "pointer" }}
                   title="Disagree with this rule"
                 >
-                  🚩
+                  
                 </button>
               </div>
             ))}
@@ -455,7 +455,7 @@ export default function PersonalityPage() {
         {/* ═══ MEMORIES TAB ═══ */}
         {tab === "memories" && (
           <div>
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 4 }}>💭 Agent Memories</h3>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 4 }}> Agent Memories</h3>
             <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
               {data.memory_stats.total} total • Most impactful moments and learned insights
             </p>
@@ -465,7 +465,7 @@ export default function PersonalityPage() {
               <MemoryCard key={`high-${i}`} memory={m} />
             ))}
 
-            <h4 style={{ fontSize: 13, fontWeight: 700, color: C.cyan, marginBottom: 8, marginTop: 20 }}>🔁 Most Recalled</h4>
+            <h4 style={{ fontSize: 13, fontWeight: 700, color: C.cyan, marginBottom: 8, marginTop: 20 }}> Most Recalled</h4>
             {data.memory_stats.most_recalled.map((m, i) => (
               <MemoryCard key={`recall-${i}`} memory={m} />
             ))}
@@ -573,7 +573,7 @@ function MemoryCard({ memory }: { memory: AgentMemory }) {
       border: `1px solid ${C.dim}`,
       borderLeft: `3px solid ${memory.emotional_weight > 0.7 ? C.yellow : memory.emotional_weight > 0.4 ? C.indigo : C.dim}`,
     }}>
-      <div style={{ fontSize: 13, color: C.text }}>{typeEmoji[memory.type] || "💭"} {memory.content}</div>
+      <div style={{ fontSize: 13, color: C.text }}>{typeEmoji[memory.type] || ""} {memory.content}</div>
       <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
         {memory.type.replace(/_/g, " ")} • weight: {Math.round(memory.emotional_weight * 100)}%
       </div>

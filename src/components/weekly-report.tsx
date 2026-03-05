@@ -181,7 +181,7 @@ export default function WeeklyReport({ stats, orbColor = C.indigo }: { stats: We
           flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.dim}`,
           background: "transparent", color: C.text, fontSize: 13, fontWeight: 600,
           cursor: "pointer", fontFamily: "inherit",
-        }}>💾 Save</button>
+        }}> Save</button>
       </div>
     </div>
   );

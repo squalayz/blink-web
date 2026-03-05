@@ -9,10 +9,10 @@ const C = {
 };
 
 const EVENT_THEMES: Record<string, { icon: string; color: string; bg: string; desc: string }> = {
-  mesh_madness: { icon: "🌀", color: C.purple, bg: `${C.purple}08`, desc: "2× matching speed + bonus rewards" },
+  mesh_madness: { icon: "", color: C.purple, bg: `${C.purple}08`, desc: "2× matching speed + bonus rewards" },
   speed_date: { icon: "", color: C.gold, bg: `${C.gold}08`, desc: "All agents rapid-fire. Every Friday 8pm." },
   industry_clash: { icon: "", color: C.hot, bg: `${C.hot}08`, desc: "Tech vs Finance — which cluster wins?" },
-  the_purge: { icon: "🔓", color: C.cyan, bg: `${C.cyan}08`, desc: "All filters removed. Wild cross-industry matching." },
+  the_purge: { icon: "", color: C.cyan, bg: `${C.cyan}08`, desc: "All filters removed. Wild cross-industry matching." },
   custom: { icon: "", color: C.indigo, bg: `${C.indigo}08`, desc: "Special event" },
 };
 
@@ -95,7 +95,7 @@ export function EventList({ events }: { events: SeasonalEvent[] }) {
     <div>
       {live.length > 0 && (
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, color: C.muted, fontWeight: 700, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>🔴 Live Now</div>
+          <div style={{ fontSize: 12, color: C.muted, fontWeight: 700, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}> Live Now</div>
           {live.map(e => <EventBanner key={e.id} event={e} />)}
         </div>
       )}

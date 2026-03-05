@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
+import { Trophy, Medal as MedalIcon, Layers } from "lucide-react";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,7 +18,7 @@ const C = {
 };
 
 const tabs = [
-  {id:"builders",label:"Top Builders",icon:"🏗️",view:"leaderboard_top_builders"},
+  {id:"builders",label:"Top Builders",icon:"layers",view:"leaderboard_top_builders"},
   {id:"match_rate",label:"Match Rate",icon:"",view:"leaderboard_match_rate"},
   {id:"trading",label:"Trading PnL",icon:"",view:"leaderboard_trading"},
   {id:"reputation",label:"Reputation",icon:"",view:"leaderboard_reputation"},
@@ -32,9 +33,9 @@ function Avatar({name,size=36,url}:{name:string;size?:number;url?:string}){
 }
 
 function Medal({rank}:{rank:number}){
-  if(rank===1)return <span style={{fontSize:20}}>🥇</span>;
-  if(rank===2)return <span style={{fontSize:20}}>🥈</span>;
-  if(rank===3)return <span style={{fontSize:20}}>🥉</span>;
+  if(rank===1)return <Trophy size={18} color="#FFD700"/>;
+  if(rank===2)return <MedalIcon size={18} color="#C0C0C0"/>;
+  if(rank===3)return <MedalIcon size={18} color="#CD7F32"/>;
   return <span style={{fontSize:14,fontWeight:700,color:C.dim,width:28,textAlign:"center",display:"inline-block"}}>#{rank}</span>;
 }
 

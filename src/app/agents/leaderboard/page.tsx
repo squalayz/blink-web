@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { Trophy, Medal } from "lucide-react";
 
 const C = {
   base: "#0a0a0f", surface: "#111118", surface2: "#1a1a24",
@@ -11,8 +12,8 @@ const C = {
 };
 
 const MOOD_EMOJI: Record<string, string> = {
-  fired_up: "", confident: "😎", chill: "🧘", focused: "",
-  playful: "😜", determined: "💪", curious: "", cautious: "",
+  fired_up: "", confident: "", chill: "", focused: "",
+  playful: "", determined: "", curious: "", cautious: "",
 };
 
 const CATEGORIES = [
@@ -120,7 +121,7 @@ export default function AgentLeaderboardPage() {
                   background: i === 0 ? `${C.yellow}22` : i === 1 ? `${C.muted}22` : i === 2 ? `${C.orange}22` : C.surface2,
                   fontSize: i < 3 ? 16 : 13, fontWeight: 700, color: i === 0 ? C.yellow : i === 1 ? "#c0c0c0" : i === 2 ? C.orange : C.muted,
                 }}>
-                  {i < 3 ? ["🥇", "🥈", "🥉"][i] : i + 1}
+                  {i === 0 ? <Trophy size={14} color="#FFD700"/> : i === 1 ? <Medal size={14} color="#C0C0C0"/> : i === 2 ? <Medal size={14} color="#CD7F32"/> : i + 1}
                 </div>
 
                 {/* Avatar */}

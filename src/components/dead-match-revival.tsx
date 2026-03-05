@@ -38,7 +38,7 @@ export function DormantMatchCard({ match, onRevive, onArchive }: {
           border: `2px dashed ${C.dim}`, display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: 16, opacity: 0.6,
         }}>
-          {match.other_avatar ? <img src={match.other_avatar} alt="" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} /> : "💤"}
+          {match.other_avatar ? <img src={match.other_avatar} alt="" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} /> : ""}
         </div>
 
         <div style={{ flex: 1 }}>
@@ -70,7 +70,7 @@ export function DormantMatchCard({ match, onRevive, onArchive }: {
               flex: 2, padding: 10, borderRadius: 8, border: "none",
               background: `linear-gradient(135deg, ${C.indigo}, ${C.purple})`,
               color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-            }}>Say hi 👋</button>
+            }}>Say hi </button>
             <button onClick={() => onArchive(match.id)} style={{
               flex: 1, padding: 10, borderRadius: 8, border: `1px solid ${C.dim}`,
               background: "transparent", color: C.muted, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
@@ -94,7 +94,7 @@ export function DormantMatchBanner({ count, onClick }: { count: number; onClick:
       display: "flex", alignItems: "center", gap: 10,
       cursor: "pointer", fontFamily: "inherit", marginBottom: 16,
     }}>
-      <span style={{ fontSize: 16 }}>💤</span>
+      <span style={{ fontSize: 16 }}></span>
       <div style={{ flex: 1, textAlign: "left" }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.warn }}>{count} dormant match{count > 1 ? "es" : ""}</div>
         <div style={{ fontSize: 11, color: C.muted }}>Your agents worked hard for these. Say hi?</div>

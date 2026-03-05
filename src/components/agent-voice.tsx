@@ -16,8 +16,8 @@ interface VoiceMessage {
 }
 
 const TYPE_ICONS: Record<string, string> = {
-  insight: "", trade: "", nudge: "", greeting: "👋",
-  weekly: "", milestone: "", exit: "😢",
+  insight: "", trade: "", nudge: "", greeting: "",
+  weekly: "", milestone: "", exit: "",
 };
 
 export default function AgentVoice({ orbColor = C.indigo }: { orbColor?: string }) {
@@ -122,7 +122,7 @@ export default function AgentVoice({ orbColor = C.indigo }: { orbColor?: string 
             </div>
             <button onClick={() => setExpanded(false)} style={{
               background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 16,
-            }}>✕</button>
+            }}>×</button>
           </div>
 
           {/* Messages */}

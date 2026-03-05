@@ -33,7 +33,7 @@ export default function FusionCard({ fusion, onClick, compact }: FusionCardProps
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: compact ? 20 : 24,
           }}>
-            {fusion.status === "gestating" ? "🥚" : fusion.status === "active" ? "" : fusion.status === "dissolved" ? "💨" : ""}
+            {fusion.status === "gestating" ? "" : fusion.status === "active" ? "" : fusion.status === "dissolved" ? "" : ""}
           </div>
           {/* Generation badge */}
           <div style={{

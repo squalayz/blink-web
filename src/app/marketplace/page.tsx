@@ -13,8 +13,8 @@ const C = {
 
 const SORTS = [
   { label: " Trending", value: "volume" },
-  { label: "🆕 Newest", value: "newest" },
-  { label: "👥 Most Holders", value: "holders" },
+  { label: "Newest", value: "newest" },
+  { label: "Most Holders", value: "holders" },
   { label: " Highest Price", value: "price" },
 ];
 

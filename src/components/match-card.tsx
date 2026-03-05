@@ -180,7 +180,7 @@ export default function MatchCard({ data, onMint, onClose }: {
               position: "absolute", top: 8, right: 8, padding: "3px 8px",
               borderRadius: 6, background: C.gold, color: "#000",
               fontSize: 10, fontWeight: 800,
-            }}>NFT ✓</div>
+            }}>NFT </div>
           </div>
         )}
       </div>
@@ -208,7 +208,7 @@ export default function MatchCard({ data, onMint, onClose }: {
               animation: "mc-menu 0.15s ease-out",
             }}>
               <MenuBtn label=" Copy text" onClick={copyShare} />
-              <MenuBtn label="💾 Download image" onClick={downloadCard} />
+              <MenuBtn label=" Download image" onClick={downloadCard} />
               {!data.minted && <MenuBtn label=" Share on LinkedIn" onClick={() => {
                 window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(`https://mishmesh.ai/match/${data.matchId}`)}`, "_blank");
                 trackShare("linkedin");
@@ -235,7 +235,7 @@ export default function MatchCard({ data, onMint, onClose }: {
         </div>
       )}
 
-      {copied && <div style={{ position: "fixed", top: 80, left: "50%", transform: "translateX(-50%)", padding: "8px 16px", borderRadius: 8, background: C.match, color: "white", fontSize: 13, fontWeight: 700, zIndex: 1200 }}>✓ Copied!</div>}
+      {copied && <div style={{ position: "fixed", top: 80, left: "50%", transform: "translateX(-50%)", padding: "8px 16px", borderRadius: 8, background: C.match, color: "white", fontSize: 13, fontWeight: 700, zIndex: 1200 }}> Copied!</div>}
 
       <style>{`
         @keyframes mc-card-in{from{opacity:0;transform:translateY(10px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}

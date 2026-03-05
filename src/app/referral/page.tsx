@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { DollarSign, Link2, User, Bot, Infinity, Lightbulb, Check } from "lucide-react";
 
 const C = {
   bg:"#050508", surface:"#0a0a12", s2:"#111118",
@@ -58,7 +59,7 @@ export default function ReferralPage() {
         {/* Background glow */}
         <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%)", pointerEvents: "none" }} />
 
-        <div style={{ fontSize: 48, marginBottom: 16, animation: "float 3s ease-in-out infinite" }}>💰</div>
+        <div style={{ width:72,height:72,borderRadius:20,background:"rgba(255,215,0,0.12)",border:"1px solid rgba(255,215,0,0.25)",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16,animation:"float 3s ease-in-out infinite" }}><DollarSign size={36} color={C.gold}/></div>
         <h1 style={{ fontSize: 36, fontWeight: 900, marginBottom: 8, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
           Refer & <span style={{ background: `linear-gradient(135deg, ${C.indigo}, ${C.cyan})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Earn 30%</span>
         </h1>
@@ -77,7 +78,7 @@ export default function ReferralPage() {
                 {refLink}
               </div>
               <button onClick={copyLink} style={{ padding: "14px 20px", borderRadius: 12, border: "none", background: copied ? C.match : `linear-gradient(135deg, ${C.indigo}, ${C.purple})`, color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", minWidth: 80, transition: "all 0.2s" }}>
-                {copied ? "✓ Copied" : "Copy"}
+                {copied ? <><Check size={12}/> Copied</> : "Copy"}
               </button>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -125,15 +126,15 @@ export default function ReferralPage() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {[
-            { step: "1", emoji: "🔗", title: "Share Your Link", desc: "Copy your unique referral link and share it with friends, followers, or your community." },
-            { step: "2", emoji: "👤", title: "They Sign Up", desc: "When someone creates a MishMesh account through your link, they're permanently linked to you." },
-            { step: "3", emoji: "💰", title: "They Deposit ETH", desc: "MishMesh charges a 5% deposit fee. You earn 30% of that fee — automatically." },
-            { step: "4", emoji: "🤖", title: "Their AI Trades", desc: "Every time their agent makes a trade (3% fee per trade), you earn 30% of that fee too." },
-            { step: "5", emoji: "♾️", title: "Earn Forever", desc: "There's no cap and no expiration. As long as they use MishMesh, you earn." },
+            { step: "1", Icon: Link2, color: C.indigo, title: "Share Your Link", desc: "Copy your unique referral link and share it with friends, followers, or your community." },
+            { step: "2", Icon: User, color: C.cyan, title: "They Sign Up", desc: "When someone creates a MishMesh account through your link, they're permanently linked to you." },
+            { step: "3", Icon: DollarSign, color: C.gold, title: "They Deposit ETH", desc: "MishMesh charges a 5% deposit fee. You earn 30% of that fee — automatically." },
+            { step: "4", Icon: Bot, color: C.purple, title: "Their AI Trades", desc: "Every time their agent makes a trade (3% fee per trade), you earn 30% of that fee too." },
+            { step: "5", Icon: Infinity, color: C.match, title: "Earn Forever", desc: "There's no cap and no expiration. As long as they use MishMesh, you earn." },
           ].map((item, i) => (
             <div key={i} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-              <div style={{ width: 48, height: 48, borderRadius: 14, background: `${C.indigo}10`, border: `1px solid ${C.indigo}22`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 22 }}>
-                {item.emoji}
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: `${(item as any).color}12`, border: `1px solid ${(item as any).color}28`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <item.Icon size={22} color={(item as any).color}/>
               </div>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{item.title}</div>
@@ -145,7 +146,7 @@ export default function ReferralPage() {
 
         {/* Earnings example */}
         <div style={{ marginTop: 40, background: C.surface, borderRadius: 16, padding: 24, border: `1px solid ${C.indigo}22` }}>
-          <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 16, textAlign: "center" }}>💡 Example Earnings</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 16, textAlign: "center", display:"flex",alignItems:"center",justifyContent:"center",gap:8 }}><Lightbulb size={16} color={C.gold}/> Example Earnings</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {[
               { scenario: "Friend deposits 1 ETH", fee: "0.05 ETH (5%)", you: "0.015 ETH", color: C.match },

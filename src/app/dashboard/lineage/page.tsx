@@ -196,7 +196,7 @@ export default function LineagePage() {
                   padding: "6px 10px", borderRadius: 8, border: `1px solid ${C.border}`,
                   background: "transparent", color: C.muted, fontSize: 14,
                   cursor: "pointer", fontFamily: "inherit",
-                }}>✕</button>
+                }}>×</button>
               </div>
             </div>
 

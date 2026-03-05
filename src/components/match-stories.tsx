@@ -50,7 +50,7 @@ export function MatchStoryCard({ story, canPublish, onTogglePublic }: {
             background: story.public ? `${C.match}15` : "transparent",
             color: story.public ? C.match : C.muted, fontSize: 11, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
-          }}>{story.public ? "✓ Public" : "Make Public"}</button>
+          }}>{story.public ? " Public" : "Make Public"}</button>
         )}
       </div>
     </div>

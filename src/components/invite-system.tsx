@@ -117,7 +117,7 @@ export function InviteCreator({ userName, userIndustry, orbColor }: {
               flex: 1, padding: 10, borderRadius: 10, border: `1px solid ${C.dim}`,
               background: "transparent", color: copied ? C.match : C.text, fontSize: 13,
               fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-            }}>{copied ? "✓ Copied" : " Copy"}</button>
+            }}>{copied ? " Copied" : " Copy"}</button>
           </div>
 
           <button onClick={() => { setInvite(null); setInviteeName(""); }} style={{

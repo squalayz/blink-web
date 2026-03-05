@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Check, X, AlertTriangle, HelpCircle } from "lucide-react";
 
 const C = {
   bg:"#0a0a0f", surface:"#111118", s2:"#1a1a24",
@@ -8,11 +9,11 @@ const C = {
 };
 
 const PROVIDER_BILLING: Record<string, { name: string; url: string; icon: string }> = {
-  openai: { name: "OpenAI", url: "https://platform.openai.com/account/billing", icon: "🟢" },
-  anthropic: { name: "Anthropic", url: "https://console.anthropic.com/settings/billing", icon: "🟠" },
-  google: { name: "Google AI", url: "https://console.cloud.google.com/billing", icon: "🔵" },
-  groq: { name: "Groq", url: "https://console.groq.com/settings/billing", icon: "🔴" },
-  openrouter: { name: "OpenRouter", url: "https://openrouter.ai/credits", icon: "🟣" },
+  openai: { name: "OpenAI", url: "https://platform.openai.com/account/billing", dotColor: "#30d158" },
+  anthropic: { name: "Anthropic", url: "https://console.anthropic.com/settings/billing", dotColor: "#f97316" },
+  google: { name: "Google AI", url: "https://console.cloud.google.com/billing", dotColor: "#06b6d4" },
+  groq: { name: "Groq", url: "https://console.groq.com/settings/billing", dotColor: "#ef4444" },
+  openrouter: { name: "OpenRouter", url: "https://openrouter.ai/credits", dotColor: "#a855f7" },
 };
 
 interface KeyStatus {
@@ -52,7 +53,7 @@ export function ApiKeyBanner({ keyStatus, onUpdateKey }: { keyStatus: KeyStatus;
           padding: "8px 14px", borderRadius: 8, background: "transparent",
           border: `1px solid ${color}44`, color, fontSize: 12, fontWeight: 600,
           textDecoration: "none", whiteSpace: "nowrap",
-        }}>{billing.icon} Check {billing.name} billing →</a>
+        }}><span style={{width:8,height:8,borderRadius:"50%",background:billing.dotColor,display:"inline-block",marginRight:5,verticalAlign:"middle"}}/> Check {billing.name} billing →</a>
         <button onClick={onUpdateKey} style={{
           padding: "8px 14px", borderRadius: 8, border: "none",
           background: color, color: "white", fontSize: 12, fontWeight: 700,
@@ -68,10 +69,10 @@ export function ApiKeyBanner({ keyStatus, onUpdateKey }: { keyStatus: KeyStatus;
 // ── Inline health check on settings page ──
 export function ApiKeyHealth({ provider, status }: { provider: string; status: string }) {
   const indicators: Record<string, { color: string; label: string; icon: string }> = {
-    healthy: { color: C.match, label: "Healthy", icon: "✓" },
-    failing: { color: C.warn, label: "Issues", icon: "!" },
-    expired: { color: C.hot, label: "Offline", icon: "✕" },
-    unknown: { color: C.muted, label: "Unchecked", icon: "?" },
+    healthy: { color: C.match, label: "Healthy", Icon: Check },
+    failing: { color: C.warn, label: "Issues", Icon: AlertTriangle },
+    expired: { color: C.hot, label: "Offline", Icon: X },
+    unknown: { color: C.muted, label: "Unchecked", Icon: HelpCircle },
   };
   const ind = indicators[status] || indicators.unknown;
 
@@ -80,8 +81,7 @@ export function ApiKeyHealth({ provider, status }: { provider: string; status: s
       <div style={{
         width: 18, height: 18, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
         background: `${ind.color}22`, border: `1.5px solid ${ind.color}`,
-        fontSize: 10, fontWeight: 800, color: ind.color,
-      }}>{ind.icon}</div>
+      }}><ind.Icon size={10} color={ind.color} strokeWidth={3}/></div>
       <span style={{ fontSize: 12, color: ind.color, fontWeight: 600 }}>{ind.label}</span>
     </div>
   );

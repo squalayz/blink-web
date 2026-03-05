@@ -177,7 +177,7 @@ export function TokenProposalCard({ launch, isFounderA, userId, onAgree, onUpdat
             {parseFloat(String(launch.founder_a_eth || 0)).toFixed(2)} ETH
           </div>
           <div style={{ fontSize: 9, color: launch.founder_a_funded ? C.green : launch.founder_a_agreed ? C.violet : C.dim }}>
-            {launch.founder_a_funded ? "✓ Funded" : launch.founder_a_agreed ? "Agreed" : "Pending"}
+            {launch.founder_a_funded ? " Funded" : launch.founder_a_agreed ? "Agreed" : "Pending"}
           </div>
         </div>
         <div style={{
@@ -189,7 +189,7 @@ export function TokenProposalCard({ launch, isFounderA, userId, onAgree, onUpdat
             {parseFloat(String(launch.founder_b_eth || 0)).toFixed(2)} ETH
           </div>
           <div style={{ fontSize: 9, color: launch.founder_b_funded ? C.green : launch.founder_b_agreed ? C.violet : C.dim }}>
-            {launch.founder_b_funded ? "✓ Funded" : launch.founder_b_agreed ? "Agreed" : "Pending"}
+            {launch.founder_b_funded ? " Funded" : launch.founder_b_agreed ? "Agreed" : "Pending"}
           </div>
         </div>
       </div>
@@ -223,7 +223,7 @@ export function TokenProposalCard({ launch, isFounderA, userId, onAgree, onUpdat
 
       {launch.status === "FUNDING" && myFunded && !otherFunded && (
         <div style={{ textAlign: "center", padding: "8px 0", fontSize: 12, color: C.violet }}>
-          ✓ You funded. Waiting for co-founder...
+           You funded. Waiting for co-founder...
         </div>
       )}
 

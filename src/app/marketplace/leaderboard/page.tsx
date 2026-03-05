@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Trophy, Medal } from "lucide-react";
 
 const C = {
   bg:"#0a0a0a", card:"#141414", border:"#222", text:"#fafafa",
@@ -9,7 +10,7 @@ const C = {
 
 const TABS = [
   { label: " Volume", value: "volume" },
-  { label: "👥 Holders", value: "holders" },
+  { label: "Holders", value: "holders" },
   { label: " Price", value: "price" },
   { label: " New & Hot", value: "newest_hot" },
 ];
@@ -120,7 +121,7 @@ export default function LeaderboardPage() {
                   <span style={{
                     fontSize: 13, fontWeight: 800,
                     color: i < 3 ? C.gold : C.dim,
-                  }}>{i < 3 ? ["🥇", "🥈", "🥉"][i] : i + 1}</span>
+                  }}>{i === 0 ? <Trophy size={14} color="#FFD700"/> : i === 1 ? <Medal size={14} color="#C0C0C0"/> : i === 2 ? <Medal size={14} color="#CD7F32"/> : i + 1}</span>
 
                   {/* Name */}
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

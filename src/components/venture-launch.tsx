@@ -8,10 +8,10 @@ const C = {
 };
 
 const ROLE_ICONS: Record<string, string> = {
-  "Technical Lead": "🔧", "Mobile Developer": "📱", "Backend Developer": "⚙️",
+  "Technical Lead": "", "Mobile Developer": "", "Backend Developer": "",
   "Design Lead": "", "UI/UX Designer": "", "Growth Lead": "",
-  "Growth Marketer": "", "Domain Expert": "", "Nutrition / Health Expert": "🥗",
-  "Content Creator": "✍️", "Sales Lead": "💼", "default": "👤",
+  "Growth Marketer": "", "Domain Expert": "", "Nutrition / Health Expert": "",
+  "Content Creator": "", "Sales Lead": "", "default": "",
 };
 
 interface Role {
@@ -198,7 +198,7 @@ export default function VentureLaunch({ onComplete }: { onComplete?: (ventureId:
                 </div>
                 <button onClick={() => removeRole(i)} style={{
                   background: "none", border: "none", color: C.dim, cursor: "pointer", fontSize: 16,
-                }}>✕</button>
+                }}>×</button>
               </div>
             ))}
           </div>
@@ -247,7 +247,7 @@ export default function VentureLaunch({ onComplete }: { onComplete?: (ventureId:
                 <span>{ROLE_ICONS[role.role] || ROLE_ICONS.default}</span>
                 <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{role.role}</span>
                 {role.filled ? (
-                  <span style={{ marginLeft: "auto", fontSize: 11, color: C.match, fontWeight: 700 }}>✓ Locked</span>
+                  <span style={{ marginLeft: "auto", fontSize: 11, color: C.match, fontWeight: 700 }}> Locked</span>
                 ) : (
                   <span style={{ marginLeft: "auto", fontSize: 11, color: C.purple, fontWeight: 600, animation: "vl-pulse 1.5s infinite" }}>Searching...</span>
                 )}

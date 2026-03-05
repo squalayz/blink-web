@@ -120,7 +120,7 @@ export default function VentureDetailPage() {
               color: tab === t ? C.text : C.muted,
               fontSize: 13, fontWeight: tab === t ? 700 : 500,
               cursor: "pointer", fontFamily: "inherit", textTransform: "capitalize",
-            }}>{t === "plan" ? "📄 Plan" : t === "chat" ? " Chat" : t === "invest" ? " Fund" : "Overview"}</button>
+            }}>{t === "plan" ? " Plan" : t === "chat" ? " Chat" : t === "invest" ? " Fund" : "Overview"}</button>
           ))}
         </div>
 
@@ -180,7 +180,7 @@ export default function VentureDetailPage() {
           <div>
             {Object.keys(plan).length === 0 ? (
               <div style={{ textAlign: "center", padding: 40, color: C.dim }}>
-                <div style={{ fontSize: 28, marginBottom: 8 }}>📄</div>
+                <div style={{ fontSize: 28, marginBottom: 8 }}></div>
                 <p>Business plan will be generated once the team is assembled.</p>
               </div>
             ) : (

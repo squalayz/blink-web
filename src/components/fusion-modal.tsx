@@ -163,7 +163,7 @@ export function GestatingOverlay({ name, onClose }: { name: string; onClose: () 
           animation: "gestate-pulse 2s ease-in-out infinite",
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: 32,
-        }}>🥚</div>
+        }}></div>
 
         <h2 style={{ fontSize: 20, fontWeight: 800, margin: "0 0 8px" }}>{name} is gestating</h2>
         <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>

@@ -32,7 +32,7 @@ export default function ExitInterview({ stats, orbColor = C.indigo, onStay, onCo
     // Phase 1: getting real
     `Okay... if you're serious, I get it. But just know — your ${stats.daysActive} days of data helps me match better over time. Starting over somewhere else means starting from zero. Just saying.`,
     // Phase 2: goodbye
-    `Fine. It was good working with you. If you ever come back, I'll be here. Well, a new version of me will be. This version will be... gone. 🥲`,
+    `Fine. It was good working with you. If you ever come back, I'll be here. Well, a new version of me will be. This version will be... gone. `,
   ];
 
   return (
@@ -56,7 +56,7 @@ export default function ExitInterview({ stats, orbColor = C.indigo, onStay, onCo
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: dimming ? 28 : 32,
         }}>
-          {dimming ? "😢" : ""}
+          {dimming ? "" : ""}
         </div>
 
         {/* Agent message */}

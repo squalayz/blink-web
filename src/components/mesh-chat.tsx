@@ -76,7 +76,7 @@ export function MeshChatHeader({ otherName, otherAvatar, otherColor, myColor, re
             </div>
             <button onClick={() => setShowReasoning(false)} style={{
               background: "none", border: "none", color: C.dim, fontSize: 14, cursor: "pointer", padding: 0, lineHeight: 1,
-            }}>✕</button>
+            }}>×</button>
           </div>
           <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>{reasoning.summary}</div>
           {reasoning.tags.length > 0 && (

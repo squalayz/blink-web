@@ -122,7 +122,7 @@ export default function FusionDetailPage() {
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 28, flexShrink: 0,
             }}>
-              {fusion.status === "gestating" ? "🥚" : fusion.status === "active" ? "" : ""}
+              {fusion.status === "gestating" ? "" : fusion.status === "active" ? "" : ""}
             </div>
 
             <div style={{ flex: 1 }}>
@@ -184,7 +184,7 @@ export default function FusionDetailPage() {
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
             {fusion.status !== "active" ? (
               <div style={{ padding: 32, textAlign: "center", color: C.muted }}>
-                {fusion.status === "gestating" ? "🥚 Fusion is still gestating. Chat available once active." : "Fusion is not active."}
+                {fusion.status === "gestating" ? " Fusion is still gestating. Chat available once active." : "Fusion is not active."}
               </div>
             ) : (
               <>
@@ -237,7 +237,7 @@ export default function FusionDetailPage() {
               activity.filter(a => a.type !== "message").map((a, i) => (
                 <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: i < activity.length - 1 ? `1px solid ${C.border}` : "none" }}>
                   <span style={{ fontSize: 16, flexShrink: 0 }}>
-                    {a.type === "status_change" ? "" : a.type === "treasury" ? "" : a.type === "reproduce" ? "" : a.type === "dissolve" ? "💨" : a.type === "mutation" ? "" : ""}
+                    {a.type === "status_change" ? "" : a.type === "treasury" ? "" : a.type === "reproduce" ? "" : a.type === "dissolve" ? "" : a.type === "mutation" ? "" : ""}
                   </span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, color: C.text }}>{formatActivity(a)}</div>

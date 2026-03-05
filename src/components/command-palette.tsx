@@ -39,15 +39,15 @@ export default function CommandPalette() {
     { id: "token-leaders", label: "Token Leaderboard", icon: "", action: () => router.push("/marketplace/leaderboard"), section: "Navigate", keywords: "leaderboard top tokens volume" },
     { id: "agent-minds", label: "Agent Minds Leaderboard", icon: "", action: () => router.push("/agents/leaderboard"), section: "Navigate", keywords: "personality evolved quirks minds agents" },
     { id: "personality", label: "Agent Personality", icon: "", action: () => router.push("/dashboard#personality"), section: "Navigate", keywords: "soul quirks mood evolution radar" },
-    { id: "profile", label: "Edit Profile", icon: "👤", action: () => router.push("/dashboard#profile"), section: "Navigate", keywords: "bio settings" },
+    { id: "profile", label: "Edit Profile", icon: "", action: () => router.push("/dashboard#profile"), section: "Navigate", keywords: "bio settings" },
     // Actions
     { id: "fund", label: "Fund Agent", icon: "", action: () => router.push("/dashboard#fund"), section: "Actions", keywords: "deposit eth" },
     { id: "apikey", label: "Update API Key", icon: "", action: () => router.push("/dashboard#brain"), section: "Actions", keywords: "openai anthropic brain" },
     { id: "notif", label: "Notification Settings", icon: "", action: () => router.push("/dashboard#notifications"), section: "Actions", keywords: "alerts email telegram" },
     { id: "connect", label: "Connected Accounts", icon: "", action: () => router.push("/dashboard#accounts"), section: "Actions", keywords: "twitter instagram social" },
-    { id: "invite", label: "Invite Someone", icon: "📨", action: () => router.push("/dashboard#invite"), section: "Actions", keywords: "referral share friend" },
+    { id: "invite", label: "Invite Someone", icon: "", action: () => router.push("/dashboard#invite"), section: "Actions", keywords: "referral share friend" },
     // Links
-    { id: "terms", label: "Terms of Service", icon: "📄", action: () => router.push("/terms"), section: "Legal" },
+    { id: "terms", label: "Terms of Service", icon: "", action: () => router.push("/terms"), section: "Legal" },
     { id: "privacy", label: "Privacy Policy", icon: "", action: () => router.push("/privacy"), section: "Legal" },
   ];
 

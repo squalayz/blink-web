@@ -74,7 +74,7 @@ export default function StreakWidget() {
 
       {/* Badge */}
       {streak.badge === "dedicated_builder" && (
-        <span style={{ fontSize: 14, marginLeft: 2 }} title="Dedicated Builder — 30 day streak">🏅</span>
+        <span style={{ fontSize: 14, marginLeft: 2 }} title="Dedicated Builder — 30 day streak"></span>
       )}
       {streak.badge === "consistent" && (
         <span style={{ fontSize: 14, marginLeft: 2 }} title="Consistent — 7 day streak"></span>
@@ -87,7 +87,7 @@ export default function StreakWidget() {
           background: `${C.gold}15`, animation: "streak-celebrate 0.3s ease-out",
         }}>
           <span style={{ fontSize: 13, fontWeight: 800, color: C.gold }}>
-            {streak.reward === "free_boost" ? " Free Boost!" : "🏅 Badge Earned!"}
+            {streak.reward === "free_boost" ? " Free Boost!" : " Badge Earned!"}
           </span>
         </div>
       )}
@@ -111,7 +111,7 @@ export function StreakBadge({ streak, badge }: { streak: number; badge?: string 
       color: streak >= 7 ? C.gold : C.muted,
     }}>
        {streak}d
-      {badge === "dedicated_builder" && " 🏅"}
+      {badge === "dedicated_builder" && " "}
     </span>
   );
 }

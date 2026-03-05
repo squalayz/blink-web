@@ -104,7 +104,7 @@ export default function OnboardingWizard({ userId, walletAddress, onComplete }: 
           display:"flex", alignItems:"center", justifyContent:"center",
         }}>
           <span style={{ fontSize:32, filter:completion < 30 ? "grayscale(0.8)" : "none", transition:"filter 0.4s" }}>
-            {form.industry === "tech" ? "" : form.industry === "finance" ? "" : form.industry === "health" ? "" : form.industry === "creative" ? "" : form.industry === "web3" ? "⛓️" : ""}
+            {form.industry === "tech" ? "" : form.industry === "finance" ? "" : form.industry === "health" ? "" : form.industry === "creative" ? "" : form.industry === "web3" ? "" : ""}
           </span>
         </div>
         {/* Completion ring */}
@@ -200,7 +200,7 @@ export default function OnboardingWizard({ userId, walletAddress, onComplete }: 
             <ReviewRow label="Industry" value={form.industry || "—"} />
             <ReviewRow label="Building" value={form.building || "—"} />
             <ReviewRow label="Looking for" value={form.looking_for || "—"} />
-            <ReviewRow label="AI Brain" value={form.ai_api_key ? `${form.ai_provider} ✓` : "Not connected"} />
+            <ReviewRow label="AI Brain" value={form.ai_api_key ? `${form.ai_provider} ` : "Not connected"} />
             <div style={{ padding:"12px 16px", borderRadius:12, background:`${orbColor}11`, border:`1px solid ${orbColor}22`, marginTop:8, textAlign:"center" }}>
               <div style={{ fontSize:14, fontWeight:700, color:orbColor }}>Your agent is {completion}% ready</div>
               <div style={{ fontSize:12, color:C.muted, marginTop:4 }}>

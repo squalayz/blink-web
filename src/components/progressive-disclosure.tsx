@@ -8,7 +8,7 @@ const C = {
 };
 
 const LEVELS = [
-  { level: 0, name: "Newcomer", color: C.muted, icon: "🌱", req: "Just joined" },
+  { level: 0, name: "Newcomer", color: C.muted, icon: "", req: "Just joined" },
   { level: 1, name: "Connected", color: C.indigo, icon: "", req: "Get your first match", unlocks: ["Matches tab", "Chat"] },
   { level: 2, name: "Funded", color: C.match, icon: "", req: "Fund your first trade", unlocks: ["Trading dashboard", "P&L tracking"] },
   { level: 3, name: "Networker", color: C.purple, icon: "", req: "Get 5+ matches", unlocks: ["Leaderboard rank", "Reputation score"] },
@@ -37,9 +37,9 @@ export function LevelUpModal({ level, onDismiss }: { level: number; onDismiss: (
 
         {lvl.unlocks && (
           <div style={{ background: `${lvl.color}0a`, border: `1px solid ${lvl.color}22`, borderRadius: 12, padding: 16, marginBottom: 20 }}>
-            <div style={{ fontSize: 12, color: lvl.color, fontWeight: 700, marginBottom: 8 }}>🔓 Unlocked</div>
+            <div style={{ fontSize: 12, color: lvl.color, fontWeight: 700, marginBottom: 8 }}> Unlocked</div>
             {lvl.unlocks.map(u => (
-              <div key={u} style={{ fontSize: 13, color: C.text, padding: "4px 0" }}>✦ {u}</div>
+              <div key={u} style={{ fontSize: 13, color: C.text, padding: "4px 0" }}> {u}</div>
             ))}
           </div>
         )}

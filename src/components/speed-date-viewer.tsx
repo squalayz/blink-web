@@ -162,7 +162,7 @@ export default function SpeedDateViewer({
         {onClose && (
           <button onClick={onClose} style={{
             background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 18,
-          }}>✕</button>
+          }}>×</button>
         )}
       </div>
 
@@ -238,7 +238,7 @@ export default function SpeedDateViewer({
               fontSize: 24, fontWeight: 900,
               color: result.outcome === "match" ? C.green : result.outcome === "no_match" ? C.red : C.yellow,
             }}>
-              {result.outcome === "match" ? " IT'S A MATCH!" : result.outcome === "no_match" ? " No Match" : "🤔 Undecided"}
+              {result.outcome === "match" ? " IT'S A MATCH!" : result.outcome === "no_match" ? " No Match" : " Undecided"}
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
