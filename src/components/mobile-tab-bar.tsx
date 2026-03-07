@@ -13,9 +13,10 @@ interface TabBarProps {
   unreadMatches?: number;
   unreadMessages?: number;
   lowBalance?: boolean;
+  hotCount?: number;
 }
 
-export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0, unreadMessages = 0, lowBalance = false }: TabBarProps) {
+export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0, unreadMessages = 0, lowBalance = false, hotCount = 0 }: TabBarProps) {
   const [visible, setVisible] = useState(true);
   const [lastY, setLastY] = useState(0);
 
@@ -32,6 +33,7 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
 
   const tabs = [
     { id: "mesh", label: "Mesh", icon: MeshIcon, badge: 0 },
+    { id: "hunt", label: "Hunt", icon: HuntIcon, badge: hotCount, activeColor: C.hot },
     { id: "matches", label: "Matches", icon: MatchesIcon, badge: unreadMatches },
     { id: "chat", label: "Chat", icon: ChatIcon, badge: unreadMessages },
     { id: "wallet", label: "Wallet", icon: WalletIcon, badge: 0, alert: lowBalance },
@@ -54,6 +56,7 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
       }}>
         {tabs.map(tab => {
           const active = activeTab === tab.id;
+          const ac = (tab as any).activeColor || C.indigo;
           return (
             <button key={tab.id} onClick={() => onTabChange(tab.id)} style={{
               flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
@@ -64,7 +67,7 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
               {active && (
                 <div style={{
                   position: "absolute", top: -1, width: 20, height: 3, borderRadius: 2,
-                  background: C.indigo, boxShadow: `0 0 8px ${C.indigo}60`,
+                  background: ac, boxShadow: `0 0 8px ${ac}60`,
                 }} />
               )}
               {/* Icon */}
@@ -92,7 +95,7 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
               {/* Label */}
               <span style={{
                 fontSize: 10, fontWeight: active ? 700 : 500,
-                color: active ? C.indigo : C.muted,
+                color: active ? ac : C.muted,
                 transition: "color 0.2s",
               }}>{tab.label}</span>
             </button>
@@ -171,6 +174,21 @@ function ProfileIcon({ active }: { active: boolean }) {
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2">
       <circle cx="12" cy="8" r="4" />
       <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+    </svg>
+  );
+}
+
+function HuntIcon({ active }: { active: boolean }) {
+  const c = active ? C.hot : C.muted;
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" opacity={0.6} />
+      <circle cx="12" cy="12" r="1.5" fill={active ? C.hot : "none"} />
+      <line x1="12" y1="2" x2="12" y2="5" />
+      <line x1="12" y1="19" x2="12" y2="22" />
+      <line x1="2" y1="12" x2="5" y2="12" />
+      <line x1="19" y1="12" x2="22" y2="12" />
     </svg>
   );
 }

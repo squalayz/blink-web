@@ -1195,6 +1195,30 @@ export default function Dashboard(){
             boxShadow:view===t.id?"0 0 16px rgba(99,102,241,0.3), 0 0 4px rgba(6,182,212,0.2)":"none",
           }}>{t.icon}{t.label}</button>
         ))}
+        {/* Hunt tab — links to /hunt */}
+        <a href="/hunt" style={{
+          flex:1,
+          background:"rgba(255,45,85,0.08)",
+          border:`1px solid rgba(255,45,85,0.3)`,
+          borderRadius:22,
+          padding:"9px 16px",
+          color:"#ff2d55",
+          cursor:"pointer",
+          fontSize:12,
+          fontWeight:700,
+          fontFamily:"inherit",
+          display:"flex",
+          alignItems:"center",
+          justifyContent:"center",
+          gap:6,
+          whiteSpace:"nowrap",
+          transition:"all 0.2s ease",
+          textDecoration:"none",
+          boxShadow:"0 0 12px rgba(255,45,85,0.15)",
+        }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ff2d55" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
+          Hunt
+        </a>
       </div>
 
       <div style={{padding:20,maxWidth:view==="mesh"?1100:720,margin:"0 auto",transition:"max-width 0.3s"}}>

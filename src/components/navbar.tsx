@@ -86,6 +86,7 @@ export default function NavBar() {
 
   const links = [
     { label: "Dashboard", href: "/dashboard" },
+    { label: "🎯 Hunt", href: "/hunt" },
     { label: "Ventures", href: "/dashboard/ventures" },
     { label: "Fusions", href: "/dashboard/fusions" },
     { label: "Marketplace", href: "/marketplace" },
@@ -156,12 +157,23 @@ export default function NavBar() {
 
         {/* Center links (desktop) */}
         <div className="mm-nav-links" style={{ display: "flex", gap: 28, alignItems: "center" }}>
-          {links.map(l => (
-            <a key={l.href} href={l.href} style={{
-              color: pathname === l.href ? C.text : C.muted,
-              textDecoration: "none", fontSize: 14, fontWeight: 500, transition: "color 0.2s",
-            }}>{l.label}</a>
-          ))}
+          {links.map(l => {
+            const isHunt = l.href === "/hunt";
+            const isActive = pathname === l.href;
+            return (
+              <a key={l.href} href={l.href} style={{
+                color: isActive ? C.text : isHunt ? C.hot : C.muted,
+                textDecoration: "none", fontSize: 14, fontWeight: isHunt ? 700 : 500,
+                transition: "color 0.2s",
+                ...(isHunt ? {
+                  padding: "4px 12px", borderRadius: 8,
+                  background: isActive ? `${C.hot}22` : `${C.hot}12`,
+                  border: `1px solid ${C.hot}33`,
+                  boxShadow: isActive ? `0 0 12px ${C.hot}40` : "none",
+                } : {}),
+              }}>{l.label}</a>
+            );
+          })}
         </div>
 
         {/* Right side */}
