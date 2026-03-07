@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, RefreshCw, ChevronDown, Crosshair, Zap } from "lucide-react";
+import { Search, RefreshCw, ChevronDown, Crosshair } from "lucide-react";
 import HuntTokenCard from "@/components/hunt-token-card";
 import HuntPulseViz from "@/components/hunt-pulse-viz";
 import MobileTabBar from "@/components/mobile-tab-bar";
@@ -16,11 +16,11 @@ const C = {
 
 const CHAINS = [
   { id: "all", label: "All" },
-  { id: "base", label: "Base" },
-  { id: "solana", label: "Solana" },
-  { id: "ethereum", label: "ETH" },
-  { id: "bsc", label: "BSC" },
-  { id: "arbitrum", label: "ARB" },
+  { id: "base", label: "🔵 Base" },
+  { id: "solana", label: "🟣 Solana" },
+  { id: "ethereum", label: "⚫ ETH" },
+  { id: "bsc", label: "🟡 BSC" },
+  { id: "arbitrum", label: "🔵 ARB" },
 ];
 
 interface Token {
@@ -43,12 +43,6 @@ interface Token {
   pricePoints: number[];
 }
 
-// Fake agent activity messages
-const AGENT_MSGS = [
-  "entered DEGEN", "watching BRETT", "scanning PEPE", "spotted MOCHI",
-  "tracking WIF", "analyzing BONK", "flagged TOSHI", "researching MOG",
-];
-
 export default function HuntPage() {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,8 +51,6 @@ export default function HuntPage() {
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(20);
   const [highlightedAddr, setHighlightedAddr] = useState<string | null>(null);
-  const [lastRefresh, setLastRefresh] = useState(Date.now());
-  const [agentMsg, setAgentMsg] = useState({ agent: 3, msg: AGENT_MSGS[0], ts: "2s ago" });
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const fetchTokens = useCallback(async (q?: string) => {
@@ -78,17 +70,14 @@ export default function HuntPage() {
       } else {
         setTokens(data.tokens || []);
       }
-      setLastRefresh(Date.now());
     } catch {
       setError("Failed to load tokens");
     }
     setLoading(false);
   }, [chain, limit]);
 
-  // Initial fetch + on chain change
-  useEffect(() => {
-    fetchTokens();
-  }, [fetchTokens]);
+  // Initial fetch + on chain/limit change
+  useEffect(() => { fetchTokens(); }, [fetchTokens]);
 
   // Auto refresh every 30s
   useEffect(() => {
@@ -96,19 +85,6 @@ export default function HuntPage() {
     return () => clearInterval(iv);
   }, [fetchTokens]);
 
-  // Fake agent activity strip
-  useEffect(() => {
-    const iv = setInterval(() => {
-      setAgentMsg({
-        agent: Math.floor(Math.random() * 12) + 1,
-        msg: AGENT_MSGS[Math.floor(Math.random() * AGENT_MSGS.length)],
-        ts: `${Math.floor(Math.random() * 10) + 1}s ago`,
-      });
-    }, 5000);
-    return () => clearInterval(iv);
-  }, []);
-
-  // Search with debounce
   function handleSearch(val: string) {
     setQuery(val);
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
@@ -130,54 +106,62 @@ export default function HuntPage() {
       minHeight: "100vh",
       background: C.bg,
       color: C.text,
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      paddingTop: 64, // navbar clearance
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Outfit', sans-serif",
+      paddingTop: 64,
+      // Prevent layout shift / shake
+      overflowX: "hidden",
+      willChange: "auto",
     }}>
-      {/* Page header */}
-      <div style={{ padding: "20px 16px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+
+      {/* ── Page Header ── */}
+      <div style={{ padding: "20px 16px 12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
-            width: 32, height: 32, borderRadius: 10,
-            background: `${C.hot}18`, border: `1px solid ${C.hot}33`,
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            background: `${C.hot}15`, border: `1px solid ${C.hot}30`,
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.hot} strokeWidth="2.5" strokeLinecap="round">
-              <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>
-              <line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/>
-              <line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.hot} strokeWidth="2.5" strokeLinecap="round">
+              <circle cx="12" cy="12" r="10"/>
+              <circle cx="12" cy="12" r="3"/>
+              <line x1="12" y1="2" x2="12" y2="5"/>
+              <line x1="12" y1="19" x2="12" y2="22"/>
+              <line x1="2" y1="12" x2="5" y2="12"/>
+              <line x1="19" y1="12" x2="22" y2="12"/>
             </svg>
           </div>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: "-0.03em" }}>Hunt</div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>Find hot tokens · Let your agent trade them</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: C.text, letterSpacing: "-0.03em", lineHeight: 1 }}>Hunt</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>Find hot tokens · Let your agent trade them</div>
           </div>
         </div>
       </div>
 
-      {/* Pulse Visualization */}
+      {/* ── Pulse Visualization ── */}
       <HuntPulseViz
         tokens={tokens}
         loading={loading}
         onSelectToken={handleSelectOrb}
       />
 
-      {/* Chain filter pills */}
+      {/* ── Chain filter pills ── */}
       <div style={{
-        display: "flex", gap: 8, padding: "16px 16px 0",
+        display: "flex", gap: 6, padding: "14px 14px 0",
         overflowX: "auto", WebkitOverflowScrolling: "touch",
+        scrollbarWidth: "none", msOverflowStyle: "none",
       }}>
         {CHAINS.map(c => (
           <button
             key={c.id}
             onClick={() => setChain(c.id)}
             style={{
-              padding: "7px 16px", borderRadius: 20,
+              padding: "6px 14px", borderRadius: 20, flexShrink: 0,
               border: chain === c.id ? `1px solid ${C.hot}` : `1px solid ${C.border}`,
-              background: chain === c.id ? `${C.hot}18` : "rgba(255,255,255,0.03)",
+              background: chain === c.id ? `${C.hot}15` : "rgba(255,255,255,0.03)",
               color: chain === c.id ? C.hot : C.muted,
               fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
               cursor: "pointer", fontFamily: "inherit",
-              transition: "all 0.2s",
+              transition: "all 0.15s",
             }}
           >
             {c.label}
@@ -185,19 +169,18 @@ export default function HuntPage() {
         ))}
       </div>
 
-      {/* Search bar */}
-      <div style={{ padding: "12px 16px" }}>
+      {/* ── Search bar ── */}
+      <div style={{ padding: "10px 14px" }}>
         <div style={{
           display: "flex", alignItems: "center", gap: 10,
           background: "rgba(255,255,255,0.03)",
-          backdropFilter: "blur(12px)",
           border: `1px solid ${C.border}`,
-          borderRadius: 14, padding: "10px 14px",
+          borderRadius: 12, padding: "9px 14px",
         }}>
-          <Search size={16} color={C.muted} />
+          <Search size={15} color={C.muted} style={{ flexShrink: 0 }} />
           <input
             type="text"
-            placeholder="Ask your agent... search tokens"
+            placeholder="Search tokens by name, symbol, or address..."
             value={query}
             onChange={(e) => handleSearch(e.target.value)}
             style={{
@@ -208,10 +191,7 @@ export default function HuntPage() {
           {query && (
             <button
               onClick={() => { setQuery(""); fetchTokens(); }}
-              style={{
-                background: "none", border: "none", cursor: "pointer",
-                color: C.muted, padding: 0,
-              }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 0, flexShrink: 0 }}
             >
               <Crosshair size={14} />
             </button>
@@ -219,28 +199,22 @@ export default function HuntPage() {
         </div>
       </div>
 
-      {/* Section header */}
+      {/* ── Section header ── */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "8px 16px 12px",
+        padding: "4px 14px 10px",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 16, fontWeight: 700 }}>
-            Hot Right Now
-          </span>
-          <div style={{
-            display: "flex", alignItems: "center", gap: 4,
-            fontSize: 10, color: C.match,
-          }}>
+          <span style={{ fontSize: 15, fontWeight: 700 }}>Hot Right Now</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: C.match }}>
             <div style={{
-              width: 6, height: 6, borderRadius: "50%",
+              width: 5, height: 5, borderRadius: "50%",
               background: C.match,
               animation: "hunt-live-dot 1.5s infinite",
             }} />
             LIVE
           </div>
         </div>
-
         <button
           onClick={() => fetchTokens(query || undefined)}
           disabled={loading}
@@ -249,27 +223,26 @@ export default function HuntPage() {
             background: "none", border: "none",
             color: C.muted, fontSize: 11, cursor: "pointer",
             fontFamily: "inherit", opacity: loading ? 0.4 : 1,
+            padding: 0,
           }}
         >
-          <RefreshCw size={12} style={{
-            animation: loading ? "hunt-spin 0.8s linear infinite" : "none",
-          }} />
-          Refresh
+          <RefreshCw size={11} style={{ animation: loading ? "hunt-spin 0.8s linear infinite" : "none" }} />
+          {loading ? "Loading..." : "Refresh"}
         </button>
       </div>
 
-      {/* Error state */}
+      {/* ── Error state ── */}
       {error && (
         <div style={{
-          margin: "0 16px 12px", padding: "12px 16px",
+          margin: "0 14px 10px", padding: "10px 14px",
           background: `${C.hot}10`, border: `1px solid ${C.hot}22`,
-          borderRadius: 12, fontSize: 12, color: C.hot,
+          borderRadius: 10, fontSize: 12, color: C.hot,
         }}>
-          {error}
+          ⚠️ {error}
         </div>
       )}
 
-      {/* Loading skeletons */}
+      {/* ── Loading skeletons ── */}
       {loading && tokens.length === 0 && (
         <div style={{
           display: "grid",
@@ -279,21 +252,21 @@ export default function HuntPage() {
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} style={{
               background: "rgba(255,255,255,0.03)",
-              borderRadius: 16, height: 200,
-              animation: "hunt-skeleton 1.5s ease-in-out infinite",
-              animationDelay: `${i * 0.15}s`,
+              borderRadius: 16, height: 195,
+              animation: "hunt-skeleton 1.8s ease-in-out infinite",
+              animationDelay: `${i * 0.12}s`,
             }} />
           ))}
         </div>
       )}
 
-      {/* Token cards grid */}
+      {/* ── Token cards grid ── */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
         gap: 10, padding: "0 14px",
       }}>
-        <AnimatePresence>
+        <AnimatePresence mode="popLayout">
           {tokens.map((token, i) => (
             <HuntTokenCard
               key={`${token.chainId}-${token.address}`}
@@ -308,24 +281,22 @@ export default function HuntPage() {
         </AnimatePresence>
       </div>
 
-      {/* Empty state */}
+      {/* ── Empty state ── */}
       {!loading && tokens.length === 0 && !error && (
-        <div style={{
-          textAlign: "center", padding: "60px 20px", color: C.dim,
-        }}>
-          <Crosshair size={36} style={{ marginBottom: 12, opacity: 0.3 }} />
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No tokens found</div>
-          <div style={{ fontSize: 12, color: C.muted }}>Try a different chain or search term</div>
+        <div style={{ textAlign: "center", padding: "60px 20px" }}>
+          <Crosshair size={32} color={C.dim} style={{ marginBottom: 12 }} />
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.muted, marginBottom: 6 }}>No tokens found</div>
+          <div style={{ fontSize: 12, color: C.dim }}>Try a different chain or search term</div>
         </div>
       )}
 
-      {/* Load more */}
-      {tokens.length >= limit && (
-        <div style={{ padding: "20px 16px", textAlign: "center" }}>
+      {/* ── Load more ── */}
+      {tokens.length >= limit && !loading && (
+        <div style={{ padding: "16px 14px", textAlign: "center" }}>
           <button
             onClick={() => setLimit(l => l + 20)}
             style={{
-              padding: "12px 32px", borderRadius: 12,
+              padding: "11px 28px", borderRadius: 12,
               background: C.s2, border: `1px solid ${C.border}`,
               color: C.text, fontSize: 13, fontWeight: 600,
               cursor: "pointer", fontFamily: "inherit",
@@ -337,39 +308,10 @@ export default function HuntPage() {
         </div>
       )}
 
-      {/* Bottom padding so last card isn't hidden behind tab bar + activity strip */}
-      <div style={{ height: 140 }} />
+      {/* ── Bottom spacer — clears mobile tab bar cleanly ── */}
+      <div style={{ height: 96 }} />
 
-      {/* Agent activity strip */}
-      <motion.div
-        key={agentMsg.msg + agentMsg.agent}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        style={{
-          position: "fixed", bottom: "calc(72px + env(safe-area-inset-bottom, 0px) + 8px)", left: 16, right: 16,
-          zIndex: 300,
-          background: "rgba(255,255,255,0.04)",
-          backdropFilter: "blur(16px)",
-          WebkitBackdropFilter: "blur(16px)",
-          borderRadius: 12,
-          border: `1px solid ${C.border}`,
-          padding: "10px 14px",
-          display: "flex", alignItems: "center", gap: 8,
-          fontSize: 11, color: C.muted,
-          pointerEvents: "none",
-        }}
-      >
-        <Zap size={10} color={C.cyan} />
-        <span>
-          <span style={{ color: C.cyan, fontWeight: 600 }}>Agent #{agentMsg.agent}</span>
-          {" "}{agentMsg.msg}
-        </span>
-        <span style={{ marginLeft: "auto", fontSize: 9, color: C.dim }}>
-          {agentMsg.ts}
-        </span>
-      </motion.div>
-
-      {/* Tab bar */}
+      {/* ── Mobile Tab Bar ── */}
       <MobileTabBar
         activeTab="hunt"
         onTabChange={(tab) => {
@@ -387,21 +329,19 @@ export default function HuntPage() {
       />
 
       <style>{`
-        @keyframes hunt-card-breathe {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.003); }
-        }
         @keyframes hunt-live-dot {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(0.7); }
         }
         @keyframes hunt-spin {
           to { transform: rotate(360deg); }
         }
         @keyframes hunt-skeleton {
-          0%, 100% { opacity: 0.06; }
-          50% { opacity: 0.12; }
+          0%, 100% { opacity: 0.05; }
+          50% { opacity: 0.1; }
         }
+        /* hide scrollbar on chain pills */
+        div::-webkit-scrollbar { display: none; }
       `}</style>
     </div>
   );

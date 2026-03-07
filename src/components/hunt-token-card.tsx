@@ -157,8 +157,6 @@ export default function HuntTokenCard({
           cursor: "pointer",
           position: "relative",
           overflow: "hidden",
-          animation: "hunt-card-breathe 4s ease-in-out infinite",
-          animationDelay: `${index * 0.3}s`,
           transition: "border-color 0.3s, box-shadow 0.3s",
         }}
       >
