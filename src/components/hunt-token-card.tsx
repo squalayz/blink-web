@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, Bot, ExternalLink, TrendingUp, Droplets, ArrowUpDown, X } from "lucide-react";
 
@@ -27,6 +27,96 @@ interface Token {
   score: number;
   tags: string[];
   pricePoints: number[];
+}
+
+// ── Smart Token Logo ──
+// Tries: provided imageUrl → DexScreener CDN → Trust Wallet → CoinGecko → initials avatar
+function TokenLogo({ imageUrl, symbol, address, chainId, size = 40 }: {
+  imageUrl: string | null;
+  symbol: string;
+  address: string;
+  chainId: string;
+  size?: number;
+}) {
+  // Build ordered fallback list
+  const sources: string[] = [];
+  if (imageUrl) sources.push(imageUrl);
+
+  // Trust Wallet asset repo — works great for Base/ETH/BSC ERC20s
+  if (chainId === "ethereum" || chainId === "base" || chainId === "bsc") {
+    const chainMap: Record<string, string> = {
+      ethereum: "ethereum",
+      base: "base",
+      bsc: "smartchain",
+    };
+    sources.push(
+      `https://assets.trustwallet.com/blockchains/${chainMap[chainId]}/assets/${address}/logo.png`
+    );
+  }
+
+  // DexScreener token image CDN
+  sources.push(`https://dd.dexscreener.com/ds-data/tokens/${chainId}/${address.toLowerCase()}.png`);
+
+  const [srcIndex, setSrcIndex] = useState(0);
+  const [failed, setFailed] = useState(false);
+
+  const handleError = useCallback(() => {
+    if (srcIndex + 1 < sources.length) {
+      setSrcIndex(i => i + 1);
+    } else {
+      setFailed(true);
+    }
+  }, [srcIndex, sources.length]);
+
+  // Color avatar based on symbol
+  const colors = [
+    ["#6366f1", "#818cf8"], ["#06b6d4", "#22d3ee"], ["#a855f7", "#c084fc"],
+    ["#ff2d55", "#ff6b8a"], ["#f59e0b", "#fbbf24"], ["#30d158", "#4ade80"],
+  ];
+  const colorIdx = symbol.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % colors.length;
+  const [g1, g2] = colors[colorIdx];
+  const initials = symbol.slice(0, 2).toUpperCase();
+
+  if (failed || sources.length === 0) {
+    return (
+      <div style={{
+        width: size, height: size, borderRadius: "50%", flexShrink: 0,
+        background: `linear-gradient(135deg, ${g1}, ${g2})`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: size * 0.38, fontWeight: 800, color: "white",
+        letterSpacing: "-0.03em",
+      }}>
+        {initials}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: "50%", flexShrink: 0,
+      background: `linear-gradient(135deg, ${g1}44, ${g2}22)`,
+      overflow: "hidden", position: "relative",
+    }}>
+      {/* Initials fallback visible underneath */}
+      <div style={{
+        position: "absolute", inset: 0,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: size * 0.38, fontWeight: 800, color: g1,
+      }}>
+        {initials}
+      </div>
+      <img
+        key={sources[srcIndex]}
+        src={sources[srcIndex]}
+        alt={symbol}
+        onError={handleError}
+        style={{
+          position: "absolute", inset: 0,
+          width: "100%", height: "100%", objectFit: "cover",
+        }}
+      />
+    </div>
+  );
 }
 
 function scoreColor(score: number): string {
@@ -162,19 +252,14 @@ export default function HuntTokenCard({
       >
         {/* Header: Logo + Name + Score */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-          {/* Token logo/initial */}
-          <div style={{
-            width: 40, height: 40, borderRadius: "50%", overflow: "hidden",
-            background: `linear-gradient(135deg, ${C.indigo}, ${C.cyan})`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 16, fontWeight: 800, color: "white", flexShrink: 0,
-          }}>
-            {token.imageUrl ? (
-              <img src={token.imageUrl} alt={token.symbol} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            ) : (
-              token.symbol.slice(0, 2).toUpperCase()
-            )}
-          </div>
+          {/* Token logo — smart multi-source with fallback */}
+          <TokenLogo
+            imageUrl={token.imageUrl}
+            symbol={token.symbol}
+            address={token.address}
+            chainId={token.chainId}
+            size={44}
+          />
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
