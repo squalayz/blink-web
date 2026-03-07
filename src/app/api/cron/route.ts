@@ -65,6 +65,19 @@ export async function GET(req: NextRequest) {
     if (hour === 14) {
       await generateDailyReports();
       results.push("Daily reports generated");
+
+      // 5a. Daily trading recap via Telegram
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://mishmesh.ai";
+        await fetch(`${baseUrl}/api/hunt/daily-recap`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-internal": "true" },
+        });
+        results.push("Daily trading recap sent");
+      } catch (e: any) {
+        console.error("Daily recap error:", e.message);
+        results.push("Daily recap failed: " + e.message?.slice(0, 50));
+      }
     }
 
     // 5b. Portfolio snapshots (midnight UTC) — for daily loss circuit breaker

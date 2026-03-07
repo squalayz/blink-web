@@ -6,6 +6,7 @@ import { Search, RefreshCw, ChevronDown, Crosshair } from "lucide-react";
 import HuntTokenCard from "@/components/hunt-token-card";
 import HuntPulseViz from "@/components/hunt-pulse-viz";
 import MobileTabBar from "@/components/mobile-tab-bar";
+import CoHuntCard from "@/components/co-hunt-card";
 
 const C = {
   bg: "#0a0a0f", surface: "#0d0d14", s2: "#1a1a24",
@@ -51,6 +52,7 @@ export default function HuntPage() {
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(20);
   const [highlightedAddr, setHighlightedAddr] = useState<string | null>(null);
+  const [coHunts, setCoHunts] = useState<any[]>([]);
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const fetchTokens = useCallback(async (q?: string) => {
@@ -78,6 +80,59 @@ export default function HuntPage() {
 
   // Initial fetch + on chain/limit change
   useEffect(() => { fetchTokens(); }, [fetchTokens]);
+
+  // Fetch active co-hunts
+  useEffect(() => {
+    async function fetchCoHunts() {
+      try {
+        // Get userId from session/cookie — try common patterns
+        const sessionRes = await fetch("/api/auth/session");
+        const session = await sessionRes.json();
+        const userId = session?.user?.id;
+        if (!userId) return;
+
+        const res = await fetch(`/api/co-hunt?userId=${userId}`);
+        const data = await res.json();
+        if (data.coHunts) setCoHunts(data.coHunts);
+      } catch {}
+    }
+    fetchCoHunts();
+  }, []);
+
+  async function handleEndCoHunt(coHuntId: string) {
+    try {
+      const sessionRes = await fetch("/api/auth/session");
+      const session = await sessionRes.json();
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      await fetch("/api/co-hunt", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coHuntId, userId }),
+      });
+      setCoHunts(prev => prev.filter(ch => ch.id !== coHuntId));
+    } catch {}
+  }
+
+  async function handleAcceptCoHunt(coHuntId: string) {
+    try {
+      const sessionRes = await fetch("/api/auth/session");
+      const session = await sessionRes.json();
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      const res = await fetch("/api/co-hunt", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coHuntId, userId }),
+      });
+      const data = await res.json();
+      if (data.coHunt) {
+        setCoHunts(prev => prev.map(ch => ch.id === coHuntId ? { ...ch, status: "active" } : ch));
+      }
+    } catch {}
+  }
 
   // Auto refresh every 30s
   useEffect(() => {
@@ -168,6 +223,22 @@ export default function HuntPage() {
           </button>
         ))}
       </div>
+
+      {/* ── Co-Hunt Cards ── */}
+      {coHunts.length > 0 && (
+        <div style={{ padding: "10px 14px 0", display: "flex", flexDirection: "column", gap: 8 }}>
+          <AnimatePresence>
+            {coHunts.map(ch => (
+              <CoHuntCard
+                key={ch.id}
+                coHunt={ch}
+                onEnd={handleEndCoHunt}
+                onAccept={handleAcceptCoHunt}
+              />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* ── Search bar ── */}
       <div style={{ padding: "10px 14px" }}>

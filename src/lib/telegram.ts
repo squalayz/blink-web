@@ -137,6 +137,10 @@ export function helpMessage() {
 /matches — Pending matches waiting for you
 /accept — Accept a match
 /pass — Pass on a match
+/hunt — Hot tokens right now
+/recap — Today's trading recap
+/alerts on — Enable hunt alerts
+/alerts off — Disable hunt alerts
 /settings — Notification preferences
 /help — This message
 
@@ -274,6 +278,7 @@ ${settings.notify_matches ? on : off} Matches
 ${settings.notify_messages ? on : off} Messages
 ${settings.notify_trades ? on : off} Trading
 ${settings.notify_balance ? on : off} Balance
+${settings.hunt_alerts_enabled !== false ? on : off} Hunt Alerts
 
 Tap to toggle:`,
     keyboard: [
@@ -285,6 +290,129 @@ Tap to toggle:`,
         { text: `${settings.notify_trades ? "🔔" : "🔕"} Trading`, callback_data: "toggle:notify_trades" },
         { text: `${settings.notify_balance ? "🔔" : "🔕"} Balance`, callback_data: "toggle:notify_balance" },
       ],
+      [
+        { text: `${settings.hunt_alerts_enabled !== false ? "🔔" : "🔕"} Hunt Alerts`, callback_data: "toggle:hunt_alerts_enabled" },
+      ],
     ] as InlineButton[][],
+  };
+}
+
+// ═══ Hunt & Co-Hunt Message Templates ═══
+
+function formatNumber(n: number): string {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+  return `$${n.toFixed(0)}`;
+}
+
+function chainLabel(chainId: string): string {
+  const labels: Record<string, string> = {
+    base: "Base", solana: "Solana", ethereum: "Ethereum",
+    bsc: "BSC", arbitrum: "Arbitrum",
+  };
+  return labels[chainId] || chainId;
+}
+
+export function huntAlertMessage(token: {
+  symbol: string; chainId: string; score: number;
+  priceChange1h: number; volume1h: number; liquidity: number;
+  url: string; tags: string[];
+}, appUrl: string) {
+  const pct = token.priceChange1h >= 0 ? `+${token.priceChange1h.toFixed(1)}%` : `${token.priceChange1h.toFixed(1)}%`;
+  const tagLine = token.tags.length > 0 ? token.tags.join(" · ") : "";
+  return {
+    text: `🎯 *Hunt Alert — ${chainLabel(token.chainId)}*
+
+🔥 *${token.symbol}* hit score *${token.score}/100*
+
+📈 ${pct} in 1h
+💧 Liq: ${formatNumber(token.liquidity)} | Vol: ${formatNumber(token.volume1h)}${tagLine ? `\n⚡ ${tagLine}` : ""}`,
+    keyboard: [
+      [
+        { text: "🔍 View on Hunt", url: `${appUrl}/hunt` },
+        { text: "📊 DexScreener", url: token.url },
+      ],
+    ] as InlineButton[][],
+  };
+}
+
+export function dailyRecapMessage(stats: {
+  totalTrades: number; wins: number; losses: number;
+  netPnl: number; bestToken: string; bestPnl: number;
+  worstToken: string; worstPnl: number;
+}, appUrl: string) {
+  if (stats.totalTrades === 0) {
+    return {
+      text: `📊 *Your Agent's Daily Recap*
+
+Your agent is watching the market. 👀 Check Hunt for hot tokens.`,
+      keyboard: [
+        [{ text: "🎯 Open Hunt", url: `${appUrl}/hunt` }],
+      ] as InlineButton[][],
+    };
+  }
+
+  const pnlSign = stats.netPnl >= 0 ? "+" : "";
+  const bestPct = stats.bestPnl >= 0 ? `+${stats.bestPnl.toFixed(0)}%` : `${stats.bestPnl.toFixed(0)}%`;
+  const worstPct = stats.worstPnl >= 0 ? `+${stats.worstPnl.toFixed(0)}%` : `${stats.worstPnl.toFixed(0)}%`;
+
+  return {
+    text: `📊 *Your Agent's Daily Recap*
+
+🤖 ${stats.totalTrades} trade${stats.totalTrades === 1 ? "" : "s"} today
+✅ ${stats.wins} win${stats.wins === 1 ? "" : "s"} · ❌ ${stats.losses} loss${stats.losses === 1 ? "" : "es"}
+💰 Net P&L: ${pnlSign}$${Math.abs(stats.netPnl).toFixed(2)}
+
+🏆 Best: ${stats.bestToken} ${bestPct}
+📉 Worst: ${stats.worstToken} ${worstPct}
+
+Keep going — your agent is learning.`,
+    keyboard: [
+      [{ text: "📈 View Full Activity", url: `${appUrl}/dashboard?view=wallet` }],
+    ] as InlineButton[][],
+  };
+}
+
+export function coHuntActivatedMessage(partnerName: string, chain: string, appUrl: string) {
+  return {
+    text: `🤝 *Co-Hunt activated!*
+
+You and *${partnerName}* are now hunting *${chainLabel(chain)}* together. Your agents will share signals.`,
+    keyboard: [
+      [{ text: "🎯 Open Hunt", url: `${appUrl}/hunt` }],
+    ] as InlineButton[][],
+  };
+}
+
+export function coHuntSharedTokenMessage(partnerName: string, tokenSymbol: string, chainId: string, appUrl: string) {
+  return {
+    text: `👀 You and *${partnerName}* are both watching *${tokenSymbol}* on ${chainLabel(chainId)}! Your agents are aligned. 🔥`,
+    keyboard: [
+      [{ text: "🎯 View on Hunt", url: `${appUrl}/hunt` }],
+    ] as InlineButton[][],
+  };
+}
+
+export function huntTopTokensMessage(
+  tokens: Array<{ symbol: string; score: number; priceChange1h: number; liquidity: number; chainId: string }>,
+  chain: string,
+  appUrl: string,
+) {
+  if (tokens.length === 0) {
+    return {
+      text: `🎯 *No hot tokens on ${chainLabel(chain)} right now.*\n\nCheck back soon — the market moves fast.`,
+      keyboard: [[{ text: "🎯 Open Hunt", url: `${appUrl}/hunt` }]] as InlineButton[][],
+    };
+  }
+
+  let text = `🎯 *Hot on ${chainLabel(chain)} right now:*\n`;
+  tokens.forEach((t, i) => {
+    const pct = t.priceChange1h >= 0 ? `+${t.priceChange1h.toFixed(0)}%` : `${t.priceChange1h.toFixed(0)}%`;
+    text += `\n${i + 1}. 🔥 *${t.symbol}* — Score: ${t.score}\n   ${pct} 1h · ${formatNumber(t.liquidity)} liq`;
+  });
+
+  return {
+    text,
+    keyboard: [[{ text: "🎯 Open Hunt Tab", url: `${appUrl}/hunt` }]] as InlineButton[][],
   };
 }

@@ -4,6 +4,7 @@ import {
   sendTelegramMessage, answerCallbackQuery, editMessage,
   welcomeMessage, welcomeLinkedMessage, helpMessage,
   statusMessage, balanceMessage, pendingMatchMessage, settingsMessage,
+  huntTopTokensMessage, dailyRecapMessage,
 } from "@/lib/telegram";
 
 // Direct Telegram API send — bypasses all library code
@@ -161,14 +162,32 @@ async function handleMessage(message: any) {
       onChainBalance = await getWalletBalance(user.wallet_address);
     }
 
-    await sendTelegramMessage(chatId, statusMessage(
+    let statusText = statusMessage(
       agent?.agent_name || "Your Agent",
       agent?.match_count || 0,
       agent?.conversation_count || 0,
       onChainBalance,
       onChainBalance > 0.001,
       bal?.total_trading_pnl || 0
-    ));
+    );
+
+    // Append last 3 trades
+    const { data: recentTrades } = await supabaseAdmin
+      .from("trade_logs")
+      .select("action, token_symbol, pnl, timestamp")
+      .eq("user_id", user.id)
+      .order("timestamp", { ascending: false })
+      .limit(3);
+
+    if (recentTrades?.length) {
+      statusText += "\n\n📋 *Recent Trades:*";
+      for (const t of recentTrades) {
+        const pnlStr = t.pnl != null ? ` (${t.pnl >= 0 ? "+" : ""}${t.pnl.toFixed(2)})` : "";
+        statusText += `\n${t.action === "buy" ? "🟢" : "🔴"} ${t.action.toUpperCase()} ${t.token_symbol || "?"}${pnlStr}`;
+      }
+    }
+
+    await sendTelegramMessage(chatId, statusText);
     return;
   }
 
@@ -204,6 +223,81 @@ async function handleMessage(message: any) {
 
     const msg = pendingMatchMessage(pending);
     await sendTelegramMessage(chatId, msg.text, msg.keyboard.length ? msg.keyboard : undefined);
+    return;
+  }
+
+  // /hunt [chain]
+  if (text.startsWith("/hunt")) {
+    const parts = text.split(" ");
+    const chainArg = parts[1]?.toLowerCase() || "base";
+    const validChains: Record<string, string> = {
+      base: "base", solana: "solana", ethereum: "ethereum",
+      eth: "ethereum", bsc: "bsc", arbitrum: "arbitrum", arb: "arbitrum",
+    };
+    const chain = validChains[chainArg] || "base";
+    const APP = process.env.NEXT_PUBLIC_APP_URL || "https://mishmesh.ai";
+
+    try {
+      const res = await fetch(`${APP}/api/hunt/tokens?chains=${chain}&limit=5`);
+      const data = await res.json();
+      const tokens = (data.tokens || []).slice(0, 5).map((t: any) => ({
+        symbol: t.symbol,
+        score: t.score,
+        priceChange1h: t.priceChange1h,
+        liquidity: t.liquidity,
+        chainId: t.chainId,
+      }));
+      const msg = huntTopTokensMessage(tokens, chain, APP);
+      await sendTelegramMessage(chatId, msg.text, msg.keyboard);
+    } catch {
+      await sendTelegramMessage(chatId, "Failed to fetch tokens. Try again in a moment.");
+    }
+    return;
+  }
+
+  // /recap
+  if (text === "/recap") {
+    const APP = process.env.NEXT_PUBLIC_APP_URL || "https://mishmesh.ai";
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: trades } = await supabaseAdmin
+      .from("trade_logs")
+      .select("action, token_symbol, pnl, price")
+      .eq("user_id", user.id)
+      .gte("timestamp", since)
+      .order("timestamp", { ascending: false });
+
+    const tradeList = trades || [];
+    let wins = 0, losses = 0, netPnl = 0;
+    let bestToken = "-", bestPnl = 0, worstToken = "-", worstPnl = 0;
+
+    for (const t of tradeList) {
+      const pnl = t.pnl || 0;
+      netPnl += pnl;
+      if (pnl >= 0) wins++; else losses++;
+      if (pnl > bestPnl || bestToken === "-") { bestPnl = pnl; bestToken = t.token_symbol || "???"; }
+      if (pnl < worstPnl || worstToken === "-") { worstPnl = pnl; worstToken = t.token_symbol || "???"; }
+    }
+
+    const msg = dailyRecapMessage({
+      totalTrades: tradeList.length, wins, losses, netPnl,
+      bestToken, bestPnl, worstToken, worstPnl,
+    }, APP);
+    await sendTelegramMessage(chatId, msg.text, msg.keyboard);
+    return;
+  }
+
+  // /alerts on|off
+  if (text.startsWith("/alerts")) {
+    const arg = text.split(" ")[1]?.toLowerCase();
+    if (arg === "on" || arg === "off") {
+      const enabled = arg === "on";
+      await supabaseAdmin.from("notification_settings")
+        .upsert({ user_id: user.id, hunt_alerts_enabled: enabled }, { onConflict: "user_id" });
+      await sendTelegramMessage(chatId, `🎯 Hunt alerts ${enabled ? "enabled ✅" : "disabled 🔕"}`);
+    } else {
+      await sendTelegramMessage(chatId, "Usage: /alerts on or /alerts off");
+    }
     return;
   }
 
@@ -277,7 +371,7 @@ async function handleCallback(callback: any) {
   // toggle:{setting}
   if (data.startsWith("toggle:")) {
     const field = data.split(":")[1];
-    const validFields = ["notify_matches", "notify_messages", "notify_trades", "notify_balance"];
+    const validFields = ["notify_matches", "notify_messages", "notify_trades", "notify_balance", "hunt_alerts_enabled"];
     if (!validFields.includes(field)) {
       await answerCallbackQuery(callback.id, "Invalid setting");
       return;
