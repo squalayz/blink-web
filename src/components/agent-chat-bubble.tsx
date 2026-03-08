@@ -170,8 +170,8 @@ function PlasmaOrb({
 
 // ── Floating physics hook ──
 function useFloatingPosition(isMobile: boolean, isOpen: boolean) {
-  const baseX = isMobile ? window.innerWidth - 76 : window.innerWidth - 88;
-  const baseY = isMobile ? window.innerHeight - 160 : window.innerHeight - 104;
+  const baseX = typeof window !== "undefined" ? (isMobile ? window.innerWidth - 76 : window.innerWidth - 88) : 300;
+  const baseY = typeof window !== "undefined" ? (isMobile ? window.innerHeight - 160 : window.innerHeight - 104) : 500;
 
   const x = useMotionValue(baseX);
   const y = useMotionValue(baseY);
@@ -212,12 +212,14 @@ export default function AgentChatBubble() {
   const [orbState, setOrbState] = useState<"idle" | "thinking" | "speaking" | "alert">("idle");
   const [isDragging, setIsDragging] = useState(false);
   const [welcomeSent, setWelcomeSent] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { x, y } = useFloatingPosition(isMobile, open);
 
   useEffect(() => {
+    setMounted(true);
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
     window.addEventListener("resize", check);
@@ -306,6 +308,8 @@ export default function AgentChatBubble() {
     setUnreadCount(0);
     setOrbState("idle");
   };
+
+  if (!mounted) return null;
 
   const showStarters = messages.length <= 1 && messages[0]?.role === "agent" && !isTyping;
 
