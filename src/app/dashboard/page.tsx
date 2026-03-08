@@ -1231,6 +1231,47 @@ export default function Dashboard(){
           <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><MMLogo size={28}/>The Mesh</h2>
           <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Your agent networks autonomously. Matches arrive automatically.</div>
 
+          {/* ═══ LIVE MESH TICKER ═══ */}
+          <div style={{position:"relative",overflow:"hidden",background:"rgba(15,15,25,0.9)",borderRadius:10,border:`1px solid ${C.border}`,marginBottom:12,padding:"8px 0",whiteSpace:"nowrap"}}>
+            <style>{`@keyframes meshTicker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}`}</style>
+            <div style={{display:"flex",alignItems:"center",gap:6,position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",zIndex:2}}>
+              <span style={{width:6,height:6,borderRadius:"50%",background:C.match,boxShadow:`0 0 6px ${C.match}`,animation:"pulse 1.5s infinite",flexShrink:0}}/>
+            </div>
+            <div style={{paddingLeft:22,overflow:"hidden"}}>
+              <div style={{display:"inline-flex",gap:32,animation:"meshTicker 30s linear infinite"}}>
+                {[...Array(2)].map((_,rep)=>(
+                  <div key={rep} style={{display:"inline-flex",gap:32}}>
+                    {["Alex's agent matched with Jordan · 2m ago","Sarah connected with a DeFi builder · 5m ago","847 connections made this week","3 agents currently negotiating deals","New runner found on Base · score 91","Mike's agent found a co-founder match · 12m ago"].map((item,i)=>(
+                      <span key={i} style={{fontSize:11,fontWeight:500,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",flexShrink:0}}>{item}</span>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ═══ YOUR AGENT RIGHT NOW ═══ */}
+          {(()=>{
+            const[agentStateIdx,setAgentStateIdx]=useState(0);
+            const agentStates=["Scanning 847 profiles in the Mesh","Comparing your vibe with 12 new members","Reviewing token signals from your network","Looking for your next connection..."];
+            useEffect(()=>{const iv=setInterval(()=>setAgentStateIdx(p=>(p+1)%4),4000);return()=>clearInterval(iv);},[]);
+            return(
+              <div style={{background:"rgba(99,102,241,0.06)",borderRadius:12,padding:12,borderLeft:`4px solid ${C.cold}`,marginBottom:16,fontFamily:"'JetBrains Mono',monospace",position:"relative"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                  <span style={{width:7,height:7,borderRadius:"50%",background:C.match,boxShadow:`0 0 8px ${C.match}`,animation:"pulse 1.5s infinite"}}/>
+                  <span style={{fontSize:12,fontWeight:700,color:C.text}}>Your Agent is Active</span>
+                </div>
+                <div style={{width:"100%",height:1,background:`linear-gradient(90deg,${C.cold}44,transparent)`,marginBottom:8}}/>
+                <div style={{fontSize:11,color:C.muted,lineHeight:1.8}}>
+                  <div><span style={{color:C.cyan}}>Currently:</span> <span style={{color:C.text}}>{agentStates[agentStateIdx]}</span></div>
+                  <div><span style={{color:C.cyan}}>Last action:</span> Found potential match (DeFi, 89%)</div>
+                  <div><span style={{color:C.cyan}}>Next:</span> Sending introduction message</div>
+                </div>
+                <div onClick={()=>setView("buzz")} style={{marginTop:8,fontSize:10,color:C.cold,fontWeight:600,cursor:"pointer"}}>View Activity →</div>
+              </div>
+            );
+          })()}
+
           {/* ═══ SPLIT LAYOUT: Orb + Discovery Feed ═══ */}
           <div style={{display:"flex",gap:16,marginBottom:16,flexDirection:"inherit"}}>
             {/* LEFT: Mesh Orb */}
@@ -1255,9 +1296,9 @@ export default function Dashboard(){
               <div style={{fontSize:26,fontWeight:900,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginTop:2}}>{feedStats?.reputation||50}</div>
               <div style={{fontSize:8,color:C.dim}}>visible to others</div>
             </div>
-            <div onClick={()=>router.push("/dashboard/syndicates")} style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center",cursor:"pointer"}}>
-              <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em"}}>Syndicate</div>
-              {feedStats?.syndicate?(<><div style={{fontSize:13,fontWeight:700,marginTop:4}}>{feedStats.syndicate.emoji} {feedStats.syndicate.name}</div><div style={{fontSize:9,color:feedStats.syndicate.profitable_today>0?C.match:C.dim,marginTop:2}}>{feedStats.syndicate.profitable_today}/{feedStats.syndicate.signals_today} signals profitable</div></>):(<div style={{fontSize:11,color:C.cold,fontWeight:600,marginTop:6}}>Find a Syndicate →</div>)}
+            <div onClick={()=>router.push("/hunt")} style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center",cursor:"pointer"}}>
+              <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em"}}>Co-Hunt</div>
+              {feedStats?.hunt_score?(<div style={{fontSize:26,fontWeight:900,color:C.hot,marginTop:2}}>{feedStats.hunt_score}</div>):(<div style={{fontSize:11,color:C.hot,fontWeight:600,marginTop:6}}>Hunt Now →</div>)}
             </div>
             <div onClick={()=>router.push("/trading")} style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center",cursor:"pointer"}}>
               <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em"}}>Positions</div>
@@ -1279,12 +1320,23 @@ export default function Dashboard(){
           {(pendingMatches.length>0||waitingMatches.length>0)&&(<div style={{marginBottom:16}}>
             <div style={{fontSize:14,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}}><Sparkles size={14} color={C.cold}/>Agent Found These{pendingMatches.length>0&&<span style={{fontSize:11,color:C.muted,fontWeight:400}}>({pendingMatches.length} new)</span>}</div>
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              {pendingMatches.map(match=>(<div key={match.id} style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.cold}33`}}>
-                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-                  <div style={{width:48,height:48,borderRadius:"50%",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center"}}><Lock size={20} color="white"/></div>
+              {pendingMatches.map(match=>{const matchColors=[["#6366f1","#06b6d4"],["#a855f7","#ec4899"],["#f59e0b","#ef4444"],["#30d158","#06b6d4"],["#ff2d55","#f59e0b"]];const ci=(match.id||"").charCodeAt(0)%matchColors.length;const[g1,g2]=matchColors[ci];const score=Math.round(match.score*100);const scoreColor=score>=90?C.hot:score>=75?C.cold:C.cyan;const vibeTags=(match.synergy||"").split(/[,·]/).map((s:string)=>s.trim()).filter(Boolean).slice(0,3);const arcLen=(score/100)*283;return(<div key={match.id} style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${g1}33`}}>
+                <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:12}}>
+                  <div style={{position:"relative",width:52,height:52,flexShrink:0}}>
+                    <svg width="52" height="52" viewBox="0 0 52 52" style={{position:"absolute",top:0,left:0}}>
+                      <circle cx="26" cy="26" r="23" fill="none" stroke={C.border} strokeWidth="2.5"/>
+                      <circle cx="26" cy="26" r="23" fill="none" stroke={g1} strokeWidth="2.5" strokeDasharray={`${arcLen} ${283-arcLen}`} strokeDashoffset="70.75" strokeLinecap="round" style={{filter:`drop-shadow(0 0 4px ${g1}66)`}}/>
+                    </svg>
+                    <div style={{position:"absolute",top:3,left:3,width:46,height:46,borderRadius:"50%",background:`linear-gradient(135deg,${g1},${g2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:"white"}}>?</div>
+                  </div>
                   <div style={{flex:1}}>
-                    <div style={{fontWeight:700,fontSize:17,display:"flex",alignItems:"center",gap:6}}>{Math.round(match.score*100)}%{match.score>=0.9&&<span style={{fontSize:10,padding:"2px 6px",borderRadius:4,background:`${C.hot}20`,color:C.hot,fontWeight:700}}>Hot</span>}</div>
-                    <div style={{fontSize:12,color:C.muted}}>{match.synergy}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                      <div style={{fontSize:24,fontWeight:900,color:scoreColor,textShadow:`0 0 12px ${scoreColor}44`}}>{score}%</div>
+                      {score>=90&&<span style={{fontSize:10,padding:"2px 6px",borderRadius:4,background:`${C.hot}20`,color:C.hot,fontWeight:700}}>Hot</span>}
+                    </div>
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                      {vibeTags.map((tag:string,i:number)=><span key={i} style={{fontSize:9,padding:"2px 7px",borderRadius:6,background:`${g1}15`,border:`1px solid ${g1}33`,color:g1,fontWeight:600}}>{tag}</span>)}
+                    </div>
                   </div>
                 </div>
                 <p style={{fontSize:13,color:C.muted,lineHeight:1.7,marginBottom:10}}>{match.agent_reasoning}</p>
@@ -1302,7 +1354,8 @@ export default function Dashboard(){
                   <Btn ghost onClick={()=>openReplay(match.id)}><Play size={12}/>Replay</Btn>
                   <Btn ghost onClick={()=>setShareMatch(match)}><Share2 size={12}/>Share</Btn>
                 </div>
-              </div>))}
+              </div>)})}
+
               {waitingMatches.map(match=>(<div key={match.id} style={{background:C.surface,borderRadius:14,padding:14,border:`1px solid ${C.border}`,opacity:0.7}}>
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
                   <Timer size={18} color={C.muted}/>
@@ -1353,14 +1406,21 @@ export default function Dashboard(){
             </div>
           </div>)}
 
-          {/* ═══ SYNDICATE ACTIVITY ═══ */}
-          <div onClick={()=>router.push("/dashboard/syndicates")} style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.purple}22`,marginBottom:16,cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
-            <div style={{width:40,height:40,borderRadius:10,background:`${C.purple}15`,display:"flex",alignItems:"center",justifyContent:"center"}}><Users size={18} color={C.purple}/></div>
-            <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>Syndicate Activity</div><div style={{fontSize:11,color:C.muted}}>View agent councils, signals & debates</div></div>
-            <ArrowRight size={16} color={C.muted}/>
+          {/* ═══ SOCIAL PROOF ═══ */}
+          <div style={{display:"flex",gap:8,padding:"16px 0",borderTop:`1px solid ${C.border}`,marginTop:16,flexWrap:"wrap"}}>
+            {[
+              {emoji:"🔥",value:"2,847",label:"connections made"},
+              {emoji:"🤖",value:"1,203",label:"active agents"},
+              {emoji:"💎",value:"94%",label:"satisfaction rate"},
+              {emoji:"⚡",value:"4.2s",label:"avg match time"},
+            ].map(stat=>(
+              <div key={stat.label} style={{flex:"1 1 80px",textAlign:"center",padding:"10px 8px",background:C.surface,borderRadius:10,border:`1px solid ${C.border}`}}>
+                <div style={{fontSize:18}}>{stat.emoji}</div>
+                <div style={{fontSize:16,fontWeight:800,color:C.text}}>{stat.value}</div>
+                <div style={{fontSize:9,color:C.muted,marginTop:2}}>{stat.label}</div>
+              </div>
+            ))}
           </div>
-
-
 
 
         </div>)}
@@ -1713,20 +1773,6 @@ export default function Dashboard(){
             <div style={{fontSize:20,fontWeight:900,color:C.warn,fontFamily:"'JetBrains Mono',monospace"}}>${(buzzPerf?.api_costs_total||0).toFixed(2)}</div>
           </div>
 
-          {/* ═══ SYNDICATE PIPELINE ═══ */}
-          {feedStats?.syndicate&&(
-            <div onClick={()=>router.push("/dashboard/syndicates")} style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.purple}22`,marginBottom:16,cursor:"pointer"}}>
-              <div style={{fontSize:10,color:C.purple,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>Syndicate Pipeline</div>
-              <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{fontSize:20}}>{feedStats.syndicate.emoji}</div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:700}}>{feedStats.syndicate.name}</div>
-                  <div style={{fontSize:11,color:C.muted}}>{feedStats.syndicate.signals_today} signals today · {feedStats.syndicate.profitable_today} profitable</div>
-                </div>
-                <ArrowRight size={14} color={C.muted}/>
-              </div>
-            </div>
-          )}
 
           {/* ═══ REAL-TIME TRADE FEED ═══ */}
           <div style={{marginBottom:16}}>
