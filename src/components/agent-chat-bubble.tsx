@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { X, Send, Minimize2 } from "lucide-react";
 
 const C = {
@@ -168,30 +168,7 @@ function PlasmaOrb({
   return <canvas ref={canvasRef} style={{ display: "block", borderRadius: "50%" }} />;
 }
 
-// ── Floating physics hook ──
-function useFloatingPosition(isMobile: boolean, isOpen: boolean) {
-  const baseX = typeof window !== "undefined" ? (isMobile ? window.innerWidth - 76 : window.innerWidth - 88) : 300;
-  const baseY = typeof window !== "undefined" ? (isMobile ? window.innerHeight - 160 : window.innerHeight - 104) : 500;
 
-  const x = useMotionValue(baseX);
-  const y = useMotionValue(baseY);
-  const springX = useSpring(x, { stiffness: 80, damping: 20 });
-  const springY = useSpring(y, { stiffness: 80, damping: 20 });
-
-  // Gentle idle float
-  useEffect(() => {
-    if (isOpen) return;
-    let t = 0;
-    const iv = setInterval(() => {
-      t += 0.02;
-      x.set(baseX + Math.sin(t * 0.7) * 6);
-      y.set(baseY + Math.sin(t) * 8);
-    }, 16);
-    return () => clearInterval(iv);
-  }, [isOpen, baseX, baseY, x, y]);
-
-  return { x: springX, y: springY };
-}
 
 function formatTime(ts: number) {
   const d = new Date(ts);
@@ -216,7 +193,7 @@ export default function AgentChatBubble() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { x, y } = useFloatingPosition(isMobile, open);
+
 
   useEffect(() => {
     setMounted(true);
@@ -322,14 +299,21 @@ export default function AgentChatBubble() {
       <AnimatePresence>
         {!open && (
           <motion.div
-            drag
-            dragMomentum={false}
-            onDragStart={() => setIsDragging(true)}
-            onDragEnd={() => setTimeout(() => setIsDragging(false), 100)}
-            style={{ x, y, position: "fixed", zIndex: 9999, cursor: isDragging ? "grabbing" : "grab" }}
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.95 }}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.92 }}
             onClick={handleOrbClick}
+            style={{
+              position: "fixed",
+              bottom: isMobile ? 88 : 32,
+              right: isMobile ? 16 : 32,
+              zIndex: 99999,
+              cursor: "pointer",
+              animation: "orbFloat 4s ease-in-out infinite",
+            }}
           >
             {/* Outer atmospheric glow */}
             <div style={{
@@ -584,6 +568,11 @@ export default function AgentChatBubble() {
       </AnimatePresence>
 
       <style>{`
+        @keyframes orbFloat {
+          0%, 100% { transform: translateY(0px); }
+          33% { transform: translateY(-8px); }
+          66% { transform: translateY(-4px); }
+        }
         @keyframes atmospherePulse {
           0%,100% { opacity:0.6; transform:scale(1); }
           50% { opacity:1; transform:scale(1.08); }
