@@ -405,8 +405,16 @@ export default function Dashboard(){
 
   async function checkAuth(){
     // Use our custom SIWE session instead of Supabase auth
-    const sessionRes=await fetch("/api/auth/siwe/session");
-    const sessionData=await sessionRes.json();
+    // Retry up to 3 times — new users may have cookie propagation delay
+    let sessionData:any = {user:null};
+    for(let attempt=0;attempt<3;attempt++){
+      try{
+        const sessionRes=await fetch("/api/auth/siwe/session");
+        sessionData=await sessionRes.json();
+        if(sessionData.user) break;
+      }catch(e){}
+      if(attempt<2) await new Promise(r=>setTimeout(r,800));
+    }
     if(!sessionData.user){router.push("/auth/signin");return;}
     const uid=sessionData.user.id;
 
@@ -718,8 +726,10 @@ export default function Dashboard(){
     const{error:updateErr}=await supabase.from("users").update({name:form.name,bio:form.bio,industry:form.industry,building:form.building,looking_for:form.looking_for,location:form.location,avatar_url:form.avatar_url,socials:{website:form.website,x:form.x_handle,linkedin:form.linkedin},onboarded:true}).eq("id",user.id);
     if(updateErr){alert(updateErr.message?.includes("users_name_unique")?"Username already taken.":"Save failed: "+updateErr.message);return;}
     // Generate agent
-    const res=await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"generate_agent"})});
-    const{agent:ag}=await res.json();
+    const matchRes=await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"generate_agent"})});
+    const matchData=await matchRes.json();
+    if(!matchRes.ok){console.error("generate_agent failed:",matchData);alert("Something went wrong setting up your agent. Please refresh and try again.");return;}
+    const ag=matchData.agent;
     setAgent(ag);
     // Save agent personality
     if(ag?.id||ag?.user_id){
