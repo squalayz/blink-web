@@ -1313,7 +1313,8 @@ export default function Dashboard(){
       <div style={{padding:"8px 16px 10px",display:"flex",gap:6,borderBottom:`1px solid ${C.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",msOverflowStyle:"none"}}>
         {[
           {id:"mesh",label:"Connect",icon:<svg width="15" height="13" viewBox="0 0 28 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="7" cy="13" r="5"/><circle cx="21" cy="13" r="5"/><path d="M12 13h4"/><path d="M7 8V5l3-3h8l3 3v3"/><path d="M12 8h4"/></svg>},
-          {id:"brew",label:"My Agent",icon:<Cpu size={13}/>},
+          {id:"agent",label:"Agent",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/></svg>},
+          {id:"brew",label:"Wallet",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="14" r="1.5" fill="currentColor" stroke="none"/></svg>},
           {id:"buzz",label:"Stats",icon:<TrendingUp size={13}/>},
           {id:"evolve",label:"Grow",icon:<Sparkles size={13}/>},
         ].map(t=>(
