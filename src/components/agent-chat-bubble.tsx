@@ -228,7 +228,7 @@ export default function AgentChatBubble() {
       setTimeout(() => {
         setMessages([{
           id: crypto.randomUUID(), role: "agent",
-          content: "Hey 👋 I'm your agent. I trade, connect, and learn — all for you. What do you need?",
+          content: `Hey 👋 I'm your AI brain — the orb you see floating on every page.\n\nI control everything: I hunt tokens for you, find people worth meeting, learn how you think, and get smarter every night while you sleep.\n\nTell me what you want. I'm always listening. 🧠`,
           timestamp: Date.now(),
         }]);
       }, 400);
@@ -346,6 +346,30 @@ export default function AgentChatBubble() {
                 {unreadCount}
               </motion.div>
             )}
+
+            {/* Tooltip */}
+            <div style={{
+              position: "absolute", bottom: 68, right: 0,
+              background: "rgba(13,13,20,0.95)",
+              border: `1px solid rgba(99,102,241,0.3)`,
+              borderRadius: 10, padding: "7px 12px",
+              fontSize: 11.5, color: C.text, whiteSpace: "nowrap",
+              pointerEvents: "none", opacity: 0,
+              boxShadow: `0 4px 20px rgba(0,0,0,0.4)`,
+              transition: "opacity 0.2s",
+              fontWeight: 500,
+            }}
+              className="orb-tooltip"
+            >
+              🧠 Your AI Brain — tap to talk
+              <div style={{
+                position: "absolute", bottom: -5, right: 20,
+                width: 8, height: 8, background: "rgba(13,13,20,0.95)",
+                border: `1px solid rgba(99,102,241,0.3)`,
+                borderRight: "none", borderTop: "none",
+                transform: "rotate(-45deg)",
+              }} />
+            </div>
 
             {/* "thinking" label when active */}
             {(orbState === "thinking" || orbState === "speaking") && (
@@ -568,6 +592,8 @@ export default function AgentChatBubble() {
       </AnimatePresence>
 
       <style>{`
+        .orb-tooltip { opacity: 0 !important; }
+        *:hover > .orb-tooltip { opacity: 1 !important; }
         @keyframes orbFloat {
           0%, 100% { transform: translateY(0px); }
           33% { transform: translateY(-8px); }
