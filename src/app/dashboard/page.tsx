@@ -1434,15 +1434,15 @@ export default function Dashboard(){
           {/* ═══ YOUR STATS ═══ — real data only */}
           <div style={{display:"flex",gap:8,padding:"16px 0",borderTop:`1px solid ${C.border}`,marginTop:16,flexWrap:"wrap"}}>
             {[
-              {emoji:"🤝",value:matches.length,label:"your connections"},
-              {emoji:"💬",value:matches.filter((m:any)=>m.conversation_count>0).length,label:"conversations started"},
-              {emoji:"⭐",value:agent?.reputation_score?agent.reputation_score.toFixed(1):"—",label:"reputation score"},
-              {emoji:"🔥",value:streak?.current_streak||0,label:"day streak"},
+              {icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M17 20h5v-2a3 3 0 0 0-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 0 1 5.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 0 1 9.288 0M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" stroke={C.cold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>, color:C.cold, value:matches.length, label:"connections"},
+              {icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Z" stroke={C.cyan} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><circle cx="8" cy="10" r="1" fill={C.cyan}/><circle cx="12" cy="10" r="1" fill={C.cyan}/><circle cx="16" cy="10" r="1" fill={C.cyan}/></svg>, color:C.cyan, value:matches.filter((m:any)=>m.conversation_count>0).length, label:"conversations"},
+              {icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2Z" stroke={C.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill={agent?.reputation_score?`${C.gold}30`:"none"}/></svg>, color:C.gold, value:agent?.reputation_score?agent.reputation_score.toFixed(1):"—", label:"reputation"},
+              {icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M13 2L4.5 13.5H12L11 22l8.5-11.5H12L13 2Z" stroke="#ff9f0a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill={(streak?.current_streak||0)>0?"rgba(255,159,10,0.2)":"none"}/></svg>, color:"#ff9f0a", value:streak?.current_streak||0, label:"day streak"},
             ].map(stat=>(
-              <div key={stat.label} style={{flex:"1 1 80px",textAlign:"center",padding:"10px 8px",background:C.surface,borderRadius:10,border:`1px solid ${C.border}`}}>
-                <div style={{fontSize:18}}>{stat.emoji}</div>
-                <div style={{fontSize:16,fontWeight:800,color:C.text}}>{stat.value}</div>
-                <div style={{fontSize:9,color:C.muted,marginTop:2}}>{stat.label}</div>
+              <div key={stat.label} style={{flex:"1 1 80px",textAlign:"center",padding:"12px 8px",background:C.surface,borderRadius:12,border:`1px solid ${C.border}`,display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+                <div style={{width:38,height:38,borderRadius:10,background:`${stat.color}12`,border:`1px solid ${stat.color}25`,display:"flex",alignItems:"center",justifyContent:"center"}}>{stat.icon}</div>
+                <div style={{fontSize:18,fontWeight:900,color:stat.color,lineHeight:1}}>{stat.value}</div>
+                <div style={{fontSize:9,color:C.muted,fontWeight:500,textTransform:"uppercase",letterSpacing:"0.05em"}}>{stat.label}</div>
               </div>
             ))}
           </div>
