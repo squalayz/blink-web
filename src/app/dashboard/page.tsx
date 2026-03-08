@@ -1431,13 +1431,13 @@ export default function Dashboard(){
             </div>
           </div>)}
 
-          {/* ═══ SOCIAL PROOF ═══ */}
+          {/* ═══ YOUR STATS ═══ — real data only */}
           <div style={{display:"flex",gap:8,padding:"16px 0",borderTop:`1px solid ${C.border}`,marginTop:16,flexWrap:"wrap"}}>
             {[
-              {emoji:"🔥",value:"2,847",label:"connections made"},
-              {emoji:"🤖",value:"1,203",label:"active agents"},
-              {emoji:"💎",value:"94%",label:"satisfaction rate"},
-              {emoji:"⚡",value:"4.2s",label:"avg match time"},
+              {emoji:"🤝",value:matches.length,label:"your connections"},
+              {emoji:"💬",value:matches.filter((m:any)=>m.conversation_count>0).length,label:"conversations started"},
+              {emoji:"⭐",value:agent?.reputation_score?agent.reputation_score.toFixed(1):"—",label:"reputation score"},
+              {emoji:"🔥",value:streak?.current_streak||0,label:"day streak"},
             ].map(stat=>(
               <div key={stat.label} style={{flex:"1 1 80px",textAlign:"center",padding:"10px 8px",background:C.surface,borderRadius:10,border:`1px solid ${C.border}`}}>
                 <div style={{fontSize:18}}>{stat.emoji}</div>
