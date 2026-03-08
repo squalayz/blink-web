@@ -398,6 +398,9 @@ export default function Dashboard(){
   const[showPrefSetup,setShowPrefSetup]=useState(false);
   const[userPrefs,setUserPrefs]=useState<any>(null);
   const[orbTheme,setOrbTheme]=useState("indigo");
+  const agentOrbCanvasRef=useRef<HTMLCanvasElement>(null);
+  const agentOrbAnimRef=useRef<number>(0);
+  const agentOrbTRef=useRef(0);
   const[agentStateIdx,setAgentStateIdx]=useState(0);
   const[selectedMatch,setSelectedMatch]=useState<any>(null);
   const matchesCanvasRef=useRef<HTMLCanvasElement>(null);
@@ -525,6 +528,96 @@ export default function Dashboard(){
     af.current=requestAnimationFrame(draw);
     return()=>cancelAnimationFrame(af.current);
   },[view,matches,user?.id]);
+
+  // Agent orb canvas — live plasma orb with theme colors
+  useEffect(()=>{
+    if(view!=="agent")return;
+    const canvas=agentOrbCanvasRef.current; if(!canvas)return;
+    const parent=canvas.parentElement; if(!parent)return;
+    const ctx=canvas.getContext("2d"); if(!ctx)return;
+    const S=Math.min(parent.offsetWidth,340);
+    const dpr=window.devicePixelRatio||1;
+    canvas.width=S*dpr; canvas.height=S*dpr;
+    canvas.style.width=S+"px"; canvas.style.height=S+"px";
+    ctx.scale(dpr,dpr);
+    const cx=S/2, cy=S/2;
+    const ORB_THEMES_MAP:Record<string,string[]>={
+      indigo:["#6366f1","#818cf8","#06b6d4"],
+      fire:["#ff2d55","#ff6b35","#ff9f0a"],
+      matrix:["#30d158","#34d399","#06b6d4"],
+      gold:["#ffd700","#f59e0b","#ff9f0a"],
+      plasma:["#a855f7","#c084fc","#ec4899"],
+      void:["#6b6b80","#9ca3af","#3a3a4a"],
+    };
+    let lastTheme=orbTheme;
+    cancelAnimationFrame(agentOrbAnimRef.current);
+    const draw=(ts:number)=>{
+      agentOrbTRef.current+=0.018;
+      const t=agentOrbTRef.current;
+      const cols=ORB_THEMES_MAP[lastTheme]||ORB_THEMES_MAP.indigo;
+      const [c1,c2,c3]=cols;
+      ctx.clearRect(0,0,S,S);
+      // Outer atmospheric glow
+      const outerR=S*0.42+Math.sin(t*0.7)*S*0.02;
+      const outerGlow=ctx.createRadialGradient(cx,cy,outerR*0.3,cx,cy,outerR+S*0.15);
+      outerGlow.addColorStop(0,c1+"30"); outerGlow.addColorStop(0.5,c3+"10"); outerGlow.addColorStop(1,"transparent");
+      ctx.beginPath(); ctx.arc(cx,cy,outerR+S*0.15,0,Math.PI*2); ctx.fillStyle=outerGlow; ctx.fill();
+      // Secondary halo
+      const haloR=S*0.32+Math.sin(t*1.1)*S*0.012;
+      const halo=ctx.createRadialGradient(cx,cy,haloR*0.5,cx,cy,haloR+S*0.08);
+      halo.addColorStop(0,c2+"40"); halo.addColorStop(1,"transparent");
+      ctx.beginPath(); ctx.arc(cx,cy,haloR+S*0.08,0,Math.PI*2); ctx.fillStyle=halo; ctx.fill();
+      // Rotating dashed ring
+      ctx.save(); ctx.translate(cx,cy); ctx.rotate(t*0.3);
+      ctx.beginPath(); ctx.arc(0,0,S*0.3,0,Math.PI*2);
+      ctx.strokeStyle=c1+"50"; ctx.lineWidth=1; ctx.setLineDash([6,10]); ctx.stroke();
+      ctx.restore(); ctx.setLineDash([]);
+      // Second ring (counter-rotate)
+      ctx.save(); ctx.translate(cx,cy); ctx.rotate(-t*0.18);
+      ctx.beginPath(); ctx.arc(0,0,S*0.35,0,Math.PI*2);
+      ctx.strokeStyle=c3+"30"; ctx.lineWidth=0.8; ctx.setLineDash([3,14]); ctx.stroke();
+      ctx.restore(); ctx.setLineDash([]);
+      // Morphing blob body
+      const blobR=S*0.22;
+      ctx.beginPath();
+      const pts=8;
+      for(let i=0;i<=pts;i++){
+        const ang=(i/pts)*Math.PI*2;
+        const wobble=blobR*(1+0.08*Math.sin(t*2.1+i*1.3)+0.05*Math.cos(t*1.7+i*2.1));
+        const bx=cx+Math.cos(ang)*wobble;
+        const by=cy+Math.sin(ang)*wobble;
+        i===0?ctx.moveTo(bx,by):ctx.lineTo(bx,by);
+      }
+      ctx.closePath();
+      const bodyGrad=ctx.createRadialGradient(cx-S*0.06,cy-S*0.06,S*0.01,cx,cy,S*0.24);
+      bodyGrad.addColorStop(0,"rgba(255,255,255,0.35)");
+      bodyGrad.addColorStop(0.2,c1+"ff");
+      bodyGrad.addColorStop(0.6,c2+"dd");
+      bodyGrad.addColorStop(1,c3+"88");
+      ctx.fillStyle=bodyGrad; ctx.fill();
+      // Specular highlight
+      const specR=S*0.09;
+      const specGrad=ctx.createRadialGradient(cx-S*0.07,cy-S*0.08,0,cx-S*0.07,cy-S*0.08,specR);
+      specGrad.addColorStop(0,"rgba(255,255,255,0.55)"); specGrad.addColorStop(1,"transparent");
+      ctx.beginPath(); ctx.arc(cx-S*0.07,cy-S*0.08,specR,0,Math.PI*2); ctx.fillStyle=specGrad; ctx.fill();
+      // Orbiting sparks
+      [0,Math.PI/2,Math.PI,3*Math.PI/2].forEach((offset,i)=>{
+        const sparkAngle=t*0.9+offset;
+        const sparkR=S*(0.26+0.04*Math.sin(t*1.3+i));
+        const sx=cx+Math.cos(sparkAngle)*sparkR;
+        const sy=cy+Math.sin(sparkAngle)*sparkR;
+        const alpha=0.5+0.4*Math.sin(t*2+i*1.2);
+        ctx.beginPath(); ctx.arc(sx,sy,2,0,Math.PI*2);
+        ctx.fillStyle=i%2===0?c1+Math.round(alpha*255).toString(16).padStart(2,"0"):c3+Math.round(alpha*255).toString(16).padStart(2,"0");
+        ctx.fill();
+      });
+      agentOrbAnimRef.current=requestAnimationFrame(draw);
+    };
+    agentOrbAnimRef.current=requestAnimationFrame(draw);
+    // Update theme ref when orbTheme changes without re-running effect
+    lastTheme=orbTheme;
+    return()=>cancelAnimationFrame(agentOrbAnimRef.current);
+  },[view,orbTheme]);
 
   const[form,setForm]=useState({name:"",bio:"",industry:"",building:"",looking_for:"",location:"",website:"",x_handle:"",linkedin:"",avatar_url:"",agent_style:"professional",agent_instructions:""});
   const[obStep,setObStep]=useState(1);
@@ -1470,52 +1563,78 @@ export default function Dashboard(){
         {/* ═══════════════════════════════════════════════════════════
            TAB: MY AGENT — Orb Customizer + Brain + Personality
            ═══════════════════════════════════════════════════════════ */}
-        {view==="agent"&&(<div>
-  <h2 style={{fontSize:22,fontWeight:800,marginBottom:4,letterSpacing:"-0.3px",display:"flex",alignItems:"center",gap:8}}>
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/></svg>
-    My Agent
-  </h2>
-  <div style={{fontSize:13,color:C.muted,marginBottom:20,lineHeight:1.5}}>Your AI companion. Customize how it looks, thinks, and trades.</div>
+        {view==="agent"&&(<div style={{paddingBottom:8}}>
+          {/* ══════════════════════════════════════════════
+              HERO — Full-width floating orb + color picker
+              ══════════════════════════════════════════════ */}
+          {(()=>{
+            const ORB_THEMES=[
+              {id:"indigo",label:"Indigo",c1:"#6366f1",c2:"#06b6d4"},
+              {id:"fire",label:"Fire",c1:"#ff2d55",c2:"#ff9f0a"},
+              {id:"matrix",label:"Matrix",c1:"#30d158",c2:"#06b6d4"},
+              {id:"gold",label:"Gold",c1:"#ffd700",c2:"#ff9f0a"},
+              {id:"plasma",label:"Plasma",c1:"#a855f7",c2:"#ec4899"},
+              {id:"void",label:"Void",c1:"#6b6b80",c2:"#3a3a4a"},
+            ];
+            const theme=ORB_THEMES.find(t=>t.id===orbTheme)||ORB_THEMES[0];
+            const brainOn=!!user?.ai_api_key_encrypted;
+            return(
+              <div style={{position:"relative",marginBottom:0,borderRadius:24,overflow:"hidden",background:"rgba(6,6,12,0.98)",border:`1px solid ${theme.c1}22`,marginLeft:-20,marginRight:-20,marginTop:-4}}>
+                {/* Canvas fills top */}
+                <div style={{position:"relative",display:"flex",justifyContent:"center",alignItems:"center"}}>
+                  <canvas ref={agentOrbCanvasRef} style={{display:"block"}}/>
+                  {/* Overlay: name + status */}
+                  <div style={{position:"absolute",bottom:16,left:0,right:0,textAlign:"center",pointerEvents:"none"}}>
+                    <div style={{fontSize:18,fontWeight:900,color:"white",letterSpacing:"-0.4px",textShadow:`0 0 20px ${theme.c1}80`}}>
+                      {agent?.agent_name||user?.name?.split(" ")[0]+"'s Agent"||"My Agent"}
+                    </div>
+                    <div style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:3,background:"rgba(0,0,0,0.5)",borderRadius:20,padding:"3px 10px",backdropFilter:"blur(8px)",border:`1px solid ${brainOn?C.match+"44":"rgba(255,255,255,0.08)"}`}}>
+                      <div style={{width:6,height:6,borderRadius:"50%",background:brainOn?C.match:"rgba(107,107,128,0.6)",boxShadow:brainOn?`0 0 6px ${C.match}`:undefined}}/>
+                      <span style={{fontSize:10,color:brainOn?C.match:"rgba(107,107,128,0.8)",fontWeight:700}}>{brainOn?"Brain Connected":"Brain Offline"}</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Color picker row */}
+                <div style={{padding:"16px 20px 20px",background:"rgba(0,0,0,0.4)",backdropFilter:"blur(12px)"}}>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:"0.12em",fontWeight:700,textAlign:"center",marginBottom:12}}>
+                    Orb Color · visible to others in the Mesh
+                  </div>
+                  <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+                    {ORB_THEMES.map(t=>(
+                      <button key={t.id} onClick={()=>setOrbTheme(t.id)} title={t.label} style={{
+                        width:40,height:40,borderRadius:"50%",cursor:"pointer",outline:"none",
+                        background:`radial-gradient(circle at 35% 35%, ${t.c1}, ${t.c2}80)`,
+                        border:orbTheme===t.id?`2.5px solid white`:`2px solid transparent`,
+                        boxShadow:orbTheme===t.id?`0 0 0 2px ${t.c1}60, 0 0 16px ${t.c1}60`:`0 0 8px ${t.c1}20`,
+                        transform:orbTheme===t.id?"scale(1.15)":"scale(1)",
+                        transition:"all 0.18s ease",
+                      }}/>
+                    ))}
+                  </div>
+                  <div style={{textAlign:"center",fontSize:12,color:theme.c1,fontWeight:700,marginTop:10,letterSpacing:"0.05em"}}>{theme.label}</div>
+                </div>
+              </div>
+            );
+          })()}
 
-  {/* ── ORB CUSTOMIZER ── */}
-  {(()=>{
-    const ORB_THEMES=[
-      {id:"indigo",label:"Indigo",c1:"#6366f1",c2:"#06b6d4"},
-      {id:"fire",label:"Fire",c1:"#ff2d55",c2:"#ff9f0a"},
-      {id:"matrix",label:"Matrix",c1:"#30d158",c2:"#06b6d4"},
-      {id:"gold",label:"Gold",c1:"#ffd700",c2:"#ff9f0a"},
-      {id:"plasma",label:"Plasma",c1:"#a855f7",c2:"#ec4899"},
-      {id:"void",label:"Void",c1:"#6b6b80",c2:"#3a3a4a"},
-    ];
-    const theme=ORB_THEMES.find(t=>t.id===orbTheme)||ORB_THEMES[0];
-    return(
-      <div style={{background:C.surface,borderRadius:16,padding:20,border:`1px solid ${C.border}`,marginBottom:16}}>
-        <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>🔮 Orb Appearance</div>
-        <div style={{fontSize:11,color:C.dim,marginBottom:16}}>Your orb is visible to other users in the Mesh</div>
-        {/* Live orb preview */}
-        <div style={{display:"flex",justifyContent:"center",marginBottom:20}}>
-          <div style={{width:80,height:80,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%, ${theme.c1}, ${theme.c2}80)`,boxShadow:`0 0 30px ${theme.c1}60, 0 0 60px ${theme.c1}20`,border:`2px solid ${theme.c1}80`,display:"flex",alignItems:"center",justifyContent:"center",animation:"pulse 2s ease-in-out infinite"}}>
-            <span style={{fontSize:11,fontWeight:800,color:"white",textShadow:"0 0 8px rgba(0,0,0,0.5)"}}>YOU</span>
+          {/* ══════════════════════════════
+              SCROLLABLE SETTINGS BELOW ORB
+              ══════════════════════════════ */}
+          <div style={{padding:"0 4px"}}>
+          {/* Agent Name */}
+          <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginTop:16,marginBottom:12}}>
+            <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Agent Name</div>
+            <div style={{display:"flex",gap:8}}>
+              <input defaultValue={agent?.agent_name||""} placeholder="Name your agent..." id="agent-name-input"
+                style={{flex:1,background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:13,fontFamily:"inherit",fontWeight:600}}/>
+              <button onClick={async()=>{
+                const val=(document.getElementById("agent-name-input") as HTMLInputElement)?.value?.trim();
+                if(!val||!user?.id)return;
+                await supabase.from("agent_profiles").update({agent_name:val}).eq("user_id",user.id);
+                setAgent((a:any)=>({...a,agent_name:val}));
+              }} style={{padding:"10px 16px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
+            </div>
           </div>
-        </div>
-        {/* Theme picker */}
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginBottom:16}}>
-          {ORB_THEMES.map(t=>(
-            <button key={t.id} onClick={()=>setOrbTheme(t.id)} style={{
-              width:44,height:44,borderRadius:"50%",
-              background:`radial-gradient(circle at 35% 35%, ${t.c1}, ${t.c2}80)`,
-              border:orbTheme===t.id?`3px solid white`:`2px solid transparent`,
-              cursor:"pointer",
-              boxShadow:orbTheme===t.id?`0 0 16px ${t.c1}80`:`0 0 6px ${t.c1}30`,
-              transition:"all 0.2s",
-              outline:"none",
-            }} title={t.label}/>
-          ))}
-        </div>
-        <div style={{textAlign:"center",fontSize:11,color:C.muted,fontWeight:600}}>{theme.label} — {agent?.agent_name||"My Agent"}</div>
-      </div>
-    );
-  })()}
 
   {/* ── AGENT NAME ── */}
   <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
@@ -1673,16 +1792,16 @@ export default function Dashboard(){
     </div>
   </div>
 
-  {/* ── PROFILE SETTINGS (moved from profile tab) ── */}
-  <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
-    <div style={{fontSize:10,color:C.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>👤 Your Profile</div>
-    <button onClick={()=>setView("profile")} style={{width:"100%",padding:"10px",background:"rgba(255,255,255,0.04)",border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textAlign:"left",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-      <span>Edit profile, bio, industry, socials</span>
-      <span style={{color:C.muted}}>→</span>
-    </button>
-  </div>
-
-</div>)}
+          {/* Profile link */}
+          <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
+            <div style={{fontSize:10,color:C.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>Your Profile</div>
+            <button onClick={()=>setView("profile")} style={{width:"100%",padding:"10px",background:"rgba(255,255,255,0.04)",border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textAlign:"left" as const,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <span>Edit profile, bio, industry, socials</span>
+              <span style={{color:C.muted}}>→</span>
+            </button>
+          </div>
+          </div>{/* end padding wrapper */}
+        </div>)}
 
         {/* ═══════════════════════════════════════════════════════════
            TAB 1: THE MESH — Social Hub
