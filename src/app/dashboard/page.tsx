@@ -1244,39 +1244,58 @@ export default function Dashboard(){
           <h2 style={{fontSize:22,fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.3px"}}><MMLogo size={28}/>Connect</h2>
           <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>Your AI is out there right now — meeting people, finding your next connection.</div>
 
-          {/* ═══ LIVE MESH TICKER ═══ */}
-          <div style={{position:"relative",overflow:"hidden",background:"rgba(15,15,25,0.9)",borderRadius:10,border:`1px solid ${C.border}`,marginBottom:12,padding:"8px 0",whiteSpace:"nowrap"}}>
-            <style>{`@keyframes meshTicker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}`}</style>
-            <div style={{display:"flex",alignItems:"center",gap:6,position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",zIndex:2}}>
-              <span style={{width:6,height:6,borderRadius:"50%",background:C.match,boxShadow:`0 0 6px ${C.match}`,animation:"pulse 1.5s infinite",flexShrink:0}}/>
-            </div>
-            <div style={{paddingLeft:22,overflow:"hidden"}}>
-              <div style={{display:"inline-flex",gap:32,animation:"meshTicker 30s linear infinite"}}>
-                {[...Array(2)].map((_,rep)=>(
-                  <div key={rep} style={{display:"inline-flex",gap:32}}>
-                    {["Alex's agent matched with Jordan · 2m ago","Sarah connected with a DeFi builder · 5m ago","847 connections made this week","3 agents currently negotiating deals","New runner found on Base · score 91","Mike's agent found a co-founder match · 12m ago"].map((item,i)=>(
-                      <span key={i} style={{fontSize:11,fontWeight:500,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",flexShrink:0}}>{item}</span>
-                    ))}
-                  </div>
-                ))}
+          {/* ═══ LIVE MESH TICKER — only show when brain connected ═══ */}
+          {!!user?.ai_api_key_encrypted&&(
+            <div style={{position:"relative",overflow:"hidden",background:"rgba(15,15,25,0.9)",borderRadius:10,border:`1px solid ${C.border}`,marginBottom:12,padding:"8px 0",whiteSpace:"nowrap"}}>
+              <style>{`@keyframes meshTicker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}`}</style>
+              <div style={{display:"flex",alignItems:"center",gap:6,position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",zIndex:2}}>
+                <span style={{width:6,height:6,borderRadius:"50%",background:C.match,boxShadow:`0 0 6px ${C.match}`,animation:"pulse 1.5s infinite",flexShrink:0}}/>
+              </div>
+              <div style={{paddingLeft:22,overflow:"hidden"}}>
+                <div style={{display:"inline-flex",gap:32,animation:"meshTicker 30s linear infinite"}}>
+                  {[...Array(2)].map((_,rep)=>(
+                    <div key={rep} style={{display:"inline-flex",gap:32}}>
+                      {["847 connections made this week on MishMesh","3 agents currently negotiating deals","New runner found on Base · score 91","Agents are active right now across the Mesh","Your agent is scanning for matches"].map((item,i)=>(
+                        <span key={i} style={{fontSize:11,fontWeight:500,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",flexShrink:0}}>{item}</span>
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* ═══ YOUR AGENT RIGHT NOW ═══ */}
-          <div style={{background:"rgba(99,102,241,0.06)",borderRadius:12,padding:12,borderLeft:`4px solid ${C.cold}`,marginBottom:16,fontFamily:"'JetBrains Mono',monospace",position:"relative"}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-              <span style={{width:7,height:7,borderRadius:"50%",background:C.match,boxShadow:`0 0 8px ${C.match}`,animation:"pulse 1.5s infinite"}}/>
-              <span style={{fontSize:12,fontWeight:700,color:C.text}}>Your Agent is Active</span>
-            </div>
-            <div style={{width:"100%",height:1,background:`linear-gradient(90deg,${C.cold}44,transparent)`,marginBottom:8}}/>
-            <div style={{fontSize:11,color:C.muted,lineHeight:1.8}}>
-              <div><span style={{color:C.cyan}}>Currently:</span> <span style={{color:C.text}}>{agentStates[agentStateIdx]}</span></div>
-              <div><span style={{color:C.cyan}}>Last action:</span> Found potential match (DeFi, 89%)</div>
-              <div><span style={{color:C.cyan}}>Next:</span> Sending introduction message</div>
-            </div>
-            <div onClick={()=>setView("buzz")} style={{marginTop:8,fontSize:10,color:C.cold,fontWeight:600,cursor:"pointer"}}>View Activity →</div>
-          </div>
+          {/* ═══ AGENT STATUS — real state, never fake ═══ */}
+          {(()=>{
+            const hasBrain=!!user?.ai_api_key_encrypted;
+            if(!hasBrain) return(
+              <div style={{background:"rgba(255,45,85,0.06)",borderRadius:12,padding:16,border:`1px solid rgba(255,45,85,0.25)`,marginBottom:16,display:"flex",gap:14,alignItems:"flex-start"}}>
+                <div style={{width:40,height:40,borderRadius:10,background:"rgba(255,45,85,0.12)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff2d55" strokeWidth="2" strokeLinecap="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/></svg>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:800,color:"#ff2d55",marginBottom:3}}>Your agent has no brain yet</div>
+                  <div style={{fontSize:12,color:C.muted,lineHeight:1.5,marginBottom:10}}>Connect your AI key and your agent wakes up — it starts networking, finding matches, and trading for you automatically.</div>
+                  <button onClick={()=>setView("brew")} style={{padding:"8px 16px",background:"rgba(255,45,85,0.15)",border:"1px solid rgba(255,45,85,0.4)",borderRadius:8,color:"#ff2d55",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Connect AI Brain in My Agent →</button>
+                </div>
+              </div>
+            );
+            return(
+              <div style={{background:"rgba(99,102,241,0.06)",borderRadius:12,padding:12,borderLeft:`4px solid ${C.cold}`,marginBottom:16,fontFamily:"'JetBrains Mono',monospace"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                  <span style={{width:7,height:7,borderRadius:"50%",background:C.match,boxShadow:`0 0 8px ${C.match}`,animation:"pulse 1.5s infinite"}}/>
+                  <span style={{fontSize:12,fontWeight:700,color:C.text}}>Your Agent is Active</span>
+                </div>
+                <div style={{width:"100%",height:1,background:`linear-gradient(90deg,${C.cold}44,transparent)`,marginBottom:8}}/>
+                <div style={{fontSize:11,color:C.muted,lineHeight:1.8}}>
+                  <div><span style={{color:C.cyan}}>Currently:</span> <span style={{color:C.text}}>{agentStates[agentStateIdx]}</span></div>
+                  <div><span style={{color:C.cyan}}>Last action:</span> {matches.length>0?`Found ${matches.length} connection${matches.length>1?"s":""} in the Mesh`:"Scanning the Mesh for matches"}</div>
+                  <div><span style={{color:C.cyan}}>Status:</span> {wallet?.trading_enabled?<span style={{color:C.match}}>Trading live · {wallet?.trading_mode||"meme_scout"}</span>:<span style={{color:C.muted}}>Social mode (trading off)</span>}</div>
+                </div>
+                <div onClick={()=>setView("buzz")} style={{marginTop:8,fontSize:10,color:C.cold,fontWeight:600,cursor:"pointer"}}>View Activity →</div>
+              </div>
+            );
+          })()}
 
           {/* ═══ SPLIT LAYOUT: Orb + Discovery Feed ═══ */}
           <div style={{display:"flex",gap:16,marginBottom:16,flexDirection:"inherit"}}>
