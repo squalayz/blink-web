@@ -1639,7 +1639,10 @@ export default function Dashboard(){
 
   {/* ── AGENT NAME ── */}
   <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
-    <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>✏️ Agent Name</div>
+    <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10,display:"flex",alignItems:"center",gap:5}}>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="2.5" strokeLinecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      Agent Name
+    </div>
     <div style={{display:"flex",gap:8}}>
       <input
         defaultValue={agent?.agent_name||""}
@@ -1660,7 +1663,8 @@ export default function Dashboard(){
   <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${!!user?.ai_api_key_encrypted?C.match+"44":C.hot+"44"}`,marginBottom:16}}>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
       <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",color:!!user?.ai_api_key_encrypted?C.match:C.hot,display:"flex",alignItems:"center",gap:4}}>
-        🧠 Brain Power · {!!user?.ai_api_key_encrypted?"Connected":"Not Connected"}
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/></svg>
+        Brain Power · {!!user?.ai_api_key_encrypted?"Connected":"Not Connected"}
       </div>
       <div style={{width:8,height:8,borderRadius:"50%",background:!!user?.ai_api_key_encrypted?C.match:C.hot,boxShadow:`0 0 8px ${!!user?.ai_api_key_encrypted?C.match:C.hot}`,animation:"pulse 1.5s infinite"}}/>
     </div>
@@ -1668,10 +1672,16 @@ export default function Dashboard(){
       <div>
         <div style={{fontSize:12,color:C.muted,marginBottom:12,lineHeight:1.5}}>Your agent is running on your own AI. It learns from every conversation and gets smarter every night.</div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {[{label:"🔍 Smarter matching",desc:"Analyzes 50+ signals"},{label:"📈 Auto trading",desc:"Runs strategies 24/7"},{label:"🎯 Research loop",desc:"Self-improves overnight"},{label:"💬 Personality",desc:"Learns your style"}].map(f=>(
-            <div key={f.label} style={{flex:"1 1 120px",background:C.s2,borderRadius:8,padding:"8px 10px",border:`1px solid ${C.border}`}}>
+          {[
+            {icon:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>,label:"Smarter matching",desc:"Analyzes 50+ signals"},
+            {icon:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.match} strokeWidth="2" strokeLinecap="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,label:"Auto trading",desc:"Runs strategies 24/7"},
+            {icon:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2" strokeLinecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>,label:"Research loop",desc:"Self-improves overnight"},
+            {icon:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.purple} strokeWidth="2" strokeLinecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,label:"Personality",desc:"Learns your style"},
+          ].map(f=>(
+            <div key={f.label} style={{flex:"1 1 120px",background:C.s2,borderRadius:8,padding:"8px 10px",border:`1px solid ${C.border}`,display:"flex",flexDirection:"column" as const,gap:4}}>
+              {f.icon}
               <div style={{fontSize:11,fontWeight:700,color:C.text}}>{f.label}</div>
-              <div style={{fontSize:9,color:C.dim,marginTop:2}}>{f.desc}</div>
+              <div style={{fontSize:9,color:C.dim}}>{f.desc}</div>
             </div>
           ))}
         </div>
@@ -1679,23 +1689,34 @@ export default function Dashboard(){
     ):(
       <div>
         <div style={{fontSize:12,color:C.muted,marginBottom:12,lineHeight:1.5}}>Connect your own AI API key. Your agent uses YOUR credits — we charge nothing. Once connected, it starts matching, trading, and learning automatically.</div>
-        <button onClick={()=>setView("brew")} style={{width:"100%",padding:"12px",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>⚡ Connect AI Brain</button>
+        <button onClick={()=>setView("brew")} style={{width:"100%",padding:"12px",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Connect AI Brain
+        </button>
       </div>
     )}
   </div>
 
   {/* ── PERSONALITY ── */}
   <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
-    <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>🎭 Personality</div>
+    <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12,display:"flex",alignItems:"center",gap:5}}>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="2" strokeLinecap="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      Personality
+    </div>
     <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
-      {(["professional","friendly","aggressive","custom"] as const).map(s=>(
-        <button key={s} onClick={()=>setForm(f=>({...f,agent_style:s}))} style={{
-          padding:"10px 16px",fontSize:12,borderRadius:10,cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize",fontWeight:600,
-          background:form.agent_style===s?C.cold:"rgba(255,255,255,0.04)",
-          color:form.agent_style===s?"white":C.muted,
-          border:form.agent_style===s?`1px solid ${C.cold}`:`1px solid rgba(255,255,255,0.08)`,
-          transition:"all 0.2s",
-        }}>{s==="professional"?"💼 Pro":s==="friendly"?"😊 Friendly":s==="aggressive"?"⚡ Aggressive":"🎨 Custom"}</button>
+      {([
+        {id:"professional",label:"Pro",icon:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>},
+        {id:"friendly",label:"Friendly",icon:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 13s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>},
+        {id:"aggressive",label:"Aggressive",icon:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>},
+        {id:"custom",label:"Custom",icon:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>},
+      ] as const).map(s=>(
+        <button key={s.id} onClick={()=>setForm(f=>({...f,agent_style:s.id}))} style={{
+          padding:"10px 16px",fontSize:12,borderRadius:10,cursor:"pointer",fontFamily:"inherit",fontWeight:600,
+          background:form.agent_style===s.id?C.cold:"rgba(255,255,255,0.04)",
+          color:form.agent_style===s.id?"white":C.muted,
+          border:form.agent_style===s.id?`1px solid ${C.cold}`:`1px solid rgba(255,255,255,0.08)`,
+          transition:"all 0.2s",display:"flex",alignItems:"center",gap:5,
+        }}>{s.icon}{s.label}</button>
       ))}
     </div>
     {form.agent_style==="custom"&&(
@@ -1712,9 +1733,19 @@ export default function Dashboard(){
 
   {/* ── MATCH PREFERENCES ── */}
   <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
-    <div style={{fontSize:10,color:C.cyan,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>🎯 What I&apos;m Looking For</div>
+    <div style={{fontSize:10,color:C.cyan,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12,display:"flex",alignItems:"center",gap:5}}>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+      What I&apos;m Looking For
+    </div>
     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-      {[{id:"builder",label:"🔨 Builder",desc:"Co-builders"},{id:"investor",label:"💰 Investor",desc:"Capital + backing"},{id:"cofounder",label:"🚀 Co-Founder",desc:"Build together"},{id:"romantic",label:"❤️ Connection",desc:"Personal match"},{id:"mentor",label:"🧭 Mentor",desc:"Guidance"},{id:"collaborator",label:"🤝 Collab",desc:"Project work"}].map(opt=>{
+      {[
+        {id:"builder",label:"Builder",desc:"Co-builders",icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>},
+        {id:"investor",label:"Investor",desc:"Capital + backing",icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>},
+        {id:"cofounder",label:"Co-Founder",desc:"Build together",icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>},
+        {id:"romantic",label:"Connection",desc:"Personal match",icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>},
+        {id:"mentor",label:"Mentor",desc:"Guidance",icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>},
+        {id:"collaborator",label:"Collab",desc:"Project work",icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 11l-4-4-4 4"/><path d="M19 7v10"/></svg>},
+      ].map(opt=>{
         const selected=(userPrefs?.connection_types||[]).includes(opt.id);
         return(
           <button key={opt.id} onClick={async()=>{
@@ -1723,15 +1754,15 @@ export default function Dashboard(){
             setUserPrefs((p:any)=>({...p,connection_types:updated}));
             if(user?.id)await supabase.from("user_preferences").upsert({user_id:user.id,connection_types:updated},{onConflict:"user_id"});
           }} style={{
-            padding:"10px 14px",fontSize:11,borderRadius:10,cursor:"pointer",fontFamily:"inherit",fontWeight:600,
+            padding:"10px 12px",fontSize:11,borderRadius:10,cursor:"pointer",fontFamily:"inherit",fontWeight:600,
             background:selected?`${C.cyan}15`:"rgba(255,255,255,0.03)",
             color:selected?C.cyan:C.muted,
             border:selected?`1px solid ${C.cyan}44`:`1px solid rgba(255,255,255,0.07)`,
-            display:"flex",flexDirection:"column" as const,alignItems:"center",gap:2,minWidth:76,
+            display:"flex",flexDirection:"column" as const,alignItems:"center",gap:4,minWidth:72,
             transition:"all 0.15s",
           }}>
-            <span style={{fontSize:16}}>{opt.label.split(" ")[0]}</span>
-            <span>{opt.label.split(" ").slice(1).join(" ")}</span>
+            <span style={{opacity:selected?1:0.5}}>{opt.icon}</span>
+            <span style={{fontSize:11}}>{opt.label}</span>
             <span style={{fontSize:9,color:C.dim}}>{opt.desc}</span>
           </button>
         );
@@ -1741,33 +1772,46 @@ export default function Dashboard(){
 
   {/* ── TRADING DNA ── */}
   <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
-    <div style={{fontSize:10,color:C.warn,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>📈 Trading DNA</div>
+    <div style={{fontSize:10,color:C.warn,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12,display:"flex",alignItems:"center",gap:5}}>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.warn} strokeWidth="2" strokeLinecap="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+      Trading DNA
+    </div>
     <div style={{marginBottom:14}}>
       <div style={{fontSize:11,color:C.muted,marginBottom:6,display:"flex",justifyContent:"space-between"}}>
         <span>Risk Appetite</span>
-        <span style={{color:C.warn,fontWeight:700}}>{wallet?.risk_level==="low"?"🟢 Conservative":wallet?.risk_level==="high"?"🔴 Degen":"🟡 Balanced"}</span>
+        <span style={{color:C.warn,fontWeight:700}}>{wallet?.risk_level==="low"?"Conservative":wallet?.risk_level==="high"?"Degen":"Balanced"}</span>
       </div>
       <div style={{display:"flex",gap:6}}>
-        {(["low","medium","high"] as const).map(r=>(
-          <button key={r} onClick={()=>updateWalletSettings({risk_level:r})} style={{
-            flex:1,padding:"10px 8px",fontSize:11,borderRadius:8,cursor:"pointer",fontFamily:"inherit",fontWeight:600,textTransform:"capitalize",
-            background:wallet?.risk_level===r?`${C.warn}15`:"rgba(255,255,255,0.03)",
-            color:wallet?.risk_level===r?C.warn:C.muted,
-            border:wallet?.risk_level===r?`1px solid ${C.warn}44`:`1px solid rgba(255,255,255,0.07)`,
-          }}>{r==="low"?"🟢 Safe":r==="high"?"🔴 Degen":"🟡 Balanced"}</button>
+        {([
+          {id:"low",label:"Safe",icon:<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>},
+          {id:"medium",label:"Balanced",icon:<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>},
+          {id:"high",label:"Degen",icon:<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>},
+        ] as const).map(r=>(
+          <button key={r.id} onClick={()=>updateWalletSettings({risk_level:r.id})} style={{
+            flex:1,padding:"10px 8px",fontSize:11,borderRadius:8,cursor:"pointer",fontFamily:"inherit",fontWeight:600,
+            background:wallet?.risk_level===r.id?`${C.warn}15`:"rgba(255,255,255,0.03)",
+            color:wallet?.risk_level===r.id?C.warn:C.muted,
+            border:wallet?.risk_level===r.id?`1px solid ${C.warn}44`:`1px solid rgba(255,255,255,0.07)`,
+            display:"flex",alignItems:"center",justifyContent:"center",gap:4,
+          }}>{r.icon}{r.label}</button>
         ))}
       </div>
     </div>
     <div>
       <div style={{fontSize:11,color:C.muted,marginBottom:6}}>Trading Focus</div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-        {(["meme_scout","defi_hunter","bluechip"] as const).map(mode=>(
-          <button key={mode} onClick={()=>updateWalletSettings({trading_mode:mode})} style={{
+        {([
+          {id:"meme_scout",label:"Meme",icon:<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>},
+          {id:"defi_hunter",label:"DeFi",icon:<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="12" x2="12" y2="16"/></svg>},
+          {id:"bluechip",label:"Blue Chip",icon:<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>},
+        ] as const).map(mode=>(
+          <button key={mode.id} onClick={()=>updateWalletSettings({trading_mode:mode.id})} style={{
             flex:1,padding:"10px 8px",fontSize:11,borderRadius:8,cursor:"pointer",fontFamily:"inherit",fontWeight:600,
-            background:wallet?.trading_mode===mode?`${C.hot}15`:"rgba(255,255,255,0.03)",
-            color:wallet?.trading_mode===mode?C.hot:C.muted,
-            border:wallet?.trading_mode===mode?`1px solid ${C.hot}44`:`1px solid rgba(255,255,255,0.07)`,
-          }}>{mode==="meme_scout"?"🎭 Meme":mode==="defi_hunter"?"🏦 DeFi":"💎 Blue Chip"}</button>
+            background:wallet?.trading_mode===mode.id?`${C.hot}15`:"rgba(255,255,255,0.03)",
+            color:wallet?.trading_mode===mode.id?C.hot:C.muted,
+            border:wallet?.trading_mode===mode.id?`1px solid ${C.hot}44`:`1px solid rgba(255,255,255,0.07)`,
+            display:"flex",alignItems:"center",justifyContent:"center",gap:4,
+          }}>{mode.icon}{mode.label}</button>
         ))}
       </div>
     </div>
@@ -1775,7 +1819,10 @@ export default function Dashboard(){
 
   {/* ── RESEARCH LOOP ── */}
   <div style={{background:"rgba(99,102,241,0.05)",borderRadius:14,padding:16,border:`1px solid rgba(99,102,241,0.15)`,marginBottom:16}}>
-    <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>🔬 AutoResearch Loop</div>
+    <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8,display:"flex",alignItems:"center",gap:5}}>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="1"/><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5z"/><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5z"/></svg>
+      AutoResearch Loop
+    </div>
     <div style={{fontSize:12,color:C.muted,lineHeight:1.6,marginBottom:12}}>Every night your agent runs experiments, analyzes what worked, and rewrites its own trading rules. The longer it runs, the smarter it gets.</div>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:C.s2,borderRadius:8,border:`1px solid ${C.border}`}}>
       <div>
@@ -1795,7 +1842,10 @@ export default function Dashboard(){
 
           {/* Profile link */}
           <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
-            <div style={{fontSize:10,color:C.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>Your Profile</div>
+            <div style={{fontSize:10,color:C.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12,display:"flex",alignItems:"center",gap:5}}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Your Profile
+          </div>
             <button onClick={()=>setView("profile")} style={{width:"100%",padding:"10px",background:"rgba(255,255,255,0.04)",border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textAlign:"left" as const,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <span>Edit profile, bio, industry, socials</span>
               <span style={{color:C.muted}}>→</span>
