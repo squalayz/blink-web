@@ -393,6 +393,9 @@ export default function Dashboard(){
   // Discovery Engine state
   const[showPrefSetup,setShowPrefSetup]=useState(false);
   const[userPrefs,setUserPrefs]=useState<any>(null);
+  const[agentStateIdx,setAgentStateIdx]=useState(0);
+  const agentStates=["Scanning 847 profiles in the Mesh","Comparing your vibe with 12 new members","Reviewing token signals from your network","Looking for your next connection..."];
+  useEffect(()=>{const iv=setInterval(()=>setAgentStateIdx(p=>(p+1)%4),4000);return()=>clearInterval(iv);},[]);
 
   const[form,setForm]=useState({name:"",bio:"",industry:"",building:"",looking_for:"",location:"",website:"",x_handle:"",linkedin:"",avatar_url:"",agent_style:"professional",agent_instructions:""});
   const[obStep,setObStep]=useState(1);
@@ -1261,26 +1264,19 @@ export default function Dashboard(){
           </div>
 
           {/* ═══ YOUR AGENT RIGHT NOW ═══ */}
-          {(()=>{
-            const[agentStateIdx,setAgentStateIdx]=useState(0);
-            const agentStates=["Scanning 847 profiles in the Mesh","Comparing your vibe with 12 new members","Reviewing token signals from your network","Looking for your next connection..."];
-            useEffect(()=>{const iv=setInterval(()=>setAgentStateIdx(p=>(p+1)%4),4000);return()=>clearInterval(iv);},[]);
-            return(
-              <div style={{background:"rgba(99,102,241,0.06)",borderRadius:12,padding:12,borderLeft:`4px solid ${C.cold}`,marginBottom:16,fontFamily:"'JetBrains Mono',monospace",position:"relative"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                  <span style={{width:7,height:7,borderRadius:"50%",background:C.match,boxShadow:`0 0 8px ${C.match}`,animation:"pulse 1.5s infinite"}}/>
-                  <span style={{fontSize:12,fontWeight:700,color:C.text}}>Your Agent is Active</span>
-                </div>
-                <div style={{width:"100%",height:1,background:`linear-gradient(90deg,${C.cold}44,transparent)`,marginBottom:8}}/>
-                <div style={{fontSize:11,color:C.muted,lineHeight:1.8}}>
-                  <div><span style={{color:C.cyan}}>Currently:</span> <span style={{color:C.text}}>{agentStates[agentStateIdx]}</span></div>
-                  <div><span style={{color:C.cyan}}>Last action:</span> Found potential match (DeFi, 89%)</div>
-                  <div><span style={{color:C.cyan}}>Next:</span> Sending introduction message</div>
-                </div>
-                <div onClick={()=>setView("buzz")} style={{marginTop:8,fontSize:10,color:C.cold,fontWeight:600,cursor:"pointer"}}>View Activity →</div>
-              </div>
-            );
-          })()}
+          <div style={{background:"rgba(99,102,241,0.06)",borderRadius:12,padding:12,borderLeft:`4px solid ${C.cold}`,marginBottom:16,fontFamily:"'JetBrains Mono',monospace",position:"relative"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+              <span style={{width:7,height:7,borderRadius:"50%",background:C.match,boxShadow:`0 0 8px ${C.match}`,animation:"pulse 1.5s infinite"}}/>
+              <span style={{fontSize:12,fontWeight:700,color:C.text}}>Your Agent is Active</span>
+            </div>
+            <div style={{width:"100%",height:1,background:`linear-gradient(90deg,${C.cold}44,transparent)`,marginBottom:8}}/>
+            <div style={{fontSize:11,color:C.muted,lineHeight:1.8}}>
+              <div><span style={{color:C.cyan}}>Currently:</span> <span style={{color:C.text}}>{agentStates[agentStateIdx]}</span></div>
+              <div><span style={{color:C.cyan}}>Last action:</span> Found potential match (DeFi, 89%)</div>
+              <div><span style={{color:C.cyan}}>Next:</span> Sending introduction message</div>
+            </div>
+            <div onClick={()=>setView("buzz")} style={{marginTop:8,fontSize:10,color:C.cold,fontWeight:600,cursor:"pointer"}}>View Activity →</div>
+          </div>
 
           {/* ═══ SPLIT LAYOUT: Orb + Discovery Feed ═══ */}
           <div style={{display:"flex",gap:16,marginBottom:16,flexDirection:"inherit"}}>
