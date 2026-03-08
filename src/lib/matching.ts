@@ -23,7 +23,19 @@ async function callWithUserKey(userId: string, system: string, user: string, max
 
 // ── Generate Agent Profile (user's own key) ──
 export async function generateAgentProfile(user: User): Promise<Partial<AgentProfile>> {
-  const prompt = `Based on this person's profile, generate an AI agent that represents them for business matchmaking.
+  // Default fallback — always works even without an AI key
+  const defaultProfile = {
+    agent_name: user.name ? `${user.name.split(" ")[0]}'s Agent` : "My Agent",
+    summary: `AI agent representing ${user.name || "this user"}${user.industry ? ` in ${user.industry}` : ""}.${user.building ? ` Building: ${user.building}.` : ""}`,
+    capabilities: [user.building, user.industry].filter(Boolean),
+    collab_types: [user.looking_for].filter(Boolean),
+  };
+
+  try {
+    const config = await getUserAIConfig(user.id);
+    if (!config) return defaultProfile; // No AI key — use default, don't throw
+
+    const prompt = `Based on this person's profile, generate an AI agent that represents them for business matchmaking.
 
 Name: ${user.name}
 Industry: ${user.industry}
@@ -40,20 +52,17 @@ Respond ONLY with JSON:
   "collab_types": ["type1", "type2"]
 }`;
 
-  const raw = await callWithUserKey(
-    user.id,
-    "You generate AI agent profiles for a business matchmaking platform. Always respond with valid JSON only.",
-    prompt
-  );
-  try {
-    return JSON.parse(raw.replace(/```json?|```/g, "").trim());
+    const raw = await callUserLLM(config,
+      "You generate AI agent profiles for a business matchmaking platform. Always respond with valid JSON only.",
+      prompt
+    );
+    try {
+      return JSON.parse(raw.replace(/```json?|```/g, "").trim());
+    } catch {
+      return defaultProfile;
+    }
   } catch {
-    return {
-      agent_name: `${user.name}'s Agent`,
-      summary: `AI agent representing ${user.name} in ${user.industry}.`,
-      capabilities: [user.building],
-      collab_types: [user.looking_for],
-    };
+    return defaultProfile;
   }
 }
 
