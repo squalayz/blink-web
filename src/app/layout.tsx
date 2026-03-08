@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 import Providers from "@/components/providers";
 import NavBar from "@/components/navbar";
 import ErrorBoundary from "@/components/error-boundary";
+import AgentChatBubble from "@/components/agent-chat-bubble";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -56,6 +57,7 @@ export default function RootLayout({
           <ErrorBoundary>
             <NavBar />
             {children}
+            <AgentChatBubble />
           </ErrorBoundary>
         </Providers>
         <Analytics />

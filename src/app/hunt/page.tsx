@@ -7,6 +7,7 @@ import HuntTokenCard from "@/components/hunt-token-card";
 import HuntPulseViz from "@/components/hunt-pulse-viz";
 import MobileTabBar from "@/components/mobile-tab-bar";
 import CoHuntCard from "@/components/co-hunt-card";
+import NetworkSignalsCard from "@/components/network-signals-card";
 
 const C = {
   bg: "#0a0a0f", surface: "#0d0d14", s2: "#1a1a24",
@@ -222,6 +223,11 @@ export default function HuntPage() {
             {c.label}
           </button>
         ))}
+      </div>
+
+      {/* ── Network Signals ── */}
+      <div style={{ padding: "10px 14px 0" }}>
+        <NetworkSignalsCard />
       </div>
 
       {/* ── Co-Hunt Cards ── */}

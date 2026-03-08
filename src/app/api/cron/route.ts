@@ -61,6 +61,26 @@ export async function GET(req: NextRequest) {
       results.push("Low balance check completed");
     }
 
+    // 4b. AutoResearch optimization (nightly at 3am UTC)
+    if (hour === 3 && new Date().getMinutes() < 15) {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://mishmesh.ai";
+        const res = await fetch(`${baseUrl}/api/research/optimize`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.CRON_SECRET}`,
+          },
+          body: JSON.stringify({}),
+        });
+        const data = await res.json();
+        results.push(`AutoResearch: ${data.usersProcessed || 0} users optimized, ${data.totalRulesUpdated || 0} rules updated`);
+      } catch (e: any) {
+        console.error("AutoResearch error:", e.message);
+        results.push("AutoResearch failed: " + e.message?.slice(0, 50));
+      }
+    }
+
     // 5. Daily reports (14:00 UTC / ~8am EST)
     if (hour === 14) {
       await generateDailyReports();
