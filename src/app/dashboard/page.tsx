@@ -1170,10 +1170,10 @@ export default function Dashboard(){
       {/* ── Tabs ── */}
       <div style={{padding:"8px 16px 10px",display:"flex",gap:6,borderBottom:`1px solid ${C.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",msOverflowStyle:"none"}}>
         {[
-          {id:"mesh",label:"The Mesh",icon:<svg width="15" height="13" viewBox="0 0 28 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="7" cy="13" r="5"/><circle cx="21" cy="13" r="5"/><path d="M12 13h4"/><path d="M7 8V5l3-3h8l3 3v3"/><path d="M12 8h4"/></svg>},
-          {id:"brew",label:"The Brew",icon:<Cpu size={13}/>},
-          {id:"buzz",label:"The Buzz",icon:<TrendingUp size={13}/>},
-          {id:"evolve",label:"Evolve",icon:<Sparkles size={13}/>},
+          {id:"mesh",label:"Connect",icon:<svg width="15" height="13" viewBox="0 0 28 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="7" cy="13" r="5"/><circle cx="21" cy="13" r="5"/><path d="M12 13h4"/><path d="M7 8V5l3-3h8l3 3v3"/><path d="M12 8h4"/></svg>},
+          {id:"brew",label:"My Agent",icon:<Cpu size={13}/>},
+          {id:"buzz",label:"Stats",icon:<TrendingUp size={13}/>},
+          {id:"evolve",label:"Grow",icon:<Sparkles size={13}/>},
         ].map(t=>(
           <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="mesh"){if(!groupMeshes.length)loadGroupMeshes();if(!userPrefs)loadUserPrefs();}if(t.id==="brew"){if(!wallet)loadWallet();if(!nfts.length)loadNfts();if(!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();}}if(t.id==="buzz")loadBuzzData();if(t.id==="evolve"&&!referralStats)loadReferralStats();}} style={{
             flex:1,
@@ -1228,8 +1228,8 @@ export default function Dashboard(){
            TAB 1: THE MESH — Social Hub
            ═══════════════════════════════════════════════════════════ */}
         {view==="mesh"&&(<div>
-          <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><MMLogo size={28}/>The Mesh</h2>
-          <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Your agent networks autonomously. Matches arrive automatically.</div>
+          <h2 style={{fontSize:22,fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.3px"}}><MMLogo size={28}/>Connect</h2>
+          <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>Your AI is out there right now — meeting people, finding your next connection.</div>
 
           {/* ═══ LIVE MESH TICKER ═══ */}
           <div style={{position:"relative",overflow:"hidden",background:"rgba(15,15,25,0.9)",borderRadius:10,border:`1px solid ${C.border}`,marginBottom:12,padding:"8px 0",whiteSpace:"nowrap"}}>
@@ -1429,8 +1429,8 @@ export default function Dashboard(){
            TAB 2: THE BREW — Agent Workshop
            ═══════════════════════════════════════════════════════════ */}
         {view==="brew"&&(<div>
-          <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><Cpu size={20}/>The Brew</h2>
-          <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Build, tweak, and fuel your agent. One page for everything.</div>
+          <h2 style={{fontSize:22,fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.3px"}}><Cpu size={20}/>My Agent</h2>
+          <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>Tune your AI brain. Set your trading strategy. Control everything.</div>
 
           {/* ═══ AGENT PERSONALITY ═══ */}
           <div style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.border}`,marginBottom:16}}>
@@ -1468,7 +1468,7 @@ export default function Dashboard(){
             ];
             const activeMode=modes.find(m=>m.id===mode)||modes[0];
             return(
-          <div style={{background:`linear-gradient(135deg,${C.surface},${isOn?"rgba(99,102,241,0.06)":"rgba(255,255,255,0.01)"})`,borderRadius:16,padding:0,border:`1px solid ${isOn?"rgba(99,102,241,0.3)":C.border}`,marginBottom:16,overflow:"hidden",transition:"all 0.4s ease",boxShadow:isOn?"0 0 30px rgba(99,102,241,0.08)":"none"}}>
+          <div style={{background:`linear-gradient(135deg,${C.surface},${isOn?"rgba(99,102,241,0.06)":"rgba(255,255,255,0.01)"})`,borderRadius:16,padding:0,border:`1px solid ${isOn?"rgba(99,102,241,0.3)":C.border}`,marginBottom:16,overflow:"hidden",transition:"all 0.4s ease",boxShadow:isOn?"0 0 40px rgba(48,209,88,0.12), 0 0 80px rgba(99,102,241,0.06)":"none"}}>
             <div style={{padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${isOn?"rgba(99,102,241,0.15)":"rgba(255,255,255,0.04)"}`}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
                 <div style={{width:38,height:38,borderRadius:10,background:isOn?`linear-gradient(135deg,${activeMode.color},${C.cyan})`:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center"}}>{isOn?<activeMode.Icon size={18} color="white"/>:<Zap size={18} color="#6b6b80"/>}</div>
@@ -1673,8 +1673,8 @@ export default function Dashboard(){
            TAB 3: THE BUZZ — Live Command Center
            ═══════════════════════════════════════════════════════════ */}
         {view==="buzz"&&(<div>
-          <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><TrendingUp size={20}/>The Buzz</h2>
-          <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Live performance. Every trade, every signal, every number.</div>
+          <h2 style={{fontSize:22,fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.3px"}}><TrendingUp size={20}/>Stats</h2>
+          <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>Your agent's live performance. Every trade, every win, every number.</div>
 
           {/* ═══ AGENT STATUS ═══ */}
           {(()=>{
@@ -1692,7 +1692,7 @@ export default function Dashboard(){
                 <div style={{flex:1}}>
                   <div style={{fontSize:15,fontWeight:800,color:C.text}}>Agent {statusLabel}</div>
                   <div style={{fontSize:11,color:C.muted,marginTop:2}}>
-                    {status==="running"?`Strategy: ${wallet?.trading_mode||"meme_scout"} · Trading live`:status==="idle"?"Trading paused — activate in The Brew":"Connect AI brain in The Brew to start"}
+                    {status==="running"?`Strategy: ${wallet?.trading_mode||"meme_scout"} · Trading live`:status==="idle"?"Trading paused — activate in My Agent":"Connect AI brain in My Agent to start"}
                   </div>
                 </div>
                 <div style={{textAlign:"right"}}>
@@ -1785,7 +1785,7 @@ export default function Dashboard(){
               <div style={{background:C.surface,borderRadius:14,border:`1px solid ${C.border}`,padding:"28px 20px",textAlign:"center"}}>
                 <div style={{marginBottom:8,opacity:0.3}}><BarChart3 size={28}/></div>
                 <div style={{fontSize:12,color:C.muted}}>No trades yet</div>
-                <div style={{fontSize:11,color:C.dim,marginTop:4}}>Activate trading in The Brew to see activity here</div>
+                <div style={{fontSize:11,color:C.dim,marginTop:4}}>Activate trading in My Agent to see activity here</div>
               </div>
             ):(
               <div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -1830,8 +1830,8 @@ export default function Dashboard(){
            TAB 4: EVOLVE — Growth Engine
            ═══════════════════════════════════════════════════════════ */}
         {view==="evolve"&&(<div>
-          <h2 style={{fontSize:20,fontWeight:700,marginBottom:4,display:"flex",alignItems:"center",gap:8}}><Sparkles size={20}/>Evolve</h2>
-          <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Grow your agent. Earn rewards. Build your empire.</div>
+          <h2 style={{fontSize:22,fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.3px"}}><Sparkles size={20}/>Grow</h2>
+          <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>Refer friends. Unlock rewards. Evolve your agent into something legendary.</div>
 
           {/* ═══ REFERRALS ═══ */}
           <div style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.cold}33`,marginBottom:16}}>
