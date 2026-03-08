@@ -1170,7 +1170,7 @@ export default function Dashboard(){
       {/* ── Tabs ── */}
       <div style={{padding:"8px 16px 10px",display:"flex",gap:6,borderBottom:`1px solid ${C.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",msOverflowStyle:"none"}}>
         {[
-          {id:"mesh",label:"The Mesh",icon:<BarChart3 size={13}/>},
+          {id:"mesh",label:"The Mesh",icon:<svg width="15" height="13" viewBox="0 0 28 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="7" cy="13" r="5"/><circle cx="21" cy="13" r="5"/><path d="M12 13h4"/><path d="M7 8V5l3-3h8l3 3v3"/><path d="M12 8h4"/></svg>},
           {id:"brew",label:"The Brew",icon:<Cpu size={13}/>},
           {id:"buzz",label:"The Buzz",icon:<TrendingUp size={13}/>},
           {id:"evolve",label:"Evolve",icon:<Sparkles size={13}/>},
