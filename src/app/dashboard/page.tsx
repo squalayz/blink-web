@@ -549,73 +549,74 @@ export default function Dashboard(){
       plasma:["#a855f7","#c084fc","#ec4899"],
       void:["#6b6b80","#9ca3af","#3a3a4a"],
     };
-    let lastTheme=orbTheme;
     cancelAnimationFrame(agentOrbAnimRef.current);
-    const draw=(ts:number)=>{
+    const draw=()=>{
       agentOrbTRef.current+=0.018;
       const t=agentOrbTRef.current;
-      const cols=ORB_THEMES_MAP[lastTheme]||ORB_THEMES_MAP.indigo;
+      const cols=ORB_THEMES_MAP[orbTheme]||ORB_THEMES_MAP.indigo;
       const [c1,c2,c3]=cols;
       ctx.clearRect(0,0,S,S);
+      // Deep space background
+      const bgGrad=ctx.createRadialGradient(cx,cy,0,cx,cy,S*0.5);
+      bgGrad.addColorStop(0,"rgba(20,12,40,0.6)"); bgGrad.addColorStop(0.5,"rgba(8,8,18,0.5)"); bgGrad.addColorStop(1,"transparent");
+      ctx.fillStyle=bgGrad; ctx.fillRect(0,0,S,S);
       // Outer atmospheric glow
-      const outerR=S*0.42+Math.sin(t*0.7)*S*0.02;
-      const outerGlow=ctx.createRadialGradient(cx,cy,outerR*0.3,cx,cy,outerR+S*0.15);
-      outerGlow.addColorStop(0,c1+"30"); outerGlow.addColorStop(0.5,c3+"10"); outerGlow.addColorStop(1,"transparent");
-      ctx.beginPath(); ctx.arc(cx,cy,outerR+S*0.15,0,Math.PI*2); ctx.fillStyle=outerGlow; ctx.fill();
-      // Secondary halo
-      const haloR=S*0.32+Math.sin(t*1.1)*S*0.012;
-      const halo=ctx.createRadialGradient(cx,cy,haloR*0.5,cx,cy,haloR+S*0.08);
-      halo.addColorStop(0,c2+"40"); halo.addColorStop(1,"transparent");
-      ctx.beginPath(); ctx.arc(cx,cy,haloR+S*0.08,0,Math.PI*2); ctx.fillStyle=halo; ctx.fill();
+      const outerGlow=ctx.createRadialGradient(cx,cy,S*0.18,cx,cy,S*0.48);
+      outerGlow.addColorStop(0,c1+"28"); outerGlow.addColorStop(0.5,c3+"10"); outerGlow.addColorStop(1,"transparent");
+      ctx.beginPath(); ctx.arc(cx,cy,S*0.48,0,Math.PI*2); ctx.fillStyle=outerGlow; ctx.fill();
       // Rotating dashed ring
-      ctx.save(); ctx.translate(cx,cy); ctx.rotate(t*0.3);
+      ctx.save(); ctx.translate(cx,cy); ctx.rotate(t*0.4);
       ctx.beginPath(); ctx.arc(0,0,S*0.3,0,Math.PI*2);
-      ctx.strokeStyle=c1+"50"; ctx.lineWidth=1; ctx.setLineDash([6,10]); ctx.stroke();
+      ctx.strokeStyle=c1+"55"; ctx.lineWidth=1.2; ctx.setLineDash([5,9]); ctx.stroke();
       ctx.restore(); ctx.setLineDash([]);
-      // Second ring (counter-rotate)
-      ctx.save(); ctx.translate(cx,cy); ctx.rotate(-t*0.18);
-      ctx.beginPath(); ctx.arc(0,0,S*0.35,0,Math.PI*2);
-      ctx.strokeStyle=c3+"30"; ctx.lineWidth=0.8; ctx.setLineDash([3,14]); ctx.stroke();
+      // Counter ring
+      ctx.save(); ctx.translate(cx,cy); ctx.rotate(-t*0.22);
+      ctx.beginPath(); ctx.arc(0,0,S*0.36,0,Math.PI*2);
+      ctx.strokeStyle=c3+"30"; ctx.lineWidth=0.8; ctx.setLineDash([2,12]); ctx.stroke();
       ctx.restore(); ctx.setLineDash([]);
-      // Morphing blob body
-      const blobR=S*0.22;
-      ctx.beginPath();
-      const pts=8;
+      // ── Smooth morphing blob — 64 pts, same as real plasma orb ──
+      const r=S*0.22;
+      ctx.save(); ctx.translate(cx,cy); ctx.beginPath();
+      const pts=64;
       for(let i=0;i<=pts;i++){
-        const ang=(i/pts)*Math.PI*2;
-        const wobble=blobR*(1+0.08*Math.sin(t*2.1+i*1.3)+0.05*Math.cos(t*1.7+i*2.1));
-        const bx=cx+Math.cos(ang)*wobble;
-        const by=cy+Math.sin(ang)*wobble;
-        i===0?ctx.moveTo(bx,by):ctx.lineTo(bx,by);
+        const angle=(i/pts)*Math.PI*2;
+        const wobble=1
+          +Math.sin(angle*3+t*2.1)*0.06
+          +Math.sin(angle*5+t*1.4)*0.04
+          +Math.sin(angle*2+t*0.9)*0.03;
+        const rad=r*wobble;
+        const x=Math.cos(angle)*rad;
+        const y=Math.sin(angle)*rad;
+        i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
       }
       ctx.closePath();
-      const bodyGrad=ctx.createRadialGradient(cx-S*0.06,cy-S*0.06,S*0.01,cx,cy,S*0.24);
-      bodyGrad.addColorStop(0,"rgba(255,255,255,0.35)");
-      bodyGrad.addColorStop(0.2,c1+"ff");
-      bodyGrad.addColorStop(0.6,c2+"dd");
-      bodyGrad.addColorStop(1,c3+"88");
-      ctx.fillStyle=bodyGrad; ctx.fill();
-      // Specular highlight
-      const specR=S*0.09;
-      const specGrad=ctx.createRadialGradient(cx-S*0.07,cy-S*0.08,0,cx-S*0.07,cy-S*0.08,specR);
-      specGrad.addColorStop(0,"rgba(255,255,255,0.55)"); specGrad.addColorStop(1,"transparent");
-      ctx.beginPath(); ctx.arc(cx-S*0.07,cy-S*0.08,specR,0,Math.PI*2); ctx.fillStyle=specGrad; ctx.fill();
-      // Orbiting sparks
-      [0,Math.PI/2,Math.PI,3*Math.PI/2].forEach((offset,i)=>{
-        const sparkAngle=t*0.9+offset;
-        const sparkR=S*(0.26+0.04*Math.sin(t*1.3+i));
-        const sx=cx+Math.cos(sparkAngle)*sparkR;
-        const sy=cy+Math.sin(sparkAngle)*sparkR;
-        const alpha=0.5+0.4*Math.sin(t*2+i*1.2);
-        ctx.beginPath(); ctx.arc(sx,sy,2,0,Math.PI*2);
-        ctx.fillStyle=i%2===0?c1+Math.round(alpha*255).toString(16).padStart(2,"0"):c3+Math.round(alpha*255).toString(16).padStart(2,"0");
-        ctx.fill();
-      });
+      // Core gradient — radial from offset center (gives sphere feel)
+      const coreGrad=ctx.createRadialGradient(-r*0.2,-r*0.2,0,0,0,r);
+      coreGrad.addColorStop(0,"rgba(255,255,255,0.9)");
+      coreGrad.addColorStop(0.2,c1);
+      coreGrad.addColorStop(0.6,c2);
+      coreGrad.addColorStop(1,"rgba(0,0,0,0.3)");
+      ctx.fillStyle=coreGrad; ctx.fill();
+      // Specular highlight (sphere illusion)
+      const specGrad=ctx.createRadialGradient(-r*0.3,-r*0.35,0,-r*0.1,-r*0.1,r*0.7);
+      specGrad.addColorStop(0,"rgba(255,255,255,0.42)");
+      specGrad.addColorStop(0.4,"rgba(255,255,255,0.05)");
+      specGrad.addColorStop(1,"transparent");
+      ctx.fillStyle=specGrad; ctx.fill();
+      ctx.restore();
+      // Inner orbiting sparks
+      for(let i=0;i<3;i++){
+        const angle=t*2.5+(i*Math.PI*2)/3;
+        const sr=r*0.65;
+        const sx=cx+Math.cos(angle)*sr;
+        const sy=cy+Math.sin(angle)*sr;
+        const alpha=0.4+Math.sin(t*4+i)*0.3;
+        ctx.beginPath(); ctx.arc(sx,sy,2.2,0,Math.PI*2);
+        ctx.fillStyle=`rgba(255,255,255,${alpha})`; ctx.fill();
+      }
       agentOrbAnimRef.current=requestAnimationFrame(draw);
     };
     agentOrbAnimRef.current=requestAnimationFrame(draw);
-    // Update theme ref when orbTheme changes without re-running effect
-    lastTheme=orbTheme;
     return()=>cancelAnimationFrame(agentOrbAnimRef.current);
   },[view,orbTheme]);
 
