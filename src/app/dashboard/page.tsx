@@ -407,53 +407,116 @@ export default function Dashboard(){
   useEffect(()=>{
     if(view!=="matches")return;
     const canvas=matchesCanvasRef.current; if(!canvas)return;
+    const parent=canvas.parentElement;
     const ctx=canvas.getContext("2d"); if(!ctx)return;
-    const W=canvas.offsetWidth||canvas.parentElement?.offsetWidth||360; const H=260;
+    const W=parent?.offsetWidth||360; const H=300;
     canvas.width=W*window.devicePixelRatio; canvas.height=H*window.devicePixelRatio;
     ctx.scale(window.devicePixelRatio,window.devicePixelRatio);
+    canvas.style.width=W+"px"; canvas.style.height=H+"px";
     const cx=W/2, cy=H/2;
     const nodeCount=Math.min(matches.length,8);
     const nodes=matches.slice(0,nodeCount).map((m:any,i:number)=>{
       const angle=(i/Math.max(nodeCount,1))*Math.PI*2-(Math.PI/2);
-      const r=Math.min(W,H)*0.32;
+      const r=Math.min(W,H)*0.33;
       return{x:cx+Math.cos(angle)*r,y:cy+Math.sin(angle)*r,match:m,angle};
     });
-    let t=0; const af={current:0};
-    const draw=()=>{
+    // Floating particles for empty state
+    const particles=Array.from({length:18},(_,i)=>({
+      x:cx+(Math.sin(i*137.5*Math.PI/180)*W*0.42),
+      y:cy+(Math.cos(i*137.5*Math.PI/180)*H*0.38),
+      r:1+Math.random()*1.5, phase:Math.random()*Math.PI*2, speed:0.008+Math.random()*0.012,
+    }));
+    let t=0; const af={current:0}; let lastFrame=0;
+    const draw=(ts:number)=>{
+      if(ts-lastFrame<33){af.current=requestAnimationFrame(draw);return;}
+      lastFrame=ts;
       ctx.clearRect(0,0,W,H);
-      const bg=ctx.createRadialGradient(cx,cy,0,cx,cy,H*0.7);
-      bg.addColorStop(0,"rgba(99,102,241,0.06)"); bg.addColorStop(1,"transparent");
+      // Deep space bg
+      const bg=ctx.createRadialGradient(cx,cy,0,cx,cy,Math.max(W,H)*0.65);
+      bg.addColorStop(0,"rgba(30,20,60,0.5)"); bg.addColorStop(0.5,"rgba(10,10,25,0.4)"); bg.addColorStop(1,"transparent");
       ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
-      nodes.forEach((n:any)=>{
-        ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(n.x,n.y);
-        ctx.strokeStyle=`rgba(99,102,241,${0.15+Math.sin(t*0.02+n.angle)*0.08})`; ctx.lineWidth=1; ctx.stroke();
-        const progress=((t*0.008+n.angle/(Math.PI*2))%1+1)%1;
-        const px=cx+(n.x-cx)*progress; const py=cy+(n.y-cy)*progress;
-        ctx.beginPath(); ctx.arc(px,py,2.5,0,Math.PI*2);
-        ctx.fillStyle=`rgba(6,182,212,${0.6+Math.sin(t*0.05)*0.4})`; ctx.fill();
-      });
-      nodes.forEach((n:any)=>{
-        const wobble=Math.sin(t*0.025+n.angle)*3;
-        const nx=n.x+Math.cos(n.angle+t*0.01)*wobble; const ny=n.y+Math.sin(n.angle+t*0.01)*wobble;
-        const glow=ctx.createRadialGradient(nx,ny,0,nx,ny,22);
-        glow.addColorStop(0,"rgba(99,102,241,0.35)"); glow.addColorStop(1,"transparent");
-        ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(nx,ny,22,0,Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(nx,ny,14,0,Math.PI*2);
-        ctx.fillStyle="rgba(13,13,20,0.92)"; ctx.fill();
-        ctx.strokeStyle="rgba(99,102,241,0.7)"; ctx.lineWidth=1.5; ctx.stroke();
-        const other=n.match.user_a===user?.id?n.match.user_b_profile:n.match.user_a_profile;
-        const name=other?.name||"?";
-        ctx.fillStyle="#e8e8f0"; ctx.font="bold 10px -apple-system,sans-serif";
+
+      if(nodeCount===0){
+        // ── EMPTY STATE: Radar sweep ──
+        // Radar rings
+        [0.18,0.33,0.47].forEach(rf=>{
+          ctx.beginPath(); ctx.arc(cx,cy,Math.min(W,H)*rf,0,Math.PI*2);
+          ctx.strokeStyle=`rgba(99,102,241,${0.06+rf*0.04})`; ctx.lineWidth=1; ctx.setLineDash([4,8]); ctx.stroke(); ctx.setLineDash([]);
+        });
+        // Radar sweep
+        const sweepAngle=(t*0.025)%(Math.PI*2);
+        const sweepR=Math.min(W,H)*0.47;
+        const grad=(ctx as any).createConicGradient?.(sweepAngle,cx,cy);
+        if(grad){
+          grad.addColorStop(0,"rgba(99,102,241,0.0)");
+          grad.addColorStop(0.15,"rgba(99,102,241,0.18)");
+          grad.addColorStop(0.18,"rgba(99,102,241,0.0)");
+          ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(cx,cy,sweepR,0,Math.PI*2); ctx.fill();
+        }else{
+          // Fallback arc
+          ctx.beginPath(); ctx.moveTo(cx,cy);
+          ctx.arc(cx,cy,sweepR,sweepAngle-0.35,sweepAngle,false);
+          ctx.closePath();
+          ctx.fillStyle="rgba(99,102,241,0.12)"; ctx.fill();
+          // Sweep line
+          ctx.beginPath(); ctx.moveTo(cx,cy);
+          ctx.lineTo(cx+Math.cos(sweepAngle)*sweepR,cy+Math.sin(sweepAngle)*sweepR);
+          ctx.strokeStyle="rgba(99,102,241,0.4)"; ctx.lineWidth=1.5; ctx.stroke();
+        }
+        // Floating particles
+        particles.forEach(p=>{
+          const a=0.2+Math.sin(t*p.speed+p.phase)*0.2;
+          ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+          ctx.fillStyle=`rgba(99,102,241,${a})`; ctx.fill();
+        });
+        // Status text
+        ctx.fillStyle="rgba(107,107,128,0.7)"; ctx.font="12px -apple-system,sans-serif";
         ctx.textAlign="center"; ctx.textBaseline="middle";
-        ctx.fillText(name.slice(0,2).toUpperCase(),nx,ny);
-      });
-      const pulse=1+Math.sin(t*0.04)*0.06;
-      const orbGlow=ctx.createRadialGradient(cx,cy,0,cx,cy,28*pulse);
-      orbGlow.addColorStop(0,"rgba(99,102,241,0.5)"); orbGlow.addColorStop(0.5,"rgba(6,182,212,0.2)"); orbGlow.addColorStop(1,"transparent");
-      ctx.fillStyle=orbGlow; ctx.beginPath(); ctx.arc(cx,cy,28*pulse,0,Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(cx,cy,18,0,Math.PI*2);
-      ctx.fillStyle="rgba(13,13,20,0.95)"; ctx.fill();
-      ctx.strokeStyle="rgba(99,102,241,0.9)"; ctx.lineWidth=2; ctx.stroke();
+        ctx.fillText("Scanning the Mesh...",cx,cy+52);
+      }else{
+        // ── HAS MATCHES: Connection lines + pulse dots ──
+        nodes.forEach((n:any)=>{
+          ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(n.x,n.y);
+          ctx.strokeStyle=`rgba(99,102,241,${0.12+Math.sin(t*0.02+n.angle)*0.07})`; ctx.lineWidth=1; ctx.stroke();
+          const progress=((t*0.006+n.angle/(Math.PI*2))%1+1)%1;
+          const px=cx+(n.x-cx)*progress; const py=cy+(n.y-cy)*progress;
+          ctx.beginPath(); ctx.arc(px,py,2.5,0,Math.PI*2);
+          ctx.fillStyle=`rgba(6,182,212,${0.5+Math.sin(t*0.05)*0.4})`; ctx.fill();
+        });
+        // Match nodes
+        nodes.forEach((n:any)=>{
+          const wobble=Math.sin(t*0.02+n.angle)*2.5;
+          const nx=n.x+Math.cos(n.angle+t*0.008)*wobble; const ny=n.y+Math.sin(n.angle+t*0.008)*wobble;
+          // Glow halo
+          const glow=ctx.createRadialGradient(nx,ny,0,nx,ny,26);
+          glow.addColorStop(0,"rgba(99,102,241,0.3)"); glow.addColorStop(0.5,"rgba(6,182,212,0.1)"); glow.addColorStop(1,"transparent");
+          ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(nx,ny,26,0,Math.PI*2); ctx.fill();
+          // Node circle
+          ctx.beginPath(); ctx.arc(nx,ny,15,0,Math.PI*2);
+          ctx.fillStyle="rgba(10,10,18,0.95)"; ctx.fill();
+          ctx.strokeStyle=`rgba(99,102,241,${0.6+Math.sin(t*0.03+n.angle)*0.2})`; ctx.lineWidth=1.5; ctx.stroke();
+          // Initials
+          const other=n.match.user_a===user?.id?n.match.user_b_profile:n.match.user_a_profile;
+          ctx.fillStyle="#c8c8e0"; ctx.font="bold 10px -apple-system,sans-serif";
+          ctx.textAlign="center"; ctx.textBaseline="middle";
+          ctx.fillText((other?.name||"?").slice(0,2).toUpperCase(),nx,ny);
+        });
+      }
+
+      // ── Center YOU orb (always) ──
+      const pulse=1+Math.sin(t*0.035)*0.07;
+      // Outer atmospheric glow
+      const atm=ctx.createRadialGradient(cx,cy,0,cx,cy,42*pulse);
+      atm.addColorStop(0,"rgba(99,102,241,0.45)"); atm.addColorStop(0.4,"rgba(6,182,212,0.15)"); atm.addColorStop(1,"transparent");
+      ctx.fillStyle=atm; ctx.beginPath(); ctx.arc(cx,cy,42*pulse,0,Math.PI*2); ctx.fill();
+      // Inner ring
+      ctx.beginPath(); ctx.arc(cx,cy,22*pulse,0,Math.PI*2);
+      ctx.fillStyle="rgba(10,10,18,0.95)"; ctx.fill();
+      // Gradient stroke
+      const orbStroke=ctx.createLinearGradient(cx-22,cy-22,cx+22,cy+22);
+      orbStroke.addColorStop(0,"rgba(99,102,241,0.9)"); orbStroke.addColorStop(1,"rgba(6,182,212,0.9)");
+      ctx.strokeStyle=orbStroke; ctx.lineWidth=2; ctx.stroke();
+      // YOU label
       ctx.fillStyle="#e8e8f0"; ctx.font="bold 9px -apple-system,sans-serif";
       ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("YOU",cx,cy);
       t++; af.current=requestAnimationFrame(draw);
@@ -1313,18 +1376,9 @@ export default function Dashboard(){
           <div style={{fontSize:13,color:C.muted,marginBottom:20,lineHeight:1.5}}>Your agent's connections — every person it's found for you.</div>
 
           {/* ── Orb Network Canvas ── */}
-          <div style={{position:"relative",marginBottom:20}}>
-            <canvas ref={matchesCanvasRef} style={{width:"100%",height:260,borderRadius:16,background:"rgba(10,10,15,0.8)",border:`1px solid ${C.border}`,contain:"strict",display:"block"}}/>
-            {matches.length===0&&(
-              <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8}}>
-                <div style={{width:48,height:48,borderRadius:"50%",background:"rgba(99,102,241,0.1)",border:`1px solid rgba(99,102,241,0.3)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="1.8"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                </div>
-                <div style={{fontSize:13,fontWeight:600,color:C.muted}}>No matches yet</div>
-                <div style={{fontSize:11,color:C.dim}}>Your agent is scanning the Mesh</div>
-              </div>
-            )}
-            <div style={{position:"absolute",top:12,right:12,background:"rgba(10,10,15,0.85)",borderRadius:8,padding:"4px 10px",fontSize:11,fontWeight:700,color:C.cold,border:`1px solid rgba(99,102,241,0.2)`}}>{matches.length} connection{matches.length!==1?"s":""}</div>
+          <div style={{position:"relative",marginBottom:20,borderRadius:20,overflow:"hidden",background:"rgba(8,8,14,0.95)",border:`1px solid rgba(99,102,241,0.15)`,boxShadow:`0 0 40px rgba(99,102,241,0.08), 0 0 80px rgba(6,182,212,0.04)`}}>
+            <canvas ref={matchesCanvasRef} style={{width:"100%",height:300,display:"block"}}/>
+            <div style={{position:"absolute",top:12,right:12,background:"rgba(8,8,14,0.9)",borderRadius:20,padding:"4px 12px",fontSize:11,fontWeight:700,color:C.cold,border:`1px solid rgba(99,102,241,0.25)`,backdropFilter:"blur(8px)"}}>{matches.length} connection{matches.length!==1?"s":""}</div>
           </div>
 
           {/* ── Match cards ── */}
