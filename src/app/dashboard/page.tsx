@@ -398,8 +398,69 @@ export default function Dashboard(){
   const[showPrefSetup,setShowPrefSetup]=useState(false);
   const[userPrefs,setUserPrefs]=useState<any>(null);
   const[agentStateIdx,setAgentStateIdx]=useState(0);
+  const[selectedMatch,setSelectedMatch]=useState<any>(null);
+  const matchesCanvasRef=useRef<HTMLCanvasElement>(null);
   const agentStates=["Scanning 847 profiles in the Mesh","Comparing your vibe with 12 new members","Reviewing token signals from your network","Looking for your next connection..."];
   useEffect(()=>{const iv=setInterval(()=>setAgentStateIdx(p=>(p+1)%4),4000);return()=>clearInterval(iv);},[]);
+
+  // Matches orb canvas animation
+  useEffect(()=>{
+    if(view!=="matches")return;
+    const canvas=matchesCanvasRef.current; if(!canvas)return;
+    const ctx=canvas.getContext("2d"); if(!ctx)return;
+    const W=canvas.offsetWidth||canvas.parentElement?.offsetWidth||360; const H=260;
+    canvas.width=W*window.devicePixelRatio; canvas.height=H*window.devicePixelRatio;
+    ctx.scale(window.devicePixelRatio,window.devicePixelRatio);
+    const cx=W/2, cy=H/2;
+    const nodeCount=Math.min(matches.length,8);
+    const nodes=matches.slice(0,nodeCount).map((m:any,i:number)=>{
+      const angle=(i/Math.max(nodeCount,1))*Math.PI*2-(Math.PI/2);
+      const r=Math.min(W,H)*0.32;
+      return{x:cx+Math.cos(angle)*r,y:cy+Math.sin(angle)*r,match:m,angle};
+    });
+    let t=0; const af={current:0};
+    const draw=()=>{
+      ctx.clearRect(0,0,W,H);
+      const bg=ctx.createRadialGradient(cx,cy,0,cx,cy,H*0.7);
+      bg.addColorStop(0,"rgba(99,102,241,0.06)"); bg.addColorStop(1,"transparent");
+      ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+      nodes.forEach((n:any)=>{
+        ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(n.x,n.y);
+        ctx.strokeStyle=`rgba(99,102,241,${0.15+Math.sin(t*0.02+n.angle)*0.08})`; ctx.lineWidth=1; ctx.stroke();
+        const progress=((t*0.008+n.angle/(Math.PI*2))%1+1)%1;
+        const px=cx+(n.x-cx)*progress; const py=cy+(n.y-cy)*progress;
+        ctx.beginPath(); ctx.arc(px,py,2.5,0,Math.PI*2);
+        ctx.fillStyle=`rgba(6,182,212,${0.6+Math.sin(t*0.05)*0.4})`; ctx.fill();
+      });
+      nodes.forEach((n:any)=>{
+        const wobble=Math.sin(t*0.025+n.angle)*3;
+        const nx=n.x+Math.cos(n.angle+t*0.01)*wobble; const ny=n.y+Math.sin(n.angle+t*0.01)*wobble;
+        const glow=ctx.createRadialGradient(nx,ny,0,nx,ny,22);
+        glow.addColorStop(0,"rgba(99,102,241,0.35)"); glow.addColorStop(1,"transparent");
+        ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(nx,ny,22,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(nx,ny,14,0,Math.PI*2);
+        ctx.fillStyle="rgba(13,13,20,0.92)"; ctx.fill();
+        ctx.strokeStyle="rgba(99,102,241,0.7)"; ctx.lineWidth=1.5; ctx.stroke();
+        const other=n.match.user_a===user?.id?n.match.user_b_profile:n.match.user_a_profile;
+        const name=other?.name||"?";
+        ctx.fillStyle="#e8e8f0"; ctx.font="bold 10px -apple-system,sans-serif";
+        ctx.textAlign="center"; ctx.textBaseline="middle";
+        ctx.fillText(name.slice(0,2).toUpperCase(),nx,ny);
+      });
+      const pulse=1+Math.sin(t*0.04)*0.06;
+      const orbGlow=ctx.createRadialGradient(cx,cy,0,cx,cy,28*pulse);
+      orbGlow.addColorStop(0,"rgba(99,102,241,0.5)"); orbGlow.addColorStop(0.5,"rgba(6,182,212,0.2)"); orbGlow.addColorStop(1,"transparent");
+      ctx.fillStyle=orbGlow; ctx.beginPath(); ctx.arc(cx,cy,28*pulse,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx,cy,18,0,Math.PI*2);
+      ctx.fillStyle="rgba(13,13,20,0.95)"; ctx.fill();
+      ctx.strokeStyle="rgba(99,102,241,0.9)"; ctx.lineWidth=2; ctx.stroke();
+      ctx.fillStyle="#e8e8f0"; ctx.font="bold 9px -apple-system,sans-serif";
+      ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("YOU",cx,cy);
+      t++; af.current=requestAnimationFrame(draw);
+    };
+    af.current=requestAnimationFrame(draw);
+    return()=>cancelAnimationFrame(af.current);
+  },[view,matches,user?.id]);
 
   const[form,setForm]=useState({name:"",bio:"",industry:"",building:"",looking_for:"",location:"",website:"",x_handle:"",linkedin:"",avatar_url:"",agent_style:"professional",agent_instructions:""});
   const[obStep,setObStep]=useState(1);
@@ -1242,6 +1303,76 @@ export default function Dashboard(){
 
 
         {/* ═══════════════════════════════════════════════════════════
+           TAB 0: MATCHES — Orb Network View
+           ═══════════════════════════════════════════════════════════ */}
+        {view==="matches"&&(<div>
+          <h2 style={{fontSize:22,fontWeight:800,marginBottom:4,letterSpacing:"-0.3px",display:"flex",alignItems:"center",gap:8}}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="12" r="4" stroke={C.cold} strokeWidth="2"/><circle cx="16" cy="12" r="4" stroke={C.cyan} strokeWidth="2"/><line x1="11" y1="10" x2="13" y2="14" stroke={C.match} strokeWidth="2" strokeLinecap="round"/></svg>
+            Matches
+          </h2>
+          <div style={{fontSize:13,color:C.muted,marginBottom:20,lineHeight:1.5}}>Your agent's connections — every person it's found for you.</div>
+
+          {/* ── Orb Network Canvas ── */}
+          <div style={{position:"relative",marginBottom:20}}>
+            <canvas ref={matchesCanvasRef} style={{width:"100%",height:260,borderRadius:16,background:"rgba(10,10,15,0.8)",border:`1px solid ${C.border}`,contain:"strict",display:"block"}}/>
+            {matches.length===0&&(
+              <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8}}>
+                <div style={{width:48,height:48,borderRadius:"50%",background:"rgba(99,102,241,0.1)",border:`1px solid rgba(99,102,241,0.3)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="1.8"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                </div>
+                <div style={{fontSize:13,fontWeight:600,color:C.muted}}>No matches yet</div>
+                <div style={{fontSize:11,color:C.dim}}>Your agent is scanning the Mesh</div>
+              </div>
+            )}
+            <div style={{position:"absolute",top:12,right:12,background:"rgba(10,10,15,0.85)",borderRadius:8,padding:"4px 10px",fontSize:11,fontWeight:700,color:C.cold,border:`1px solid rgba(99,102,241,0.2)`}}>{matches.length} connection{matches.length!==1?"s":""}</div>
+          </div>
+
+          {/* ── Match cards ── */}
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {matches.length===0?(
+              <div style={{textAlign:"center",padding:"32px 20px",background:C.surface,borderRadius:14,border:`1px solid ${C.border}`}}>
+                <div style={{fontSize:13,color:C.muted,marginBottom:12}}>Your agent is networking. Matches will appear here.</div>
+                <button onClick={()=>setView("mesh")} style={{padding:"10px 20px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Go to Connect →</button>
+              </div>
+            ):matches.map((m:any)=>{
+              const isA=m.user_a===user?.id;
+              const other=isA?m.user_b_profile:m.user_a_profile;
+              const score=Math.round((m.score||0.5)*100);
+              const accepted=isA?m.user_a_accepted:m.user_b_accepted;
+              const otherAccepted=isA?m.user_b_accepted:m.user_a_accepted;
+              const colors=[["#6366f1","#06b6d4"],["#a855f7","#ec4899"],["#f59e0b","#ef4444"],["#30d158","#06b6d4"],["#ff2d55","#f59e0b"]];
+              const ci=m.id?.charCodeAt(0)%colors.length||0;
+              const [g1,g2]=colors[ci];
+              return(
+                <div key={m.id} style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${accepted&&otherAccepted?C.match+"44":C.border}`,display:"flex",gap:14,alignItems:"flex-start"}}>
+                  {/* Avatar */}
+                  <div style={{position:"relative",flexShrink:0}}>
+                    <div style={{width:52,height:52,borderRadius:"50%",background:`linear-gradient(135deg,${g1},${g2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:"white",boxShadow:`0 0 16px ${g1}40`}}>
+                      {other?.avatar_url?<img src={other.avatar_url} style={{width:52,height:52,borderRadius:"50%",objectFit:"cover"}}/>:(other?.name||"?").slice(0,2).toUpperCase()}
+                    </div>
+                    <div style={{position:"absolute",bottom:-2,right:-2,width:20,height:20,borderRadius:"50%",background:score>=80?C.match:score>=60?C.warn:C.muted,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:900,color:"white",border:`2px solid ${C.surface}`}}>{score}</div>
+                  </div>
+                  {/* Info */}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
+                      <div style={{fontSize:14,fontWeight:700,color:C.text}}>{other?.name||"Anonymous"}</div>
+                      {accepted&&otherAccepted&&<span style={{fontSize:9,background:`${C.match}15`,color:C.match,padding:"2px 7px",borderRadius:5,fontWeight:700,border:`1px solid ${C.match}30`}}>CONNECTED</span>}
+                    </div>
+                    <div style={{fontSize:11,color:C.muted,marginBottom:8}}>{other?.industry||""}{other?.location?` · ${other.location}`:""}</div>
+                    {m.synergy&&<div style={{fontSize:11,color:C.dim,marginBottom:10,lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{m.synergy}</div>}
+                    <div style={{display:"flex",gap:8}}>
+                      {!accepted&&<button onClick={async()=>{await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"accept",match_id:m.id})});loadMatches(user.id);}} style={{padding:"7px 16px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>}
+                      {!accepted&&<button onClick={async()=>{await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"pass",match_id:m.id})});loadMatches(user.id);}} style={{padding:"7px 12px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Pass</button>}
+                      {accepted&&otherAccepted&&<button onClick={()=>setChatMatch(m)} style={{padding:"7px 16px",background:`${C.match}12`,border:`1px solid ${C.match}33`,borderRadius:8,color:C.match,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Chat →</button>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>)}
+
+        {/* ═══════════════════════════════════════════════════════════
            TAB 1: THE MESH — Social Hub
            ═══════════════════════════════════════════════════════════ */}
         {view==="mesh"&&(<div>
@@ -2064,11 +2195,11 @@ export default function Dashboard(){
 
       {/* ── Mobile Tab Bar — shown on dashboard ── */}
       <MobileTabBar
-        activeTab={view==="mesh"?"mesh":view==="brew"?"wallet":view==="profile"?"profile":view==="buzz"?"matches":view==="evolve"?"profile":"mesh"}
+        activeTab={view==="mesh"?"mesh":view==="matches"?"matches":view==="brew"?"wallet":view==="profile"?"profile":"mesh"}
         onTabChange={(tab)=>{
           if(tab==="hunt"){router.push("/hunt");return;}
           if(tab==="wallet"){setView("brew");return;}
-          if(tab==="matches"){setView("buzz");return;}
+          if(tab==="matches"){setView("matches");return;}
           if(tab==="mesh"){setView("mesh");return;}
           if(tab==="profile"){setView("profile");return;}
         }}
