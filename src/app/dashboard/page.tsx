@@ -1883,39 +1883,21 @@ export default function Dashboard(){
             )}
           </div>
 
-          {/* ═══ AGENT WALLET ═══ */}
-          <div style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.border}`,marginBottom:16}}>
-            <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12,display:"flex",alignItems:"center",gap:4}}><Zap size={11}/>Agent Wallet</div>
-            <div style={{textAlign:"center",marginBottom:14}}>
-              <div style={{fontSize:32,fontWeight:900,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{wallet?.balance_eth!=null?wallet.balance_eth.toFixed(4):"..."} ETH</div>
-              <div style={{fontSize:10,color:C.dim,marginTop:4}}>Base L2 · 5% deposit fee · 3% trade fee</div>
+          {/* Send ETH — kept as compact action below hero */}
+          <div style={{background:C.surface,borderRadius:14,padding:14,border:`1px solid ${C.border}`,marginBottom:16}}>
+            <div style={{fontSize:10,color:C.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Send ETH</div>
+            <input placeholder="Recipient address (0x...)" value={sendTo} onChange={e=>setSendTo(e.target.value)} style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:11,fontFamily:"inherit",marginBottom:6,boxSizing:"border-box"}}/>
+            <div style={{display:"flex",gap:6}}>
+              <input placeholder="Amount ETH" type="number" step="0.001" value={sendAmt} onChange={e=>setSendAmt(e.target.value)} style={{flex:1,background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:11,fontFamily:"inherit",boxSizing:"border-box"}}/>
+              <button onClick={async()=>{const to=sendTo.trim(),amt=parseFloat(sendAmt);if(!to||!amt||amt<=0){alert("Enter address and amount");return;}if(!confirm(`Send ${amt} ETH to ${to.slice(0,8)}...?`))return;try{const res=await fetch("/api/wallet",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"withdraw",to_address:to,amount:amt})});const d=await res.json();if(d.error){alert(d.error);return;}alert(`Sent! TX: ${d.txHash?.slice(0,16)}...`);setSendTo("");setSendAmt("");loadWallet();}catch(e:any){alert("Failed: "+e.message);}}} style={{background:`linear-gradient(135deg,${C.cold},#8b5cf6)`,border:"none",borderRadius:8,padding:"8px 16px",cursor:"pointer",color:"white",fontSize:12,fontWeight:700,fontFamily:"inherit"}}>Send</button>
             </div>
-            <button onClick={()=>{const addr=wallet?.wallet_address||user?.wallet_address;if(addr){navigator.clipboard?.writeText(addr);alert("Wallet address copied!\\n\\n"+addr+"\\n\\nSend ETH on Base L2.");}}} style={{width:"100%",padding:"12px",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:6,boxShadow:`0 4px 20px rgba(99,102,241,0.3)`}}><Zap size={14}/>Fund Wallet</button>
-            {(wallet?.wallet_address||user?.wallet_address)&&<div style={{display:"flex",alignItems:"center",gap:6,background:C.s2,borderRadius:8,padding:"8px 10px",marginBottom:10}}>
-              <div style={{flex:1,fontSize:10,color:C.muted,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wallet?.wallet_address||user?.wallet_address}</div>
-              <button onClick={()=>{navigator.clipboard?.writeText(wallet?.wallet_address||user?.wallet_address);}} style={{background:"rgba(99,102,241,0.15)",border:`1px solid rgba(99,102,241,0.3)`,borderRadius:6,padding:"4px 10px",cursor:"pointer",color:C.cold,fontSize:10,fontWeight:600,display:"flex",alignItems:"center",gap:3,flexShrink:0}}><Copy size={10}/>Copy</button>
-            </div>}
-            {/* Send */}
-            <div style={{marginTop:8}}>
-              <div style={{fontSize:10,color:C.muted,marginBottom:4,fontWeight:600}}>Send ETH</div>
-              <input placeholder="Recipient (0x...)" value={sendTo} onChange={e=>setSendTo(e.target.value)} style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:11,fontFamily:"inherit",marginBottom:4,boxSizing:"border-box"}}/>
-              <div style={{display:"flex",gap:6}}>
-                <input placeholder="Amount" type="number" step="0.001" value={sendAmt} onChange={e=>setSendAmt(e.target.value)} style={{flex:1,background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:11,fontFamily:"inherit",boxSizing:"border-box"}}/>
-                <button onClick={async()=>{const to=sendTo.trim(),amt=parseFloat(sendAmt);if(!to||!amt||amt<=0){alert("Enter address and amount");return;}if(!confirm(`Send ${amt} ETH to ${to.slice(0,8)}...?`))return;try{const res=await fetch("/api/wallet",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"withdraw",to_address:to,amount:amt})});const d=await res.json();if(d.error){alert(d.error);return;}alert(`Sent! TX: ${d.txHash?.slice(0,16)}...`);setSendTo("");setSendAmt("");loadWallet();}catch(e:any){alert("Failed: "+e.message);}}} style={{background:`linear-gradient(135deg,${C.cold},#8b5cf6)`,border:"none",borderRadius:8,padding:"8px 14px",cursor:"pointer",color:"white",fontSize:11,fontWeight:700}}>Send</button>
-              </div>
-            </div>
-            {/* Private key */}
-            <div style={{marginTop:10,display:"flex",gap:6}}>
-              {(wallet?.wallet_address)&&<a href={`https://basescan.org/address/${wallet.wallet_address}`} target="_blank" rel="noopener" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:4,padding:"6px 10px",background:C.s2,border:`1px solid ${C.border}`,borderRadius:6,color:C.cyan,fontSize:10,textDecoration:"none"}}><ExternalLink size={10}/>BaseScan</a>}
-              <button onClick={revealPrivateKey} disabled={keyRevealing} style={{flex:1,padding:"6px 10px",background:`${C.hot}15`,border:`1px solid ${C.hot}33`,borderRadius:6,cursor:"pointer",color:C.hot,fontSize:10,fontWeight:600,opacity:keyRevealing?0.5:1}}><Key size={10}/> {keyRevealing?"...":"Export Key"}</button>
-            </div>
-            {showPrivateKey&&privateKey&&(<div style={{background:`${C.hot}10`,borderRadius:8,padding:10,border:`1px solid ${C.hot}44`,marginTop:8}}>
+            {showPrivateKey&&privateKey&&(<div style={{background:`${C.hot}10`,borderRadius:8,padding:10,border:`1px solid ${C.hot}44`,marginTop:10}}>
               <div style={{fontSize:10,color:C.hot,fontWeight:700,marginBottom:4}}><AlertTriangle size={10}/> Save this key. We cannot recover it.</div>
               <div style={{display:"flex",alignItems:"center",gap:4}}>
                 <code style={{flex:1,fontSize:9,color:C.text,wordBreak:"break-all",fontFamily:"monospace",background:C.bg,padding:6,borderRadius:4,border:`1px solid ${C.hot}33`}}>{privateKey}</code>
-                <button onClick={()=>{navigator.clipboard?.writeText(privateKey);}} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:4,padding:"4px 6px",cursor:"pointer",color:C.muted,fontSize:9}}><Copy size={9}/></button>
+                <button onClick={()=>{navigator.clipboard?.writeText(privateKey);}} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:4,padding:"4px 6px",cursor:"pointer",color:C.muted,fontSize:9,fontFamily:"inherit"}}><Copy size={9}/></button>
               </div>
-              <button onClick={()=>{setShowPrivateKey(false);setPrivateKey(null);}} style={{marginTop:6,background:"transparent",border:"none",color:C.dim,fontSize:9,cursor:"pointer"}}>Hide</button>
+              <button onClick={()=>{setShowPrivateKey(false);setPrivateKey(null);}} style={{marginTop:6,background:"transparent",border:"none",color:C.dim,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Hide</button>
             </div>)}
           </div>
 
