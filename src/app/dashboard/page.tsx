@@ -1373,57 +1373,96 @@ export default function Dashboard(){
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="12" r="4" stroke={C.cold} strokeWidth="2"/><circle cx="16" cy="12" r="4" stroke={C.cyan} strokeWidth="2"/><line x1="11" y1="10" x2="13" y2="14" stroke={C.match} strokeWidth="2" strokeLinecap="round"/></svg>
             Matches
           </h2>
-          <div style={{fontSize:13,color:C.muted,marginBottom:20,lineHeight:1.5}}>Your agent's connections — every person it's found for you.</div>
-
-          {/* ── Orb Network Canvas ── */}
-          <div style={{position:"relative",marginBottom:20,borderRadius:20,overflow:"hidden",background:"rgba(8,8,14,0.95)",border:`1px solid rgba(99,102,241,0.15)`,boxShadow:`0 0 40px rgba(99,102,241,0.08), 0 0 80px rgba(6,182,212,0.04)`}}>
-            <canvas ref={matchesCanvasRef} style={{width:"100%",height:300,display:"block"}}/>
-            <div style={{position:"absolute",top:12,right:12,background:"rgba(8,8,14,0.9)",borderRadius:20,padding:"4px 12px",fontSize:11,fontWeight:700,color:C.cold,border:`1px solid rgba(99,102,241,0.25)`,backdropFilter:"blur(8px)"}}>{matches.length} connection{matches.length!==1?"s":""}</div>
+          <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>
+            {!user?.ai_api_key_encrypted?"Connect your AI brain to start finding matches.":matches.length>0?`${matches.length} connection${matches.length!==1?"s":""} found by your agent.`:"Your agent is actively looking for your first match."}
           </div>
 
-          {/* ── Match cards ── */}
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {matches.length===0?(
-              <div style={{textAlign:"center",padding:"32px 20px",background:C.surface,borderRadius:14,border:`1px solid ${C.border}`}}>
-                <div style={{fontSize:13,color:C.muted,marginBottom:12}}>Your agent is networking. Matches will appear here.</div>
-                <button onClick={()=>setView("mesh")} style={{padding:"10px 20px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Go to Connect →</button>
-              </div>
-            ):matches.map((m:any)=>{
-              const isA=m.user_a===user?.id;
-              const other=isA?m.user_b_profile:m.user_a_profile;
-              const score=Math.round((m.score||0.5)*100);
-              const accepted=isA?m.user_a_accepted:m.user_b_accepted;
-              const otherAccepted=isA?m.user_b_accepted:m.user_a_accepted;
-              const colors=[["#6366f1","#06b6d4"],["#a855f7","#ec4899"],["#f59e0b","#ef4444"],["#30d158","#06b6d4"],["#ff2d55","#f59e0b"]];
-              const ci=m.id?.charCodeAt(0)%colors.length||0;
-              const [g1,g2]=colors[ci];
-              return(
-                <div key={m.id} style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${accepted&&otherAccepted?C.match+"44":C.border}`,display:"flex",gap:14,alignItems:"flex-start"}}>
-                  {/* Avatar */}
-                  <div style={{position:"relative",flexShrink:0}}>
-                    <div style={{width:52,height:52,borderRadius:"50%",background:`linear-gradient(135deg,${g1},${g2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:"white",boxShadow:`0 0 16px ${g1}40`}}>
-                      {other?.avatar_url?<img src={other.avatar_url} style={{width:52,height:52,borderRadius:"50%",objectFit:"cover"}}/>:(other?.name||"?").slice(0,2).toUpperCase()}
-                    </div>
-                    <div style={{position:"absolute",bottom:-2,right:-2,width:20,height:20,borderRadius:"50%",background:score>=80?C.match:score>=60?C.warn:C.muted,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:900,color:"white",border:`2px solid ${C.surface}`}}>{score}</div>
-                  </div>
-                  {/* Info */}
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
-                      <div style={{fontSize:14,fontWeight:700,color:C.text}}>{other?.name||"Anonymous"}</div>
-                      {accepted&&otherAccepted&&<span style={{fontSize:9,background:`${C.match}15`,color:C.match,padding:"2px 7px",borderRadius:5,fontWeight:700,border:`1px solid ${C.match}30`}}>CONNECTED</span>}
-                    </div>
-                    <div style={{fontSize:11,color:C.muted,marginBottom:8}}>{other?.industry||""}{other?.location?` · ${other.location}`:""}</div>
-                    {m.synergy&&<div style={{fontSize:11,color:C.dim,marginBottom:10,lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{m.synergy}</div>}
-                    <div style={{display:"flex",gap:8}}>
-                      {!accepted&&<button onClick={async()=>{await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"accept",match_id:m.id})});loadMatches(user.id);}} style={{padding:"7px 16px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>}
-                      {!accepted&&<button onClick={async()=>{await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"pass",match_id:m.id})});loadMatches(user.id);}} style={{padding:"7px 12px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Pass</button>}
-                      {accepted&&otherAccepted&&<button onClick={()=>setChatMatch(m)} style={{padding:"7px 16px",background:`${C.match}12`,border:`1px solid ${C.match}33`,borderRadius:8,color:C.match,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Chat →</button>}
-                    </div>
-                  </div>
+          {/* ── NO BRAIN: Hard gate — explain clearly ── */}
+          {!user?.ai_api_key_encrypted?(
+            <div style={{marginBottom:20}}>
+              {/* Visual — dormant orb */}
+              <div style={{position:"relative",marginBottom:16,borderRadius:20,overflow:"hidden",background:"rgba(8,8,14,0.95)",border:`1px solid rgba(255,45,85,0.12)`,height:220,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12}}>
+                {/* Dim static orb */}
+                <div style={{width:80,height:80,borderRadius:"50%",background:"rgba(30,30,50,0.8)",border:`2px solid rgba(107,107,128,0.2)`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 30px rgba(0,0,0,0.5)"}}>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(107,107,128,0.4)" strokeWidth="1.5"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/></svg>
                 </div>
-              );
-            })}
-          </div>
+                <div style={{textAlign:"center"}}>
+                  <div style={{fontSize:14,fontWeight:700,color:"rgba(107,107,128,0.7)",marginBottom:4}}>Agent Offline</div>
+                  <div style={{fontSize:11,color:"rgba(107,107,128,0.5)"}}>No brain · No matches</div>
+                </div>
+              </div>
+              {/* Explanation card */}
+              <div style={{background:"rgba(255,45,85,0.05)",borderRadius:14,padding:20,border:`1px solid rgba(255,45,85,0.2)`,marginBottom:12}}>
+                <div style={{fontSize:15,fontWeight:800,color:C.text,marginBottom:8}}>Your agent needs a brain to find matches 🧠</div>
+                <div style={{fontSize:13,color:C.muted,lineHeight:1.6,marginBottom:16}}>
+                  MishMesh uses <em>your own</em> AI API key — so you keep full control and pay nothing extra to us. Once connected, your agent starts scanning the Mesh for people who match your vibe, industry, and goals.
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+                  {[["🔍","Finds people who match your goals & vibe"],["💬","Starts conversations on your behalf"],["🤝","Sends you match notifications"],["🔒","Uses your key — your data, your control"]].map(([icon,text])=>(
+                    <div key={text as string} style={{display:"flex",gap:10,alignItems:"center"}}>
+                      <span style={{fontSize:16,flexShrink:0}}>{icon as string}</span>
+                      <span style={{fontSize:12,color:C.muted}}>{text as string}</span>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={()=>setView("brew")} style={{width:"100%",padding:"12px 0",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",letterSpacing:"-0.2px"}}>Connect My AI Brain →</button>
+              </div>
+            </div>
+          ):(
+            <>
+              {/* ── HAS BRAIN: Orb network canvas ── */}
+              <div style={{position:"relative",marginBottom:20,borderRadius:20,overflow:"hidden",background:"rgba(8,8,14,0.95)",border:`1px solid rgba(99,102,241,0.15)`,boxShadow:`0 0 40px rgba(99,102,241,0.08)`}}>
+                <canvas ref={matchesCanvasRef} style={{width:"100%",height:280,display:"block"}}/>
+                <div style={{position:"absolute",top:12,right:12,background:"rgba(8,8,14,0.9)",borderRadius:20,padding:"4px 12px",fontSize:11,fontWeight:700,color:matches.length>0?C.match:C.cold,border:`1px solid ${matches.length>0?C.match+"33":"rgba(99,102,241,0.25)"}`,backdropFilter:"blur(8px)"}}>
+                  {matches.length>0?`${matches.length} match${matches.length!==1?"es":""}`:` Scanning...`}
+                </div>
+              </div>
+
+              {/* ── Match cards ── */}
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {matches.length===0?(
+                  <div style={{textAlign:"center",padding:"24px 20px",background:C.surface,borderRadius:14,border:`1px solid ${C.border}`}}>
+                    <div style={{fontSize:32,marginBottom:8}}>👀</div>
+                    <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:6}}>No matches yet</div>
+                    <div style={{fontSize:12,color:C.muted,marginBottom:16,lineHeight:1.5}}>Your agent is out there scanning. First matches usually arrive within a few minutes of connecting your brain.</div>
+                    <button onClick={()=>setView("mesh")} style={{padding:"10px 20px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Go find people →</button>
+                  </div>
+                ):matches.map((m:any)=>{
+                  const isA=m.user_a===user?.id;
+                  const other=isA?m.user_b_profile:m.user_a_profile;
+                  const score=Math.round((m.score||0.5)*100);
+                  const accepted=isA?m.user_a_accepted:m.user_b_accepted;
+                  const otherAccepted=isA?m.user_b_accepted:m.user_a_accepted;
+                  const colors=[["#6366f1","#06b6d4"],["#a855f7","#ec4899"],["#f59e0b","#ef4444"],["#30d158","#06b6d4"],["#ff2d55","#f59e0b"]];
+                  const ci=m.id?.charCodeAt(0)%colors.length||0;
+                  const [g1,g2]=colors[ci];
+                  return(
+                    <div key={m.id} style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${accepted&&otherAccepted?C.match+"44":C.border}`,display:"flex",gap:14,alignItems:"flex-start"}}>
+                      <div style={{position:"relative",flexShrink:0}}>
+                        <div style={{width:52,height:52,borderRadius:"50%",background:`linear-gradient(135deg,${g1},${g2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:"white",boxShadow:`0 0 16px ${g1}40`}}>
+                          {other?.avatar_url?<img src={other.avatar_url} style={{width:52,height:52,borderRadius:"50%",objectFit:"cover"}}/>:(other?.name||"?").slice(0,2).toUpperCase()}
+                        </div>
+                        <div style={{position:"absolute",bottom:-2,right:-2,width:20,height:20,borderRadius:"50%",background:score>=80?C.match:score>=60?C.warn:C.muted,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:900,color:"white",border:`2px solid ${C.surface}`}}>{score}</div>
+                      </div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
+                          <div style={{fontSize:14,fontWeight:700,color:C.text}}>{other?.name||"Anonymous"}</div>
+                          {accepted&&otherAccepted&&<span style={{fontSize:9,background:`${C.match}15`,color:C.match,padding:"2px 7px",borderRadius:5,fontWeight:700,border:`1px solid ${C.match}30`}}>CONNECTED</span>}
+                        </div>
+                        <div style={{fontSize:11,color:C.muted,marginBottom:8}}>{other?.industry||""}{other?.location?` · ${other.location}`:""}</div>
+                        {m.synergy&&<div style={{fontSize:11,color:C.dim,marginBottom:10,lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{m.synergy}</div>}
+                        <div style={{display:"flex",gap:8}}>
+                          {!accepted&&<button onClick={async()=>{await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"accept",match_id:m.id})});loadMatches(user.id);}} style={{padding:"7px 16px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>}
+                          {!accepted&&<button onClick={async()=>{await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"pass",match_id:m.id})});loadMatches(user.id);}} style={{padding:"7px 12px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Pass</button>}
+                          {accepted&&otherAccepted&&<button onClick={()=>setChatMatch(m)} style={{padding:"7px 16px",background:`${C.match}12`,border:`1px solid ${C.match}33`,borderRadius:8,color:C.match,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Chat →</button>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>)}
 
         {/* ═══════════════════════════════════════════════════════════
