@@ -98,22 +98,31 @@ export default function HuntPulseViz({
     window.addEventListener("resize", resize);
 
     let time = 0;
-    const draw = () => {
+    let lastFrame = 0;
+    const TARGET_FPS = 30;
+    const FRAME_INTERVAL = 1000 / TARGET_FPS;
+
+    const draw = (timestamp: number) => {
+      // Throttle to 30fps to prevent jank
+      if (timestamp - lastFrame < FRAME_INTERVAL) {
+        animRef.current = requestAnimationFrame(draw);
+        return;
+      }
+      lastFrame = timestamp;
+
       const w = canvas.width / window.devicePixelRatio;
       const h = canvas.height / window.devicePixelRatio;
 
       ctx.clearRect(0, 0, w, h);
 
-      // Stars
+      // Stars — reduced to 25, static positions (no per-frame trig)
       ctx.fillStyle = "#ffffff";
-      for (let i = 0; i < 60; i++) {
-        const sx = (Math.sin(i * 127.1 + time * 0.001) * 0.5 + 0.5) * w;
-        const sy = (Math.cos(i * 311.7 + time * 0.0007) * 0.5 + 0.5) * h;
-        const a = 0.15 + Math.sin(time * 0.003 + i) * 0.1;
+      for (let i = 0; i < 25; i++) {
+        const sx = (Math.sin(i * 127.1) * 0.5 + 0.5) * w;
+        const sy = (Math.cos(i * 311.7) * 0.5 + 0.5) * h;
+        const a = 0.08 + Math.sin(time * 0.02 + i) * 0.06;
         ctx.globalAlpha = a;
-        ctx.beginPath();
-        ctx.arc(sx, sy, 0.8, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(sx, sy, 1, 1);
       }
       ctx.globalAlpha = 1;
 
@@ -219,11 +228,14 @@ export default function HuntPulseViz({
       ref={containerRef}
       style={{
         width: "100%",
-        height: 280,
+        height: 260,
         position: "relative",
         borderRadius: 20,
         overflow: "hidden",
         background: `radial-gradient(ellipse at 50% 80%, ${C.indigo}12, ${C.bg})`,
+        // Isolate repaints from rest of page — critical for performance
+        contain: "strict",
+        willChange: "transform",
       }}
     >
       <canvas

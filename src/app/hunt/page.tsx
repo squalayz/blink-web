@@ -164,9 +164,10 @@ export default function HuntPage() {
       color: C.text,
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Outfit', sans-serif",
       paddingTop: 64,
-      // Prevent layout shift / shake
       overflowX: "hidden",
-      willChange: "auto",
+      overflowY: "auto",
+      // GPU layer for the whole page — prevents composite layer thrashing
+      isolation: "isolate",
     }}>
 
       {/* ── Page Header ── */}
@@ -342,20 +343,20 @@ export default function HuntPage() {
         display: "grid",
         gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
         gap: 10, padding: "0 14px",
+        // Prevent layout shift
+        contain: "layout style",
       }}>
-        <AnimatePresence mode="popLayout">
-          {tokens.map((token, i) => (
-            <HuntTokenCard
-              key={`${token.chainId}-${token.address}`}
-              token={token}
-              index={i}
-              highlighted={highlightedAddr === token.address}
-              onHighlight={() => setHighlightedAddr(
-                highlightedAddr === token.address ? null : token.address
-              )}
-            />
-          ))}
-        </AnimatePresence>
+        {tokens.map((token, i) => (
+          <HuntTokenCard
+            key={`${token.chainId}-${token.address}`}
+            token={token}
+            index={i}
+            highlighted={highlightedAddr === token.address}
+            onHighlight={() => setHighlightedAddr(
+              highlightedAddr === token.address ? null : token.address
+            )}
+          />
+        ))}
       </div>
 
       {/* ── Empty state ── */}

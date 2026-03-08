@@ -232,9 +232,9 @@ export default function HuntTokenCard({
     <>
       <motion.div
         id={`hunt-card-${token.address}`}
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: index * 0.05 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.25, delay: Math.min(index * 0.03, 0.3) }}
         onClick={onHighlight}
         style={{
           background: "rgba(255,255,255,0.03)",
