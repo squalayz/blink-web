@@ -1685,6 +1685,43 @@ export default function Dashboard(){
           <h2 style={{fontSize:22,fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.3px"}}><Cpu size={20}/>My Agent</h2>
           <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>Tune your AI brain. Set your trading strategy. Control everything.</div>
 
+          {/* ═══ WALLET HERO — first thing they see ═══ */}
+          <div style={{background:`linear-gradient(135deg,rgba(99,102,241,0.12),rgba(6,182,212,0.06))`,borderRadius:20,padding:24,border:`1px solid rgba(99,102,241,0.2)`,marginBottom:16,boxShadow:`0 0 40px rgba(99,102,241,0.08)`}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+              <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",display:"flex",alignItems:"center",gap:4}}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="2.5"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="14" r="1.5" fill={C.cold} stroke="none"/></svg>
+                Wallet · Base L2
+              </div>
+              {(wallet?.wallet_address||user?.wallet_address)&&(
+                <a href={`https://basescan.org/address/${wallet?.wallet_address||user?.wallet_address}`} target="_blank" rel="noopener" style={{fontSize:10,color:C.cyan,textDecoration:"none",display:"flex",alignItems:"center",gap:3,opacity:0.8}}><ExternalLink size={10}/>BaseScan</a>
+              )}
+            </div>
+            {/* Big balance */}
+            <div style={{textAlign:"center",marginBottom:20}}>
+              <div style={{fontSize:42,fontWeight:900,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"-1px",lineHeight:1}}>
+                {walletLoading?"—":wallet?.balance_eth!=null?wallet.balance_eth.toFixed(4):"0.0000"}
+              </div>
+              <div style={{fontSize:13,color:C.muted,marginTop:4}}>ETH</div>
+              {wallet?.balance_usd!=null&&<div style={{fontSize:11,color:C.dim,marginTop:2}}>${wallet.balance_usd.toFixed(2)} USD</div>}
+            </div>
+            {/* Address pill */}
+            {(wallet?.wallet_address||user?.wallet_address)&&(
+              <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(0,0,0,0.3)",borderRadius:10,padding:"8px 12px",marginBottom:12}}>
+                <div style={{flex:1,fontSize:11,color:C.muted,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wallet?.wallet_address||user?.wallet_address}</div>
+                <button onClick={()=>{navigator.clipboard?.writeText(wallet?.wallet_address||user?.wallet_address);}} style={{background:"rgba(99,102,241,0.2)",border:`1px solid rgba(99,102,241,0.3)`,borderRadius:6,padding:"4px 10px",cursor:"pointer",color:C.cold,fontSize:10,fontWeight:600,display:"flex",alignItems:"center",gap:3,flexShrink:0,fontFamily:"inherit"}}><Copy size={10}/>Copy</button>
+              </div>
+            )}
+            {/* Action buttons */}
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>{const addr=wallet?.wallet_address||user?.wallet_address;if(addr){navigator.clipboard?.writeText(addr);alert("Address copied!\n\n"+addr+"\n\nSend ETH on Base L2.");}}} style={{flex:1,padding:"12px",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,boxShadow:`0 4px 20px rgba(99,102,241,0.3)`,fontFamily:"inherit"}}>
+                <Zap size={14}/>Fund Wallet
+              </button>
+              <button onClick={revealPrivateKey} disabled={keyRevealing} style={{padding:"12px 16px",background:"rgba(255,45,85,0.08)",border:`1px solid rgba(255,45,85,0.2)`,borderRadius:10,cursor:keyRevealing?"wait":"pointer",color:C.hot,fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",flexShrink:0}}>
+                <Key size={13}/>{keyRevealing?"...":"Export Key"}
+              </button>
+            </div>
+          </div>
+
           {/* ═══ AGENT PERSONALITY ═══ */}
           <div style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.border}`,marginBottom:16}}>
             <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12,display:"flex",alignItems:"center",gap:4}}><Sparkles size={11}/>Agent Personality</div>
