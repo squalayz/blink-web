@@ -1622,22 +1622,7 @@ export default function Dashboard(){
               SCROLLABLE SETTINGS BELOW ORB
               ══════════════════════════════ */}
           <div style={{padding:"0 4px"}}>
-          {/* Agent Name */}
-          <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginTop:16,marginBottom:12}}>
-            <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Agent Name</div>
-            <div style={{display:"flex",gap:8}}>
-              <input defaultValue={agent?.agent_name||""} placeholder="Name your agent..." id="agent-name-input"
-                style={{flex:1,background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:13,fontFamily:"inherit",fontWeight:600}}/>
-              <button onClick={async()=>{
-                const val=(document.getElementById("agent-name-input") as HTMLInputElement)?.value?.trim();
-                if(!val||!user?.id)return;
-                await supabase.from("agent_profiles").update({agent_name:val}).eq("user_id",user.id);
-                setAgent((a:any)=>({...a,agent_name:val}));
-              }} style={{padding:"10px 16px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
-            </div>
-          </div>
-
-  {/* ── AGENT NAME ── */}
+          {/* ── AGENT NAME ── */}
   <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
     <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10,display:"flex",alignItems:"center",gap:5}}>
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="2.5" strokeLinecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
