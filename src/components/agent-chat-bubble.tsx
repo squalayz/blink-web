@@ -1,61 +1,202 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, X, Send } from "lucide-react";
+import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
+import { X, Send, Minimize2 } from "lucide-react";
 
 const C = {
-  bg: "#0a0a0f",
-  surface: "#0d0d14",
-  s2: "#1a1a24",
-  indigo: "#6366f1",
-  cyan: "#06b6d4",
-  match: "#30d158",
-  hot: "#ff2d55",
-  gold: "#ffd700",
-  text: "#e8e8f0",
-  muted: "#6b6b80",
-  dim: "#2a2a3a",
-  border: "rgba(255,255,255,0.07)",
+  bg: "#0a0a0f", surface: "#0d0d14", s2: "#1a1a24",
+  indigo: "#6366f1", cyan: "#06b6d4", match: "#30d158",
+  hot: "#ff2d55", gold: "#ffd700", text: "#e8e8f0",
+  muted: "#6b6b80", dim: "#2a2a3a", border: "rgba(255,255,255,0.07)",
 };
 
 interface ChatMessage {
-  id: string;
-  role: "user" | "agent";
-  content: string;
-  timestamp: number;
+  id: string; role: "user" | "agent"; content: string; timestamp: number;
 }
 
 const STARTER_PROMPTS = [
-  "What's your best token call right now?",
+  "What's pumping on Base right now?",
   "Find me someone to work with",
   "How's my trading performance?",
-  "What should I focus on today?",
+  "Find me someone I'd vibe with",
   "Tell me about my agent",
 ];
 
 const PLACEHOLDERS = [
-  "Ask me anything...",
-  "Tell me your risk tolerance...",
-  "What tokens excite you?",
-  "How's your portfolio?",
+  "Ask me anything...", "Tell me your risk tolerance...",
+  "What tokens excite you?", "Who are you trying to meet?",
 ];
 
-const PROACTIVE_MESSAGES = [
-  "I spotted 3 high-score tokens on Base while you were away",
-  "Your network is growing \u2014 2 new potential matches this week",
-  "I found a potential match for you \u2014 checking their vibe now...",
+const PROACTIVE = [
+  "I spotted 3 high-score tokens on Base 🎯",
+  "Your network is growing — 2 new potential matches",
+  "I found someone you should meet. Want details?",
 ];
 
-const WELCOME_MSG =
-  "Hey! I'm your agent. Ask me anything \u2014 I'm always learning from our conversations.";
+// ── Plasma Orb Canvas ──
+function PlasmaOrb({
+  size = 64, state = "idle", speaking = false
+}: {
+  size?: number; state?: "idle" | "thinking" | "speaking" | "alert"; speaking?: boolean;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animRef = useRef<number>(0);
+  const tRef = useRef(0);
 
-function formatTime(ts: number): string {
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    canvas.style.width = `${size}px`;
+    canvas.style.height = `${size}px`;
+    ctx.scale(dpr, dpr);
+
+    const cx = size / 2;
+    const cy = size / 2;
+    const r = size * 0.36;
+
+    function draw() {
+      if (!ctx) return;
+      tRef.current += state === "thinking" ? 0.04 : state === "speaking" ? 0.07 : 0.02;
+      const t = tRef.current;
+
+      ctx.clearRect(0, 0, size, size);
+
+      // Outer glow ring
+      const glowR = r + 6 + Math.sin(t * 1.3) * 3;
+      const glowAlpha = state === "alert" ? 0.5 + Math.sin(t * 4) * 0.3 : 0.25 + Math.sin(t) * 0.1;
+      const outerGlow = ctx.createRadialGradient(cx, cy, glowR * 0.5, cx, cy, glowR + 12);
+      outerGlow.addColorStop(0, `rgba(99,102,241,${glowAlpha})`);
+      outerGlow.addColorStop(0.5, `rgba(6,182,212,${glowAlpha * 0.5})`);
+      outerGlow.addColorStop(1, "transparent");
+      ctx.beginPath();
+      ctx.arc(cx, cy, glowR + 12, 0, Math.PI * 2);
+      ctx.fillStyle = outerGlow;
+      ctx.fill();
+
+      // Rotating ring
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(t * 0.8);
+      ctx.strokeStyle = `rgba(99,102,241,${0.3 + Math.sin(t * 2) * 0.15})`;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 8]);
+      ctx.beginPath();
+      ctx.arc(0, 0, r + 9, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // Counter-rotating ring
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(-t * 0.5);
+      ctx.strokeStyle = `rgba(6,182,212,${0.2 + Math.sin(t * 1.5) * 0.1})`;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 12]);
+      ctx.beginPath();
+      ctx.arc(0, 0, r + 14, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // Core plasma blob — morph shape
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.beginPath();
+      const pts = 64;
+      for (let i = 0; i <= pts; i++) {
+        const angle = (i / pts) * Math.PI * 2;
+        const wobble = 1
+          + Math.sin(angle * 3 + t * 2.1) * 0.06
+          + Math.sin(angle * 5 + t * 1.4) * 0.04
+          + (state === "speaking" ? Math.sin(angle * 7 + t * 5) * 0.08 : 0)
+          + (state === "thinking" ? Math.sin(angle * 4 + t * 3) * 0.06 : 0);
+        const rad = r * wobble;
+        const x = Math.cos(angle) * rad;
+        const y = Math.sin(angle) * rad;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+
+      // Core gradient — shifts with state
+      const hue1 = state === "alert" ? "#ff2d55" : state === "thinking" ? "#a855f7" : "#6366f1";
+      const hue2 = state === "speaking" ? "#30d158" : "#06b6d4";
+      const coreGrad = ctx.createRadialGradient(-r * 0.2, -r * 0.2, 0, 0, 0, r);
+      coreGrad.addColorStop(0, "rgba(255,255,255,0.9)");
+      coreGrad.addColorStop(0.2, hue1);
+      coreGrad.addColorStop(0.6, hue2);
+      coreGrad.addColorStop(1, "rgba(0,0,0,0.3)");
+      ctx.fillStyle = coreGrad;
+      ctx.fill();
+
+      // Specular highlight
+      const specGrad = ctx.createRadialGradient(-r * 0.3, -r * 0.35, 0, -r * 0.1, -r * 0.1, r * 0.7);
+      specGrad.addColorStop(0, "rgba(255,255,255,0.4)");
+      specGrad.addColorStop(0.4, "rgba(255,255,255,0.05)");
+      specGrad.addColorStop(1, "transparent");
+      ctx.fillStyle = specGrad;
+      ctx.fill();
+      ctx.restore();
+
+      // Inner sparks when thinking
+      if (state === "thinking" || state === "speaking") {
+        for (let i = 0; i < 3; i++) {
+          const angle = t * 2.5 + (i * Math.PI * 2) / 3;
+          const sr = r * 0.6;
+          const sx = cx + Math.cos(angle) * sr;
+          const sy = cy + Math.sin(angle) * sr;
+          const sparkAlpha = 0.4 + Math.sin(t * 4 + i) * 0.3;
+          ctx.beginPath();
+          ctx.arc(sx, sy, 2, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255,255,255,${sparkAlpha})`;
+          ctx.fill();
+        }
+      }
+
+      animRef.current = requestAnimationFrame(draw);
+    }
+
+    draw();
+    return () => cancelAnimationFrame(animRef.current);
+  }, [size, state]);
+
+  return <canvas ref={canvasRef} style={{ display: "block", borderRadius: "50%" }} />;
+}
+
+// ── Floating physics hook ──
+function useFloatingPosition(isMobile: boolean, isOpen: boolean) {
+  const baseX = isMobile ? window.innerWidth - 76 : window.innerWidth - 88;
+  const baseY = isMobile ? window.innerHeight - 160 : window.innerHeight - 104;
+
+  const x = useMotionValue(baseX);
+  const y = useMotionValue(baseY);
+  const springX = useSpring(x, { stiffness: 80, damping: 20 });
+  const springY = useSpring(y, { stiffness: 80, damping: 20 });
+
+  // Gentle idle float
+  useEffect(() => {
+    if (isOpen) return;
+    let t = 0;
+    const iv = setInterval(() => {
+      t += 0.02;
+      x.set(baseX + Math.sin(t * 0.7) * 6);
+      y.set(baseY + Math.sin(t) * 8);
+    }, 16);
+    return () => clearInterval(iv);
+  }, [isOpen, baseX, baseY, x, y]);
+
+  return { x: springX, y: springY };
+}
+
+function formatTime(ts: number) {
   const d = new Date(ts);
-  const h = d.getHours();
-  const m = d.getMinutes().toString().padStart(2, "0");
-  const ampm = h >= 12 ? "PM" : "AM";
-  return `${h % 12 || 12}:${m} ${ampm}`;
+  const h = d.getHours(), m = d.getMinutes().toString().padStart(2, "0");
+  return `${h % 12 || 12}:${m} ${h >= 12 ? "PM" : "AM"}`;
 }
 
 export default function AgentChatBubble() {
@@ -68,14 +209,14 @@ export default function AgentChatBubble() {
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const [proactiveSent, setProactiveSent] = useState(false);
+  const [orbState, setOrbState] = useState<"idle" | "thinking" | "speaking" | "alert">("idle");
+  const [isDragging, setIsDragging] = useState(false);
   const [welcomeSent, setWelcomeSent] = useState(false);
-  const [lastInteraction, setLastInteraction] = useState<number>(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const proactiveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { x, y } = useFloatingPosition(isMobile, open);
 
-  // Detect mobile
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
@@ -83,423 +224,290 @@ export default function AgentChatBubble() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Fetch agent profile
+  // Fetch agent name
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/auth/session");
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.user?.name) setAgentName(data.user.name + "'s Agent");
-        }
-      } catch {
-        // fallback name
-      }
-    })();
+    fetch("/api/auth/session").then(r => r.json()).then(d => {
+      if (d?.user?.name) setAgentName(d.user.name.split(" ")[0] + "'s Agent");
+    }).catch(() => {});
   }, []);
 
   // Rotate placeholders
   useEffect(() => {
-    const iv = setInterval(
-      () => setPlaceholderIdx((i) => (i + 1) % PLACEHOLDERS.length),
-      3000,
-    );
+    const iv = setInterval(() => setPlaceholderIdx(i => (i + 1) % PLACEHOLDERS.length), 3500);
     return () => clearInterval(iv);
   }, []);
 
   // Auto-scroll
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, isTyping]);
 
-  // Welcome message on first open
+  // Welcome message
   useEffect(() => {
     if (open && !welcomeSent && messages.length === 0) {
       setWelcomeSent(true);
-      const msg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "agent",
-        content: WELCOME_MSG,
-        timestamp: Date.now(),
-      };
-      setMessages([msg]);
+      setTimeout(() => {
+        setMessages([{
+          id: crypto.randomUUID(), role: "agent",
+          content: "Hey 👋 I'm your agent. I trade, connect, and learn — all for you. What do you need?",
+          timestamp: Date.now(),
+        }]);
+      }, 400);
     }
   }, [open, welcomeSent, messages.length]);
 
-  // Proactive message after 30s of no interaction
+  // Proactive orb alert after 8s
   useEffect(() => {
-    if (!open || proactiveSent) return;
+    if (proactiveSent || open) return;
+    const t = setTimeout(() => {
+      setOrbState("alert");
+      setUnreadCount(1);
+      setProactiveSent(true);
+      setTimeout(() => setOrbState("idle"), 4000);
+    }, 8000);
+    return () => clearTimeout(t);
+  }, [proactiveSent, open]);
 
-    if (proactiveTimerRef.current) clearTimeout(proactiveTimerRef.current);
+  const sendMessage = useCallback(async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || isTyping) return;
+    setInput("");
+    setOrbState("thinking");
 
-    proactiveTimerRef.current = setTimeout(() => {
-      if (!proactiveSent) {
-        const randomMsg =
-          PROACTIVE_MESSAGES[
-            Math.floor(Math.random() * PROACTIVE_MESSAGES.length)
-          ];
-        const msg: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: "agent",
-          content: randomMsg,
-          timestamp: Date.now(),
-        };
-        setMessages((prev) => [...prev, msg]);
-        setProactiveSent(true);
-      }
-    }, 30000);
+    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: trimmed, timestamp: Date.now() };
+    setMessages(prev => [...prev, userMsg]);
+    setIsTyping(true);
 
-    return () => {
-      if (proactiveTimerRef.current) clearTimeout(proactiveTimerRef.current);
-    };
-  }, [open, proactiveSent, lastInteraction]);
-
-  // Clear unread when opening
-  useEffect(() => {
-    if (open) setUnreadCount(0);
-  }, [open]);
-
-  const sendMessage = useCallback(
-    async (text: string) => {
-      if (!text.trim() || isTyping) return;
-
-      setLastInteraction(Date.now());
-      const userMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "user",
-        content: text.trim(),
-        timestamp: Date.now(),
-      };
-      setMessages((prev) => [...prev, userMsg]);
-      setInput("");
-      setIsTyping(true);
-
-      try {
-        const res = await fetch("/api/agents/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: text.trim() }),
-        });
-        const data = await res.json();
-        const agentMsg: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: "agent",
-          content: data.reply || "Hmm, I couldn't process that. Try again?",
-          timestamp: Date.now(),
-        };
-        setMessages((prev) => [...prev, agentMsg]);
-        if (!open) setUnreadCount((c) => c + 1);
-      } catch {
-        const errMsg: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: "agent",
-          content: "Connection lost. I'll be back shortly.",
-          timestamp: Date.now(),
-        };
-        setMessages((prev) => [...prev, errMsg]);
-      } finally {
-        setIsTyping(false);
-      }
-    },
-    [isTyping, open],
-  );
+    try {
+      const res = await fetch("/api/agents/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: trimmed }),
+      });
+      const data = await res.json();
+      const reply = data.reply || "Let me look into that for you.";
+      setOrbState("speaking");
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "agent", content: reply, timestamp: Date.now() }]);
+      setTimeout(() => setOrbState("idle"), 2000);
+    } catch {
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "agent", content: "Connection issue — try again in a moment.", timestamp: Date.now() }]);
+      setOrbState("idle");
+    }
+    setIsTyping(false);
+  }, [isTyping]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(input);
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
   };
 
-  // Only show starter prompts if only the welcome message exists
-  const showStarters =
-    messages.length <= 1 && messages[0]?.role === "agent" && !isTyping;
+  const handleOrbClick = () => {
+    if (isDragging) return;
+    setOpen(true);
+    setUnreadCount(0);
+    setOrbState("idle");
+  };
+
+  const showStarters = messages.length <= 1 && messages[0]?.role === "agent" && !isTyping;
+
+  const panelBottom = isMobile ? 0 : 104;
+  const panelRight = isMobile ? 0 : 32;
 
   return (
     <>
-      {/* Floating Orb Button */}
+      {/* ── Floating Plasma Orb ── */}
       <AnimatePresence>
         {!open && (
-          <motion.button
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            onClick={() => setOpen(true)}
-            style={{
-              position: "fixed",
-              bottom: isMobile ? 90 : 32,
-              right: isMobile ? 16 : 32,
-              zIndex: 9999,
-              width: 56,
-              height: 56,
-              borderRadius: "50%",
-              border: "none",
-              cursor: "pointer",
-              background: `linear-gradient(135deg, ${C.indigo}, ${C.cyan})`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: `0 0 20px ${C.indigo}66, 0 0 40px ${C.indigo}33, 0 4px 16px rgba(0,0,0,0.4)`,
-              animation: "orbPulse 3s ease-in-out infinite",
-            }}
+          <motion.div
+            drag
+            dragMomentum={false}
+            onDragStart={() => setIsDragging(true)}
+            onDragEnd={() => setTimeout(() => setIsDragging(false), 100)}
+            style={{ x, y, position: "fixed", zIndex: 9999, cursor: isDragging ? "grabbing" : "grab" }}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleOrbClick}
           >
-            <MessageCircle size={24} color="#fff" strokeWidth={2} />
+            {/* Outer atmospheric glow */}
+            <div style={{
+              position: "absolute", inset: -20,
+              borderRadius: "50%",
+              background: orbState === "alert"
+                ? `radial-gradient(circle, rgba(255,45,85,0.25) 0%, transparent 70%)`
+                : `radial-gradient(circle, rgba(99,102,241,0.2) 0%, rgba(6,182,212,0.1) 50%, transparent 70%)`,
+              animation: orbState === "alert" ? "alertPulse 0.8s ease-in-out infinite" : "atmospherePulse 3s ease-in-out infinite",
+              pointerEvents: "none",
+            }} />
+
+            {/* The orb itself */}
+            <PlasmaOrb size={56} state={orbState} />
 
             {/* Unread badge */}
             {unreadCount > 0 && (
-              <span
+              <motion.div
+                initial={{ scale: 0 }} animate={{ scale: 1 }}
                 style={{
-                  position: "absolute",
-                  top: -4,
-                  right: -4,
-                  width: 20,
-                  height: 20,
-                  borderRadius: "50%",
-                  background: C.hot,
-                  color: "#fff",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  position: "absolute", top: -4, right: -4,
+                  width: 20, height: 20, borderRadius: "50%",
+                  background: `linear-gradient(135deg, ${C.hot}, #ff6b8a)`,
                   border: `2px solid ${C.bg}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 10, fontWeight: 800, color: "#fff",
+                  boxShadow: `0 0 8px ${C.hot}88`,
                 }}
               >
                 {unreadCount}
-              </span>
+              </motion.div>
             )}
-          </motion.button>
+
+            {/* "thinking" label when active */}
+            {(orbState === "thinking" || orbState === "speaking") && (
+              <motion.div
+                initial={{ opacity: 0, y: 4, x: "-50%" }}
+                animate={{ opacity: 1, y: 0, x: "-50%" }}
+                style={{
+                  position: "absolute", bottom: -24, left: "50%",
+                  fontSize: 9, color: C.cyan, fontWeight: 600,
+                  letterSpacing: "0.05em", whiteSpace: "nowrap",
+                  textShadow: `0 0 8px ${C.cyan}`,
+                }}
+              >
+                {orbState === "thinking" ? "thinking..." : "speaking..."}
+              </motion.div>
+            )}
+          </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Chat Panel */}
+      {/* ── Chat Panel ── */}
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{
-              opacity: 0,
-              y: 40,
-              scale: 0.95,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-              scale: 1,
-            }}
-            exit={{
-              opacity: 0,
-              y: 40,
-              scale: 0.95,
-            }}
-            transition={{ type: "spring", stiffness: 350, damping: 30 }}
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
             style={{
               position: "fixed",
-              bottom: isMobile ? 0 : 32,
-              right: isMobile ? 0 : 32,
+              bottom: panelBottom, right: panelRight,
               zIndex: 9999,
-              width: isMobile ? "100vw" : 360,
-              height: isMobile ? "70vh" : 520,
-              borderRadius: isMobile ? "20px 20px 0 0" : 20,
+              width: isMobile ? "100vw" : 370,
+              height: isMobile ? "72vh" : 540,
+              borderRadius: isMobile ? "24px 24px 0 0" : 24,
               overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
-              background: "rgba(13,13,20,0.96)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-              borderTop: `3px solid transparent`,
-              borderImage: `linear-gradient(90deg, ${C.indigo}, ${C.cyan}) 1`,
-              boxShadow: `0 -4px 40px rgba(0,0,0,0.5), 0 0 60px ${C.indigo}15`,
+              display: "flex", flexDirection: "column",
+              background: "rgba(10,10,16,0.97)",
+              backdropFilter: "blur(24px)",
+              WebkitBackdropFilter: "blur(24px)",
+              boxShadow: `0 -8px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,102,241,0.2), 0 0 40px rgba(99,102,241,0.1)`,
             }}
           >
+            {/* Gradient top border */}
+            <div style={{
+              height: 2, flexShrink: 0,
+              background: `linear-gradient(90deg, ${C.indigo}, ${C.cyan}, ${C.indigo})`,
+              backgroundSize: "200% 100%",
+              animation: "borderFlow 3s linear infinite",
+            }} />
+
             {/* Header */}
-            <div
-              style={{
-                padding: "16px 16px 12px",
-                borderBottom: `1px solid ${C.border}`,
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                flexShrink: 0,
-              }}
-            >
-              {/* Agent orb */}
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: "50%",
-                  background: `linear-gradient(135deg, ${C.indigo}, ${C.cyan})`,
-                  boxShadow: `0 0 12px ${C.indigo}55`,
-                  flexShrink: 0,
-                  animation: "orbPulse 3s ease-in-out infinite",
-                }}
-              />
+            <div style={{
+              padding: "14px 16px 12px",
+              display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+              borderBottom: `1px solid ${C.border}`,
+            }}>
+              {/* Live orb in header */}
+              <div style={{ flexShrink: 0 }}>
+                <PlasmaOrb size={38} state={isTyping ? "thinking" : orbState} />
+              </div>
+
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    color: C.text,
-                    fontSize: 15,
-                    fontWeight: 600,
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {agentName}
-                </div>
-                <div
-                  style={{
-                    color: C.muted,
-                    fontSize: 12,
-                    marginTop: 2,
-                  }}
-                >
-                  Your AI &middot; Always learning
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 5,
-                    marginTop: 3,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: C.match,
-                      display: "inline-block",
-                      boxShadow: `0 0 6px ${C.match}88`,
-                    }}
-                  />
-                  <span style={{ color: C.match, fontSize: 11, fontWeight: 500 }}>
-                    Online
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.text, lineHeight: 1.2 }}>{agentName}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}>
+                  <div style={{
+                    width: 5, height: 5, borderRadius: "50%",
+                    background: isTyping ? C.cyan : C.match,
+                    boxShadow: `0 0 6px ${isTyping ? C.cyan : C.match}`,
+                    animation: "liveDot 1.5s ease-in-out infinite",
+                  }} />
+                  <span style={{ fontSize: 11, color: isTyping ? C.cyan : C.match, fontWeight: 500 }}>
+                    {isTyping ? "thinking..." : "online · always learning"}
                   </span>
                 </div>
               </div>
+
               <button
                 onClick={() => setOpen(false)}
                 style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 6,
-                  borderRadius: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: C.muted,
-                  transition: "color 0.2s, background 0.2s",
+                  background: "rgba(255,255,255,0.04)", border: `1px solid ${C.border}`,
+                  borderRadius: 10, padding: 7, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: C.muted, transition: "all 0.2s",
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = C.text;
-                  e.currentTarget.style.background = C.dim;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = C.muted;
-                  e.currentTarget.style.background = "none";
-                }}
+                onMouseEnter={e => { e.currentTarget.style.background = C.dim; e.currentTarget.style.color = C.text; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = C.muted; }}
               >
-                <X size={18} />
+                <Minimize2 size={15} />
               </button>
             </div>
 
             {/* Messages */}
-            <div
-              ref={scrollRef}
-              style={{
-                flex: 1,
-                overflowY: "auto",
-                padding: 16,
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
-                scrollBehavior: "smooth",
-              }}
-            >
-              {messages.map((msg) => (
+            <div ref={scrollRef} style={{
+              flex: 1, overflowY: "auto", padding: "16px 14px",
+              display: "flex", flexDirection: "column", gap: 10,
+              scrollBehavior: "smooth",
+            }}>
+              {messages.map(msg => (
                 <motion.div
                   key={msg.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25 }}
-                  style={{
-                    display: "flex",
-                    justifyContent:
-                      msg.role === "user" ? "flex-end" : "flex-start",
-                  }}
+                  initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.2 }}
+                  style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", gap: 8 }}
                 >
-                  <div
-                    style={{
-                      maxWidth: "80%",
-                      padding: "10px 14px",
-                      borderRadius:
-                        msg.role === "user"
-                          ? "16px 16px 4px 16px"
-                          : "16px 16px 16px 4px",
-                      background:
-                        msg.role === "user" ? C.indigo : C.s2,
-                      border:
-                        msg.role === "agent"
-                          ? `1px solid ${C.border}`
-                          : "none",
-                      color: C.text,
-                      fontSize: 14,
-                      lineHeight: 1.5,
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    <div>{msg.content}</div>
-                    <div
-                      style={{
-                        fontSize: 10,
-                        color:
-                          msg.role === "user"
-                            ? "rgba(255,255,255,0.55)"
-                            : C.muted,
-                        marginTop: 4,
-                        textAlign: msg.role === "user" ? "right" : "left",
-                      }}
-                    >
+                  {msg.role === "agent" && (
+                    <div style={{ flexShrink: 0, marginTop: 2 }}>
+                      <PlasmaOrb size={22} state="idle" />
+                    </div>
+                  )}
+                  <div style={{
+                    maxWidth: "78%",
+                    padding: "10px 13px",
+                    borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "4px 16px 16px 16px",
+                    background: msg.role === "user"
+                      ? `linear-gradient(135deg, ${C.indigo}, #5558e3)`
+                      : "rgba(26,26,36,0.8)",
+                    border: msg.role === "agent" ? `1px solid rgba(99,102,241,0.15)` : "none",
+                    boxShadow: msg.role === "user" ? `0 2px 12px rgba(99,102,241,0.3)` : "none",
+                    color: C.text, fontSize: 13.5, lineHeight: 1.55, wordBreak: "break-word",
+                  }}>
+                    {msg.content}
+                    <div style={{
+                      fontSize: 9.5, marginTop: 4,
+                      color: msg.role === "user" ? "rgba(255,255,255,0.45)" : C.muted,
+                      textAlign: msg.role === "user" ? "right" : "left",
+                    }}>
                       {formatTime(msg.timestamp)}
                     </div>
                   </div>
                 </motion.div>
               ))}
 
-              {/* Typing indicator */}
+              {/* Typing */}
               {isTyping && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  style={{ display: "flex", justifyContent: "flex-start" }}
-                >
-                  <div
-                    style={{
-                      padding: "12px 18px",
-                      borderRadius: "16px 16px 16px 4px",
-                      background: C.s2,
-                      border: `1px solid ${C.border}`,
-                      display: "flex",
-                      gap: 4,
-                      alignItems: "center",
-                    }}
-                  >
-                    {[0, 1, 2].map((i) => (
-                      <span
-                        key={i}
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: "50%",
-                          background: C.muted,
-                          display: "inline-block",
-                          animation: `dotBounce 1.2s ease-in-out ${i * 0.15}s infinite`,
-                        }}
-                      />
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <PlasmaOrb size={22} state="thinking" />
+                  <div style={{
+                    padding: "10px 14px", borderRadius: "4px 16px 16px 16px",
+                    background: "rgba(26,26,36,0.8)", border: `1px solid rgba(99,102,241,0.15)`,
+                    display: "flex", gap: 4, alignItems: "center",
+                  }}>
+                    {[0,1,2].map(i => (
+                      <span key={i} style={{
+                        width: 5, height: 5, borderRadius: "50%", background: C.cyan,
+                        display: "inline-block",
+                        animation: `dotBounce 1.2s ease-in-out ${i * 0.15}s infinite`,
+                      }} />
                     ))}
                   </div>
                 </motion.div>
@@ -508,136 +516,89 @@ export default function AgentChatBubble() {
               {/* Starter prompts */}
               {showStarters && (
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 8,
-                    marginTop: 4,
-                  }}
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+                  style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 4, paddingLeft: 30 }}
                 >
-                  {STARTER_PROMPTS.map((prompt) => (
-                    <button
-                      key={prompt}
-                      onClick={() => sendMessage(prompt)}
-                      style={{
-                        background: "none",
-                        border: `1px solid ${C.dim}`,
-                        borderRadius: 20,
-                        padding: "7px 14px",
-                        color: C.text,
-                        fontSize: 12,
-                        cursor: "pointer",
-                        transition: "all 0.2s",
-                        lineHeight: 1.3,
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = C.indigo;
-                        e.currentTarget.style.background = `${C.indigo}18`;
-                        e.currentTarget.style.color = "#fff";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = C.dim;
-                        e.currentTarget.style.background = "none";
-                        e.currentTarget.style.color = C.text;
-                      }}
+                  {STARTER_PROMPTS.map(p => (
+                    <button key={p} onClick={() => sendMessage(p)} style={{
+                      background: "rgba(99,102,241,0.08)",
+                      border: `1px solid rgba(99,102,241,0.25)`,
+                      borderRadius: 20, padding: "6px 12px",
+                      color: C.text, fontSize: 11.5, cursor: "pointer",
+                      transition: "all 0.15s", fontFamily: "inherit",
+                    }}
+                      onMouseEnter={e => { e.currentTarget.style.background = `rgba(99,102,241,0.2)`; e.currentTarget.style.borderColor = C.indigo; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = `rgba(99,102,241,0.08)`; e.currentTarget.style.borderColor = `rgba(99,102,241,0.25)`; }}
                     >
-                      {prompt}
+                      {p}
                     </button>
                   ))}
                 </motion.div>
               )}
             </div>
 
-            {/* Input area */}
-            <div
-              style={{
-                padding: "12px 16px",
-                borderTop: `1px solid ${C.border}`,
-                display: "flex",
-                gap: 8,
-                alignItems: "center",
-                flexShrink: 0,
-                background: "rgba(10,10,15,0.6)",
-              }}
-            >
+            {/* Input */}
+            <div style={{
+              padding: "10px 12px 14px", borderTop: `1px solid ${C.border}`,
+              display: "flex", gap: 8, alignItems: "center", flexShrink: 0,
+              background: "rgba(6,6,10,0.8)",
+            }}>
               <input
                 ref={inputRef}
                 value={input}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  setLastInteraction(Date.now());
-                }}
+                onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 disabled={isTyping}
                 placeholder={PLACEHOLDERS[placeholderIdx]}
                 style={{
-                  flex: 1,
-                  background: C.s2,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 12,
-                  padding: "10px 14px",
-                  color: C.text,
-                  fontSize: 14,
-                  outline: "none",
-                  transition: "border-color 0.2s",
+                  flex: 1, background: "rgba(26,26,36,0.8)",
+                  border: `1px solid ${C.border}`, borderRadius: 14,
+                  padding: "9px 14px", color: C.text, fontSize: 13.5,
+                  outline: "none", fontFamily: "inherit", transition: "border-color 0.2s",
                 }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = `${C.indigo}66`;
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = C.border;
-                }}
+                onFocus={e => e.currentTarget.style.borderColor = `rgba(99,102,241,0.5)`}
+                onBlur={e => e.currentTarget.style.borderColor = C.border}
               />
               <button
                 onClick={() => sendMessage(input)}
                 disabled={!input.trim() || isTyping}
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
-                  border: "none",
-                  background:
-                    input.trim() && !isTyping
-                      ? C.indigo
-                      : C.dim,
-                  cursor:
-                    input.trim() && !isTyping
-                      ? "pointer"
-                      : "not-allowed",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "background 0.2s, transform 0.15s",
-                  flexShrink: 0,
-                }}
-                onMouseDown={(e) => {
-                  if (input.trim() && !isTyping) {
-                    e.currentTarget.style.transform = "scale(0.92)";
-                  }
-                }}
-                onMouseUp={(e) => {
-                  e.currentTarget.style.transform = "scale(1)";
+                  width: 38, height: 38, borderRadius: 12, border: "none", flexShrink: 0,
+                  background: input.trim() && !isTyping
+                    ? `linear-gradient(135deg, ${C.indigo}, ${C.cyan})` : C.dim,
+                  cursor: input.trim() && !isTyping ? "pointer" : "not-allowed",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.2s",
+                  boxShadow: input.trim() && !isTyping ? `0 0 12px rgba(99,102,241,0.4)` : "none",
                 }}
               >
-                <Send size={16} color={input.trim() && !isTyping ? "#fff" : C.muted} />
+                <Send size={15} color={input.trim() && !isTyping ? "#fff" : C.muted} />
               </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Global keyframe styles */}
       <style>{`
-        @keyframes orbPulse {
-          0%, 100% { box-shadow: 0 0 20px ${C.indigo}66, 0 0 40px ${C.indigo}33, 0 4px 16px rgba(0,0,0,0.4); transform: scale(1); }
-          50% { box-shadow: 0 0 28px ${C.indigo}88, 0 0 56px ${C.indigo}44, 0 4px 20px rgba(0,0,0,0.5); transform: scale(1.04); }
+        @keyframes atmospherePulse {
+          0%,100% { opacity:0.6; transform:scale(1); }
+          50% { opacity:1; transform:scale(1.08); }
+        }
+        @keyframes alertPulse {
+          0%,100% { opacity:0.4; transform:scale(1); }
+          50% { opacity:0.9; transform:scale(1.15); }
+        }
+        @keyframes borderFlow {
+          0% { background-position:0% 0%; }
+          100% { background-position:200% 0%; }
+        }
+        @keyframes liveDot {
+          0%,100% { opacity:1; transform:scale(1); }
+          50% { opacity:0.4; transform:scale(0.7); }
         }
         @keyframes dotBounce {
-          0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-          30% { transform: translateY(-4px); opacity: 1; }
+          0%,60%,100% { transform:translateY(0); opacity:0.4; }
+          30% { transform:translateY(-5px); opacity:1; }
         }
       `}</style>
     </>
