@@ -398,7 +398,7 @@ export default function HuntPage() {
             mesh: "/dashboard?tab=mesh",
             matches: "/dashboard?tab=matches",
             wallet: "/dashboard?tab=wallet",
-            profile: "/dashboard?tab=profile",
+            agent: "/dashboard?tab=agent",
           };
           window.location.href = routes[tab] || "/dashboard";
         }}

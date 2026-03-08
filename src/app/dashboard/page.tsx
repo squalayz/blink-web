@@ -330,7 +330,7 @@ export default function Dashboard(){
   const[agent,setAgent]=useState<any>(null);
   const[loading,setLoading]=useState(true);
   // Support deep-linking: /dashboard?tab=wallet, ?tab=profile, etc.
-  const initialTab=(()=>{const t=searchParams?.get("tab");const map:Record<string,string>={wallet:"brew",matches:"mesh",chat:"mesh",profile:"profile",stats:"buzz",agent:"brew",grow:"evolve"};return(t&&(map[t]||t))||"mesh";})();
+  const initialTab=(()=>{const t=searchParams?.get("tab");const map:Record<string,string>={wallet:"brew",matches:"matches",chat:"mesh",profile:"profile",stats:"buzz",agent:"agent",grow:"evolve"};return(t&&(map[t]||t))||"mesh";})();
   const[view,setView]=useState(initialTab);
   const[matches,setMatches]=useState<any[]>([]);
   const[notifications,setNotifications]=useState<any[]>([]);
@@ -397,6 +397,7 @@ export default function Dashboard(){
   // Discovery Engine state
   const[showPrefSetup,setShowPrefSetup]=useState(false);
   const[userPrefs,setUserPrefs]=useState<any>(null);
+  const[orbTheme,setOrbTheme]=useState("indigo");
   const[agentStateIdx,setAgentStateIdx]=useState(0);
   const[selectedMatch,setSelectedMatch]=useState<any>(null);
   const matchesCanvasRef=useRef<HTMLCanvasElement>(null);
@@ -1466,6 +1467,223 @@ export default function Dashboard(){
         </div>)}
 
         {/* ═══════════════════════════════════════════════════════════
+           TAB: MY AGENT — Orb Customizer + Brain + Personality
+           ═══════════════════════════════════════════════════════════ */}
+        {view==="agent"&&(<div>
+  <h2 style={{fontSize:22,fontWeight:800,marginBottom:4,letterSpacing:"-0.3px",display:"flex",alignItems:"center",gap:8}}>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/></svg>
+    My Agent
+  </h2>
+  <div style={{fontSize:13,color:C.muted,marginBottom:20,lineHeight:1.5}}>Your AI companion. Customize how it looks, thinks, and trades.</div>
+
+  {/* ── ORB CUSTOMIZER ── */}
+  {(()=>{
+    const ORB_THEMES=[
+      {id:"indigo",label:"Indigo",c1:"#6366f1",c2:"#06b6d4"},
+      {id:"fire",label:"Fire",c1:"#ff2d55",c2:"#ff9f0a"},
+      {id:"matrix",label:"Matrix",c1:"#30d158",c2:"#06b6d4"},
+      {id:"gold",label:"Gold",c1:"#ffd700",c2:"#ff9f0a"},
+      {id:"plasma",label:"Plasma",c1:"#a855f7",c2:"#ec4899"},
+      {id:"void",label:"Void",c1:"#6b6b80",c2:"#3a3a4a"},
+    ];
+    const theme=ORB_THEMES.find(t=>t.id===orbTheme)||ORB_THEMES[0];
+    return(
+      <div style={{background:C.surface,borderRadius:16,padding:20,border:`1px solid ${C.border}`,marginBottom:16}}>
+        <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>🔮 Orb Appearance</div>
+        <div style={{fontSize:11,color:C.dim,marginBottom:16}}>Your orb is visible to other users in the Mesh</div>
+        {/* Live orb preview */}
+        <div style={{display:"flex",justifyContent:"center",marginBottom:20}}>
+          <div style={{width:80,height:80,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%, ${theme.c1}, ${theme.c2}80)`,boxShadow:`0 0 30px ${theme.c1}60, 0 0 60px ${theme.c1}20`,border:`2px solid ${theme.c1}80`,display:"flex",alignItems:"center",justifyContent:"center",animation:"pulse 2s ease-in-out infinite"}}>
+            <span style={{fontSize:11,fontWeight:800,color:"white",textShadow:"0 0 8px rgba(0,0,0,0.5)"}}>YOU</span>
+          </div>
+        </div>
+        {/* Theme picker */}
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginBottom:16}}>
+          {ORB_THEMES.map(t=>(
+            <button key={t.id} onClick={()=>setOrbTheme(t.id)} style={{
+              width:44,height:44,borderRadius:"50%",
+              background:`radial-gradient(circle at 35% 35%, ${t.c1}, ${t.c2}80)`,
+              border:orbTheme===t.id?`3px solid white`:`2px solid transparent`,
+              cursor:"pointer",
+              boxShadow:orbTheme===t.id?`0 0 16px ${t.c1}80`:`0 0 6px ${t.c1}30`,
+              transition:"all 0.2s",
+              outline:"none",
+            }} title={t.label}/>
+          ))}
+        </div>
+        <div style={{textAlign:"center",fontSize:11,color:C.muted,fontWeight:600}}>{theme.label} — {agent?.agent_name||"My Agent"}</div>
+      </div>
+    );
+  })()}
+
+  {/* ── AGENT NAME ── */}
+  <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
+    <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>✏️ Agent Name</div>
+    <div style={{display:"flex",gap:8}}>
+      <input
+        defaultValue={agent?.agent_name||""}
+        placeholder="Name your agent..."
+        id="agent-name-input"
+        style={{flex:1,background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:13,fontFamily:"inherit",fontWeight:600}}
+      />
+      <button onClick={async()=>{
+        const val=(document.getElementById("agent-name-input") as HTMLInputElement)?.value?.trim();
+        if(!val||!user?.id)return;
+        await supabase.from("agent_profiles").update({agent_name:val}).eq("user_id",user.id);
+        setAgent((a:any)=>({...a,agent_name:val}));
+      }} style={{padding:"10px 16px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
+    </div>
+  </div>
+
+  {/* ── BRAIN POWER ── */}
+  <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${!!user?.ai_api_key_encrypted?C.match+"44":C.hot+"44"}`,marginBottom:16}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+      <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",color:!!user?.ai_api_key_encrypted?C.match:C.hot,display:"flex",alignItems:"center",gap:4}}>
+        🧠 Brain Power · {!!user?.ai_api_key_encrypted?"Connected":"Not Connected"}
+      </div>
+      <div style={{width:8,height:8,borderRadius:"50%",background:!!user?.ai_api_key_encrypted?C.match:C.hot,boxShadow:`0 0 8px ${!!user?.ai_api_key_encrypted?C.match:C.hot}`,animation:"pulse 1.5s infinite"}}/>
+    </div>
+    {!!user?.ai_api_key_encrypted?(
+      <div>
+        <div style={{fontSize:12,color:C.muted,marginBottom:12,lineHeight:1.5}}>Your agent is running on your own AI. It learns from every conversation and gets smarter every night.</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {[{label:"🔍 Smarter matching",desc:"Analyzes 50+ signals"},{label:"📈 Auto trading",desc:"Runs strategies 24/7"},{label:"🎯 Research loop",desc:"Self-improves overnight"},{label:"💬 Personality",desc:"Learns your style"}].map(f=>(
+            <div key={f.label} style={{flex:"1 1 120px",background:C.s2,borderRadius:8,padding:"8px 10px",border:`1px solid ${C.border}`}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.text}}>{f.label}</div>
+              <div style={{fontSize:9,color:C.dim,marginTop:2}}>{f.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ):(
+      <div>
+        <div style={{fontSize:12,color:C.muted,marginBottom:12,lineHeight:1.5}}>Connect your own AI API key. Your agent uses YOUR credits — we charge nothing. Once connected, it starts matching, trading, and learning automatically.</div>
+        <button onClick={()=>setView("brew")} style={{width:"100%",padding:"12px",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>⚡ Connect AI Brain</button>
+      </div>
+    )}
+  </div>
+
+  {/* ── PERSONALITY ── */}
+  <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
+    <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>🎭 Personality</div>
+    <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+      {(["professional","friendly","aggressive","custom"] as const).map(s=>(
+        <button key={s} onClick={()=>setForm(f=>({...f,agent_style:s}))} style={{
+          padding:"10px 16px",fontSize:12,borderRadius:10,cursor:"pointer",fontFamily:"inherit",textTransform:"capitalize",fontWeight:600,
+          background:form.agent_style===s?C.cold:"rgba(255,255,255,0.04)",
+          color:form.agent_style===s?"white":C.muted,
+          border:form.agent_style===s?`1px solid ${C.cold}`:`1px solid rgba(255,255,255,0.08)`,
+          transition:"all 0.2s",
+        }}>{s==="professional"?"💼 Pro":s==="friendly"?"😊 Friendly":s==="aggressive"?"⚡ Aggressive":"🎨 Custom"}</button>
+      ))}
+    </div>
+    {form.agent_style==="custom"&&(
+      <textarea value={form.agent_instructions} onChange={e=>setForm(f=>({...f,agent_instructions:e.target.value}))}
+        placeholder="Describe how your agent should act, speak, and make decisions..."
+        style={{width:"100%",background:C.s2,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:12,fontFamily:"inherit",minHeight:80,resize:"vertical",boxSizing:"border-box"}}/>
+    )}
+    <button onClick={async()=>{
+      if(!user?.id)return;
+      await supabase.from("agent_profiles").update({agent_style:form.agent_style,agent_instructions:form.agent_instructions}).eq("user_id",user.id);
+      alert("Personality saved!");
+    }} style={{marginTop:10,padding:"8px 20px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Save Personality</button>
+  </div>
+
+  {/* ── MATCH PREFERENCES ── */}
+  <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
+    <div style={{fontSize:10,color:C.cyan,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>🎯 What I&apos;m Looking For</div>
+    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+      {[{id:"builder",label:"🔨 Builder",desc:"Co-builders"},{id:"investor",label:"💰 Investor",desc:"Capital + backing"},{id:"cofounder",label:"🚀 Co-Founder",desc:"Build together"},{id:"romantic",label:"❤️ Connection",desc:"Personal match"},{id:"mentor",label:"🧭 Mentor",desc:"Guidance"},{id:"collaborator",label:"🤝 Collab",desc:"Project work"}].map(opt=>{
+        const selected=(userPrefs?.connection_types||[]).includes(opt.id);
+        return(
+          <button key={opt.id} onClick={async()=>{
+            const current=userPrefs?.connection_types||[];
+            const updated=selected?current.filter((x:string)=>x!==opt.id):[...current,opt.id];
+            setUserPrefs((p:any)=>({...p,connection_types:updated}));
+            if(user?.id)await supabase.from("user_preferences").upsert({user_id:user.id,connection_types:updated},{onConflict:"user_id"});
+          }} style={{
+            padding:"10px 14px",fontSize:11,borderRadius:10,cursor:"pointer",fontFamily:"inherit",fontWeight:600,
+            background:selected?`${C.cyan}15`:"rgba(255,255,255,0.03)",
+            color:selected?C.cyan:C.muted,
+            border:selected?`1px solid ${C.cyan}44`:`1px solid rgba(255,255,255,0.07)`,
+            display:"flex",flexDirection:"column" as const,alignItems:"center",gap:2,minWidth:76,
+            transition:"all 0.15s",
+          }}>
+            <span style={{fontSize:16}}>{opt.label.split(" ")[0]}</span>
+            <span>{opt.label.split(" ").slice(1).join(" ")}</span>
+            <span style={{fontSize:9,color:C.dim}}>{opt.desc}</span>
+          </button>
+        );
+      })}
+    </div>
+  </div>
+
+  {/* ── TRADING DNA ── */}
+  <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
+    <div style={{fontSize:10,color:C.warn,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>📈 Trading DNA</div>
+    <div style={{marginBottom:14}}>
+      <div style={{fontSize:11,color:C.muted,marginBottom:6,display:"flex",justifyContent:"space-between"}}>
+        <span>Risk Appetite</span>
+        <span style={{color:C.warn,fontWeight:700}}>{wallet?.risk_level==="low"?"🟢 Conservative":wallet?.risk_level==="high"?"🔴 Degen":"🟡 Balanced"}</span>
+      </div>
+      <div style={{display:"flex",gap:6}}>
+        {(["low","medium","high"] as const).map(r=>(
+          <button key={r} onClick={()=>updateWalletSettings({risk_level:r})} style={{
+            flex:1,padding:"10px 8px",fontSize:11,borderRadius:8,cursor:"pointer",fontFamily:"inherit",fontWeight:600,textTransform:"capitalize",
+            background:wallet?.risk_level===r?`${C.warn}15`:"rgba(255,255,255,0.03)",
+            color:wallet?.risk_level===r?C.warn:C.muted,
+            border:wallet?.risk_level===r?`1px solid ${C.warn}44`:`1px solid rgba(255,255,255,0.07)`,
+          }}>{r==="low"?"🟢 Safe":r==="high"?"🔴 Degen":"🟡 Balanced"}</button>
+        ))}
+      </div>
+    </div>
+    <div>
+      <div style={{fontSize:11,color:C.muted,marginBottom:6}}>Trading Focus</div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {(["meme_scout","defi_hunter","bluechip"] as const).map(mode=>(
+          <button key={mode} onClick={()=>updateWalletSettings({trading_mode:mode})} style={{
+            flex:1,padding:"10px 8px",fontSize:11,borderRadius:8,cursor:"pointer",fontFamily:"inherit",fontWeight:600,
+            background:wallet?.trading_mode===mode?`${C.hot}15`:"rgba(255,255,255,0.03)",
+            color:wallet?.trading_mode===mode?C.hot:C.muted,
+            border:wallet?.trading_mode===mode?`1px solid ${C.hot}44`:`1px solid rgba(255,255,255,0.07)`,
+          }}>{mode==="meme_scout"?"🎭 Meme":mode==="defi_hunter"?"🏦 DeFi":"💎 Blue Chip"}</button>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  {/* ── RESEARCH LOOP ── */}
+  <div style={{background:"rgba(99,102,241,0.05)",borderRadius:14,padding:16,border:`1px solid rgba(99,102,241,0.15)`,marginBottom:16}}>
+    <div style={{fontSize:10,color:C.cold,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>🔬 AutoResearch Loop</div>
+    <div style={{fontSize:12,color:C.muted,lineHeight:1.6,marginBottom:12}}>Every night your agent runs experiments, analyzes what worked, and rewrites its own trading rules. The longer it runs, the smarter it gets.</div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:C.s2,borderRadius:8,border:`1px solid ${C.border}`}}>
+      <div>
+        <div style={{fontSize:12,fontWeight:700,color:C.text}}>Nightly Self-Improvement</div>
+        <div style={{fontSize:10,color:C.dim}}>Uses your AI key · runs while you sleep</div>
+      </div>
+      <div style={{width:40,height:24,borderRadius:12,background:agent?.research_enabled?C.match:"rgba(255,255,255,0.08)",border:`1px solid ${agent?.research_enabled?C.match:"rgba(255,255,255,0.15)"}`,cursor:"pointer",display:"flex",alignItems:"center",padding:"0 2px",transition:"all 0.2s"}}
+        onClick={async()=>{
+          const next=!agent?.research_enabled;
+          setAgent((a:any)=>({...a,research_enabled:next}));
+          if(user?.id)await supabase.from("agent_profiles").update({research_enabled:next}).eq("user_id",user.id);
+        }}>
+        <div style={{width:18,height:18,borderRadius:"50%",background:"white",transform:agent?.research_enabled?"translateX(18px)":"translateX(0)",transition:"transform 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
+      </div>
+    </div>
+  </div>
+
+  {/* ── PROFILE SETTINGS (moved from profile tab) ── */}
+  <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
+    <div style={{fontSize:10,color:C.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>👤 Your Profile</div>
+    <button onClick={()=>setView("profile")} style={{width:"100%",padding:"10px",background:"rgba(255,255,255,0.04)",border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textAlign:"left",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <span>Edit profile, bio, industry, socials</span>
+      <span style={{color:C.muted}}>→</span>
+    </button>
+  </div>
+
+</div>)}
+
+        {/* ═══════════════════════════════════════════════════════════
            TAB 1: THE MESH — Social Hub
            ═══════════════════════════════════════════════════════════ */}
         {view==="mesh"&&(<div>
@@ -2307,16 +2525,15 @@ export default function Dashboard(){
 
       {/* ── Mobile Tab Bar — shown on dashboard ── */}
       <MobileTabBar
-        activeTab={view==="mesh"?"mesh":view==="matches"?"matches":view==="brew"?"wallet":view==="profile"?"profile":"mesh"}
+        activeTab={view==="mesh"?"mesh":view==="matches"?"matches":view==="brew"?"wallet":view==="agent"?"agent":view==="profile"?"agent":"mesh"}
         onTabChange={(tab)=>{
           if(tab==="hunt"){router.push("/hunt");return;}
           if(tab==="wallet"){setView("brew");return;}
+          if(tab==="agent"){setView("agent");return;}
           if(tab==="matches"){setView("matches");return;}
           if(tab==="mesh"){setView("mesh");return;}
-          if(tab==="profile"){setView("profile");return;}
         }}
         unreadMatches={matches.filter((m:any)=>!m.user_a_accepted||!m.user_b_accepted).length}
-        unreadMessages={0}
         lowBalance={wallet?.balance_eth<0.01}
       />
     </div>

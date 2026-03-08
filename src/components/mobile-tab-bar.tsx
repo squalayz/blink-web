@@ -36,7 +36,7 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
     { id: "hunt", label: "Hunt", icon: HuntIcon, badge: hotCount, activeColor: C.hot },
     { id: "matches", label: "Matches", icon: MatchesIcon, badge: unreadMatches },
     { id: "wallet", label: "Wallet", icon: WalletIcon, badge: 0, alert: lowBalance },
-    { id: "profile", label: "Profile", icon: ProfileIcon, badge: 0 },
+    { id: "agent", label: "Agent", icon: AgentIcon, badge: 0, activeColor: C.indigo },
   ];
 
   return (
@@ -188,6 +188,16 @@ function HuntIcon({ active }: { active: boolean }) {
       <line x1="12" y1="19" x2="12" y2="22" />
       <line x1="2" y1="12" x2="5" y2="12" />
       <line x1="19" y1="12" x2="22" y2="12" />
+    </svg>
+  );
+}
+
+function AgentIcon({ active }: { active: boolean }) {
+  const c = active ? C.indigo : C.muted;
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round">
+      <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/>
+      <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/>
     </svg>
   );
 }
