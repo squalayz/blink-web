@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Zap, Search, Sparkles, User, Lock, Globe, Mail, Send, MapPin, Shield, Settings,
   Lightbulb, Cpu, Clipboard, Check, CheckCircle, AlertTriangle, ArrowLeft,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import dynamic from "next/dynamic";
+import MobileTabBar from "@/components/mobile-tab-bar";
 const MeshDiscoveryFeed = dynamic(() => import("@/components/MeshDiscoveryFeed"), { ssr: false });
 const PreferenceSetup = dynamic(() => import("@/components/PreferenceSetup"), { ssr: false });
 
@@ -324,10 +325,13 @@ const INDUSTRIES=["AI/ML","SaaS","DeFi/Crypto","Health & Wellness","E-commerce",
 
 export default function Dashboard(){
   const router=useRouter();
+  const searchParams=useSearchParams();
   const[user,setUser]=useState<any>(null);
   const[agent,setAgent]=useState<any>(null);
   const[loading,setLoading]=useState(true);
-  const[view,setView]=useState("mesh");
+  // Support deep-linking: /dashboard?tab=wallet, ?tab=profile, etc.
+  const initialTab=(()=>{const t=searchParams?.get("tab");const map:Record<string,string>={wallet:"brew",matches:"mesh",chat:"mesh",profile:"profile",stats:"buzz",agent:"brew",grow:"evolve"};return(t&&(map[t]||t))||"mesh";})();
+  const[view,setView]=useState(initialTab);
   const[matches,setMatches]=useState<any[]>([]);
   const[notifications,setNotifications]=useState<any[]>([]);
   const[discovery,setDiscovery]=useState<any[]>([]);
@@ -2057,6 +2061,21 @@ export default function Dashboard(){
           </div>
         </div>
       )}
+
+      {/* ── Mobile Tab Bar — shown on dashboard ── */}
+      <MobileTabBar
+        activeTab={view==="mesh"?"mesh":view==="brew"?"wallet":view==="profile"?"profile":view==="buzz"?"matches":view==="evolve"?"profile":"mesh"}
+        onTabChange={(tab)=>{
+          if(tab==="hunt"){router.push("/hunt");return;}
+          if(tab==="wallet"){setView("brew");return;}
+          if(tab==="matches"){setView("buzz");return;}
+          if(tab==="mesh"){setView("mesh");return;}
+          if(tab==="profile"){setView("profile");return;}
+        }}
+        unreadMatches={matches.filter((m:any)=>!m.user_a_accepted||!m.user_b_accepted).length}
+        unreadMessages={0}
+        lowBalance={wallet?.balance_eth<0.01}
+      />
     </div>
   );
 }

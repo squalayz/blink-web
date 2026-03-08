@@ -32,10 +32,9 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
   }, [lastY]);
 
   const tabs = [
-    { id: "mesh", label: "Mesh", icon: MeshIcon, badge: 0 },
+    { id: "mesh", label: "Connect", icon: MeshIcon, badge: 0 },
     { id: "hunt", label: "Hunt", icon: HuntIcon, badge: hotCount, activeColor: C.hot },
     { id: "matches", label: "Matches", icon: MatchesIcon, badge: unreadMatches },
-    { id: "chat", label: "Chat", icon: ChatIcon, badge: unreadMessages },
     { id: "wallet", label: "Wallet", icon: WalletIcon, badge: 0, alert: lowBalance },
     { id: "profile", label: "Profile", icon: ProfileIcon, badge: 0 },
   ];

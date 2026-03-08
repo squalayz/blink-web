@@ -395,11 +395,10 @@ export default function HuntPage() {
         onTabChange={(tab) => {
           if (tab === "hunt") return;
           const routes: Record<string, string> = {
-            mesh: "/dashboard",
-            matches: "/dashboard",
-            chat: "/dashboard",
-            wallet: "/dashboard",
-            profile: "/dashboard",
+            mesh: "/dashboard?tab=mesh",
+            matches: "/dashboard?tab=matches",
+            wallet: "/dashboard?tab=wallet",
+            profile: "/dashboard?tab=profile",
           };
           window.location.href = routes[tab] || "/dashboard";
         }}
