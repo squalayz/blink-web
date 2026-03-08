@@ -34,6 +34,12 @@ export async function POST(req: NextRequest) {
 
     // 3. Get user's AI config
     const config = await getUserAIConfig(userId);
+    if (!config) {
+      return NextResponse.json({
+        reply: "To chat with your agent, please add an API key in your settings first.",
+        signals: [], updatedRules: false,
+      });
+    }
 
     // 4. Get agent's active learned rules
     const { data: learnedRules } = await supabaseAdmin

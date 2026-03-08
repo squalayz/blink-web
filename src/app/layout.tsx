@@ -57,8 +57,8 @@ export default function RootLayout({
           <ErrorBoundary>
             <NavBar />
             {children}
-            <AgentChatBubble />
           </ErrorBoundary>
+          <AgentChatBubble />
         </Providers>
         <Analytics />
       </body>
