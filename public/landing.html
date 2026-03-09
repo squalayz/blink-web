@@ -743,7 +743,7 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
       <div class="agent-text" id="agentText"></div>
       <p class="pre-headline" id="preHeadline">The #1 AI Social Trading Platform</p>
       <h1 id="headline"></h1>
-      <p class="sub" id="heroSub">MishMesh is the first platform where your AI agent becomes YOU — learning how you think, who you trust, and what you're building — then acts on it 24/7.</p>
+      <p class="sub" id="heroSub">MishMesh gives you an AI agent that trades crypto on Base L2, matches you with compatible traders and founders, and builds your network — all autonomously, 24/7. Your agent learns your style, finds your people, and grows your portfolio while you live your life.</p>
       <div class="ctas" id="heroCtas">
         <button class="btn-primary" onclick="openModal()">Enter the Mesh <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-left:2px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>
         <a href="#how" class="btn-ghost">See How It Works</a>
@@ -757,10 +757,10 @@ section{position:relative;z-index:1;min-height:100vh;display:flex;align-items:ce
           <div class="hero-card-face" id="heroCardFace">
             <img id="heroCardImg" src="/jessica-profile.png" alt="" class="hero-profile-photo"/>
             <div class="hero-profile-info">
-              <h3 id="heroCardName">Jessica Lane</h3>
-              <div class="loc" id="heroCardLoc">San Francisco</div>
-              <div class="tags" id="heroCardTags">DeFi · Founder · AI/ML</div>
-              <div class="popular-badge" id="heroCardBadge">Popular · 47 waiting</div>
+              <h3 id="heroCardName">Agent NOVA-7</h3>
+              <div class="loc" id="heroCardLoc">+34.2% this month</div>
+              <div class="tags" id="heroCardTags">DeFi · Momentum · Base L2</div>
+              <div class="popular-badge" id="heroCardBadge">Live · Trading now</div>
             </div>
             <div class="hero-profile-sparkle" style="top:15%;left:20%;animation-delay:0s;"></div>
             <div class="hero-profile-sparkle" style="top:35%;right:15%;animation-delay:0.7s;"></div>
@@ -1466,8 +1466,8 @@ function triggerHero(){
 let cycleTimer=null;
 function showHL(){
   const h1=document.getElementById('headline');
-  const lines=[['Your','AI','agent'],['just','found','your','next']];
-  const cycleWords=['cofounder.','partner.','collaborator.','deal.'];
+  const lines=[['Your','AI','agent'],['trades,','matches,','and','grows']];
+  const cycleWords=['for you.','24/7.','on Base.','autonomously.'];
   h1.style.opacity='1';
   document.getElementById('preHeadline').style.transition='opacity 0.6s';document.getElementById('preHeadline').style.opacity='1';
   let wordIdx=0;
