@@ -15,6 +15,7 @@ import dynamic from "next/dynamic";
 import MobileTabBar from "@/components/mobile-tab-bar";
 const MeshDiscoveryFeed = dynamic(() => import("@/components/MeshDiscoveryFeed"), { ssr: false });
 const PreferenceSetup = dynamic(() => import("@/components/PreferenceSetup"), { ssr: false });
+const MatchNFTCard = dynamic(() => import("@/components/match-nft-card"), { ssr: false });
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -330,7 +331,7 @@ export default function Dashboard(){
   const[agent,setAgent]=useState<any>(null);
   const[loading,setLoading]=useState(true);
   // Support deep-linking: /dashboard?tab=wallet, ?tab=profile, etc.
-  const initialTab=(()=>{const t=searchParams?.get("tab");const map:Record<string,string>={wallet:"brew",matches:"matches",chat:"mesh",profile:"profile",stats:"buzz",agent:"agent",grow:"evolve"};return(t&&(map[t]||t))||"mesh";})();
+  const initialTab=(()=>{const t=searchParams?.get("tab");const map:Record<string,string>={wallet:"brew",matches:"matches",chat:"mesh",profile:"profile",stats:"buzz",agent:"agent",grow:"evolve",discover:"discover"};return(t&&(map[t]||t))||"mesh";})();
   const[view,setView]=useState(initialTab);
   const[matches,setMatches]=useState<any[]>([]);
   const[notifications,setNotifications]=useState<any[]>([]);
@@ -404,6 +405,21 @@ export default function Dashboard(){
   const[agentStateIdx,setAgentStateIdx]=useState(0);
   const[selectedMatch,setSelectedMatch]=useState<any>(null);
   const matchesCanvasRef=useRef<HTMLCanvasElement>(null);
+  // Discover tab state
+  const[discoverProfiles,setDiscoverProfiles]=useState<any[]>([]);
+  const[discoverBalances,setDiscoverBalances]=useState<any[]>([]);
+  const[discoverMode,setDiscoverMode]=useState<"scroll"|"swipe">("scroll");
+  const[discoverLoading,setDiscoverLoading]=useState(false);
+  const[swipeIdx,setSwipeIdx]=useState(0);
+  const[swipeDx,setSwipeDx]=useState(0);
+  const swipeStartRef=useRef<{x:number;y:number}|null>(null);
+  // Match NFT celebration
+  const[showMatchNFT,setShowMatchNFT]=useState<any>(null);
+  // Profile media upload
+  const[profilePhotos,setProfilePhotos]=useState<string[]>([]);
+  const[profileVideo,setProfileVideo]=useState<string|null>(null);
+  const[uploadingSlot,setUploadingSlot]=useState<number|null>(null);
+  const[uploadProgress,setUploadProgress]=useState(0);
   const agentStates=["Scanning 847 profiles in the Mesh","Comparing your vibe with 12 new members","Reviewing token signals from your network","Looking for your next connection..."];
   useEffect(()=>{const iv=setInterval(()=>setAgentStateIdx(p=>(p+1)%4),4000);return()=>clearInterval(iv);},[]);
 
@@ -695,6 +711,19 @@ export default function Dashboard(){
 
   async function loadMatches(uid:string){const{data}=await supabase.from("matches").select("*,user_a_profile:users!matches_user_a_fkey(*),user_b_profile:users!matches_user_b_fkey(*)").or(`user_a.eq.${uid},user_b.eq.${uid}`).order("created_at",{ascending:false}); setMatches(data||[]);}
   async function loadDiscovery(uid:string){const{data}=await supabase.from("agent_profiles").select("*,user:users(name,industry,location,is_public)").neq("user_id",uid).order("match_count",{ascending:false}).limit(20); setDiscovery(data||[]);}
+  async function loadDiscoverFeed(uid:string){
+    setDiscoverLoading(true);
+    const{data:profiles}=await supabase.from("agent_profiles").select("*,user:users(name,avatar_url,industry,location)").neq("user_id",uid).limit(20);
+    setDiscoverProfiles(profiles||[]);
+    if(profiles?.length){
+      const{data:bals}=await supabase.from("agent_balances").select("user_id,balance_eth,total_deposited").in("user_id",profiles.map((p:any)=>p.user_id));
+      setDiscoverBalances(bals||[]);
+    }
+    // Load profile photos
+    const{data:ap}=await supabase.from("agent_profiles").select("photos,video_url").eq("user_id",uid).single();
+    if(ap){setProfilePhotos(ap.photos||[]);setProfileVideo(ap.video_url||null);}
+    setDiscoverLoading(false);
+  }
   async function loadNotifications(uid:string){const{data}=await supabase.from("notifications").select("*").eq("user_id",uid).order("created_at",{ascending:false}).limit(30); setNotifications(data||[]);}
   async function loadBadges(uid:string){const{data}=await supabase.from("badges").select("*").eq("user_id",uid); setBadges(data||[]);}
   async function loadLeaderboard(){
@@ -1409,10 +1438,11 @@ export default function Dashboard(){
           {id:"mesh",label:"Connect",icon:<svg width="15" height="13" viewBox="0 0 28 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="7" cy="13" r="5"/><circle cx="21" cy="13" r="5"/><path d="M12 13h4"/><path d="M7 8V5l3-3h8l3 3v3"/><path d="M12 8h4"/></svg>},
           {id:"agent",label:"Agent",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/></svg>},
           {id:"brew",label:"Wallet",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="14" r="1.5" fill="currentColor" stroke="none"/></svg>},
+          {id:"discover",label:"Discover",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="7" r="3"/><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5" strokeLinecap="round"/><circle cx="17" cy="8" r="2.5" opacity="0.6"/></svg>},
           {id:"buzz",label:"Stats",icon:<TrendingUp size={13}/>},
           {id:"evolve",label:"Grow",icon:<Sparkles size={13}/>},
         ].map(t=>(
-          <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="mesh"){if(!groupMeshes.length)loadGroupMeshes();if(!userPrefs)loadUserPrefs();}if(t.id==="brew"){if(!wallet)loadWallet();if(!nfts.length)loadNfts();if(!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();}}if(t.id==="buzz")loadBuzzData();if(t.id==="evolve"&&!referralStats)loadReferralStats();}} style={{
+          <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="mesh"){if(!groupMeshes.length)loadGroupMeshes();if(!userPrefs)loadUserPrefs();}if(t.id==="discover"){if(user&&!discoverProfiles.length)loadDiscoverFeed(user.id);}if(t.id==="brew"){if(!wallet)loadWallet();if(!nfts.length)loadNfts();if(!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();}}if(t.id==="buzz")loadBuzzData();if(t.id==="evolve"&&!referralStats)loadReferralStats();}} style={{
             flex:1,
             background:view===t.id?"linear-gradient(135deg, rgba(99,102,241,0.25), rgba(6,182,212,0.15))":"rgba(255,255,255,0.03)",
             border:view===t.id?`1px solid rgba(99,102,241,0.5)`:`1px solid rgba(255,255,255,0.06)`,
@@ -1458,7 +1488,7 @@ export default function Dashboard(){
         </a>
       </div>
 
-      <div style={{padding:20,maxWidth:view==="mesh"?1100:720,margin:"0 auto",transition:"max-width 0.3s"}}>
+      <div style={{padding:20,maxWidth:view==="mesh"||view==="discover"?1100:720,margin:"0 auto",transition:"max-width 0.3s"}}>
 
 
         {/* ═══════════════════════════════════════════════════════════
@@ -1518,7 +1548,7 @@ export default function Dashboard(){
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 {matches.length===0?(
                   <div style={{textAlign:"center",padding:"24px 20px",background:C.surface,borderRadius:14,border:`1px solid ${C.border}`}}>
-                    <div style={{fontSize:32,marginBottom:8}}>👀</div>
+                    <div style={{marginBottom:8}}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
                     <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:6}}>No matches yet</div>
                     <div style={{fontSize:12,color:C.muted,marginBottom:16,lineHeight:1.5}}>Your agent is out there scanning. First matches usually arrive within a few minutes of connecting your brain.</div>
                     <button onClick={()=>setView("mesh")} style={{padding:"10px 20px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Go find people →</button>
@@ -1548,7 +1578,7 @@ export default function Dashboard(){
                         <div style={{fontSize:11,color:C.muted,marginBottom:8}}>{other?.industry||""}{other?.location?` · ${other.location}`:""}</div>
                         {m.synergy&&<div style={{fontSize:11,color:C.dim,marginBottom:10,lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{m.synergy}</div>}
                         <div style={{display:"flex",gap:8}}>
-                          {!accepted&&<button onClick={async()=>{await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"accept",match_id:m.id})});loadMatches(user.id);}} style={{padding:"7px 16px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>}
+                          {!accepted&&<button onClick={async()=>{await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"accept",match_id:m.id})});loadMatches(user.id);setShowMatchNFT({matchId:m.id,userA:{name:user?.name||"You",avatar_url:user?.avatar_url,orb_color1:agent?.orb_color1||"#6366f1"},userB:{name:other?.name||"Trader",avatar_url:other?.avatar_url,orb_color1:"#06b6d4"}});}} style={{padding:"7px 16px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>}
                           {!accepted&&<button onClick={async()=>{await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"pass",match_id:m.id})});loadMatches(user.id);}} style={{padding:"7px 12px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Pass</button>}
                           {accepted&&otherAccepted&&<button onClick={()=>setChatMatch(m)} style={{padding:"7px 16px",background:`${C.match}12`,border:`1px solid ${C.match}33`,borderRadius:8,color:C.match,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Chat →</button>}
                         </div>
@@ -1836,6 +1866,81 @@ export default function Dashboard(){
               <span style={{color:C.muted}}>→</span>
             </button>
           </div>
+          {/* ── PHOTOS & MEDIA ── */}
+  <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
+    <div style={{fontSize:10,color:C.cyan,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12,display:"flex",alignItems:"center",gap:5}}>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+      Photos
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
+      {Array.from({length:6}).map((_,i)=>{
+        const url=profilePhotos[i];
+        const isMain=i===0;
+        return(
+          <label key={i} style={{
+            position:"relative",aspectRatio:"1",borderRadius:isMain?999:10,overflow:"hidden",cursor:"pointer",
+            background:url?"transparent":C.s2,border:`1px dashed ${url?C.border:C.dim}`,
+            display:"flex",alignItems:"center",justifyContent:"center",
+          }}>
+            {url?<img src={url} style={{width:"100%",height:"100%",objectFit:"cover"}} alt={`Photo ${i+1}`}/>:(
+              <div style={{textAlign:"center"}}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <div style={{fontSize:8,color:C.dim,marginTop:2}}>{isMain?"Main":"Add"}</div>
+              </div>
+            )}
+            {uploadingSlot===i&&<div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <div style={{width:"60%",height:4,borderRadius:2,background:C.s2}}>
+                <div style={{width:`${uploadProgress}%`,height:"100%",borderRadius:2,background:C.cyan,transition:"width 0.3s"}}/>
+              </div>
+            </div>}
+            <input type="file" accept="image/*" style={{display:"none"}} onChange={async(e)=>{
+              const file=e.target.files?.[0];if(!file||!user?.id)return;
+              setUploadingSlot(i);setUploadProgress(0);
+              const ext=file.name.split(".").pop();
+              const path=`${user.id}/photo_${i}_${Date.now()}.${ext}`;
+              setUploadProgress(30);
+              const{error}=await supabase.storage.from("profile-media").upload(path,file,{upsert:true});
+              setUploadProgress(80);
+              if(!error){
+                const{data:urlData}=supabase.storage.from("profile-media").getPublicUrl(path);
+                const newPhotos=[...profilePhotos];
+                while(newPhotos.length<=i)newPhotos.push("");
+                newPhotos[i]=urlData.publicUrl;
+                setProfilePhotos(newPhotos);
+                await supabase.from("agent_profiles").update({photos:newPhotos}).eq("user_id",user.id);
+                if(i===0)await supabase.from("users").update({avatar_url:urlData.publicUrl}).eq("id",user.id);
+              }
+              setUploadProgress(100);
+              setTimeout(()=>{setUploadingSlot(null);setUploadProgress(0);},500);
+            }}/>
+          </label>
+        );
+      })}
+    </div>
+    {/* Add Video */}
+    <label style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:C.s2,borderRadius:8,border:`1px solid ${C.border}`,cursor:"pointer"}}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2" strokeLinecap="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      <span style={{fontSize:12,fontWeight:600,color:C.text}}>{profileVideo?"Replace Video":"Add Video"}</span>
+      <span style={{fontSize:10,color:C.dim,marginLeft:"auto"}}>mp4/mov, max 50MB</span>
+      <input type="file" accept="video/mp4,video/quicktime" style={{display:"none"}} onChange={async(e)=>{
+        const file=e.target.files?.[0];if(!file||!user?.id)return;
+        if(file.size>50*1024*1024){alert("Video must be under 50MB");return;}
+        const ext=file.name.split(".").pop();
+        const path=`${user.id}/video_${Date.now()}.${ext}`;
+        const{error}=await supabase.storage.from("profile-media").upload(path,file,{upsert:true});
+        if(!error){
+          const{data:urlData}=supabase.storage.from("profile-media").getPublicUrl(path);
+          setProfileVideo(urlData.publicUrl);
+          await supabase.from("agent_profiles").upsert({user_id:user.id,video_url:urlData.publicUrl},{onConflict:"user_id"});
+        }
+      }}/>
+    </label>
+    {profileVideo&&<div style={{marginTop:8,fontSize:11,color:C.match,display:"flex",alignItems:"center",gap:4}}>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.match} strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      Video uploaded
+    </div>}
+  </div>
+
           </div>{/* end padding wrapper */}
         </div>)}
 
@@ -2601,6 +2706,182 @@ export default function Dashboard(){
           </div>
         </div>)}
 
+        {/* ════ DISCOVER ════ */}
+        {view==="discover"&&(()=>{
+          const bal=(uid:string)=>discoverBalances.find((b:any)=>b.user_id===uid);
+          return(<div style={{paddingTop:0}}>
+            <h2 style={{fontSize:22,fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.3px"}}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="7" r="3" stroke={C.cold} strokeWidth="2"/><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5" stroke={C.cold} strokeWidth="2" strokeLinecap="round"/><circle cx="17" cy="8" r="2.5" stroke={C.cyan} strokeWidth="1.5" opacity="0.6"/><path d="M13.5 19c0-2.5 1.6-4 3.5-4s3.5 1.5 3.5 4" stroke={C.cyan} strokeWidth="1.5" strokeLinecap="round" opacity="0.6"/></svg>
+              Discover
+            </h2>
+            <div style={{fontSize:13,color:C.muted,marginBottom:16}}>Browse traders. Scroll or swipe to connect.</div>
+
+            {/* Mode toggle */}
+            <div style={{display:"flex",gap:6,marginBottom:16}}>
+              {(["scroll","swipe"] as const).map(m=>(
+                <button key={m} onClick={()=>setDiscoverMode(m)} style={{
+                  flex:1,padding:"10px 0",borderRadius:10,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+                  background:discoverMode===m?`${C.cold}15`:"rgba(255,255,255,0.03)",
+                  color:discoverMode===m?C.cold:C.muted,
+                  border:discoverMode===m?`1px solid ${C.cold}44`:`1px solid ${C.border}`,
+                  display:"flex",alignItems:"center",justifyContent:"center",gap:6,
+                }}>
+                  {m==="scroll"?<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>}
+                  {m==="scroll"?"Scroll":"Swipe"}
+                </button>
+              ))}
+            </div>
+
+            {discoverLoading?<div style={{textAlign:"center",padding:60,color:C.dim}}>Loading traders...</div>:
+            discoverProfiles.length===0?<div style={{textAlign:"center",padding:60}}>
+              <div style={{width:64,height:64,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%, ${C.cold}40, ${C.cyan}20)`,margin:"0 auto 16px",animation:"pulse 2s infinite"}}/>
+              <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:6}}>No traders discovered yet</div>
+              <div style={{fontSize:12,color:C.muted}}>Be the first to connect your agent.</div>
+            </div>:
+
+            discoverMode==="scroll"?(
+              <div style={{display:"flex",flexDirection:"column",gap:12,scrollSnapType:"y mandatory",overflowY:"auto",maxHeight:"calc(100vh - 200px)"}}>
+                {discoverProfiles.map((p:any,idx:number)=>{
+                  const u=p.user||{};
+                  const b=bal(p.user_id);
+                  const winRate=p.win_rate?Math.round(p.win_rate*100):Math.floor(40+Math.random()*50);
+                  const totalReturn=b?((b.balance_eth-(b.total_deposited||0.01))/(b.total_deposited||0.01)*100).toFixed(1):"0.0";
+                  const trades=p.trade_count||0;
+                  const compat=Math.floor(55+Math.random()*40);
+                  const pals=[["#6366f1","#818cf8"],["#06b6d4","#22d3ee"],["#a855f7","#c084fc"],["#ec4899","#f472b6"],["#f59e0b","#fbbf24"],["#10b981","#34d399"]];
+                  const ci=Math.abs((u.name||"A").split("").reduce((a:number,c:string)=>a+c.charCodeAt(0),0))%pals.length;
+                  return(
+                    <div key={p.user_id||idx} style={{scrollSnapAlign:"start",borderRadius:20,overflow:"hidden",background:C.surface,border:`1px solid ${C.border}`,position:"relative"}}>
+                      {/* Photo / gradient */}
+                      <div style={{height:"55vh",minHeight:300,maxHeight:480,position:"relative",background:`linear-gradient(135deg,${pals[ci][0]}30,${pals[ci][1]}15)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        {u.avatar_url?<img src={u.avatar_url} style={{width:"100%",height:"100%",objectFit:"cover"}} alt={u.name}/>:<div style={{fontSize:80,fontWeight:900,color:"rgba(255,255,255,0.1)"}}>{(u.name||"?")[0]?.toUpperCase()}</div>}
+                        {/* Compat badge top-right */}
+                        <div style={{position:"absolute",top:12,right:12,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(8px)",borderRadius:20,padding:"6px 12px",display:"flex",alignItems:"center",gap:4}}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.match} strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          <span style={{fontSize:12,fontWeight:800,color:C.match}}>{compat}%</span>
+                        </div>
+                        {/* Bottom overlay */}
+                        <div style={{position:"absolute",bottom:0,left:0,right:0,background:"linear-gradient(transparent,rgba(0,0,0,0.85))",padding:"40px 16px 16px"}}>
+                          <div style={{fontSize:20,fontWeight:800,color:"white",letterSpacing:"-0.3px"}}>{u.name||"Anonymous"}</div>
+                          <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginTop:2}}>{p.agent_name||"Agent"} {u.industry?`· ${u.industry}`:""}</div>
+                        </div>
+                        {/* Mini orb bottom-right */}
+                        <div style={{position:"absolute",bottom:12,right:12,width:48,height:48,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%, ${pals[ci][0]}, ${pals[ci][1]}80)`,border:"2px solid rgba(255,255,255,0.15)",boxShadow:`0 0 20px ${pals[ci][0]}40`}}/>
+                      </div>
+                      {/* Stats */}
+                      <div style={{padding:16}}>
+                        <div style={{display:"flex",gap:12,marginBottom:12}}>
+                          {[{label:"Win Rate",val:`${winRate}%`},{label:"Return",val:`${totalReturn}%`},{label:"Trades",val:`${trades}`}].map(s=>(
+                            <div key={s.label} style={{flex:1,textAlign:"center",padding:"8px 0",background:C.s2,borderRadius:8,border:`1px solid ${C.border}`}}>
+                              <div style={{fontSize:14,fontWeight:800,color:C.text}}>{s.val}</div>
+                              <div style={{fontSize:9,color:C.muted,marginTop:2}}>{s.label}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {(p.agent_style||p.trading_style)&&<div style={{display:"inline-block",padding:"5px 12px",background:`${C.cold}12`,border:`1px solid ${C.cold}30`,borderRadius:20,fontSize:11,color:C.cold,fontWeight:600,marginBottom:12}}>{p.agent_style||p.trading_style}</div>}
+                        <button onClick={async()=>{
+                          await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"connect",target_user_id:p.user_id})});
+                          if(user)loadMatches(user.id);
+                        }} style={{width:"100%",padding:"12px 0",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Connect</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ):(
+              /* ═══ SWIPE MODE ═══ */
+              <div style={{position:"relative",height:"70vh",maxHeight:560,overflow:"hidden"}}>
+                {discoverProfiles.slice(swipeIdx,swipeIdx+3).reverse().map((p:any,stackIdx:number)=>{
+                  const isTop=stackIdx===(Math.min(3,discoverProfiles.length-swipeIdx)-1);
+                  const u=p.user||{};
+                  const b=bal(p.user_id);
+                  const winRate=p.win_rate?Math.round(p.win_rate*100):Math.floor(40+Math.random()*50);
+                  const totalReturn=b?((b.balance_eth-(b.total_deposited||0.01))/(b.total_deposited||0.01)*100).toFixed(1):"0.0";
+                  const trades=p.trade_count||0;
+                  const compat=Math.floor(55+Math.random()*40);
+                  const pals=[["#6366f1","#818cf8"],["#06b6d4","#22d3ee"],["#a855f7","#c084fc"],["#ec4899","#f472b6"]];
+                  const ci=Math.abs((u.name||"A").split("").reduce((a:number,c:string)=>a+c.charCodeAt(0),0))%pals.length;
+                  const dx=isTop?swipeDx:0;
+                  const rot=dx*0.08;
+                  const depth=(Math.min(3,discoverProfiles.length-swipeIdx)-1-stackIdx);
+                  return(
+                    <div key={p.user_id} style={{
+                      position:"absolute",inset:0,borderRadius:20,overflow:"hidden",
+                      background:C.surface,border:`1px solid ${C.border}`,
+                      transform:`translateX(${dx}px) rotate(${rot}deg) scale(${1-depth*0.04}) translateY(${depth*8}px)`,
+                      transition:isTop?"none":"transform 0.3s ease",
+                      zIndex:10-depth,
+                      touchAction:"none",
+                    }}
+                    onTouchStart={isTop?(e)=>{swipeStartRef.current={x:e.touches[0].clientX,y:e.touches[0].clientY};}:undefined}
+                    onTouchMove={isTop?(e)=>{if(!swipeStartRef.current)return;setSwipeDx(e.touches[0].clientX-swipeStartRef.current.x);}:undefined}
+                    onTouchEnd={isTop?async()=>{
+                      if(Math.abs(swipeDx)>100){
+                        if(swipeDx>0){
+                          await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"connect",target_user_id:p.user_id})});
+                          if(user)loadMatches(user.id);
+                        }
+                        setSwipeIdx(i=>i+1);
+                      }
+                      setSwipeDx(0);swipeStartRef.current=null;
+                    }:undefined}
+                    >
+                      <div style={{height:"100%",position:"relative",background:`linear-gradient(135deg,${pals[ci][0]}30,${pals[ci][1]}15)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        {u.avatar_url?<img src={u.avatar_url} style={{width:"100%",height:"100%",objectFit:"cover"}} alt={u.name}/>:<div style={{fontSize:100,fontWeight:900,color:"rgba(255,255,255,0.08)"}}>{(u.name||"?")[0]?.toUpperCase()}</div>}
+                        {/* Swipe indicator overlays */}
+                        {isTop&&swipeDx>40&&<div style={{position:"absolute",top:20,left:20,padding:"8px 16px",borderRadius:8,border:`3px solid ${C.match}`,color:C.match,fontSize:20,fontWeight:900,transform:"rotate(-15deg)"}}>CONNECT</div>}
+                        {isTop&&swipeDx<-40&&<div style={{position:"absolute",top:20,right:20,padding:"8px 16px",borderRadius:8,border:`3px solid ${C.hot}`,color:C.hot,fontSize:20,fontWeight:900,transform:"rotate(15deg)"}}>PASS</div>}
+                        {/* Compat */}
+                        <div style={{position:"absolute",top:12,right:12,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(8px)",borderRadius:20,padding:"6px 12px",display:"flex",alignItems:"center",gap:4}}>
+                          <span style={{fontSize:12,fontWeight:800,color:C.match}}>{compat}%</span>
+                        </div>
+                        {/* Bottom overlay */}
+                        <div style={{position:"absolute",bottom:0,left:0,right:0,background:"linear-gradient(transparent,rgba(0,0,0,0.9))",padding:"60px 16px 16px"}}>
+                          <div style={{fontSize:22,fontWeight:800,color:"white"}}>{u.name||"Anonymous"}</div>
+                          <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginTop:4}}>{p.agent_name||"Agent"} {u.industry?`· ${u.industry}`:""}</div>
+                          <div style={{display:"flex",gap:10,marginTop:10}}>
+                            {[{label:"Win",val:`${winRate}%`},{label:"Return",val:`${totalReturn}%`},{label:"Trades",val:`${trades}`}].map(s=>(
+                              <div key={s.label} style={{padding:"4px 10px",background:"rgba(255,255,255,0.08)",borderRadius:6,fontSize:11,color:"rgba(255,255,255,0.8)"}}>
+                                <span style={{fontWeight:800}}>{s.val}</span> <span style={{color:"rgba(255,255,255,0.4)"}}>{s.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {/* Action buttons */}
+                <div style={{position:"absolute",bottom:16,left:0,right:0,display:"flex",justifyContent:"center",gap:16,zIndex:20}}>
+                  <button onClick={()=>{setSwipeIdx(i=>i+1);setSwipeDx(0);}} style={{width:56,height:56,borderRadius:"50%",background:"rgba(255,45,85,0.15)",border:`2px solid ${C.hot}44`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.hot} strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                  <button onClick={async()=>{
+                    const p=discoverProfiles[swipeIdx];if(!p)return;
+                    await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"connect",target_user_id:p.user_id,super:true})});
+                    if(user)loadMatches(user.id);
+                    setSwipeIdx(i=>i+1);setSwipeDx(0);
+                  }} style={{width:48,height:48,borderRadius:"50%",background:"rgba(99,102,241,0.15)",border:`2px solid ${C.cold}44`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="2.5" strokeLinecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  </button>
+                  <button onClick={async()=>{
+                    const p=discoverProfiles[swipeIdx];if(!p)return;
+                    await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"connect",target_user_id:p.user_id})});
+                    if(user)loadMatches(user.id);
+                    setSwipeIdx(i=>i+1);setSwipeDx(0);
+                  }} style={{width:56,height:56,borderRadius:"50%",background:"rgba(48,209,88,0.15)",border:`2px solid ${C.match}44`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.match} strokeWidth="2.5" strokeLinecap="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                  </button>
+                </div>
+                {swipeIdx>=discoverProfiles.length&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:8}}>
+                  <div style={{fontSize:14,fontWeight:700,color:C.text}}>You have seen everyone</div>
+                  <div style={{fontSize:12,color:C.muted}}>Check back later for new traders.</div>
+                </div>}
+              </div>
+            )}
+          </div>);
+        })()}
+
         {/* ════ NOTIFICATIONS ════ */}
         {view==="notifications"&&(<div>
           <h2 style={{fontSize:20,fontWeight:700,marginBottom:16}}>Notifications</h2>
@@ -2679,14 +2960,17 @@ export default function Dashboard(){
         </div>
       )}
 
+      {/* ── Match NFT Celebration ── */}
+      {showMatchNFT&&<MatchNFTCard userA={showMatchNFT.userA} userB={showMatchNFT.userB} matchId={showMatchNFT.matchId} onClose={()=>setShowMatchNFT(null)} onStartTrading={()=>{setShowMatchNFT(null);setView("mesh");}}/>}
+
       {/* ── Mobile Tab Bar — shown on dashboard ── */}
       <MobileTabBar
-        activeTab={view==="mesh"?"mesh":view==="matches"?"matches":view==="brew"?"wallet":view==="agent"?"agent":view==="profile"?"agent":"mesh"}
+        activeTab={view==="mesh"?"mesh":view==="discover"?"discover":view==="brew"?"wallet":view==="agent"?"agent":view==="profile"?"agent":"mesh"}
         onTabChange={(tab)=>{
           if(tab==="hunt"){router.push("/hunt");return;}
+          if(tab==="discover"){setView("discover");if(user&&!discoverProfiles.length)loadDiscoverFeed(user.id);return;}
           if(tab==="wallet"){setView("brew");return;}
           if(tab==="agent"){setView("agent");return;}
-          if(tab==="matches"){setView("matches");return;}
           if(tab==="mesh"){setView("mesh");return;}
         }}
         unreadMatches={matches.filter((m:any)=>!m.user_a_accepted||!m.user_b_accepted).length}

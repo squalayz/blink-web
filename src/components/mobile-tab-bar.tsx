@@ -34,7 +34,7 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
   const tabs = [
     { id: "mesh", label: "Connect", icon: MeshIcon, badge: 0 },
     { id: "hunt", label: "Hunt", icon: HuntIcon, badge: hotCount, activeColor: C.hot },
-    { id: "matches", label: "Matches", icon: MatchesIcon, badge: unreadMatches },
+    { id: "discover", label: "Discover", icon: DiscoverIcon, badge: 0, activeColor: C.indigo },
     { id: "wallet", label: "Wallet", icon: WalletIcon, badge: 0, alert: lowBalance },
     { id: "agent", label: "Agent", icon: AgentIcon, badge: 0, activeColor: C.indigo },
   ];
@@ -198,6 +198,19 @@ function AgentIcon({ active }: { active: boolean }) {
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round">
       <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/>
       <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/>
+    </svg>
+  );
+}
+
+function DiscoverIcon({ active }: { active: boolean }) {
+  const c = active ? "#6366f1" : "#6b6b80";
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <circle cx="9" cy="7" r="3" stroke={c} strokeWidth="2"/>
+      <path d="M3 19c0-3 2.7-5 6-5s6 2 6 5" stroke={c} strokeWidth="2" strokeLinecap="round"/>
+      <circle cx="17" cy="8" r="2.5" stroke={c} strokeWidth="1.5" opacity="0.6"/>
+      <path d="M13.5 19c0-2.5 1.6-4 3.5-4s3.5 1.5 3.5 4" stroke={c} strokeWidth="1.5" strokeLinecap="round" opacity="0.6"/>
+      {active && <path d="M12 21 L12 23 M11 22 L12 23 L13 22" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>}
     </svg>
   );
 }
