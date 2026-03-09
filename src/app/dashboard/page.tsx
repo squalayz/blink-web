@@ -2788,8 +2788,8 @@ export default function Dashboard(){
               <div style={{width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle at 35% 35%, #6366f1, #a855f7 60%, #6366f1 100%)",boxShadow:"0 0 60px rgba(99,102,241,0.4), 0 0 120px rgba(99,102,241,0.2)",animation:"discoverOrbPulse 3s ease-in-out infinite",marginBottom:32,position:"relative",zIndex:1}}>
                 <style>{`@keyframes discoverOrbPulse{0%,100%{transform:scale(1);box-shadow:0 0 60px rgba(99,102,241,0.4),0 0 120px rgba(99,102,241,0.2)}50%{transform:scale(1.08);box-shadow:0 0 80px rgba(99,102,241,0.6),0 0 160px rgba(99,102,241,0.3)}}`}</style>
               </div>
-              <div style={{fontSize:24,fontWeight:800,color:C.text,marginBottom:10,textAlign:"center",position:"relative",zIndex:1,letterSpacing:"-0.3px"}}>Your Agent is Dormant</div>
-              <div style={{fontSize:14,color:C.muted,textAlign:"center",maxWidth:320,lineHeight:1.6,marginBottom:28,position:"relative",zIndex:1}}>Connect your AI brain to let your agent autonomously find and match compatible traders for you.</div>
+              <div style={{fontSize:24,fontWeight:800,color:C.text,marginBottom:10,textAlign:"center",position:"relative",zIndex:1,letterSpacing:"-0.3px"}}>Your Agent is Sleeping</div>
+              <div style={{fontSize:14,color:C.muted,textAlign:"center",maxWidth:320,lineHeight:1.6,marginBottom:28,position:"relative",zIndex:1}}>Connect your AI brain to let your agent autonomously find your people — traders, founders, creators, builders, and more. Your agent learns who you are and finds who you need.</div>
               <button onClick={()=>setView("agent")} style={{padding:"14px 32px",background:"linear-gradient(135deg, #6366f1, #a855f7)",border:"none",borderRadius:12,color:"white",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",position:"relative",zIndex:1,boxShadow:"0 4px 24px rgba(99,102,241,0.4)"}}>Connect Your Brain</button>
             </div>);
           }
@@ -2803,7 +2803,7 @@ export default function Dashboard(){
             {/* Header */}
             <div style={{textAlign:"center",marginBottom:20}}>
               <div style={{fontSize:12,color:C.muted,marginBottom:8,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                Your agent is actively scanning for compatible matches
+                Your agent is scanning for compatible people
                 <span style={{display:"inline-flex",gap:3}}>
                   {[0,1,2].map(i=>(
                     <span key={i} style={{width:4,height:4,borderRadius:"50%",background:C.cold,display:"inline-block",animation:`discoverDot 1.4s ease-in-out ${i*0.2}s infinite`}}/>
@@ -2811,16 +2811,16 @@ export default function Dashboard(){
                 </span>
                 <style>{`@keyframes discoverDot{0%,80%,100%{opacity:0.3;transform:scale(0.8)}40%{opacity:1;transform:scale(1.2)}}`}</style>
               </div>
-              <div style={{fontSize:16,fontWeight:700,color:C.text}}>{agent?.agent_name||"Your Agent"}&apos;s top picks today</div>
+              <div style={{fontSize:16,fontWeight:700,color:C.text}}>{agent?.agent_name||"Your Agent"}&apos;s picks — traders, founders &amp; more</div>
             </div>
 
-            {discoverLoading?<div style={{textAlign:"center",padding:60,color:C.dim}}>Loading traders...</div>:
+            {discoverLoading?<div style={{textAlign:"center",padding:60,color:C.dim}}>Finding your people...</div>:
             isEmpty?(
               /* Empty state */
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"60vh",gap:16}}>
                 <div style={{width:80,height:80,borderRadius:"50%",background:"radial-gradient(circle at 35% 35%, #6366f1, #a855f7 60%, #6366f1 100%)",boxShadow:"0 0 40px rgba(99,102,241,0.3)",animation:"discoverOrbPulse 3s ease-in-out infinite"}}/>
-                <div style={{fontSize:15,fontWeight:700,color:C.text,textAlign:"center"}}>Your agent has reviewed all available traders.</div>
-                <div style={{fontSize:13,color:C.muted,textAlign:"center"}}>Check back tomorrow.</div>
+                <div style={{fontSize:15,fontWeight:700,color:C.text,textAlign:"center"}}>Your agent has reviewed everyone available right now.</div>
+                <div style={{fontSize:13,color:C.muted,textAlign:"center"}}>New people join every day — check back soon.</div>
                 <button onClick={()=>setDiscoverIdx(0)} style={{marginTop:8,padding:"10px 24px",background:`${C.cold}15`,border:`1px solid ${C.cold}44`,borderRadius:10,color:C.cold,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{display:"inline",verticalAlign:"middle",marginRight:6}}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                   Refresh
@@ -2881,7 +2881,7 @@ export default function Dashboard(){
                             <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:4}}>
                               <span style={{fontSize:18,fontWeight:800,color:C.text}}>{p.display_name||p.agent_name||"Anonymous"}</span>
                             </div>
-                            <div style={{fontSize:11,color:C.muted,marginBottom:10}}>Base L2 Trader</div>
+                            <div style={{fontSize:11,color:C.muted,marginBottom:10}}>MishMesh Member</div>
                             {/* Trading style pill */}
                             {style_str&&<div style={{display:"inline-block",padding:"4px 10px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:16,fontSize:10,color:C.cold,fontWeight:700,marginBottom:10,textTransform:"capitalize"}}>{style_str}</div>}
                             {/* 3 stats */}
