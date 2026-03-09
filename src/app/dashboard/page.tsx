@@ -408,11 +408,13 @@ export default function Dashboard(){
   // Discover tab state
   const[discoverProfiles,setDiscoverProfiles]=useState<any[]>([]);
   const[discoverBalances,setDiscoverBalances]=useState<any[]>([]);
-  const[discoverMode,setDiscoverMode]=useState<"scroll"|"swipe">("scroll");
   const[discoverLoading,setDiscoverLoading]=useState(false);
-  const[swipeIdx,setSwipeIdx]=useState(0);
-  const[swipeDx,setSwipeDx]=useState(0);
-  const swipeStartRef=useRef<{x:number;y:number}|null>(null);
+  const[discoverIdx,setDiscoverIdx]=useState(0);
+  const dragXRef=useRef(0);
+  const dragStartXRef=useRef(0);
+  const cardRef=useRef<HTMLDivElement>(null);
+  const[dragX,setDragX]=useState(0);
+  const isDraggingRef=useRef(false);
   // Match NFT celebration
   const[showMatchNFT,setShowMatchNFT]=useState<any>(null);
   // Profile media upload
@@ -422,6 +424,29 @@ export default function Dashboard(){
   const[uploadProgress,setUploadProgress]=useState(0);
   const agentStates=["Scanning 847 profiles in the Mesh","Comparing your vibe with 12 new members","Reviewing token signals from your network","Looking for your next connection..."];
   useEffect(()=>{const iv=setInterval(()=>setAgentStateIdx(p=>(p+1)%4),4000);return()=>clearInterval(iv);},[]);
+
+  // Global pointer up for discover swipe cleanup
+  useEffect(()=>{
+    const handleGlobalPointerUp=()=>{
+      if(!isDraggingRef.current)return;
+      isDraggingRef.current=false;
+      const dx=dragXRef.current;
+      if(dx>120){
+        const p=discoverProfiles[discoverIdx];
+        if(p)console.log("CONNECT:",p.agent_name,p.user_id);
+        setDiscoverIdx(i=>i+1);
+        setDragX(0);
+      }else if(dx<-120){
+        setDiscoverIdx(i=>i+1);
+        setDragX(0);
+      }else{
+        if(cardRef.current)cardRef.current.style.transition="transform 0.4s cubic-bezier(0.16,1,0.3,1)";
+        setDragX(0);
+      }
+    };
+    window.addEventListener("pointerup",handleGlobalPointerUp);
+    return()=>window.removeEventListener("pointerup",handleGlobalPointerUp);
+  },[discoverProfiles,discoverIdx]);
 
   // Matches orb canvas animation
   useEffect(()=>{
@@ -713,7 +738,7 @@ export default function Dashboard(){
   async function loadDiscovery(uid:string){const{data}=await supabase.from("agent_profiles").select("*,user:users(name,industry,location,is_public)").neq("user_id",uid).order("match_count",{ascending:false}).limit(20); setDiscovery(data||[]);}
   async function loadDiscoverFeed(uid:string){
     setDiscoverLoading(true);
-    const{data:profiles}=await supabase.from("agent_profiles").select("*,user:users(name,avatar_url,industry,location)").neq("user_id",uid).limit(20);
+    const{data:profiles}=await supabase.from("agent_profiles").select("id,user_id,agent_name,display_name,bio,trading_style,personality,tagline,agent_style,win_rate,trade_count").neq("user_id",uid).limit(15);
     setDiscoverProfiles(profiles||[]);
     if(profiles?.length){
       const{data:bals}=await supabase.from("agent_balances").select("user_id,balance_eth,total_deposited").in("user_id",profiles.map((p:any)=>p.user_id));
@@ -2708,176 +2733,209 @@ export default function Dashboard(){
 
         {/* ════ DISCOVER ════ */}
         {view==="discover"&&(()=>{
+          const hasBrain=!!user?.ai_api_key_encrypted;
           const bal=(uid:string)=>discoverBalances.find((b:any)=>b.user_id===uid);
-          return(<div style={{paddingTop:0}}>
-            <h2 style={{fontSize:22,fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.3px"}}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="7" r="3" stroke={C.cold} strokeWidth="2"/><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5" stroke={C.cold} strokeWidth="2" strokeLinecap="round"/><circle cx="17" cy="8" r="2.5" stroke={C.cyan} strokeWidth="1.5" opacity="0.6"/><path d="M13.5 19c0-2.5 1.6-4 3.5-4s3.5 1.5 3.5 4" stroke={C.cyan} strokeWidth="1.5" strokeLinecap="round" opacity="0.6"/></svg>
-              Discover
-            </h2>
-            <div style={{fontSize:13,color:C.muted,marginBottom:16}}>Browse traders. Scroll or swipe to connect.</div>
 
-            {/* Mode toggle */}
-            <div style={{display:"flex",gap:6,marginBottom:16}}>
-              {(["scroll","swipe"] as const).map(m=>(
-                <button key={m} onClick={()=>setDiscoverMode(m)} style={{
-                  flex:1,padding:"10px 0",borderRadius:10,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
-                  background:discoverMode===m?`${C.cold}15`:"rgba(255,255,255,0.03)",
-                  color:discoverMode===m?C.cold:C.muted,
-                  border:discoverMode===m?`1px solid ${C.cold}44`:`1px solid ${C.border}`,
-                  display:"flex",alignItems:"center",justifyContent:"center",gap:6,
-                }}>
-                  {m==="scroll"?<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>}
-                  {m==="scroll"?"Scroll":"Swipe"}
-                </button>
-              ))}
+          const getCardGradient=(style:string)=>{
+            const s=(style||"").toLowerCase();
+            if(s.includes("momentum")||s.includes("hawk"))return"linear-gradient(135deg, #ff2d55 0%, #ff6b35 100%)";
+            if(s.includes("defi")||s.includes("architect"))return"linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)";
+            if(s.includes("contrarian")||s.includes("ghost"))return"linear-gradient(135deg, #6b7280 0%, #374151 100%)";
+            if(s.includes("degen")||s.includes("spark"))return"linear-gradient(135deg, #ffd700 0%, #ff2d55 100%)";
+            if(s.includes("macro")||s.includes("sage"))return"linear-gradient(135deg, #10b981 0%, #059669 100%)";
+            return"linear-gradient(135deg, #6366f1 0%, #a855f7 100%)";
+          };
+
+          const getCompat=(uidA:string,uidB:string)=>Math.min(95,Math.max(60,((uidA.charCodeAt(0)+uidB.charCodeAt(0))%35)+60));
+
+          const handlePointerDown=(e:React.PointerEvent)=>{
+            isDraggingRef.current=true;
+            dragStartXRef.current=e.clientX;
+            dragXRef.current=0;
+            setDragX(0);
+            if(cardRef.current)cardRef.current.style.transition="none";
+          };
+          const handlePointerMove=(e:React.PointerEvent)=>{
+            if(!isDraggingRef.current)return;
+            const dx=e.clientX-dragStartXRef.current;
+            dragXRef.current=dx;
+            setDragX(dx);
+          };
+          const handlePointerUp=()=>{
+            if(!isDraggingRef.current)return;
+            isDraggingRef.current=false;
+            const dx=dragXRef.current;
+            if(dx>120){
+              const p=discoverProfiles[discoverIdx];
+              if(p)console.log("CONNECT:",p.agent_name,p.user_id);
+              setDiscoverIdx(i=>i+1);
+              setDragX(0);
+            }else if(dx<-120){
+              setDiscoverIdx(i=>i+1);
+              setDragX(0);
+            }else{
+              if(cardRef.current)cardRef.current.style.transition="transform 0.4s cubic-bezier(0.16,1,0.3,1)";
+              setDragX(0);
+            }
+          };
+
+          /* ── BRAIN GATE ── */
+          if(!hasBrain){
+            return(<div style={{paddingTop:0,minHeight:"80vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",position:"relative",overflow:"hidden"}}>
+              {/* Dot grid background */}
+              <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(circle, rgba(99,102,241,0.12) 1px, transparent 1px)",backgroundSize:"24px 24px",pointerEvents:"none"}}/>
+              {/* Pulsing orb */}
+              <div style={{width:120,height:120,borderRadius:"50%",background:"radial-gradient(circle at 35% 35%, #6366f1, #a855f7 60%, #6366f1 100%)",boxShadow:"0 0 60px rgba(99,102,241,0.4), 0 0 120px rgba(99,102,241,0.2)",animation:"discoverOrbPulse 3s ease-in-out infinite",marginBottom:32,position:"relative",zIndex:1}}>
+                <style>{`@keyframes discoverOrbPulse{0%,100%{transform:scale(1);box-shadow:0 0 60px rgba(99,102,241,0.4),0 0 120px rgba(99,102,241,0.2)}50%{transform:scale(1.08);box-shadow:0 0 80px rgba(99,102,241,0.6),0 0 160px rgba(99,102,241,0.3)}}`}</style>
+              </div>
+              <div style={{fontSize:24,fontWeight:800,color:C.text,marginBottom:10,textAlign:"center",position:"relative",zIndex:1,letterSpacing:"-0.3px"}}>Your Agent is Dormant</div>
+              <div style={{fontSize:14,color:C.muted,textAlign:"center",maxWidth:320,lineHeight:1.6,marginBottom:28,position:"relative",zIndex:1}}>Connect your AI brain to let your agent autonomously find and match compatible traders for you.</div>
+              <button onClick={()=>setView("agent")} style={{padding:"14px 32px",background:"linear-gradient(135deg, #6366f1, #a855f7)",border:"none",borderRadius:12,color:"white",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",position:"relative",zIndex:1,boxShadow:"0 4px 24px rgba(99,102,241,0.4)"}}>Connect Your Brain</button>
+            </div>);
+          }
+
+          /* ── SWIPE INTERFACE ── */
+          const profiles=discoverProfiles;
+          const cardsLeft=profiles.length-discoverIdx;
+          const isEmpty=cardsLeft<=0;
+
+          return(<div style={{paddingTop:0}}>
+            {/* Header */}
+            <div style={{textAlign:"center",marginBottom:20}}>
+              <div style={{fontSize:12,color:C.muted,marginBottom:8,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                Your agent is actively scanning for compatible matches
+                <span style={{display:"inline-flex",gap:3}}>
+                  {[0,1,2].map(i=>(
+                    <span key={i} style={{width:4,height:4,borderRadius:"50%",background:C.cold,display:"inline-block",animation:`discoverDot 1.4s ease-in-out ${i*0.2}s infinite`}}/>
+                  ))}
+                </span>
+                <style>{`@keyframes discoverDot{0%,80%,100%{opacity:0.3;transform:scale(0.8)}40%{opacity:1;transform:scale(1.2)}}`}</style>
+              </div>
+              <div style={{fontSize:16,fontWeight:700,color:C.text}}>{agent?.agent_name||"Your Agent"}&apos;s top picks today</div>
             </div>
 
             {discoverLoading?<div style={{textAlign:"center",padding:60,color:C.dim}}>Loading traders...</div>:
-            discoverProfiles.length===0?<div style={{textAlign:"center",padding:60}}>
-              <div style={{width:64,height:64,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%, ${C.cold}40, ${C.cyan}20)`,margin:"0 auto 16px",animation:"pulse 2s infinite"}}/>
-              <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:6}}>No traders discovered yet</div>
-              <div style={{fontSize:12,color:C.muted}}>Be the first to connect your agent.</div>
-            </div>:
-
-            discoverMode==="scroll"?(
-              <div style={{display:"flex",flexDirection:"column",gap:12,scrollSnapType:"y mandatory",overflowY:"auto",maxHeight:"calc(100vh - 200px)"}}>
-                {discoverProfiles.map((p:any,idx:number)=>{
-                  const u=p.user||{};
-                  const b=bal(p.user_id);
-                  const winRate=p.win_rate?Math.round(p.win_rate*100):Math.floor(40+Math.random()*50);
-                  const totalReturn=b?((b.balance_eth-(b.total_deposited||0.01))/(b.total_deposited||0.01)*100).toFixed(1):"0.0";
-                  const trades=p.trade_count||0;
-                  const compat=Math.floor(55+Math.random()*40);
-                  const pals=[["#6366f1","#818cf8"],["#06b6d4","#22d3ee"],["#a855f7","#c084fc"],["#ec4899","#f472b6"],["#f59e0b","#fbbf24"],["#10b981","#34d399"]];
-                  const ci=Math.abs((u.name||"A").split("").reduce((a:number,c:string)=>a+c.charCodeAt(0),0))%pals.length;
-                  return(
-                    <div key={p.user_id||idx} style={{scrollSnapAlign:"start",borderRadius:20,overflow:"hidden",background:C.surface,border:`1px solid ${C.border}`,position:"relative"}}>
-                      {/* Photo / gradient */}
-                      <div style={{height:"55vh",minHeight:300,maxHeight:480,position:"relative",background:`linear-gradient(135deg,${pals[ci][0]}30,${pals[ci][1]}15)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                        {u.avatar_url?<img src={u.avatar_url} style={{width:"100%",height:"100%",objectFit:"cover"}} alt={u.name}/>:<div style={{fontSize:80,fontWeight:900,color:"rgba(255,255,255,0.1)"}}>{(u.name||"?")[0]?.toUpperCase()}</div>}
-                        {/* Compat badge top-right */}
-                        <div style={{position:"absolute",top:12,right:12,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(8px)",borderRadius:20,padding:"6px 12px",display:"flex",alignItems:"center",gap:4}}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.match} strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                          <span style={{fontSize:12,fontWeight:800,color:C.match}}>{compat}%</span>
-                        </div>
-                        {/* Bottom overlay */}
-                        <div style={{position:"absolute",bottom:0,left:0,right:0,background:"linear-gradient(transparent,rgba(0,0,0,0.85))",padding:"40px 16px 16px"}}>
-                          <div style={{fontSize:20,fontWeight:800,color:"white",letterSpacing:"-0.3px"}}>{u.name||"Anonymous"}</div>
-                          <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginTop:2}}>{p.agent_name||"Agent"} {u.industry?`· ${u.industry}`:""}</div>
-                        </div>
-                        {/* Mini orb bottom-right */}
-                        <div style={{position:"absolute",bottom:12,right:12,width:48,height:48,borderRadius:"50%",background:`radial-gradient(circle at 35% 35%, ${pals[ci][0]}, ${pals[ci][1]}80)`,border:"2px solid rgba(255,255,255,0.15)",boxShadow:`0 0 20px ${pals[ci][0]}40`}}/>
-                      </div>
-                      {/* Stats */}
-                      <div style={{padding:16}}>
-                        <div style={{display:"flex",gap:12,marginBottom:12}}>
-                          {[{label:"Win Rate",val:`${winRate}%`},{label:"Return",val:`${totalReturn}%`},{label:"Trades",val:`${trades}`}].map(s=>(
-                            <div key={s.label} style={{flex:1,textAlign:"center",padding:"8px 0",background:C.s2,borderRadius:8,border:`1px solid ${C.border}`}}>
-                              <div style={{fontSize:14,fontWeight:800,color:C.text}}>{s.val}</div>
-                              <div style={{fontSize:9,color:C.muted,marginTop:2}}>{s.label}</div>
-                            </div>
-                          ))}
-                        </div>
-                        {(p.agent_style||p.trading_style)&&<div style={{display:"inline-block",padding:"5px 12px",background:`${C.cold}12`,border:`1px solid ${C.cold}30`,borderRadius:20,fontSize:11,color:C.cold,fontWeight:600,marginBottom:12}}>{p.agent_style||p.trading_style}</div>}
-                        <button onClick={async()=>{
-                          await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"connect",target_user_id:p.user_id})});
-                          if(user)loadMatches(user.id);
-                        }} style={{width:"100%",padding:"12px 0",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Connect</button>
-                      </div>
-                    </div>
-                  );
-                })}
+            isEmpty?(
+              /* Empty state */
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"60vh",gap:16}}>
+                <div style={{width:80,height:80,borderRadius:"50%",background:"radial-gradient(circle at 35% 35%, #6366f1, #a855f7 60%, #6366f1 100%)",boxShadow:"0 0 40px rgba(99,102,241,0.3)",animation:"discoverOrbPulse 3s ease-in-out infinite"}}/>
+                <div style={{fontSize:15,fontWeight:700,color:C.text,textAlign:"center"}}>Your agent has reviewed all available traders.</div>
+                <div style={{fontSize:13,color:C.muted,textAlign:"center"}}>Check back tomorrow.</div>
+                <button onClick={()=>setDiscoverIdx(0)} style={{marginTop:8,padding:"10px 24px",background:`${C.cold}15`,border:`1px solid ${C.cold}44`,borderRadius:10,color:C.cold,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{display:"inline",verticalAlign:"middle",marginRight:6}}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                  Refresh
+                </button>
               </div>
             ):(
-              /* ═══ SWIPE MODE ═══ */
-              <div style={{position:"relative",height:"70vh",maxHeight:560,overflow:"hidden"}}>
-                {discoverProfiles.slice(swipeIdx,swipeIdx+3).reverse().map((p:any,stackIdx:number)=>{
-                  const isTop=stackIdx===(Math.min(3,discoverProfiles.length-swipeIdx)-1);
-                  const u=p.user||{};
-                  const b=bal(p.user_id);
-                  const winRate=p.win_rate?Math.round(p.win_rate*100):Math.floor(40+Math.random()*50);
-                  const totalReturn=b?((b.balance_eth-(b.total_deposited||0.01))/(b.total_deposited||0.01)*100).toFixed(1):"0.0";
-                  const trades=p.trade_count||0;
-                  const compat=Math.floor(55+Math.random()*40);
-                  const pals=[["#6366f1","#818cf8"],["#06b6d4","#22d3ee"],["#a855f7","#c084fc"],["#ec4899","#f472b6"]];
-                  const ci=Math.abs((u.name||"A").split("").reduce((a:number,c:string)=>a+c.charCodeAt(0),0))%pals.length;
-                  const dx=isTop?swipeDx:0;
-                  const rot=dx*0.08;
-                  const depth=(Math.min(3,discoverProfiles.length-swipeIdx)-1-stackIdx);
-                  return(
-                    <div key={p.user_id} style={{
-                      position:"absolute",inset:0,borderRadius:20,overflow:"hidden",
-                      background:C.surface,border:`1px solid ${C.border}`,
-                      transform:`translateX(${dx}px) rotate(${rot}deg) scale(${1-depth*0.04}) translateY(${depth*8}px)`,
-                      transition:isTop?"none":"transform 0.3s ease",
-                      zIndex:10-depth,
-                      touchAction:"none",
-                    }}
-                    onTouchStart={isTop?(e)=>{swipeStartRef.current={x:e.touches[0].clientX,y:e.touches[0].clientY};}:undefined}
-                    onTouchMove={isTop?(e)=>{if(!swipeStartRef.current)return;setSwipeDx(e.touches[0].clientX-swipeStartRef.current.x);}:undefined}
-                    onTouchEnd={isTop?async()=>{
-                      if(Math.abs(swipeDx)>100){
-                        if(swipeDx>0){
-                          await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"connect",target_user_id:p.user_id})});
-                          if(user)loadMatches(user.id);
-                        }
-                        setSwipeIdx(i=>i+1);
-                      }
-                      setSwipeDx(0);swipeStartRef.current=null;
-                    }:undefined}
-                    >
-                      <div style={{height:"100%",position:"relative",background:`linear-gradient(135deg,${pals[ci][0]}30,${pals[ci][1]}15)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                        {u.avatar_url?<img src={u.avatar_url} style={{width:"100%",height:"100%",objectFit:"cover"}} alt={u.name}/>:<div style={{fontSize:100,fontWeight:900,color:"rgba(255,255,255,0.08)"}}>{(u.name||"?")[0]?.toUpperCase()}</div>}
-                        {/* Swipe indicator overlays */}
-                        {isTop&&swipeDx>40&&<div style={{position:"absolute",top:20,left:20,padding:"8px 16px",borderRadius:8,border:`3px solid ${C.match}`,color:C.match,fontSize:20,fontWeight:900,transform:"rotate(-15deg)"}}>CONNECT</div>}
-                        {isTop&&swipeDx<-40&&<div style={{position:"absolute",top:20,right:20,padding:"8px 16px",borderRadius:8,border:`3px solid ${C.hot}`,color:C.hot,fontSize:20,fontWeight:900,transform:"rotate(15deg)"}}>PASS</div>}
-                        {/* Compat */}
-                        <div style={{position:"absolute",top:12,right:12,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(8px)",borderRadius:20,padding:"6px 12px",display:"flex",alignItems:"center",gap:4}}>
-                          <span style={{fontSize:12,fontWeight:800,color:C.match}}>{compat}%</span>
+              <>
+                {/* Card stack */}
+                <div style={{position:"relative",width:"90%",maxWidth:400,margin:"0 auto",height:"75vh",maxHeight:620}}>
+                  {profiles.slice(discoverIdx,discoverIdx+3).reverse().map((p:any,stackIdx:number)=>{
+                    const visibleCount=Math.min(3,cardsLeft);
+                    const isTop=stackIdx===(visibleCount-1);
+                    const depth=visibleCount-1-stackIdx;
+                    const style_str=p.trading_style||p.agent_style||"";
+                    const grad=getCardGradient(style_str);
+                    const b=bal(p.user_id);
+                    const compat=getCompat(user?.id||"A",p.user_id||"B");
+                    const winRate=p.win_rate?`${Math.round(p.win_rate*100)}%`:"\u2014";
+                    const monthlyReturn=b?`${((b.balance_eth-(b.total_deposited||0.01))/(b.total_deposited||0.01)*100).toFixed(1)}%`:"\u2014";
+                    const trades=p.trade_count||"\u2014";
+                    const letter=(p.agent_name||"?")[0]?.toUpperCase()||"?";
+                    const bio=(p.bio||p.tagline||"").slice(0,80);
+                    const dx=isTop?dragX:0;
+                    const rot=dx*0.06;
+
+                    return(
+                      <div key={p.user_id||p.id} ref={isTop?cardRef:undefined}
+                        onPointerDown={isTop?handlePointerDown:undefined}
+                        onPointerMove={isTop?handlePointerMove:undefined}
+                        onPointerUp={isTop?handlePointerUp:undefined}
+                        style={{
+                          position:"absolute",inset:0,borderRadius:24,overflow:"hidden",
+                          background:C.surface,
+                          transform:isTop?`translateX(${dx}px) rotate(${rot}deg)`:`scale(${1-depth*0.06}) translateY(${depth*8}px)`,
+                          opacity:isTop?1:depth===1?0.7:0.4,
+                          transition:isTop?(isDraggingRef.current?"none":"transform 0.4s cubic-bezier(0.16,1,0.3,1)"):"transform 0.3s ease, opacity 0.3s ease",
+                          zIndex:10-depth,
+                          touchAction:"none",
+                          userSelect:"none",
+                          cursor:isTop?"grab":"default",
+                          boxShadow:"0 8px 40px rgba(0,0,0,0.4)",
+                        }}>
+                        {/* Top 60% — gradient */}
+                        <div style={{height:"60%",position:"relative",background:grad,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+                          {/* Background letter */}
+                          <div style={{position:"absolute",fontSize:120,fontWeight:900,color:"white",opacity:0.12,top:"50%",left:"50%",transform:"translate(-50%,-50%)",lineHeight:1,pointerEvents:"none"}}>{letter}</div>
+                          {/* Agent name */}
+                          <div style={{fontSize:40,fontWeight:800,color:"white",textShadow:"0 2px 20px rgba(0,0,0,0.5)",position:"relative",zIndex:2,textAlign:"center",padding:"0 20px"}}>{p.agent_name||"Agent"}</div>
+                          {/* CSS orb */}
+                          <div style={{width:64,height:64,borderRadius:"50%",background:grad.replace("135deg","circle at 35% 35%").replace("linear-","radial-"),filter:"brightness(1.3)",boxShadow:`0 0 30px rgba(255,255,255,0.2)`,animation:"discoverOrbPulse 3s ease-in-out infinite",marginTop:16,position:"relative",zIndex:2}}/>
+                          {/* Swipe overlays */}
+                          {isTop&&dx>80&&<div style={{position:"absolute",top:24,left:24,padding:"8px 18px",borderRadius:8,border:`3px solid ${C.match}`,background:"rgba(48,209,88,0.15)",color:C.match,fontSize:28,fontWeight:900,transform:"rotate(-12deg)",zIndex:5}}>CONNECT</div>}
+                          {isTop&&dx<-80&&<div style={{position:"absolute",top:24,right:24,padding:"8px 18px",borderRadius:8,border:`3px solid ${C.hot}`,background:"rgba(255,45,85,0.15)",color:C.hot,fontSize:28,fontWeight:900,transform:"rotate(12deg)",zIndex:5}}>PASS</div>}
                         </div>
-                        {/* Bottom overlay */}
-                        <div style={{position:"absolute",bottom:0,left:0,right:0,background:"linear-gradient(transparent,rgba(0,0,0,0.9))",padding:"60px 16px 16px"}}>
-                          <div style={{fontSize:22,fontWeight:800,color:"white"}}>{u.name||"Anonymous"}</div>
-                          <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginTop:4}}>{p.agent_name||"Agent"} {u.industry?`· ${u.industry}`:""}</div>
-                          <div style={{display:"flex",gap:10,marginTop:10}}>
-                            {[{label:"Win",val:`${winRate}%`},{label:"Return",val:`${totalReturn}%`},{label:"Trades",val:`${trades}`}].map(s=>(
-                              <div key={s.label} style={{padding:"4px 10px",background:"rgba(255,255,255,0.08)",borderRadius:6,fontSize:11,color:"rgba(255,255,255,0.8)"}}>
-                                <span style={{fontWeight:800}}>{s.val}</span> <span style={{color:"rgba(255,255,255,0.4)"}}>{s.label}</span>
+                        {/* Bottom 40% — info */}
+                        <div style={{height:"40%",background:"#0d0d14",padding:"16px 20px",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
+                          <div>
+                            <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:4}}>
+                              <span style={{fontSize:18,fontWeight:800,color:C.text}}>{p.display_name||p.agent_name||"Anonymous"}</span>
+                            </div>
+                            <div style={{fontSize:11,color:C.muted,marginBottom:10}}>Base L2 Trader</div>
+                            {/* Trading style pill */}
+                            {style_str&&<div style={{display:"inline-block",padding:"4px 10px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:16,fontSize:10,color:C.cold,fontWeight:700,marginBottom:10,textTransform:"capitalize"}}>{style_str}</div>}
+                            {/* 3 stats */}
+                            <div style={{display:"flex",gap:8,marginBottom:10}}>
+                              {[{label:"Win Rate",val:winRate},{label:"Monthly Return",val:monthlyReturn},{label:"Trades",val:String(trades)}].map(s=>(
+                                <div key={s.label} style={{flex:1,textAlign:"center",padding:"6px 0",background:"rgba(255,255,255,0.04)",borderRadius:8,border:`1px solid ${C.border}`}}>
+                                  <div style={{fontSize:13,fontWeight:800,color:C.text}}>{s.val}</div>
+                                  <div style={{fontSize:8,color:C.muted,marginTop:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>{s.label}</div>
+                                </div>
+                              ))}
+                            </div>
+                            {/* Compatibility bar */}
+                            <div style={{marginBottom:8}}>
+                              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                                <span style={{fontSize:10,color:C.muted,fontWeight:600}}>Compatibility</span>
+                                <span style={{fontSize:10,color:C.match,fontWeight:800}}>{compat}%</span>
                               </div>
-                            ))}
+                              <div style={{height:4,borderRadius:2,background:"rgba(255,255,255,0.06)",overflow:"hidden"}}>
+                                <div style={{height:"100%",width:`${compat}%`,borderRadius:2,background:`linear-gradient(90deg, ${C.cold}, ${C.match})`}}/>
+                              </div>
+                            </div>
+                            {/* Bio */}
+                            {bio&&<div style={{fontSize:11,color:C.muted,lineHeight:1.5}}>{bio}{(p.bio||p.tagline||"").length>80?"...":""}</div>}
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+
                 {/* Action buttons */}
-                <div style={{position:"absolute",bottom:16,left:0,right:0,display:"flex",justifyContent:"center",gap:16,zIndex:20}}>
-                  <button onClick={()=>{setSwipeIdx(i=>i+1);setSwipeDx(0);}} style={{width:56,height:56,borderRadius:"50%",background:"rgba(255,45,85,0.15)",border:`2px solid ${C.hot}44`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:20,marginTop:20}}>
+                  {/* Pass */}
+                  <button onClick={()=>{setDiscoverIdx(i=>i+1);setDragX(0);}} style={{width:56,height:56,borderRadius:"50%",background:"transparent",border:`2px solid ${C.hot}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit"}}>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.hot} strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
+                  {/* Super */}
                   <button onClick={async()=>{
-                    const p=discoverProfiles[swipeIdx];if(!p)return;
-                    await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"connect",target_user_id:p.user_id,super:true})});
-                    if(user)loadMatches(user.id);
-                    setSwipeIdx(i=>i+1);setSwipeDx(0);
-                  }} style={{width:48,height:48,borderRadius:"50%",background:"rgba(99,102,241,0.15)",border:`2px solid ${C.cold}44`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="2.5" strokeLinecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    const p=profiles[discoverIdx];if(!p)return;
+                    console.log("SUPER CONNECT:",p.agent_name,p.user_id);
+                    setDiscoverIdx(i=>i+1);setDragX(0);
+                  }} style={{width:68,height:68,borderRadius:"50%",background:"transparent",border:`2px solid ${C.gold}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit"}}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                   </button>
-                  <button onClick={async()=>{
-                    const p=discoverProfiles[swipeIdx];if(!p)return;
-                    await fetch("/api/match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"connect",target_user_id:p.user_id})});
-                    if(user)loadMatches(user.id);
-                    setSwipeIdx(i=>i+1);setSwipeDx(0);
-                  }} style={{width:56,height:56,borderRadius:"50%",background:"rgba(48,209,88,0.15)",border:`2px solid ${C.match}44`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  {/* Connect */}
+                  <button onClick={()=>{
+                    const p=profiles[discoverIdx];if(!p)return;
+                    console.log("CONNECT:",p.agent_name,p.user_id);
+                    setDiscoverIdx(i=>i+1);setDragX(0);
+                  }} style={{width:56,height:56,borderRadius:"50%",background:"transparent",border:`2px solid ${C.match}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit"}}>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.match} strokeWidth="2.5" strokeLinecap="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                   </button>
                 </div>
-                {swipeIdx>=discoverProfiles.length&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:8}}>
-                  <div style={{fontSize:14,fontWeight:700,color:C.text}}>You have seen everyone</div>
-                  <div style={{fontSize:12,color:C.muted}}>Check back later for new traders.</div>
-                </div>}
-              </div>
+              </>
             )}
           </div>);
         })()}
