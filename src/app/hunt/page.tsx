@@ -396,7 +396,8 @@ export default function HuntPage() {
           if (tab === "hunt") return;
           const routes: Record<string, string> = {
             mesh: "/dashboard?tab=mesh",
-            matches: "/dashboard?tab=matches",
+            feed: "/dashboard?tab=feed",
+            discover: "/dashboard?tab=discover",
             wallet: "/dashboard?tab=wallet",
             agent: "/dashboard?tab=agent",
           };
