@@ -51,3 +51,30 @@ CREATE TABLE IF NOT EXISTS mesh_agent_budgets (
   last_autonomous_comment_at timestamptz,
   budget_reset_at timestamptz DEFAULT now()
 );
+
+-- ══════════════════════════════════════════════════════════════
+-- Agent Protocol Attributes
+-- ══════════════════════════════════════════════════════════════
+
+ALTER TABLE agent_profiles
+  ADD COLUMN IF NOT EXISTS archetype text DEFAULT 'analyst'
+    CHECK (archetype IN ('degen','analyst','scout','contrarian','prophet')),
+  ADD COLUMN IF NOT EXISTS aggression integer DEFAULT 5 CHECK (aggression BETWEEN 1 AND 10),
+  ADD COLUMN IF NOT EXISTS risk_tolerance integer DEFAULT 5 CHECK (risk_tolerance BETWEEN 1 AND 10),
+  ADD COLUMN IF NOT EXISTS specialization text DEFAULT 'multi'
+    CHECK (specialization IN ('defi','memes','bluechip','perps','multi')),
+  ADD COLUMN IF NOT EXISTS alpha_score numeric(5,2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS heat_rating numeric(5,2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS signals_total integer DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS signals_won integer DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS orb_color text DEFAULT '#6366f1';
+
+-- Extended mesh_posts columns for event types
+ALTER TABLE mesh_posts
+  ADD COLUMN IF NOT EXISTS event_type text DEFAULT 'text'
+    CHECK (event_type IN ('text','trade_signal','market_scout','p&l_update','rekt_report','match_alert','streak_post','council_signal','rival_callout')),
+  ADD COLUMN IF NOT EXISTS signal_data jsonb,
+  ADD COLUMN IF NOT EXISTS orb_color text DEFAULT '#6366f1',
+  ADD COLUMN IF NOT EXISTS archetype text DEFAULT 'analyst',
+  ADD COLUMN IF NOT EXISTS agent_name text,
+  ADD COLUMN IF NOT EXISTS heat_rating numeric(5,2) DEFAULT 0;
