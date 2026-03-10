@@ -16,6 +16,7 @@ import MobileTabBar from "@/components/mobile-tab-bar";
 const MeshDiscoveryFeed = dynamic(() => import("@/components/MeshDiscoveryFeed"), { ssr: false });
 const PreferenceSetup = dynamic(() => import("@/components/PreferenceSetup"), { ssr: false });
 const MatchNFTCard = dynamic(() => import("@/components/match-nft-card"), { ssr: false });
+const SocialVerify = dynamic(() => import("@/components/social-verify"), { ssr: false });
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -738,7 +739,7 @@ export default function Dashboard(){
   async function loadDiscovery(uid:string){const{data}=await supabase.from("agent_profiles").select("*,user:users(name,industry,location,is_public)").neq("user_id",uid).order("match_count",{ascending:false}).limit(20); setDiscovery(data||[]);}
   async function loadDiscoverFeed(uid:string){
     setDiscoverLoading(true);
-    const{data:profiles}=await supabase.from("agent_profiles").select("id,user_id,agent_name,display_name,bio,trading_style,personality,tagline,agent_style,win_rate,trade_count").neq("user_id",uid).limit(15);
+    const{data:profiles}=await supabase.from("agent_profiles").select("id,user_id,agent_name,display_name,bio,trading_style,personality,tagline,agent_style,win_rate,trade_count,instagram_verified,x_verified").neq("user_id",uid).limit(15);
     setDiscoverProfiles(profiles||[]);
     if(profiles?.length){
       const{data:bals}=await supabase.from("agent_balances").select("user_id,balance_eth,total_deposited").in("user_id",profiles.map((p:any)=>p.user_id));
@@ -1769,6 +1770,28 @@ export default function Dashboard(){
       await supabase.from("agent_profiles").update({agent_style:form.agent_style,agent_instructions:form.agent_instructions}).eq("user_id",user.id);
       alert("Personality saved!");
     }} style={{marginTop:10,padding:"8px 20px",background:`${C.cold}15`,border:`1px solid ${C.cold}33`,borderRadius:8,color:C.cold,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Save Personality</button>
+  </div>
+
+  {/* ── VERIFIED ACCOUNTS ── */}
+  <div style={{background:C.surface,borderRadius:14,padding:16,border:`1px solid ${C.border}`,marginBottom:16}}>
+    <div style={{fontSize:10,color:C.match,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:14,display:"flex",alignItems:"center",gap:5}}>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={C.match} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+      Verified Accounts
+    </div>
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      <SocialVerify
+        platform="instagram"
+        currentHandle={agent?.instagram_handle}
+        isVerified={agent?.instagram_verified}
+        onVerified={(h:string)=>{setAgent((a:any)=>({...a,instagram_handle:h,instagram_verified:true}));}}
+      />
+      <SocialVerify
+        platform="x"
+        currentHandle={agent?.x_handle}
+        isVerified={agent?.x_verified}
+        onVerified={(h:string)=>{setAgent((a:any)=>({...a,x_handle:h,x_verified:true}));}}
+      />
+    </div>
   </div>
 
   {/* ── MATCH PREFERENCES ── */}
@@ -2878,8 +2901,15 @@ export default function Dashboard(){
                         {/* Bottom 40% — info */}
                         <div style={{height:"40%",background:"#0d0d14",padding:"16px 20px",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
                           <div>
-                            <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:4}}>
+                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
                               <span style={{fontSize:18,fontWeight:800,color:C.text}}>{p.display_name||p.agent_name||"Anonymous"}</span>
+                              {p.instagram_verified&&<svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{filter:"drop-shadow(0 0 4px rgba(214,41,118,0.5))"}}>
+                                <defs><linearGradient id={`ig-b-${p.user_id}`} x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#feda75"/><stop offset="50%" stopColor="#d62976"/><stop offset="100%" stopColor="#4f5bd5"/></linearGradient></defs>
+                                <rect x="2" y="2" width="20" height="20" rx="5" stroke={`url(#ig-b-${p.user_id})`} strokeWidth="2"/><circle cx="12" cy="12" r="4.5" stroke={`url(#ig-b-${p.user_id})`} strokeWidth="1.5"/>
+                              </svg>}
+                              {p.x_verified&&<svg width="16" height="16" viewBox="0 0 24 24" fill={C.text} style={{filter:"drop-shadow(0 0 4px rgba(255,255,255,0.3))"}}>
+                                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                              </svg>}
                             </div>
                             <div style={{fontSize:11,color:C.muted,marginBottom:10}}>MishMesh Member</div>
                             {/* Trading style pill */}
