@@ -83,6 +83,8 @@ export default function NavBar() {
   }, [fetchBalance, isLoggedIn]);
 
   if (pathname === "/auth/signin") return null;
+  // App pages have their own navigation — hide global nav
+  if (pathname?.startsWith("/dashboard") || pathname?.startsWith("/hunt")) return null;
 
   const links = [
     { label: "Dashboard", href: "/dashboard" },
