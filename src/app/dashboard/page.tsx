@@ -192,7 +192,7 @@ function MeshGraph({matches,userId}:{matches:any[];userId:string}){
     return()=>cancelAnimationFrame(raf);
   },[matches,userId]);
 
-  return <canvas ref={ref} style={{width:"100%",height:"100%",minHeight:420,borderRadius:14,background:C.s2,border:`1px solid ${C.border}`}}/>;
+  return <canvas ref={ref} style={{width:"100%",height:"100%",minHeight:"100%",display:"block",borderRadius:14,background:C.s2,border:`1px solid ${C.border}`}}/>;
 }
 
 /* ═══ MATCH REPLAY ═══ */
@@ -2125,13 +2125,20 @@ export default function Dashboard(){
           })()}
 
           {/* ═══ SPLIT LAYOUT: Orb + Discovery Feed ═══ */}
-          <div style={{display:"flex",gap:16,marginBottom:16,flexDirection:"inherit"}}>
-            {/* LEFT: Mesh Orb */}
-            <div style={{flex:"1 1 60%",minWidth:0,display:"flex",flexDirection:"column"}}>
+          <style>{`
+            @media(max-width:768px){
+              .mm-mesh-split{flex-direction:column!important}
+              .mm-mesh-orb{min-height:280px!important;height:280px!important}
+              .mm-mesh-feed{min-height:unset!important}
+            }
+          `}</style>
+          <div className="mm-mesh-split" style={{display:"flex",gap:16,marginBottom:16,alignItems:"stretch"}}>
+            {/* LEFT: Mesh Orb — fixed height so it never grows bigger than feed */}
+            <div className="mm-mesh-orb" style={{flex:"1 1 55%",minWidth:0,display:"flex",flexDirection:"column",height:420}}>
               <MeshGraph matches={matches} userId={user?.id}/>
             </div>
-            {/* RIGHT: Discovery Feed */}
-            <div style={{flex:"1 1 40%",minWidth:260}}>
+            {/* RIGHT: Discovery Feed — same fixed height */}
+            <div className="mm-mesh-feed" style={{flex:"1 1 45%",minWidth:260,minHeight:420,display:"flex",flexDirection:"column"}}>
               {showPrefSetup?(
                 <PreferenceSetup existingPrefs={userPrefs} onComplete={()=>{setShowPrefSetup(false);loadUserPrefs();}}/>
               ):(
@@ -2139,7 +2146,6 @@ export default function Dashboard(){
               )}
             </div>
           </div>
-          <style>{`@media(max-width:768px){[style*="flex: 1 1 60%"]{flex:1 1 100%!important}[style*="flex: 1 1 40%"]{flex:1 1 100%!important}}`}</style>
 
           {/* ═══ STAT CARDS ═══ */}
           <div style={{display:"flex",gap:6,marginTop:16,marginBottom:16}}>
