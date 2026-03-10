@@ -25,7 +25,6 @@ const PROVIDERS = [
 
 const STEP_TABS = [
   { label:"Identity", icon:"person" },
-  { label:"Mission", icon:"target" },
   { label:"Brain", icon:"circuit" },
   { label:"Launch", icon:"rocket" },
 ] as const;
@@ -155,9 +154,8 @@ export default function OnboardingWizard({ userId, walletAddress, onComplete }: 
 
   const completedSteps = new Set<number>();
   if (form.name && form.bio.length > 10 && form.industry) completedSteps.add(0);
-  if (form.building.length > 5 && form.looking_for.length > 5) completedSteps.add(1);
-  if (form.ai_api_key.length > 10) completedSteps.add(2);
-  if (completion >= 80) completedSteps.add(3);
+  if (form.ai_api_key.length > 10) completedSteps.add(1);
+  if (completion >= 80) completedSteps.add(2);
 
   return (
     <div style={{
@@ -356,39 +354,18 @@ export default function OnboardingWizard({ userId, walletAddress, onComplete }: 
                       onChange={v => setForm({...form, twitter:v})}
                       placeholder="username" prefix="@" />
                   </div>
-                </div>
-              </div>
-            )}
-
-            {/* ── STEP 1: Mission ── */}
-            {step === 1 && (
-              <div>
-                <h2 style={{ fontSize: 24, fontWeight: 800, margin: 0, marginBottom: 4 }}>What are you building?</h2>
-                <p style={{ fontSize: 13, color: C.muted, margin: 0, marginBottom: 28 }}>
-                  This shapes who your agent finds for you.
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   <OnbTextarea label="What are you building?" value={form.building}
                     onChange={v => setForm({...form, building:v})}
-                    placeholder="Describe your project, product, or company in plain english" rows={4} />
+                    placeholder="Your project, product, or company in one sentence" rows={2} />
                   <OnbTextarea label="Who are you looking for?" value={form.looking_for}
                     onChange={v => setForm({...form, looking_for:v})}
-                    placeholder="Cofounders? Investors? Technical partners? Early customers?" rows={3} />
-                  <div style={{
-                    background: "rgba(6,182,212,0.06)", border: "1px solid rgba(6,182,212,0.2)",
-                    borderRadius: 12, padding: "14px 16px", display: "flex", gap: 12, alignItems: "flex-start",
-                  }}>
-                    <div style={{ flexShrink: 0, marginTop: 1 }}><IconBulb size={16} color={C.cyan} /></div>
-                    <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>
-                      Your agent will use this to find your perfect matches in the mesh. Be specific — the more detail, the better the connections.
-                    </div>
-                  </div>
+                    placeholder="Cofounders? Investors? Technical partners?" rows={2} />
                 </div>
               </div>
             )}
 
-            {/* ── STEP 2: Brain ── */}
-            {step === 2 && (
+            {/* ── STEP 1: Brain ── */}
+            {step === 1 && (
               <div>
                 <h2 style={{ fontSize: 24, fontWeight: 800, margin: 0, marginBottom: 4 }}>Give your agent a brain.</h2>
                 <p style={{ fontSize: 13, color: C.muted, margin: 0, marginBottom: 28 }}>
@@ -489,7 +466,7 @@ export default function OnboardingWizard({ userId, walletAddress, onComplete }: 
                     </div>
                   )}
                   {/* Skip link */}
-                  <button onClick={() => setStep(3)} style={{
+                  <button onClick={() => setStep(2)} style={{
                     background: "none", border: "none", color: C.dim, fontSize: 12,
                     cursor: "pointer", fontFamily: "inherit", textAlign: "left" as const,
                     padding: 0,
@@ -504,7 +481,7 @@ export default function OnboardingWizard({ userId, walletAddress, onComplete }: 
             )}
 
             {/* ── STEP 3: Launch ── */}
-            {step === 3 && (
+            {step === 2 && (
               <div>
                 <h2 style={{ fontSize: 24, fontWeight: 800, margin: 0, marginBottom: 4 }}>Your agent is ready.</h2>
                 <p style={{ fontSize: 13, color: C.muted, margin: 0, marginBottom: 28 }}>
@@ -643,7 +620,7 @@ export default function OnboardingWizard({ userId, walletAddress, onComplete }: 
                 <IconArrowLeft size={14} color={C.muted} /> Back
               </button>
             )}
-            {step < 3 ? (
+            {step < 2 ? (
               <button onClick={() => setStep(step+1)} style={{
                 flex: 2, padding: 14, borderRadius: 12, border: "none",
                 background: "linear-gradient(135deg, #6366f1, #a855f7)",
@@ -671,8 +648,8 @@ export default function OnboardingWizard({ userId, walletAddress, onComplete }: 
             )}
           </div>
 
-          {step < 3 && step !== 2 && (
-            <button onClick={() => setStep(3)} style={{
+          {step < 2 && (
+            <button onClick={() => setStep(2)} style={{
               marginTop: 12, background: "none", border: "none", color: C.dim,
               fontSize: 12, cursor: "pointer", fontFamily: "inherit", width: "100%",
               textAlign: "center" as const, padding: 0,
