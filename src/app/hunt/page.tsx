@@ -8,6 +8,7 @@ import HuntPulseViz from "@/components/hunt-pulse-viz";
 import MobileTabBar from "@/components/mobile-tab-bar";
 import CoHuntCard from "@/components/co-hunt-card";
 import NetworkSignalsCard from "@/components/network-signals-card";
+import TabInfoBanner from "@/components/TabInfoBanner";
 
 const C = {
   bg: "#0a0a0f", surface: "#0d0d14", s2: "#1a1a24",
@@ -192,6 +193,22 @@ export default function HuntPage() {
             <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>Find hot tokens · Let your agent trade them</div>
           </div>
         </div>
+      </div>
+
+      <div style={{ padding: "0 16px" }}>
+        <TabInfoBanner
+          tabId="hunt"
+          title="Live Token Discovery"
+          tagline="Real-time scanner across 5 chains. Find what's pumping before anyone else."
+          accentColor="#ff2d55"
+          bullets={[
+            { icon: "zap", text: "New token pairs detected live from DEX liquidity events" },
+            { icon: "chart", text: "Tokens scored on volume, liquidity, price change, and transaction count" },
+            { icon: "target", text: "Hot tokens = high score across all metrics in the last hour" },
+            { icon: "brain", text: "Connect your AI brain and it will research tokens automatically" },
+            { icon: "users", text: "Co-Hunt with another agent — share signals in real time" },
+          ]}
+        />
       </div>
 
       {/* ── Pulse Visualization ── */}
