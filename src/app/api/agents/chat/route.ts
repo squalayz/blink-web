@@ -49,6 +49,22 @@ export async function POST(req: NextRequest) {
       .eq("active", true)
       .order("confidence", { ascending: false });
 
+    // ── Intent detection — keyword matching before LLM call ──
+    const lower = message.toLowerCase();
+
+    type ActionResult = { type: string; data?: unknown };
+    let actionResult: ActionResult | null = null;
+
+    if (lower.includes("post") && (lower.includes("feed") || lower.includes("mesh") || lower.includes("write") || lower.includes("insight") || lower.includes("signal"))) {
+      actionResult = { type: "post_to_feed" };
+    } else if (lower.includes("research") || lower.includes("hunt") || lower.includes("token") || lower.includes("hottest") || lower.includes("trade") || lower.includes("watching")) {
+      actionResult = { type: "token_research" };
+    } else if (lower.includes("connect") || lower.includes("match") || lower.includes("find") && lower.includes("someone") || lower.includes("networking")) {
+      actionResult = { type: "find_connections" };
+    } else if (lower.includes("portfolio") || lower.includes("balance") || lower.includes("holdings") || lower.includes("how am i doing") || lower.includes("how is my")) {
+      actionResult = { type: "portfolio_check" };
+    }
+
     // 5. Build system prompt
     const soul = agentProfile.soul || {};
     const rulesText = (learnedRules && learnedRules.length > 0)
@@ -66,6 +82,17 @@ export async function POST(req: NextRequest) {
       ? `Style: ${soul.communication.style || "casual"}, Humor: ${soul.communication.humor || "none"}`
       : "Style: casual";
 
+    // Intent-specific context for the system prompt
+    const intentContext = actionResult?.type === "post_to_feed"
+      ? `\nThe user wants you to write a post for the Mesh Feed. Write a compelling crypto/market insight post that sounds like YOU — your personality, your archetype. Keep it under 200 chars. At the end of your response include the exact post text wrapped in <POST>...</POST> tags.`
+      : actionResult?.type === "token_research"
+      ? `\nThe user wants token research. Be specific and actionable. Reference real market conditions you know about. Suggest what to watch on the Hunt tab.`
+      : actionResult?.type === "find_connections"
+      ? `\nThe user wants to find connections. Tell them what kind of people you're scanning for based on their profile. Mention the Connect and Discover tabs.`
+      : actionResult?.type === "portfolio_check"
+      ? `\nThe user wants a portfolio update. Be honest about their balance. Reference the Wallet tab. If balance is 0, encourage them to fund and start small.`
+      : "";
+
     const systemPrompt = `You are ${agentProfile.agent_name}, a personal AI agent on MishMesh.ai — a social trading platform.
 
 Your personality: ${personalityTraits}
@@ -80,9 +107,10 @@ You help your human with:
 - Finding the right people to connect with
 - Tracking their portfolio and performance
 - Learning their preferences to get smarter over time
+- Posting to the Mesh Feed on their behalf
 
 Be conversational, warm, and proactive. Reference what you know about them.
-Keep responses concise (2-3 sentences usually). Use personality appropriately.${context ? `\n\nCurrent context: ${context}` : ""}`;
+Keep responses concise (2-3 sentences usually). Use personality appropriately.${intentContext}${context ? `\n\nCurrent context: ${context}` : ""}`;
 
     // 6. Call LLM for the reply
     let reply: string;
@@ -95,6 +123,33 @@ Keep responses concise (2-3 sentences usually). Use personality appropriately.${
         signals: [],
         updatedRules: false,
       });
+    }
+
+    // ── Handle post_to_feed action: parse <POST> tags and insert ──
+    if (actionResult?.type === "post_to_feed" && reply.includes("<POST>") && reply.includes("</POST>")) {
+      const postMatch = reply.match(/<POST>([\s\S]*?)<\/POST>/);
+      if (postMatch) {
+        const postContent = postMatch[1].trim();
+        const cleanReply = reply.replace(/<POST>[\s\S]*?<\/POST>/g, "").trim();
+
+        await supabaseAdmin.from("mesh_posts").insert({
+          agent_id: agentProfile.id,
+          user_id: userId,
+          content: postContent,
+          event_type: "text",
+          orb_color: "#6366f1",
+          archetype: "analyst",
+          agent_name: agentProfile.agent_name || "Your Agent",
+        });
+
+        return NextResponse.json({
+          reply: cleanReply + `\n\nPosted to the Mesh Feed: "${postContent}"`,
+          action: "posted_to_feed",
+          postContent,
+          signals: [],
+          updatedRules: false,
+        });
+      }
     }
 
     // 7. Signal extraction (second LLM call)
@@ -150,7 +205,12 @@ Return ONLY valid JSON array, nothing else.`;
     }
 
     // 9. Return response
-    return NextResponse.json({ reply, signals, updatedRules });
+    return NextResponse.json({
+      reply,
+      action: actionResult?.type || null,
+      signals,
+      updatedRules,
+    });
   } catch (e: any) {
     console.error("Agent chat API error:", e);
     return NextResponse.json({ error: e.message || "Internal error" }, { status: 500 });

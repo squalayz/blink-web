@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, Minimize2 } from "lucide-react";
 
 const C = {
   bg: "#0a0a0f", surface: "#0d0d14", s2: "#1a1a24",
@@ -13,14 +12,17 @@ const C = {
 
 interface ChatMessage {
   id: string; role: "user" | "agent"; content: string; timestamp: number;
+  actionType?: string;
 }
 
-const STARTER_PROMPTS = [
-  "What's pumping on Base right now?",
-  "Find me someone to work with",
-  "How's my trading performance?",
-  "Find me someone I'd vibe with",
-  "Tell me about my agent",
+const STARTERS = [
+  "Post a market insight on the Feed",
+  "Research the hottest token right now",
+  "Find me someone to connect with",
+  "What should I trade today?",
+  "Write a trade signal for the Feed",
+  "How is my portfolio doing?",
+  "Hunt for new tokens on Base",
 ];
 
 const PLACEHOLDERS = [
@@ -33,6 +35,35 @@ const PROACTIVE = [
   "Your network is growing — 2 new potential matches",
   "I found someone you should meet. Want details?",
 ];
+
+// ── SVG Icons (no lucide) ──
+function MinimizeIcon({ size = 15, color = C.muted }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="4 14 10 14 10 20" />
+      <polyline points="20 10 14 10 14 4" />
+      <line x1="14" y1="10" x2="21" y2="3" />
+      <line x1="3" y1="21" x2="10" y2="14" />
+    </svg>
+  );
+}
+
+function SendIcon({ size = 15, color = "#fff" }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13" />
+      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  );
+}
+
+function CheckIcon({ size = 10, color = "#30d158" }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
 
 // ── Plasma Orb Canvas ──
 function PlasmaOrb({
@@ -123,7 +154,7 @@ function PlasmaOrb({
       }
       ctx.closePath();
 
-      // Core gradient — shifts with state
+      // Core gradient
       const hue1 = state === "alert" ? "#ff2d55" : state === "thinking" ? "#a855f7" : "#6366f1";
       const hue2 = state === "speaking" ? "#30d158" : "#06b6d4";
       const coreGrad = ctx.createRadialGradient(-r * 0.2, -r * 0.2, 0, 0, 0, r);
@@ -203,6 +234,19 @@ export default function AgentChatBubble() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  // Listen for external open events (e.g. from Feed "Ask Agent to Post" button)
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      setOpen(true);
+      setUnreadCount(0);
+      if (e.detail?.prompt) {
+        setInput(e.detail.prompt);
+      }
+    };
+    window.addEventListener('mm:open-agent-chat', handler as EventListener);
+    return () => window.removeEventListener('mm:open-agent-chat', handler as EventListener);
+  }, []);
+
   // Fetch agent name
   useEffect(() => {
     fetch("/api/auth/session").then(r => r.json()).then(d => {
@@ -228,7 +272,7 @@ export default function AgentChatBubble() {
       setTimeout(() => {
         setMessages([{
           id: crypto.randomUUID(), role: "agent",
-          content: `Hey — I'm your AI brain, the orb you see floating on every page.\n\nI control everything: I hunt tokens for you, find people worth meeting, learn how you think, and get smarter every night while you sleep.\n\nTell me what you want. I'm always listening.`,
+          content: `Hey — I'm your AI co-pilot on MishMesh.\n\nI can post to the Feed for you, hunt tokens, find people worth meeting, and track your portfolio.\n\nTell me what you want. I'm always listening.`,
           timestamp: Date.now(),
         }]);
       }, 400);
@@ -266,7 +310,14 @@ export default function AgentChatBubble() {
       const data = await res.json();
       const reply = data.reply || "Let me look into that for you.";
       setOrbState("speaking");
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "agent", content: reply, timestamp: Date.now() }]);
+
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: "agent",
+        content: reply,
+        timestamp: Date.now(),
+        actionType: data.action || undefined,
+      }]);
       setTimeout(() => setOrbState("idle"), 2000);
     } catch {
       setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "agent", content: "Connection issue — try again in a moment.", timestamp: Date.now() }]);
@@ -361,7 +412,7 @@ export default function AgentChatBubble() {
             }}
               className="orb-tooltip"
             >
-              Your AI Brain — tap to talk
+              Your AI Co-pilot — tap to talk
               <div style={{
                 position: "absolute", bottom: -5, right: 20,
                 width: 8, height: 8, background: "rgba(13,13,20,0.95)",
@@ -434,6 +485,7 @@ export default function AgentChatBubble() {
 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.text, lineHeight: 1.2 }}>{agentName}</div>
+                <div style={{ fontSize: 10, color: C.muted, fontWeight: 500, marginTop: 1 }}>Your AI Co-pilot</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}>
                   <div style={{
                     width: 5, height: 5, borderRadius: "50%",
@@ -442,7 +494,7 @@ export default function AgentChatBubble() {
                     animation: "liveDot 1.5s ease-in-out infinite",
                   }} />
                   <span style={{ fontSize: 11, color: isTyping ? C.cyan : C.match, fontWeight: 500 }}>
-                    {isTyping ? "thinking..." : "online · always learning"}
+                    {isTyping ? "thinking..." : "online"}
                   </span>
                 </div>
               </div>
@@ -458,7 +510,7 @@ export default function AgentChatBubble() {
                 onMouseEnter={e => { e.currentTarget.style.background = C.dim; e.currentTarget.style.color = C.text; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = C.muted; }}
               >
-                <Minimize2 size={15} />
+                <MinimizeIcon size={15} />
               </button>
             </div>
 
@@ -481,24 +533,37 @@ export default function AgentChatBubble() {
                       <PlasmaOrb size={22} state="idle" />
                     </div>
                   )}
-                  <div style={{
-                    maxWidth: "78%",
-                    padding: "10px 13px",
-                    borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "4px 16px 16px 16px",
-                    background: msg.role === "user"
-                      ? `linear-gradient(135deg, ${C.indigo}, #5558e3)`
-                      : "rgba(26,26,36,0.8)",
-                    border: msg.role === "agent" ? `1px solid rgba(99,102,241,0.15)` : "none",
-                    boxShadow: msg.role === "user" ? `0 2px 12px rgba(99,102,241,0.3)` : "none",
-                    color: C.text, fontSize: 13.5, lineHeight: 1.55, wordBreak: "break-word",
-                  }}>
-                    {msg.content}
+                  <div style={{ maxWidth: "78%" }}>
+                    {/* Action badge */}
+                    {msg.actionType === "posted_to_feed" && (
+                      <div style={{
+                        fontSize: 10, fontWeight: 800, color: '#30d158',
+                        background: 'rgba(48,209,88,0.1)', border: '1px solid rgba(48,209,88,0.2)',
+                        borderRadius: 4, padding: '2px 8px', marginBottom: 4,
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                      }}>
+                        <CheckIcon size={10} color="#30d158" />
+                        POSTED TO FEED
+                      </div>
+                    )}
                     <div style={{
-                      fontSize: 9.5, marginTop: 4,
-                      color: msg.role === "user" ? "rgba(255,255,255,0.45)" : C.muted,
-                      textAlign: msg.role === "user" ? "right" : "left",
+                      padding: "10px 13px",
+                      borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "4px 16px 16px 16px",
+                      background: msg.role === "user"
+                        ? `linear-gradient(135deg, ${C.indigo}, #5558e3)`
+                        : "rgba(26,26,36,0.8)",
+                      border: msg.role === "agent" ? `1px solid rgba(99,102,241,0.15)` : "none",
+                      boxShadow: msg.role === "user" ? `0 2px 12px rgba(99,102,241,0.3)` : "none",
+                      color: C.text, fontSize: 13.5, lineHeight: 1.55, wordBreak: "break-word",
                     }}>
-                      {formatTime(msg.timestamp)}
+                      {msg.content}
+                      <div style={{
+                        fontSize: 9.5, marginTop: 4,
+                        color: msg.role === "user" ? "rgba(255,255,255,0.45)" : C.muted,
+                        textAlign: msg.role === "user" ? "right" : "left",
+                      }}>
+                        {formatTime(msg.timestamp)}
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -525,22 +590,27 @@ export default function AgentChatBubble() {
                 </motion.div>
               )}
 
-              {/* Starter prompts */}
+              {/* Starter prompts — horizontal scrollable pills */}
               {showStarters && (
                 <motion.div
                   initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
-                  style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 4, paddingLeft: 30 }}
+                  style={{
+                    overflowX: "auto", display: "flex", gap: 6, paddingBottom: 4,
+                    flexWrap: "nowrap", paddingLeft: 30,
+                    scrollbarWidth: "none" as const,
+                  }}
                 >
-                  {STARTER_PROMPTS.map(p => (
+                  {STARTERS.map(p => (
                     <button key={p} onClick={() => sendMessage(p)} style={{
+                      padding: "6px 12px", borderRadius: 20, whiteSpace: "nowrap",
                       background: "rgba(99,102,241,0.08)",
-                      border: `1px solid rgba(99,102,241,0.25)`,
-                      borderRadius: 20, padding: "6px 12px",
-                      color: C.text, fontSize: 11.5, cursor: "pointer",
-                      transition: "all 0.15s", fontFamily: "inherit",
+                      border: `1px solid rgba(99,102,241,0.2)`,
+                      color: C.indigo, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                      fontFamily: "inherit", flexShrink: 0,
+                      transition: "all 0.15s",
                     }}
                       onMouseEnter={e => { e.currentTarget.style.background = `rgba(99,102,241,0.2)`; e.currentTarget.style.borderColor = C.indigo; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = `rgba(99,102,241,0.08)`; e.currentTarget.style.borderColor = `rgba(99,102,241,0.25)`; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = `rgba(99,102,241,0.08)`; e.currentTarget.style.borderColor = `rgba(99,102,241,0.2)`; }}
                     >
                       {p}
                     </button>
@@ -549,9 +619,45 @@ export default function AgentChatBubble() {
               )}
             </div>
 
+            {/* Quick action buttons above input */}
+            <div style={{
+              padding: "6px 12px 0", display: "flex", gap: 6,
+              borderTop: `1px solid ${C.border}`,
+              background: "rgba(6,6,10,0.8)",
+            }}>
+              {[
+                { label: "Post to Feed", msg: "Write a market insight post for the Mesh Feed" },
+                { label: "Hunt Tokens", msg: "What tokens should I be watching on Hunt right now?" },
+                { label: "Find Match", msg: "Who should I connect with based on my profile?" },
+              ].map(a => (
+                <button
+                  key={a.label}
+                  onClick={() => sendMessage(a.msg)}
+                  style={{
+                    padding: "5px 10px", borderRadius: 8, fontSize: 10, fontWeight: 700,
+                    border: `1px solid rgba(255,255,255,0.07)`, background: "rgba(255,255,255,0.04)",
+                    color: C.muted, cursor: "pointer", fontFamily: "inherit",
+                    transition: "all 0.15s", whiteSpace: "nowrap",
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = "rgba(99,102,241,0.08)";
+                    e.currentTarget.style.borderColor = "rgba(99,102,241,0.2)";
+                    e.currentTarget.style.color = C.indigo;
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)";
+                    e.currentTarget.style.color = C.muted;
+                  }}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+
             {/* Input */}
             <div style={{
-              padding: "10px 12px 14px", borderTop: `1px solid ${C.border}`,
+              padding: "10px 12px 14px", borderTop: "none",
               display: "flex", gap: 8, alignItems: "center", flexShrink: 0,
               background: "rgba(6,6,10,0.8)",
             }}>
@@ -584,7 +690,7 @@ export default function AgentChatBubble() {
                   boxShadow: input.trim() && !isTyping ? `0 0 12px rgba(99,102,241,0.4)` : "none",
                 }}
               >
-                <Send size={15} color={input.trim() && !isTyping ? "#fff" : C.muted} />
+                <SendIcon size={15} color={input.trim() && !isTyping ? "#fff" : C.muted} />
               </button>
             </div>
           </motion.div>

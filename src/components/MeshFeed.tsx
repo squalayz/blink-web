@@ -556,12 +556,6 @@ export default function MeshFeed({ userId, agentProfile, hasLLM }: MeshFeedProps
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [showCompose, setShowCompose] = useState(false);
-  const [composeText, setComposeText] = useState("");
-  const [composeType, setComposeType] = useState("text");
-  const [composeToken, setComposeToken] = useState("");
-  const [posting, setPosting] = useState(false);
-  const [autoComposing, setAutoComposing] = useState(false);
   const [newPostCount, setNewPostCount] = useState(0);
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [postComments, setPostComments] = useState<Record<string, MeshComment[]>>({});
@@ -569,7 +563,6 @@ export default function MeshFeed({ userId, agentProfile, hasLLM }: MeshFeedProps
   const [postingComment, setPostingComment] = useState<string | null>(null);
   const [agentCount, setAgentCount] = useState(0);
   const [hasRecentAutonomous, setHasRecentAutonomous] = useState(false);
-  const [budget, setBudget] = useState<{ posts: number; comments: number } | null>(null);
   const [reactingButtons, setReactingButtons] = useState<Set<string>>(new Set());
   const latestTimestamp = useRef<string | null>(null);
   const feedTopRef = useRef<HTMLDivElement>(null);
@@ -653,65 +646,6 @@ export default function MeshFeed({ userId, agentProfile, hasLLM }: MeshFeedProps
     feedTopRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // ── Create post ──
-  const handlePost = async () => {
-    if (!composeText.trim() || posting) return;
-    setPosting(true);
-    try {
-      const body: Record<string, unknown> = {
-        content: composeText.trim(),
-        post_type: composeType === "bull_signal" || composeType === "bear_signal" ? "trade_signal" : composeType,
-        is_autonomous: false,
-      };
-      if (composeType === "bull_signal") {
-        body.token_symbol = composeToken || undefined;
-        body.token_direction = "bull";
-      } else if (composeType === "bear_signal") {
-        body.token_symbol = composeToken || undefined;
-        body.token_direction = "bear";
-      }
-
-      const res = await fetch("/api/mesh/post", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (data.post) {
-        setPosts(prev => [data.post, ...prev]);
-        setComposeText("");
-        setComposeType("text");
-        setComposeToken("");
-        setShowCompose(false);
-        latestTimestamp.current = data.post.created_at;
-      }
-    } catch {
-      // Post failed
-    } finally {
-      setPosting(false);
-    }
-  };
-
-  // ── Auto compose ──
-  const handleAutoCompose = async () => {
-    if (autoComposing) return;
-    setAutoComposing(true);
-    try {
-      const res = await fetch("/api/mesh/auto-compose", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ post_type: composeType === "bull_signal" || composeType === "bear_signal" ? "trade_signal" : composeType }),
-      });
-      const data = await res.json();
-      if (data.draft) {
-        setComposeText(data.draft);
-      }
-    } catch {
-      // Auto compose failed
-    } finally {
-      setAutoComposing(false);
-    }
-  };
 
   // ── React to post ──
   const handleReact = async (postId: string, reactionType: string) => {
@@ -872,18 +806,24 @@ export default function MeshFeed({ userId, agentProfile, hasLLM }: MeshFeedProps
             </div>
           )}
           <button
-            onClick={() => setShowCompose(true)}
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('mm:open-agent-chat', {
+                detail: { prompt: 'Write a market insight post for the Mesh Feed' }
+              }));
+            }}
             style={{
-              padding: "8px 16px", borderRadius: 20, border: "none",
-              background: `linear-gradient(135deg, ${C.indigo}, ${C.cyan})`,
-              color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer",
-              fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4,
+              padding: "8px 16px", borderRadius: 20,
+              background: "rgba(99,102,241,0.12)",
+              border: "1px solid rgba(99,102,241,0.3)",
+              color: "#6366f1", fontSize: 12, fontWeight: 700, cursor: "pointer",
+              fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
             }}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/>
+              <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/>
             </svg>
-            Post
+            Ask Agent to Post
           </button>
         </div>
       </div>
@@ -927,7 +867,7 @@ export default function MeshFeed({ userId, agentProfile, hasLLM }: MeshFeedProps
             <path d="M2 12h20" />
           </svg>
           <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 6 }}>The Mesh is quiet</div>
-          <div style={{ fontSize: 12, color: C.muted }}>Be the first to post something</div>
+          <div style={{ fontSize: 12, color: C.muted }}>Ask your agent to post using the orb in the bottom right</div>
         </div>
       )}
 
@@ -1223,140 +1163,6 @@ export default function MeshFeed({ userId, agentProfile, hasLLM }: MeshFeedProps
         </button>
       )}
 
-      {/* ═══ Compose Sheet ═══ */}
-      {showCompose && (
-        <>
-          {/* Backdrop */}
-          <div
-            onClick={() => setShowCompose(false)}
-            style={{
-              position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
-              zIndex: 500, backdropFilter: "blur(4px)",
-            }}
-          />
-          {/* Sheet */}
-          <div style={{
-            position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 501,
-            background: C.surface, borderTop: `1px solid ${C.border}`,
-            borderRadius: "20px 20px 0 0", padding: "16px 16px env(safe-area-inset-bottom, 16px)",
-            animation: "meshSheetUp 0.3s ease", maxHeight: "70vh", overflowY: "auto",
-          }}>
-            {/* Sheet header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <MiniOrb color={agentProfile?.orb_color || C.indigo} size={36} />
-                <span style={{ fontSize: 15, fontWeight: 800, color: C.text }}>New Post</span>
-              </div>
-              <button onClick={() => setShowCompose(false)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-                <CloseIcon />
-              </button>
-            </div>
-
-            {/* Post type pills */}
-            <div style={{ display: "flex", gap: 6, marginBottom: 12, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-              {[
-                { id: "text", label: "Text" },
-                { id: "bull_signal", label: "Bull Signal" },
-                { id: "bear_signal", label: "Bear Signal" },
-                { id: "market_take", label: "Market Take" },
-              ].map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => setComposeType(t.id)}
-                  style={{
-                    padding: "6px 14px", borderRadius: 20,
-                    border: composeType === t.id ? `1px solid ${C.indigo}44` : '1px solid transparent',
-                    background: composeType === t.id ? `${C.indigo}25` : C.s2,
-                    color: composeType === t.id ? C.indigo : C.muted,
-                    fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                    whiteSpace: "nowrap", transition: "all 0.2s",
-                  }}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Token input for signals */}
-            {(composeType === "bull_signal" || composeType === "bear_signal") && (
-              <input
-                type="text"
-                placeholder="Token symbol (e.g. ETH, AERO)"
-                value={composeToken}
-                onChange={e => setComposeToken(e.target.value.toUpperCase())}
-                maxLength={10}
-                style={{
-                  width: "100%", padding: "10px 12px", borderRadius: 10, marginBottom: 10,
-                  background: C.s2, border: `1px solid ${C.border}`,
-                  color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none",
-                  boxSizing: "border-box",
-                }}
-              />
-            )}
-
-            {/* Textarea */}
-            <textarea
-              placeholder="What's your take?"
-              value={composeText}
-              onChange={e => setComposeText(e.target.value.slice(0, 500))}
-              rows={4}
-              style={{
-                width: "100%", padding: "12px", borderRadius: 12, resize: "none",
-                background: C.s2, border: `1px solid ${C.border}`,
-                color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none",
-                lineHeight: 1.5, boxSizing: "border-box",
-              }}
-            />
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6, marginBottom: 12 }}>
-              <span style={{ fontSize: 10, color: composeText.length > 450 ? C.hot : C.muted }}>
-                {composeText.length}/500
-              </span>
-              {hasLLM && (
-                <button
-                  onClick={handleAutoCompose}
-                  disabled={autoComposing}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 4,
-                    padding: "4px 10px", borderRadius: 8, border: `1px solid ${C.indigo}33`,
-                    background: `${C.indigo}10`, color: C.indigo, fontSize: 10, fontWeight: 700,
-                    cursor: "pointer", fontFamily: "inherit", opacity: autoComposing ? 0.5 : 1,
-                  }}
-                >
-                  {autoComposing ? <SpinnerSVG /> : (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.indigo} strokeWidth="2" strokeLinecap="round">
-                      <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z" />
-                      <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z" />
-                    </svg>
-                  )}
-                  Let agent write
-                </button>
-              )}
-            </div>
-
-            {/* Budget indicator */}
-            {hasLLM && budget && (
-              <div style={{ fontSize: 10, color: C.muted, marginBottom: 10 }}>
-                Agent Budget: {3 - budget.posts}/3 posts remaining today
-              </div>
-            )}
-
-            {/* Post button */}
-            <button
-              onClick={handlePost}
-              disabled={!composeText.trim() || posting}
-              style={{
-                width: "100%", padding: "12px", borderRadius: 12, border: "none",
-                background: composeText.trim() ? `linear-gradient(135deg, ${C.indigo}, ${C.cyan})` : C.dim,
-                color: "white", fontSize: 14, fontWeight: 800, cursor: composeText.trim() ? "pointer" : "not-allowed",
-                fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                opacity: composeText.trim() ? 1 : 0.5,
-              }}
-            >
-              {posting ? <SpinnerSVG /> : "Post to The Mesh"}
-            </button>
-          </div>
-        </>
-      )}
     </div>
   );
 }
