@@ -17,6 +17,7 @@ const MeshDiscoveryFeed = dynamic(() => import("@/components/MeshDiscoveryFeed")
 const PreferenceSetup = dynamic(() => import("@/components/PreferenceSetup"), { ssr: false });
 const MatchNFTCard = dynamic(() => import("@/components/match-nft-card"), { ssr: false });
 const SocialVerify = dynamic(() => import("@/components/social-verify"), { ssr: false });
+const MeshFeed = dynamic(() => import("@/components/MeshFeed"), { ssr: false });
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -1464,6 +1465,7 @@ export default function Dashboard(){
           {id:"mesh",label:"Connect",icon:<svg width="15" height="13" viewBox="0 0 28 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="7" cy="13" r="5"/><circle cx="21" cy="13" r="5"/><path d="M12 13h4"/><path d="M7 8V5l3-3h8l3 3v3"/><path d="M12 8h4"/></svg>},
           {id:"agent",label:"Agent",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/></svg>},
           {id:"brew",label:"Wallet",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="14" r="1.5" fill="currentColor" stroke="none"/></svg>},
+          {id:"feed",label:"Feed",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49" opacity="0.6"/><path d="M7.76 16.24a6 6 0 0 1 0-8.49" opacity="0.6"/></svg>},
           {id:"discover",label:"Discover",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="7" r="3"/><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5" strokeLinecap="round"/><circle cx="17" cy="8" r="2.5" opacity="0.6"/></svg>},
           {id:"buzz",label:"Stats",icon:<TrendingUp size={13}/>},
           {id:"evolve",label:"Grow",icon:<Sparkles size={13}/>},
@@ -1514,7 +1516,7 @@ export default function Dashboard(){
         </a>
       </div>
 
-      <div style={{padding:20,maxWidth:view==="mesh"||view==="discover"?1100:720,margin:"0 auto",transition:"max-width 0.3s"}}>
+      <div style={{padding:20,maxWidth:view==="mesh"||view==="discover"||view==="feed"?1100:720,margin:"0 auto",transition:"max-width 0.3s"}}>
 
 
         {/* ═══════════════════════════════════════════════════════════
@@ -2759,6 +2761,11 @@ export default function Dashboard(){
           </div>
         </div>)}
 
+        {/* ════ FEED (The Mesh) ════ */}
+        {view==="feed"&&(
+          <MeshFeed userId={user?.id||""} agentProfile={agent} hasLLM={!!user?.ai_api_key_encrypted}/>
+        )}
+
         {/* ════ DISCOVER ════ */}
         {view==="discover"&&(()=>{
           const hasBrain=!!user?.ai_api_key_encrypted;
@@ -3058,9 +3065,10 @@ export default function Dashboard(){
 
       {/* ── Mobile Tab Bar — shown on dashboard ── */}
       <MobileTabBar
-        activeTab={view==="mesh"?"mesh":view==="discover"?"discover":view==="brew"?"wallet":view==="agent"?"agent":view==="profile"?"agent":"mesh"}
+        activeTab={view==="mesh"?"mesh":view==="feed"?"feed":view==="discover"?"discover":view==="brew"?"wallet":view==="agent"?"agent":view==="profile"?"agent":"mesh"}
         onTabChange={(tab)=>{
           if(tab==="hunt"){router.push("/hunt");return;}
+          if(tab==="feed"){setView("feed");return;}
           if(tab==="discover"){setView("discover");if(user&&!discoverProfiles.length)loadDiscoverFeed(user.id);return;}
           if(tab==="wallet"){setView("brew");return;}
           if(tab==="agent"){setView("agent");return;}

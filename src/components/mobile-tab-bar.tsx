@@ -34,6 +34,7 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
   const tabs = [
     { id: "mesh", label: "Connect", icon: MeshIcon, badge: 0 },
     { id: "hunt", label: "Hunt", icon: HuntIcon, badge: hotCount, activeColor: C.hot },
+    { id: "feed", label: "Feed", icon: FeedIcon, badge: 0, activeColor: C.cyan },
     { id: "discover", label: "Discover", icon: DiscoverIcon, badge: 0, activeColor: C.indigo },
     { id: "wallet", label: "Wallet", icon: WalletIcon, badge: 0, alert: lowBalance },
     { id: "agent", label: "Agent", icon: AgentIcon, badge: 0, activeColor: C.indigo },
@@ -198,6 +199,19 @@ function AgentIcon({ active }: { active: boolean }) {
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round">
       <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/>
       <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/>
+    </svg>
+  );
+}
+
+function FeedIcon({ active }: { active: boolean }) {
+  const c = active ? C.cyan : C.muted;
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="2" fill={active ? C.cyan : "none"} />
+      <path d="M16.24 7.76a6 6 0 0 1 0 8.49" opacity={0.6} />
+      <path d="M7.76 16.24a6 6 0 0 1 0-8.49" opacity={0.6} />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" opacity={0.35} />
+      <path d="M4.93 19.07a10 10 0 0 1 0-14.14" opacity={0.35} />
     </svg>
   );
 }
