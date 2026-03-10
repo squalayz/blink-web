@@ -1545,15 +1545,20 @@ export default function Dashboard(){
               </div>
               {/* Explanation card */}
               <div style={{background:"rgba(255,45,85,0.05)",borderRadius:14,padding:20,border:`1px solid rgba(255,45,85,0.2)`,marginBottom:12}}>
-                <div style={{fontSize:15,fontWeight:800,color:C.text,marginBottom:8}}>Your agent needs a brain to find matches 🧠</div>
+                <div style={{fontSize:15,fontWeight:800,color:C.text,marginBottom:8}}>Your agent needs a brain to find matches</div>
                 <div style={{fontSize:13,color:C.muted,lineHeight:1.6,marginBottom:16}}>
                   MishMesh uses <em>your own</em> AI API key — so you keep full control and pay nothing extra to us. Once connected, your agent starts scanning the Mesh for people who match your vibe, industry, and goals.
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
-                  {[["🔍","Finds people who match your goals & vibe"],["💬","Starts conversations on your behalf"],["🤝","Sends you match notifications"],["🔒","Uses your key — your data, your control"]].map(([icon,text])=>(
-                    <div key={text as string} style={{display:"flex",gap:10,alignItems:"center"}}>
-                      <span style={{fontSize:16,flexShrink:0}}>{icon as string}</span>
-                      <span style={{fontSize:12,color:C.muted}}>{text as string}</span>
+                  {[
+                    {icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.indigo} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,text:"Finds people who match your goals & vibe"},
+                    {icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.indigo} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,text:"Starts conversations on your behalf"},
+                    {icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.indigo} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,text:"Sends you match notifications"},
+                    {icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.indigo} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,text:"Uses your key — your data, your control"},
+                  ].map((item)=>(
+                    <div key={item.text} style={{display:"flex",gap:10,alignItems:"center"}}>
+                      <div style={{width:28,height:28,borderRadius:8,background:"rgba(99,102,241,0.1)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{item.icon}</div>
+                      <span style={{fontSize:12,color:C.muted}}>{item.text}</span>
                     </div>
                   ))}
                 </div>

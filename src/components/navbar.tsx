@@ -86,7 +86,7 @@ export default function NavBar() {
 
   const links = [
     { label: "Dashboard", href: "/dashboard" },
-    { label: "🎯 Hunt", href: "/hunt" },
+    { label: "Hunt", href: "/hunt" },
     { label: "Ventures", href: "/dashboard/ventures" },
     { label: "Fusions", href: "/dashboard/fusions" },
     { label: "Marketplace", href: "/marketplace" },

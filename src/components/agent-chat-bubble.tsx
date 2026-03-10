@@ -29,7 +29,7 @@ const PLACEHOLDERS = [
 ];
 
 const PROACTIVE = [
-  "I spotted 3 high-score tokens on Base 🎯",
+  "I spotted 3 high-score tokens on Base",
   "Your network is growing — 2 new potential matches",
   "I found someone you should meet. Want details?",
 ];
@@ -228,7 +228,7 @@ export default function AgentChatBubble() {
       setTimeout(() => {
         setMessages([{
           id: crypto.randomUUID(), role: "agent",
-          content: `Hey 👋 I'm your AI brain — the orb you see floating on every page.\n\nI control everything: I hunt tokens for you, find people worth meeting, learn how you think, and get smarter every night while you sleep.\n\nTell me what you want. I'm always listening. 🧠`,
+          content: `Hey — I'm your AI brain, the orb you see floating on every page.\n\nI control everything: I hunt tokens for you, find people worth meeting, learn how you think, and get smarter every night while you sleep.\n\nTell me what you want. I'm always listening.`,
           timestamp: Date.now(),
         }]);
       }, 400);
@@ -361,7 +361,7 @@ export default function AgentChatBubble() {
             }}
               className="orb-tooltip"
             >
-              🧠 Your AI Brain — tap to talk
+              Your AI Brain — tap to talk
               <div style={{
                 position: "absolute", bottom: -5, right: 20,
                 width: 8, height: 8, background: "rgba(13,13,20,0.95)",

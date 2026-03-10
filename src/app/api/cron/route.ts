@@ -148,7 +148,7 @@ export async function GET(req: NextRequest) {
           for (const uid of [m.user_a, m.user_b]) {
             await supabaseAdmin.from("notifications").insert({
               user_id: uid, type: "match_nudge",
-              message: "Your agents worked hard for this match. Say hi? 👋",
+              message: "Your agents worked hard for this match. Say hi?",
               metadata: JSON.stringify({ match_id: m.id }),
             });
           }
@@ -241,7 +241,7 @@ export async function GET(req: NextRequest) {
         await supabaseAdmin.from("notifications").insert({
           user_id: user.id,
           type: "streak_warning",
-          message: `Your ${user.current_streak}-day streak is about to break. Open the mesh to keep it alive ⚡`,
+          message: `Your ${user.current_streak}-day streak is about to break. Open the mesh to keep it alive.`,
           metadata: JSON.stringify({ streak: user.current_streak }),
         });
       }
@@ -282,7 +282,7 @@ export async function GET(req: NextRequest) {
           await supabaseAdmin.from("venture_messages").insert({
             venture_id: venture.id,
             sender_id: venture.founder_id,
-            message: "🎉 Team assembly complete! All roles filled. Business plan is being generated.",
+            message: "Team assembly complete! All roles filled. Business plan is being generated.",
             message_type: "system",
           });
 
@@ -428,7 +428,7 @@ export async function GET(req: NextRequest) {
           if (uid) {
             await supabaseAdmin.from("notifications").insert({
               user_id: uid, type: "fusion_activated",
-              message: `Your Fusion Agent "${fusion.name}" has activated! ⚡ It's alive and ready to work.`,
+              message: `Your Fusion Agent "${fusion.name}" has activated! It's alive and ready to work.`,
               metadata: JSON.stringify({ fusion_id: fusion.id }),
             });
             await supabaseAdmin.from("agent_voice").insert({
@@ -515,7 +515,7 @@ export async function GET(req: NextRequest) {
             for (const uid of [launch.founder_a_user_id, launch.founder_b_user_id]) {
               await supabaseAdmin.from("notifications").insert({
                 user_id: uid, type: "token_milestone",
-                message: `$${launch.token_symbol} hit ${m} holders! 🎉`,
+                message: `$${launch.token_symbol} hit ${m} holders!`,
                 metadata: JSON.stringify({ launch_id: tk.id, milestone: m }),
               });
             }

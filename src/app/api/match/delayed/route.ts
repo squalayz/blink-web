@@ -215,7 +215,7 @@ async function notifyMatch(userId: string, score: number, synergy: string, match
       .select("chat_id").eq("user_id", userId).single();
     if (tg?.chat_id) {
       await sendTelegramMessage(tg.chat_id,
-        `🤝 *New Match Found!*\n\n${score}% compatibility\n_${synergy}_\n\n[View Match](https://mishmesh.ai/dashboard)`,
+        `*New Match Found!*\n\n${score}% compatibility\n_${synergy}_\n\n[View Match](https://mishmesh.ai/dashboard)`,
         [[{ text: "View Match →", url: "https://mishmesh.ai/dashboard" }]]
       );
     }

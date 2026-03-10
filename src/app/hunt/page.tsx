@@ -18,11 +18,11 @@ const C = {
 
 const CHAINS = [
   { id: "all", label: "All" },
-  { id: "base", label: "🔵 Base" },
-  { id: "solana", label: "🟣 Solana" },
-  { id: "ethereum", label: "⚫ ETH" },
-  { id: "bsc", label: "🟡 BSC" },
-  { id: "arbitrum", label: "🔵 ARB" },
+  { id: "base", label: "Base" },
+  { id: "solana", label: "Solana" },
+  { id: "ethereum", label: "ETH" },
+  { id: "bsc", label: "BSC" },
+  { id: "arbitrum", label: "Arbitrum" },
 ];
 
 interface Token {
@@ -316,7 +316,7 @@ export default function HuntPage() {
           background: `${C.hot}10`, border: `1px solid ${C.hot}22`,
           borderRadius: 10, fontSize: 12, color: C.hot,
         }}>
-          ⚠️ {error}
+          {error}
         </div>
       )}
 
