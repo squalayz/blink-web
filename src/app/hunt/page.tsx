@@ -8,6 +8,8 @@ import MobileTabBar from "@/components/mobile-tab-bar";
 import CoHuntCard from "@/components/co-hunt-card";
 import NetworkSignalsCard from "@/components/network-signals-card";
 import TabInfoBanner from "@/components/TabInfoBanner";
+import HuntWalletBar from "@/components/HuntWalletBar";
+import HuntTradePanel from "@/components/HuntTradePanel";
 
 const C = {
   bg: "#0a0a0f", surface: "#0d0d14", s2: "#1a1a24",
@@ -254,6 +256,13 @@ export default function HuntPage() {
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [brainConnected] = useState(false); // placeholder
 
+  // Wallet & trading state
+  const [walletEth, setWalletEth] = useState(0);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [quickAmount, setQuickAmount] = useState(50);
+  const [tradeToast, setTradeToast] = useState<{ message: string; txHash: string } | null>(null);
+  const [positions, setPositions] = useState<Array<{ symbol: string; address: string; totalBuy: number; totalSell: number; netEth: number }>>([]);
+
   // Watchlist
   const [watchlist, setWatchlist] = useState<string[]>([]);
   useEffect(() => {
@@ -268,6 +277,46 @@ export default function HuntPage() {
       localStorage.setItem("hunt-watchlist", JSON.stringify(next));
       return next;
     });
+  }
+
+  // ── Wallet fetch ──
+  const fetchWallet = useCallback(() => {
+    fetch("/api/wallet").then(r => r.json()).then(data => {
+      if (data.balance_eth != null) setWalletEth(data.balance_eth);
+      if (data.wallet_address) setWalletAddress(data.wallet_address);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchWallet();
+    const wiv = setInterval(fetchWallet, 15000);
+    return () => clearInterval(wiv);
+  }, [fetchWallet]);
+
+  // ── Positions from trade_logs ──
+  useEffect(() => {
+    fetch("/api/trades?limit=100").then(r => r.json()).then(data => {
+      if (!data.trades) return;
+      const map: Record<string, { symbol: string; address: string; totalBuy: number; totalSell: number }> = {};
+      for (const t of data.trades) {
+        const key = t.token_symbol || "?";
+        if (!map[key]) map[key] = { symbol: key, address: t.token_address || "", totalBuy: 0, totalSell: 0 };
+        if (t.action === "buy") map[key].totalBuy += t.amount || 0;
+        else if (t.action === "sell") map[key].totalSell += t.amount || 0;
+      }
+      const pos = Object.values(map)
+        .map(p => ({ ...p, netEth: p.totalBuy - p.totalSell }))
+        .filter(p => p.netEth > 0.0001);
+      setPositions(pos);
+    }).catch(() => {});
+  }, [tradeToast]);
+
+  function handleTradeComplete(result: Record<string, unknown>) {
+    const msg = (result.message as string) || "Trade executed!";
+    const hash = (result.txHash as string) || "";
+    setTradeToast({ message: msg, txHash: hash });
+    fetchWallet();
+    setTimeout(() => setTradeToast(null), 5000);
   }
 
   // ── Data Fetching (preserved) ──
@@ -579,6 +628,12 @@ export default function HuntPage() {
                       background: "rgba(99,102,241,0.08)", border: `1px solid rgba(99,102,241,0.2)`,
                       color: C.indigo, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
                     }}>Research</button>
+                  <button onClick={() => { setSelectedToken(token); setHuntMode("hunt"); }}
+                    style={{
+                      flex: 1, padding: "6px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                      background: "rgba(48,209,88,0.08)", border: "1px solid rgba(48,209,88,0.2)",
+                      color: C.match, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
+                    }}>Buy</button>
                   <button onClick={() => toggleWatch(token.address)}
                     style={{
                       flex: 1, padding: "6px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
@@ -623,9 +678,46 @@ export default function HuntPage() {
       {/* ══════════════════════════ HUNT MODE ══════════════════════════ */}
       {huntMode === "hunt" && (
         <div style={{ padding: "0 16px" }}>
-          <div style={{
-            display: "flex", gap: 16, flexWrap: "wrap",
-          }}>
+          {/* Wallet Bar */}
+          <HuntWalletBar
+            walletEth={walletEth}
+            walletAddress={walletAddress}
+            quickAmount={quickAmount}
+            onQuickAmountChange={setQuickAmount}
+            onRefresh={fetchWallet}
+          />
+
+          {/* Your Positions */}
+          {positions.length > 0 && (
+            <div style={{
+              background: "rgba(13,13,20,0.9)", border: `1px solid ${C.border}`,
+              borderRadius: 10, padding: "10px 14px", marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                Your Positions
+              </div>
+              {positions.map(pos => (
+                <div key={pos.symbol}
+                  onClick={() => {
+                    const t = tokens.find(tk => tk.symbol === pos.symbol);
+                    if (t) setSelectedToken(t);
+                  }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "6px 0",
+                    borderBottom: `1px solid rgba(255,255,255,0.04)`, cursor: "pointer",
+                  }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.text, minWidth: 60 }}>${pos.symbol}</span>
+                  <span style={{ fontSize: 11, color: C.muted, flex: 1 }}>{pos.netEth.toFixed(4)} ETH in</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             {/* Left Panel — Token Discovery */}
             <div style={{ flex: "1 1 340px", minWidth: 0 }}>
               {/* Search */}
@@ -685,7 +777,6 @@ export default function HuntPage() {
                       <span style={{ fontSize: 12, fontWeight: 600, color: pch >= 0 ? C.match : C.hot, minWidth: 48, textAlign: "right" }}>
                         {pch >= 0 ? "+" : ""}{pch.toFixed(1)}%
                       </span>
-                      {/* Score bar */}
                       <div style={{ width: 40, height: 4, borderRadius: 2, background: C.dim, overflow: "hidden", flexShrink: 0 }}>
                         <div style={{
                           width: `${Math.min(token.score, 100)}%`, height: "100%", borderRadius: 2,
@@ -699,207 +790,13 @@ export default function HuntPage() {
             </div>
 
             {/* Right Panel — Trade Panel */}
-            <div style={{
-              flex: "0 0 340px", maxWidth: 400,
-              background: "rgba(13,13,20,0.95)", border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 16, padding: 20, position: "sticky", top: 80, alignSelf: "flex-start",
-            }}>
-              {!selectedToken ? (
-                <div style={{ textAlign: "center", padding: "40px 16px" }}>
-                  <CrosshairIcon size={28} color={C.dim} />
-                  <div style={{ fontSize: 14, fontWeight: 600, color: C.muted, marginTop: 12 }}>Select a token to trade</div>
-                  <div style={{ fontSize: 12, color: C.dim, marginTop: 4 }}>Click any token from the list</div>
-                </div>
-              ) : (
-                <>
-                  {/* Token header */}
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                      <span style={{ fontSize: 20, fontWeight: 800 }}>{selectedToken.symbol}</span>
-                      <span style={{
-                        fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 8,
-                        background: `${chainColor(selectedToken.chainId)}20`, color: chainColor(selectedToken.chainId),
-                      }}>{selectedToken.chainId}</span>
-                    </div>
-                    <div style={{
-                      fontSize: 24, fontWeight: 800,
-                      color: (selectedToken.priceChange1h || 0) >= 0 ? C.match : C.hot,
-                    }}>{fmtPrice(selectedToken.price)}</div>
-                    <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                      <span style={{
-                        fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 6,
-                        background: (selectedToken.priceChange1h || 0) >= 0 ? "rgba(48,209,88,0.12)" : "rgba(255,45,85,0.12)",
-                        color: (selectedToken.priceChange1h || 0) >= 0 ? C.match : C.hot,
-                      }}>1h: {(selectedToken.priceChange1h || 0) >= 0 ? "+" : ""}{(selectedToken.priceChange1h || 0).toFixed(1)}%</span>
-                      <span style={{
-                        fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 6,
-                        background: (selectedToken.priceChange24h || 0) >= 0 ? "rgba(48,209,88,0.12)" : "rgba(255,45,85,0.12)",
-                        color: (selectedToken.priceChange24h || 0) >= 0 ? C.match : C.hot,
-                      }}>24h: {(selectedToken.priceChange24h || 0) >= 0 ? "+" : ""}{(selectedToken.priceChange24h || 0).toFixed(1)}%</span>
-                    </div>
-                  </div>
-
-                  {/* Momentum bar */}
-                  <div style={{
-                    height: 60, borderRadius: 8, margin: "12px 0",
-                    background: (selectedToken.priceChange1h || 0) >= 0
-                      ? "linear-gradient(135deg, rgba(48,209,88,0.1), transparent)"
-                      : "linear-gradient(135deg, rgba(255,45,85,0.1), transparent)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 11, color: C.dim,
-                  }}>
-                    {/* Simple sparkline from pricePoints if available */}
-                    {selectedToken.pricePoints && selectedToken.pricePoints.length > 1 ? (
-                      <svg width="100%" height="40" viewBox={`0 0 ${selectedToken.pricePoints.length} 40`} preserveAspectRatio="none" style={{ padding: "0 8px" }}>
-                        {(() => {
-                          const pts = selectedToken.pricePoints;
-                          const mn = Math.min(...pts);
-                          const mx = Math.max(...pts);
-                          const range = mx - mn || 1;
-                          const d = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${i} ${40 - ((p - mn) / range) * 36 - 2}`).join(" ");
-                          const col = (selectedToken.priceChange1h || 0) >= 0 ? C.match : C.hot;
-                          return <path d={d} fill="none" stroke={col} strokeWidth="1.5" strokeLinecap="round" />;
-                        })()}
-                      </svg>
-                    ) : (
-                      <span>Momentum indicator</span>
-                    )}
-                  </div>
-
-                  {/* Metrics grid */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
-                    {[
-                      { label: "Price", val: fmtPrice(selectedToken.price) },
-                      { label: "24h Vol", val: fmtVol(selectedToken.volume24h) },
-                      { label: "Liquidity", val: fmtVol(selectedToken.liquidity) },
-                      { label: "FDV", val: "—" },
-                      { label: "1h Change", val: `${(selectedToken.priceChange1h || 0) >= 0 ? "+" : ""}${(selectedToken.priceChange1h || 0).toFixed(1)}%` },
-                      { label: "Score", val: `${selectedToken.score}/100` },
-                    ].map(m => (
-                      <div key={m.label} style={{
-                        background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px",
-                      }}>
-                        <div style={{ fontSize: 10, color: C.muted, marginBottom: 3 }}>{m.label}</div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>{m.val}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* AI Whisper Bar */}
-                  <div style={{
-                    background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)",
-                    borderRadius: 10, padding: "10px 12px", margin: "12px 0",
-                    display: "flex", alignItems: "flex-start", gap: 8,
-                  }}>
-                    <BrainIcon size={14} color={C.indigo} />
-                    <span style={{ fontSize: 12, color: C.text, lineHeight: 1.5 }}>
-                      {generateHuntBrief(selectedToken)}
-                    </span>
-                  </div>
-
-                  {/* Quick Buy Buttons */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, margin: "12px 0" }}>
-                    {["50", "100", "250"].map(amt => (
-                      <button key={amt} onClick={() => { setBuyAmount(amt); setShowCustomBuy(false); }}
-                        onMouseEnter={e => { Object.assign((e.currentTarget as HTMLElement).style, { background: "rgba(48,209,88,0.12)", borderColor: "rgba(48,209,88,0.4)", color: C.match }); }}
-                        onMouseLeave={e => { Object.assign((e.currentTarget as HTMLElement).style, { background: buyAmount === amt ? "rgba(48,209,88,0.12)" : "rgba(255,255,255,0.04)", borderColor: buyAmount === amt ? "rgba(48,209,88,0.4)" : "rgba(255,255,255,0.1)", color: buyAmount === amt ? C.match : C.text }); }}
-                        style={{
-                          padding: 10, borderRadius: 8, border: buyAmount === amt ? "1px solid rgba(48,209,88,0.4)" : "1px solid rgba(255,255,255,0.1)",
-                          background: buyAmount === amt ? "rgba(48,209,88,0.12)" : "rgba(255,255,255,0.04)",
-                          color: buyAmount === amt ? C.match : C.text,
-                          fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
-                        }}>${amt}</button>
-                    ))}
-                    <button onClick={() => { setShowCustomBuy(!showCustomBuy); setBuyAmount(""); }}
-                      onMouseEnter={e => { Object.assign((e.currentTarget as HTMLElement).style, { background: "rgba(48,209,88,0.12)", borderColor: "rgba(48,209,88,0.4)", color: C.match }); }}
-                      onMouseLeave={e => { Object.assign((e.currentTarget as HTMLElement).style, { background: showCustomBuy ? "rgba(48,209,88,0.12)" : "rgba(255,255,255,0.04)", borderColor: showCustomBuy ? "rgba(48,209,88,0.4)" : "rgba(255,255,255,0.1)", color: showCustomBuy ? C.match : C.text }); }}
-                      style={{
-                        padding: 10, borderRadius: 8, border: showCustomBuy ? "1px solid rgba(48,209,88,0.4)" : "1px solid rgba(255,255,255,0.1)",
-                        background: showCustomBuy ? "rgba(48,209,88,0.12)" : "rgba(255,255,255,0.04)",
-                        color: showCustomBuy ? C.match : C.text,
-                        fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
-                      }}>Custom</button>
-                  </div>
-
-                  {showCustomBuy && (
-                    <input type="number" placeholder="Enter amount in $..."
-                      value={buyAmount} onChange={e => setBuyAmount(e.target.value)}
-                      style={{
-                        width: "100%", padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`,
-                        background: "rgba(255,255,255,0.04)", color: C.text, fontSize: 14, fontFamily: "inherit",
-                        outline: "none", marginBottom: 8, boxSizing: "border-box",
-                      }}
-                    />
-                  )}
-
-                  {/* Slippage */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-                    <span style={{ fontSize: 11, color: C.muted }}>Slippage:</span>
-                    {["0.5", "1"].map(s => (
-                      <button key={s} onClick={() => { setSlippage(s); setCustomSlippage(""); }}
-                        style={{
-                          padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-                          border: slippage === s ? `1px solid ${C.indigo}60` : `1px solid ${C.border}`,
-                          background: slippage === s ? `${C.indigo}20` : "transparent",
-                          color: slippage === s ? C.indigo : C.muted,
-                          cursor: "pointer", fontFamily: "inherit",
-                        }}>{s}%</button>
-                    ))}
-                    <input type="text" placeholder="Custom %"
-                      value={customSlippage}
-                      onChange={e => { setCustomSlippage(e.target.value); if (e.target.value) setSlippage(e.target.value); }}
-                      style={{
-                        width: 60, padding: "4px 8px", borderRadius: 6, fontSize: 11,
-                        border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.03)",
-                        color: C.text, fontFamily: "inherit", outline: "none",
-                      }}
-                    />
-                  </div>
-
-                  {/* BUY button */}
-                  <button onClick={() => setShowComingSoon(true)}
-                    onMouseEnter={e => { Object.assign((e.currentTarget as HTMLElement).style, { transform: "translateY(-1px)", boxShadow: "0 6px 24px rgba(48,209,88,0.4)" }); }}
-                    onMouseLeave={e => { Object.assign((e.currentTarget as HTMLElement).style, { transform: "translateY(0)", boxShadow: "0 4px 20px rgba(48,209,88,0.3)" }); }}
-                    style={{
-                      width: "100%", padding: 14, borderRadius: 12, border: "none",
-                      background: "linear-gradient(135deg, #30d158, #06b6d4)",
-                      color: "white", fontSize: 16, fontWeight: 800, cursor: "pointer",
-                      fontFamily: "inherit", letterSpacing: "-0.02em",
-                      boxShadow: "0 4px 20px rgba(48,209,88,0.3)", transition: "all 0.2s",
-                    }}>
-                    BUY {buyAmount ? `$${buyAmount}` : ""} {selectedToken.symbol}
-                  </button>
-
-                  {/* Wallet warning */}
-                  <div style={{
-                    background: "rgba(255,45,85,0.08)", border: "1px solid rgba(255,45,85,0.2)",
-                    borderRadius: 10, padding: "10px 12px", marginTop: 8, fontSize: 12, color: C.hot, cursor: "pointer",
-                  }}
-                    onClick={() => { window.location.href = "/dashboard?tab=wallet"; }}
-                  >
-                    Connect your wallet on the Wallet tab to start trading →
-                  </div>
-
-                  {/* Recent trades (placeholder) */}
-                  <div style={{ marginTop: 16 }}>
-                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 8 }}>Recent Trades</div>
-                    {[
-                      { type: "buy", amount: "$142", time: "2m ago" },
-                      { type: "sell", amount: "$89", time: "5m ago" },
-                      { type: "buy", amount: "$310", time: "8m ago" },
-                    ].map((t, i) => (
-                      <div key={i} style={{
-                        display: "flex", alignItems: "center", gap: 8, padding: "5px 0",
-                        borderBottom: i < 2 ? `1px solid rgba(255,255,255,0.04)` : "none",
-                      }}>
-                        {t.type === "buy" ? <ArrowUpIcon size={12} /> : <ArrowDownIcon size={12} />}
-                        <span style={{ fontSize: 12, color: C.text, flex: 1 }}>{t.amount}</span>
-                        <span style={{ fontSize: 10, color: C.dim }}>{t.time}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
+            <div style={{ flex: "0 0 340px", maxWidth: 400 }}>
+              <HuntTradePanel
+                token={selectedToken}
+                walletEth={walletEth}
+                quickAmount={quickAmount}
+                onTradeComplete={handleTradeComplete}
+              />
             </div>
           </div>
         </div>
@@ -1109,6 +1006,31 @@ export default function HuntPage() {
         </div>
       )}
 
+      {/* Trade success toast */}
+      {tradeToast && (
+        <div style={{
+          position: "fixed", bottom: 96, left: "50%", transform: "translateX(-50%)",
+          background: "rgba(48,209,88,0.1)", border: "1px solid rgba(48,209,88,0.3)",
+          borderRadius: 12, padding: "12px 20px", zIndex: 200,
+          fontSize: 13, fontWeight: 700, color: C.match,
+          animation: "hunt-toast-up 0.3s ease",
+          display: "flex", alignItems: "center", gap: 8, maxWidth: "90vw",
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.match} strokeWidth="2.5" strokeLinecap="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {tradeToast.message}
+          </span>
+          {tradeToast.txHash && (
+            <a href={`https://basescan.org/tx/${tradeToast.txHash}`} target="_blank" rel="noopener noreferrer"
+              style={{ color: C.cyan, fontSize: 11, textDecoration: "none", flexShrink: 0 }}>
+              View
+            </a>
+          )}
+        </div>
+      )}
+
       {/* Bottom spacer */}
       <div style={{ height: 96 }} />
 
@@ -1144,6 +1066,10 @@ export default function HuntPage() {
         @keyframes hunt-ticker {
           0% { transform: translateX(0); }
           100% { transform: translateX(-50%); }
+        }
+        @keyframes hunt-toast-up {
+          from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+          to { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
         div::-webkit-scrollbar { display: none; }
       `}</style>
