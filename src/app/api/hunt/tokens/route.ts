@@ -17,6 +17,8 @@ interface TokenResult {
   volume1h: number;
   volume24h: number;
   liquidity: number;
+  fdv: number;
+  marketCap: number;
   txns1h: { buys: number; sells: number };
   pairCreatedAt: number;
   imageUrl: string | null;
@@ -87,6 +89,8 @@ function mapPair(p: any): TokenResult | null {
     volume1h: parseFloat(p.volume?.h1 || "0"),
     volume24h: parseFloat(p.volume?.h24 || "0"),
     liquidity: parseFloat(p.liquidity?.usd || "0"),
+    fdv: parseFloat(p.fdv || p.info?.fdv || "0"),
+    marketCap: parseFloat(p.marketCap || "0"),
     txns1h: { buys: txns.buys || 0, sells: txns.sells || 0 },
     pairCreatedAt: p.pairCreatedAt || 0,
     imageUrl: p.info?.imageUrl || p.info?.header || null,

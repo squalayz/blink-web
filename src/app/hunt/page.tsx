@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
-import HuntTokenCard from "@/components/hunt-token-card";
+import HuntTokenCard, { ChainBadge } from "@/components/hunt-token-card";
 import HuntPulseViz from "@/components/hunt-pulse-viz";
 import MobileTabBar from "@/components/mobile-tab-bar";
 import CoHuntCard from "@/components/co-hunt-card";
@@ -36,6 +36,8 @@ interface Token {
   volume1h: number;
   volume24h: number;
   liquidity: number;
+  fdv: number;
+  marketCap: number;
   txns1h: { buys: number; sells: number };
   pairCreatedAt: number;
   imageUrl: string | null;
@@ -677,10 +679,7 @@ export default function HuntPage() {
                       onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                     >
                       <span style={{ fontSize: 14, fontWeight: 700, minWidth: 60 }}>{token.symbol}</span>
-                      <span style={{
-                        fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 8,
-                        background: `${chainColor(token.chainId)}20`, color: chainColor(token.chainId),
-                      }}>{token.chainId}</span>
+                      <ChainBadge chainId={token.chainId} />
                       <div style={{ flex: 1 }} />
                       <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>{fmtPrice(token.price)}</span>
                       <span style={{ fontSize: 12, fontWeight: 600, color: pch >= 0 ? C.match : C.hot, minWidth: 48, textAlign: "right" }}>
