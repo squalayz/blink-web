@@ -19,6 +19,7 @@ const MatchNFTCard = dynamic(() => import("@/components/match-nft-card"), { ssr:
 const SocialVerify = dynamic(() => import("@/components/social-verify"), { ssr: false });
 const MeshFeed = dynamic(() => import("@/components/MeshFeed"), { ssr: false });
 const HuntTabView = dynamic(() => import("@/components/HuntTabView"), { ssr: false });
+const MeshTrade = dynamic(() => import("@/components/MeshTrade"), { ssr: false });
 import TabInfoBanner from "@/components/TabInfoBanner";
 
 const supabase = createClient(
@@ -1574,7 +1575,7 @@ export default function Dashboard(){
             pointerEvents:"none",
           }} />
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0052FF" strokeWidth="2.5" strokeLinecap="round" style={{position:"relative",zIndex:1}}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
-          <span style={{position:"relative",zIndex:1}}>Hunt</span>
+          <span style={{position:"relative",zIndex:1}}>MeshTrade</span>
         </button>
 
         {/* Remaining tabs */}
@@ -3300,7 +3301,7 @@ export default function Dashboard(){
         {/* ── Hunt / MeshScope Tab ── */}
         {view==="hunt"&&(
           <div style={{paddingBottom:96}}>
-            <HuntTabView/>
+            <MeshTrade user={user} agent={agent} wallet={wallet}/>
           </div>
         )}
       </div>
