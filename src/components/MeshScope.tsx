@@ -138,7 +138,7 @@ function HuntCompactRow({
       onClick={onSelect}
       style={{
         display: "flex", alignItems: "center", gap: 8,
-        padding: "8px 12px",
+        padding: "6px 10px",
         background: isNew ? "rgba(48,209,88,0.08)" : isSelected ? "rgba(99,102,241,0.08)" : "transparent",
         borderLeft: isSelected ? "2px solid #6366f1" : "2px solid transparent",
         borderBottom: "1px solid rgba(255,255,255,0.04)",
@@ -732,18 +732,14 @@ export default function MeshScope({
               }}
             />
           </div>
-          <div style={{ display: "flex", gap: 3, overflowX: "auto", scrollbarWidth: "none", flexShrink: 0 }}>
-            {CHAINS.map(c => (
-              <button key={c.id} onClick={() => onChainChange(c.id)} style={{
-                padding: "4px 9px", borderRadius: 14, flexShrink: 0, fontFamily: "inherit", cursor: "pointer",
-                border: chain === c.id ? `1px solid ${C.hot}` : `1px solid ${C.border}`,
-                background: chain === c.id ? `${C.hot}15` : "rgba(255,255,255,0.03)",
-                color: chain === c.id ? C.hot : C.muted,
-                fontSize: 10, fontWeight: 600, whiteSpace: "nowrap",
-              }}>
-                {c.label}
-              </button>
-            ))}
+          {/* Base-only badge */}
+          <div style={{
+            display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0,
+            padding: "4px 10px", borderRadius: 14,
+            background: "rgba(0,82,255,0.15)", border: "1px solid rgba(0,82,255,0.3)",
+          }}>
+            <svg width="10" height="10" viewBox="0 0 111 111" fill="#0052FF"><path d="M54.921 110.034C85.359 110.034 110.034 85.359 110.034 54.921C110.034 24.484 85.359 -0.191 54.921 -0.191C26.066 -0.191 2.258 22.515 0 51.169H72.943V58.674H0C2.258 87.327 26.066 110.034 54.921 110.034Z"/></svg>
+            <span style={{ fontSize: 10, fontWeight: 800, color: "#0052FF" }}>Base</span>
           </div>
         </div>
 
@@ -784,7 +780,7 @@ export default function MeshScope({
 
       {/* ── Loading skeletons ── */}
       {loading && tokens.length === 0 && (
-        <div style={{ display: "flex", gap: 1, height: "calc(100vh - 300px)" }}>
+        <div style={{ display: "flex", gap: 1, height: "calc(100vh - 200px)" }}>
           {[0, 1, 2].map(col => (
             <div key={col} style={{ flex: 1, background: "rgba(13,13,20,0.5)", padding: 8 }}>
               {[0, 1, 2, 3, 4].map(i => (
@@ -802,7 +798,7 @@ export default function MeshScope({
       {/* ── Desktop 3-column layout ── */}
       {(!loading || tokens.length > 0) && (
         <div className="mm-hunt-cols-desktop" style={{ display: "none" }}>
-          <div style={{ display: "flex", gap: 0, height: "calc(100vh - 300px)", overflow: "hidden" }}>
+          <div style={{ display: "flex", gap: 0, height: "calc(100vh - 200px)", overflow: "hidden" }}>
             {columns.map((col, i) => (
               <div key={col.id} style={{
                 flex: 1, display: "flex", flexDirection: "column",
@@ -881,7 +877,7 @@ export default function MeshScope({
           </div>
 
           {/* Token rows */}
-          <div style={{ maxHeight: "calc(100vh - 360px)", overflowY: "auto" }}>
+          <div style={{ maxHeight: "calc(100vh - 220px)", overflowY: "auto" }}>
             {(mobileCol === "emerging" ? emergingTokens : mobileCol === "heating" ? heatingTokens : pumpingTokens).map(t => (
               <HuntCompactRow
                 key={t.address}

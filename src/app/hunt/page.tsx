@@ -161,9 +161,9 @@ export default function HuntPage() {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [chain, setChain] = useState("all");
+  const [chain, setChain] = useState("base");
   const [query, setQuery] = useState("");
-  const [limit, setLimit] = useState(20);
+  const [limit, setLimit] = useState(50);
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   // Mode state

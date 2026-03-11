@@ -177,7 +177,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const chainsParam = searchParams.get("chains") || "base,solana,ethereum,bsc,arbitrum";
-    const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
+    const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
     const query = searchParams.get("q") || "";
     const chains = chainsParam.split(",").map(normalizeChain).filter(c => ALLOWED_CHAINS.has(c));
 
