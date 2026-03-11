@@ -118,7 +118,16 @@ function Sparkline({ points, width = 280, height = 60, color = C.match }: { poin
   );
 }
 
-// ── Compact Row ──
+// ── Format helpers for card metrics ──
+function fmtK(n: number): string {
+  if (!n || isNaN(n)) return "—";
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
+  return `$${n.toFixed(0)}`;
+}
+
+// ── Compact Row — Axiom/Photon style card ──
 function HuntCompactRow({
   token, quickAmount, onSelect, isSelected, isNew, onQuickBuy, buyingAddr, buySuccess,
 }: {
@@ -132,95 +141,152 @@ function HuntCompactRow({
   buySuccess: Record<string, boolean>;
 }) {
   const score = token.score || 0;
-  const pc = token.priceChange1h || 0;
+  const pc1h = token.priceChange1h || 0;
+  const pc24h = token.priceChange24h || 0;
+  const buys = token.txns1h?.buys || 0;
+  const sells = token.txns1h?.sells || 0;
+  const total = buys + sells || 1;
+  const buyPct = Math.round((buys / total) * 100);
+  const scoreColor = score >= 80 ? C.match : score >= 60 ? "#f59e0b" : C.muted;
+
   return (
     <div
       onClick={onSelect}
       style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "6px 10px",
-        background: isNew ? "rgba(48,209,88,0.08)" : isSelected ? "rgba(99,102,241,0.08)" : "transparent",
-        borderLeft: isSelected ? "2px solid #6366f1" : "2px solid transparent",
+        padding: "9px 12px 8px",
+        background: isNew ? "rgba(48,209,88,0.06)" : isSelected ? "rgba(99,102,241,0.08)" : "transparent",
+        borderLeft: isSelected ? `3px solid ${C.indigo}` : isNew ? `3px solid ${C.match}` : "3px solid transparent",
         borderBottom: "1px solid rgba(255,255,255,0.04)",
         cursor: "pointer",
-        transition: "all 0.15s",
-        position: "relative",
-        animation: isNew ? "hunt-new-flash 0.5s ease" : "none",
+        transition: "background 0.15s",
+        animation: isNew ? "hunt-new-flash 0.6s ease" : "none",
       }}
-      onMouseEnter={e => { if (!isSelected && !isNew) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)"; }}
+      onMouseEnter={e => { if (!isSelected && !isNew) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.025)"; }}
       onMouseLeave={e => { if (!isSelected && !isNew) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
     >
-      {/* Logo */}
-      <TokenLogo imageUrl={token.imageUrl} symbol={token.symbol} address={token.address} chainId={token.chainId} size={28} />
+      {/* ── Row 1: Logo + Name + Price + Change + Buy button ── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <TokenLogo imageUrl={token.imageUrl} symbol={token.symbol} address={token.address} chainId={token.chainId} size={32} />
+        
+        {/* Name block */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: "-0.02em" }}>
+              {token.symbol}
+            </span>
+            {score >= 80 && (
+              <div style={{
+                fontSize: 8, fontWeight: 800, padding: "1px 5px", borderRadius: 10,
+                background: "rgba(48,209,88,0.15)", color: C.match, letterSpacing: "0.04em",
+              }}>HOT</div>
+            )}
+            {isNew && (
+              <div style={{
+                fontSize: 8, fontWeight: 800, padding: "1px 5px", borderRadius: 10,
+                background: "rgba(6,182,212,0.15)", color: C.cyan, letterSpacing: "0.04em",
+              }}>NEW</div>
+            )}
+          </div>
+          <div style={{ fontSize: 10, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 110 }}>
+            {token.name}
+          </div>
+        </div>
 
-      {/* Symbol + name + chain */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ fontSize: 12, fontWeight: 800, color: C.text, letterSpacing: "-0.01em" }}>
-            ${token.symbol}
-          </span>
-          <ChainBadge chainId={token.chainId} />
+        {/* Price */}
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: C.text,
+          }}>
+            {fmtPrice(token.price)}
+          </div>
+          <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: pc1h >= 0 ? C.match : C.hot }}>
+              {pc1h >= 0 ? "+" : ""}{pc1h.toFixed(1)}%
+            </span>
+            <span style={{ fontSize: 10, color: C.muted }}>1h</span>
+          </div>
         </div>
-        <div style={{ fontSize: 10, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 90 }}>
-          {token.name}
-        </div>
+
+        {/* Buy button */}
+        <button
+          onClick={e => { e.stopPropagation(); onQuickBuy(token); }}
+          disabled={!!buyingAddr}
+          style={{
+            padding: "5px 10px", borderRadius: 8, border: "none",
+            background: buySuccess[token.address] ? "rgba(48,209,88,0.3)" : "rgba(48,209,88,0.12)",
+            color: C.match, fontSize: 11, fontWeight: 800, cursor: "pointer",
+            fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap",
+            opacity: buyingAddr && buyingAddr !== token.address ? 0.3 : 1,
+            transition: "background 0.15s",
+          }}
+        >
+          {buyingAddr === token.address ? (
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "hunt-spin 0.8s linear infinite" }}>
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            </svg>
+          ) : buySuccess[token.address] ? "OK" : `$${quickAmount}`}
+        </button>
       </div>
 
-      {/* Price + change */}
-      <div style={{ textAlign: "right", flexShrink: 0 }}>
+      {/* ── Row 2: Metrics grid ── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 0, flexWrap: "nowrap", overflow: "hidden" }}>
+        {/* MCap */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>MCap</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono',monospace" }}>
+            {fmtK(token.marketCap)}
+          </div>
+        </div>
+        {/* Divider */}
+        <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.06)", marginRight: 8, flexShrink: 0 }} />
+        {/* Vol 1h */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Vol 1h</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.cyan, fontFamily: "'JetBrains Mono',monospace" }}>
+            {fmtK(token.volume1h)}
+          </div>
+        </div>
+        {/* Divider */}
+        <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.06)", marginRight: 8, flexShrink: 0 }} />
+        {/* Liquidity */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Liq</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono',monospace" }}>
+            {fmtK(token.liquidity)}
+          </div>
+        </div>
+        {/* Divider */}
+        <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.06)", marginRight: 8, flexShrink: 0 }} />
+        {/* Txns buys/sells */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Txns</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: C.match }}>{buys}B</span>
+            <span style={{ fontSize: 9, color: C.muted }}>/</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: C.hot }}>{sells}S</span>
+          </div>
+        </div>
+        {/* Buy pressure bar */}
+        <div style={{ width: 36, flexShrink: 0, marginLeft: 6 }}>
+          <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>
+            {buyPct}% B
+          </div>
+          <div style={{ height: 4, borderRadius: 2, background: "rgba(255,45,85,0.3)", overflow: "hidden" }}>
+            <div style={{
+              width: `${buyPct}%`, height: "100%", borderRadius: 2,
+              background: buyPct >= 60 ? C.match : buyPct >= 40 ? "#f59e0b" : C.hot,
+              transition: "width 0.4s ease",
+            }} />
+          </div>
+        </div>
+        {/* Score glow dot */}
         <div style={{
-          fontSize: 12, fontWeight: 700,
-          fontFamily: "'JetBrains Mono',monospace",
-          color: C.text,
-        }}>
-          {fmtPrice(token.price)}
-        </div>
-        <div style={{
-          fontSize: 10, fontWeight: 700,
-          color: pc >= 0 ? C.match : C.hot,
-        }}>
-          {pc >= 0 ? "+" : ""}{pc.toFixed(1)}%
-        </div>
+          width: 8, height: 8, borderRadius: "50%", flexShrink: 0, marginLeft: 8,
+          background: scoreColor,
+          boxShadow: score >= 80 ? `0 0 8px ${scoreColor}` : "none",
+          animation: score >= 80 ? "hunt-live-dot 2s infinite" : "none",
+        }} title={getAIBrief(token)} />
       </div>
-
-      {/* Score pill */}
-      <div style={{
-        fontSize: 9, fontWeight: 800,
-        padding: "2px 5px", borderRadius: 4,
-        background: score >= 80 ? "rgba(48,209,88,0.15)" : score >= 60 ? "rgba(245,158,11,0.15)" : "rgba(255,255,255,0.05)",
-        color: score >= 80 ? C.match : score >= 60 ? "#f59e0b" : C.muted,
-        flexShrink: 0,
-      }}>
-        {score}
-      </div>
-
-      {/* AI signal dot */}
-      <div style={{
-        width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
-        background: score >= 80 ? C.match : score >= 60 ? "#f59e0b" : C.muted,
-        boxShadow: score >= 80 ? "0 0 6px #30d158" : "none",
-        animation: score >= 80 ? "hunt-live-dot 2s infinite" : "none",
-      }} title={getAIBrief(token)} />
-
-      {/* Quick buy */}
-      <button
-        onClick={e => { e.stopPropagation(); onQuickBuy(token); }}
-        disabled={!!buyingAddr}
-        style={{
-          padding: "4px 8px", borderRadius: 6, border: "none",
-          background: buySuccess[token.address] ? "rgba(48,209,88,0.25)" : "rgba(48,209,88,0.15)",
-          color: C.match,
-          fontSize: 10, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
-          flexShrink: 0, whiteSpace: "nowrap",
-          opacity: buyingAddr && buyingAddr !== token.address ? 0.4 : 1,
-        }}
-      >
-        {buyingAddr === token.address ? (
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "hunt-spin 0.8s linear infinite" }}>
-            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-          </svg>
-        ) : buySuccess[token.address] ? "OK" : `$${quickAmount}`}
-      </button>
     </div>
   );
 }
@@ -807,23 +873,31 @@ export default function MeshScope({
               }}>
                 {/* Column header */}
                 <div style={{
-                  padding: "10px 14px 8px",
+                  padding: "0",
                   borderBottom: "1px solid rgba(255,255,255,0.06)",
-                  background: "rgba(13,13,20,0.8)", flexShrink: 0,
+                  background: `linear-gradient(180deg, ${col.color}08 0%, transparent 100%)`,
+                  flexShrink: 0,
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: col.color, letterSpacing: "0.08em" }}>
-                      {col.label}
-                    </span>
-                    <span style={{
-                      fontSize: 10, fontWeight: 700,
-                      background: `${col.color}15`, color: col.color,
-                      padding: "2px 7px", borderRadius: 10,
-                    }}>
-                      {col.count}
-                    </span>
+                  {/* Color accent bar */}
+                  <div style={{ height: 3, background: `linear-gradient(90deg, ${col.color}, ${col.color}44)`, borderRadius: "0 2px 0 0" }} />
+                  <div style={{ padding: "8px 14px 9px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div>
+                      <span style={{ fontSize: 12, fontWeight: 900, color: col.color, letterSpacing: "0.06em" }}>
+                        {col.label}
+                      </span>
+                      <div style={{ fontSize: 9, color: C.muted, marginTop: 1 }}>{col.desc}</div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ width: 5, height: 5, borderRadius: "50%", background: col.color, animation: "hunt-live-dot 2s infinite" }} />
+                      <span style={{
+                        fontSize: 11, fontWeight: 700,
+                        background: `${col.color}18`, color: col.color,
+                        padding: "2px 8px", borderRadius: 10,
+                      }}>
+                        {col.count}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>{col.desc}</div>
                 </div>
 
                 {/* Scrollable token list */}
