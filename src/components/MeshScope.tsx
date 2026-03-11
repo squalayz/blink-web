@@ -624,18 +624,28 @@ export default function MeshScope({
   }, [tokens]);
 
   // ── Classify tokens into 3 columns ──
-  const emergingTokens = tokens.filter(t => {
-    const ageMs = t.pairCreatedAt > 0 ? Date.now() - t.pairCreatedAt : Infinity;
-    return ageMs < 2 * 60 * 60 * 1000;
-  }).sort((a, b) => b.score - a.score);
+  // Sort all tokens by score descending
+  const sorted = [...tokens].sort((a, b) => b.score - a.score);
+  const total = sorted.length;
 
-  const heatingTokens = tokens.filter(t => {
-    const ageMs = t.pairCreatedAt > 0 ? Date.now() - t.pairCreatedAt : Infinity;
-    return (ageMs >= 2 * 60 * 60 * 1000 || t.pairCreatedAt === 0) && t.score >= 60 && t.score < 80;
-  }).sort((a, b) => b.score - a.score);
+  // PUMPING = top third by score (highest momentum)
+  const pumpingTokens = total > 0
+    ? sorted.slice(0, Math.max(1, Math.ceil(total / 3)))
+    : [];
 
-  const pumpingTokens = tokens.filter(t => t.score >= 80)
-    .sort((a, b) => b.score - a.score);
+  // EMERGING = newest tokens (by pairCreatedAt) OR bottom third if no age data
+  const withAge = tokens.filter(t => t.pairCreatedAt > 0)
+    .sort((a, b) => b.pairCreatedAt - a.pairCreatedAt); // newest first
+  const emergingTokens = withAge.length > 0
+    ? withAge.slice(0, Math.max(3, Math.ceil(total / 3)))
+    : sorted.slice(Math.ceil(total * 2 / 3)); // fallback: bottom third
+
+  // HEATING = middle third (everything not in pumping or emerging)
+  const pumpingAddrs = new Set(pumpingTokens.map(t => t.address));
+  const emergingAddrs = new Set(emergingTokens.map(t => t.address));
+  const heatingTokens = sorted.filter(t =>
+    !pumpingAddrs.has(t.address) && !emergingAddrs.has(t.address)
+  );
 
   // ── Quick buy handler ──
   const handleQuickBuy = async (token: Token, amount?: number, slip?: number) => {

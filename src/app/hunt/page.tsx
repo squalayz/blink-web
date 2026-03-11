@@ -339,7 +339,7 @@ export default function HuntPage() {
         <div style={{ display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none" }}>
           {[
             { label: "Connect", href: "/dashboard?tab=mesh", icon: <svg width="13" height="13" viewBox="0 0 28 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="7" cy="13" r="5"/><circle cx="21" cy="13" r="5"/><path d="M12 13h4"/><path d="M7 8V5l3-3h8l3 3v3"/><path d="M12 8h4"/></svg> },
-            { label: "Hunt", href: "/hunt", active: true, icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg> },
+            { label: "MeshScope", href: "/hunt", active: true, icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg> },
             { label: "Feed", href: "/dashboard?tab=feed", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49" opacity="0.6"/><path d="M7.76 16.24a6 6 0 0 1 0-8.49" opacity="0.6"/></svg> },
             { label: "Discover", href: "/dashboard?tab=discover", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="7" r="3"/><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5" strokeLinecap="round"/><circle cx="17" cy="8" r="2.5" opacity="0.6"/></svg> },
             { label: "Wallet", href: "/dashboard?tab=brew", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="14" r="1.5" fill="currentColor" stroke="none"/></svg> },
@@ -481,129 +481,151 @@ export default function HuntPage() {
         />
       )}
 
-      {/* ══════════════════════════ HUNT MODE ══════════════════════════ */}
+      {/* ══════════════════════════ TRADE MODE ══════════════════════════ */}
       {huntMode === "hunt" && (
-        <div style={{ padding: "0 16px" }}>
-          {/* Wallet Bar */}
-          <HuntWalletBar
-            walletEth={walletEth}
-            walletAddress={walletAddress}
-            quickAmount={quickAmount}
-            onQuickAmountChange={setQuickAmount}
-            onRefresh={fetchWallet}
-          />
+        <div style={{ display: "flex", height: "calc(100vh - 130px)", overflow: "hidden" }}>
 
-          {/* Your Positions */}
-          {positions.length > 0 && (
+          {/* ── LEFT: Token List ── */}
+          <div style={{
+            width: 260, flexShrink: 0, display: "flex", flexDirection: "column",
+            borderRight: `1px solid ${C.border}`, background: "rgba(10,10,15,0.98)",
+          }}>
+            {/* Wallet summary */}
             <div style={{
-              background: "rgba(13,13,20,0.9)", border: `1px solid ${C.border}`,
-              borderRadius: 10, padding: "10px 14px", marginBottom: 12,
+              padding: "10px 14px", borderBottom: `1px solid ${C.border}`,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
             }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-                Your Positions
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <svg width="12" height="12" viewBox="0 0 111 111" fill="#0052FF"><path d="M54.921 110.034C85.359 110.034 110.034 85.359 110.034 54.921C110.034 24.484 85.359 -0.191 54.921 -0.191C26.066 -0.191 2.258 22.515 0 51.169H72.943V58.674H0C2.258 87.327 26.066 110.034 54.921 110.034Z"/></svg>
+                <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: C.text }}>
+                  {walletEth.toFixed(4)} ETH
+                </span>
               </div>
-              {positions.map(pos => (
-                <div key={pos.symbol}
-                  onClick={() => {
-                    const t = tokens.find(tk => tk.symbol === pos.symbol);
-                    if (t) setSelectedToken(t);
-                  }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "6px 0",
-                    borderBottom: `1px solid rgba(255,255,255,0.04)`, cursor: "pointer",
-                  }}
-                >
-                  <span style={{ fontSize: 13, fontWeight: 700, color: C.text, minWidth: 60 }}>${pos.symbol}</span>
-                  <span style={{ fontSize: 11, color: C.muted, flex: 1 }}>{pos.netEth.toFixed(4)} ETH in</span>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round">
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-            {/* Left Panel — Token Discovery */}
-            <div style={{ flex: "1 1 340px", minWidth: 0 }}>
-              {/* Search */}
-              <div style={{
-                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10,
-                marginBottom: 10,
-              }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <input type="text" placeholder="Search tokens..." value={query}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontSize: 14, fontFamily: "inherit" }}
-                />
-              </div>
-
-              {/* Chain filter pills */}
-              <div style={{ display: "flex", gap: 6, marginBottom: 10, overflowX: "auto", scrollbarWidth: "none" }}>
-                {CHAINS.map(c => (
-                  <button key={c.id} onClick={() => setChain(c.id)} style={{
-                    padding: "5px 12px", borderRadius: 16, flexShrink: 0,
-                    border: chain === c.id ? `1px solid ${C.hot}` : `1px solid ${C.border}`,
-                    background: chain === c.id ? `${C.hot}15` : "rgba(255,255,255,0.03)",
-                    color: chain === c.id ? C.hot : C.muted,
-                    fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-                  }}>
-                    {c.label}
-                  </button>
+              <div style={{ display: "flex", gap: 4 }}>
+                {[25, 50, 100].map(amt => (
+                  <button key={amt} onClick={() => setQuickAmount(amt)} style={{
+                    padding: "3px 7px", borderRadius: 5, border: "none", cursor: "pointer",
+                    fontSize: 9, fontWeight: 800, fontFamily: "inherit",
+                    background: quickAmount === amt ? "rgba(48,209,88,0.2)" : "rgba(255,255,255,0.05)",
+                    color: quickAmount === amt ? C.match : C.muted,
+                  }}>${amt}</button>
                 ))}
               </div>
-
-              {/* Token list */}
-              <div style={{ maxHeight: "60vh", overflowY: "auto", borderRadius: 10, scrollbarWidth: "thin" }}>
-                {loading && tokens.length === 0 && (
-                  <div style={{ padding: 30, textAlign: "center", fontSize: 12, color: C.muted }}>Loading tokens...</div>
-                )}
-                {tokens.map(token => {
-                  const isSelected = selectedToken?.address === token.address;
-                  const pch = token.priceChange1h || 0;
-                  return (
-                    <div key={`${token.chainId}-${token.address}`}
-                      onClick={() => setSelectedToken(token)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 10,
-                        padding: "10px 12px", borderRadius: 8, cursor: "pointer",
-                        borderBottom: "1px solid rgba(255,255,255,0.04)",
-                        borderLeft: isSelected ? `2px solid ${C.indigo}` : "2px solid transparent",
-                        background: isSelected ? "rgba(99,102,241,0.08)" : "transparent",
-                        transition: "background 0.15s",
-                      }}
-                      onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)"; }}
-                      onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                    >
-                      <span style={{ fontSize: 14, fontWeight: 700, minWidth: 60 }}>{token.symbol}</span>
-                      <ChainBadge chainId={token.chainId} />
-                      <div style={{ flex: 1 }} />
-                      <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>{fmtPrice(token.price)}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: pch >= 0 ? C.match : C.hot, minWidth: 48, textAlign: "right" }}>
-                        {pch >= 0 ? "+" : ""}{pch.toFixed(1)}%
-                      </span>
-                      <div style={{ width: 40, height: 4, borderRadius: 2, background: C.dim, overflow: "hidden", flexShrink: 0 }}>
-                        <div style={{
-                          width: `${Math.min(token.score, 100)}%`, height: "100%", borderRadius: 2,
-                          background: token.score >= 80 ? C.match : token.score >= 60 ? C.indigo : C.muted,
-                        }} />
-                      </div>
-                    </div>
-                  );
-                })}
+            </div>
+            {/* Search + chain */}
+            <div style={{ padding: "8px 10px", borderBottom: `1px solid ${C.border}` }}>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "7px 10px",
+                marginBottom: 6,
+              }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" placeholder="Search..." value={query}
+                  onChange={e => handleSearch(e.target.value)}
+                  style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontSize: 12, fontFamily: "inherit" }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 4, overflowX: "auto", scrollbarWidth: "none" }}>
+                {CHAINS.map(c => (
+                  <button key={c.id} onClick={() => setChain(c.id)} style={{
+                    padding: "3px 9px", borderRadius: 12, flexShrink: 0, border: "none", cursor: "pointer",
+                    background: chain === c.id ? `${C.hot}20` : "rgba(255,255,255,0.04)",
+                    color: chain === c.id ? C.hot : C.muted,
+                    fontSize: 10, fontWeight: 700, fontFamily: "inherit",
+                  }}>{c.label}</button>
+                ))}
               </div>
             </div>
+            {/* Positions */}
+            {positions.length > 0 && (
+              <div style={{ padding: "8px 10px", borderBottom: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>Positions</div>
+                {positions.map(pos => (
+                  <div key={pos.symbol} onClick={() => { const t = tokens.find(tk => tk.symbol === pos.symbol); if (t) setSelectedToken(t); }}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.match }}>${pos.symbol}</span>
+                    <span style={{ fontSize: 10, color: C.muted, flex: 1 }}>{pos.netEth.toFixed(4)} ETH</span>
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Token rows */}
+            <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.1) transparent" }}>
+              {loading && tokens.length === 0 && (
+                <div style={{ padding: 20, textAlign: "center", fontSize: 11, color: C.muted }}>Loading...</div>
+              )}
+              {tokens.map(token => {
+                const isSelected = selectedToken?.address === token.address;
+                const pch = token.priceChange1h || 0;
+                const scoreColor = token.score >= 80 ? C.match : token.score >= 60 ? "#f59e0b" : C.muted;
+                return (
+                  <div key={`${token.chainId}-${token.address}`} onClick={() => setSelectedToken(token)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "9px 12px", cursor: "pointer",
+                      borderBottom: "1px solid rgba(255,255,255,0.03)",
+                      borderLeft: isSelected ? `2px solid ${C.indigo}` : "2px solid transparent",
+                      background: isSelected ? "rgba(99,102,241,0.08)" : "transparent",
+                      transition: "background 0.1s",
+                    }}
+                    onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.02)"; }}
+                    onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: C.text }}>${token.symbol}</span>
+                        <span style={{ fontSize: 8, fontWeight: 800, padding: "1px 4px", borderRadius: 3,
+                          background: "rgba(0,82,255,0.15)", color: "#0052FF" }}>
+                          {token.chainId === "ethereum" ? "ETH" : token.chainId === "arbitrum" ? "ARB" : token.chainId === "bsc" ? "BSC" : token.chainId === "solana" ? "SOL" : "Base"}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 10, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{token.name}</div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: C.text }}>{fmtPrice(token.price)}</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: pch >= 0 ? C.match : C.hot }}>{pch >= 0 ? "+" : ""}{pch.toFixed(1)}%</div>
+                    </div>
+                    <div style={{ width: 5, height: 28, borderRadius: 3, background: C.dim, overflow: "hidden", flexShrink: 0 }}>
+                      <div style={{ width: "100%", height: `${Math.min(token.score, 100)}%`, background: scoreColor, marginTop: "auto" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
-            {/* Right Panel — Trade Panel */}
-            <div style={{ flex: "0 0 340px", maxWidth: 400 }}>
+          {/* ── RIGHT: Trade Panel ── */}
+          <div style={{ flex: 1, overflowY: "auto", background: C.bg }}>
+            {selectedToken ? (
               <HuntTradePanel
                 token={selectedToken}
                 walletEth={walletEth}
                 quickAmount={quickAmount}
                 onTradeComplete={handleTradeComplete}
               />
-            </div>
+            ) : (
+              <div style={{
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                height: "100%", gap: 16, padding: 40,
+              }}>
+                <div style={{
+                  width: 64, height: 64, borderRadius: 16,
+                  background: "rgba(255,45,85,0.08)", border: "1px solid rgba(255,45,85,0.2)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={C.hot} strokeWidth="2" strokeLinecap="round">
+                    <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>
+                    <line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/>
+                    <line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/>
+                  </svg>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 6 }}>Select a token to trade</div>
+                  <div style={{ fontSize: 12, color: C.muted }}>Click any token from the list on the left</div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
