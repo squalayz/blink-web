@@ -337,6 +337,7 @@ export default function Dashboard(){
   // Support deep-linking: /dashboard?tab=wallet, ?tab=profile, etc.
   const initialTab=(()=>{const t=searchParams?.get("tab");const map:Record<string,string>={wallet:"brew",matches:"matches",chat:"mesh",profile:"profile",stats:"buzz",agent:"agent",grow:"evolve",discover:"discover",hunt:"hunt"};return(t&&(map[t]||t))||"mesh";})();
   const[view,setView]=useState(initialTab);
+  const[meshSubTab,setMeshSubTab]=useState<"connections"|"matches">("connections");
   const[matches,setMatches]=useState<any[]>([]);
   const[notifications,setNotifications]=useState<any[]>([]);
   const[discovery,setDiscovery]=useState<any[]>([]);
@@ -1602,7 +1603,9 @@ export default function Dashboard(){
         {/* ═══════════════════════════════════════════════════════════
            TAB 0: MATCHES — Orb Network View
            ═══════════════════════════════════════════════════════════ */}
-        {view==="matches"&&(<div>
+        {view==="matches"&&(()=>{setView("mesh");setMeshSubTab("matches");return null;})()}
+
+        {view==="matchesLEGACY_DISABLED"&&(<div>
           <h2 style={{fontSize:22,fontWeight:800,marginBottom:4,letterSpacing:"-0.3px",display:"flex",alignItems:"center",gap:8}}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="12" r="4" stroke={C.cold} strokeWidth="2"/><circle cx="16" cy="12" r="4" stroke={C.cyan} strokeWidth="2"/><line x1="11" y1="10" x2="13" y2="14" stroke={C.match} strokeWidth="2" strokeLinecap="round"/></svg>
             Matches
@@ -2109,28 +2112,28 @@ export default function Dashboard(){
            ═══════════════════════════════════════════════════════════ */}
         {view==="mesh"&&(<div>
           {/* Connect sub-nav — Connections + Matches */}
+          {(()=>{const pendingCount=matches.filter((m:any)=>!m.user_a_accepted||!m.user_b_accepted).length;return(
           <div style={{display:"flex",gap:6,marginBottom:16}}>
-            <button onClick={()=>setView("mesh")} style={{
-              padding:"7px 14px",borderRadius:20,border:"1px solid rgba(99,102,241,0.5)",
-              background:"rgba(99,102,241,0.15)",color:"#6366f1",
-              fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
-            }}>Connections</button>
-            <button onClick={()=>setView("matches")} style={{
+            <button onClick={()=>setMeshSubTab("connections")} style={{
               padding:"7px 14px",borderRadius:20,
-              border:matches.filter((m:any)=>!m.user_a_accepted||!m.user_b_accepted).length>0?"1px solid rgba(48,209,88,0.5)":"1px solid rgba(255,255,255,0.07)",
-              background:matches.filter((m:any)=>!m.user_a_accepted||!m.user_b_accepted).length>0?"rgba(48,209,88,0.12)":"rgba(255,255,255,0.03)",
-              color:matches.filter((m:any)=>!m.user_a_accepted||!m.user_b_accepted).length>0?"#30d158":"#6b6b80",
-              fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
+              border:meshSubTab==="connections"?"1px solid rgba(99,102,241,0.5)":"1px solid rgba(255,255,255,0.07)",
+              background:meshSubTab==="connections"?"rgba(99,102,241,0.15)":"rgba(255,255,255,0.03)",
+              color:meshSubTab==="connections"?"#6366f1":"#6b6b80",
+              fontSize:12,fontWeight:meshSubTab==="connections"?700:500,cursor:"pointer",fontFamily:"inherit",
+            }}>Connections</button>
+            <button onClick={()=>setMeshSubTab("matches")} style={{
+              padding:"7px 14px",borderRadius:20,
+              border:meshSubTab==="matches"?"1px solid rgba(48,209,88,0.5)":pendingCount>0?"1px solid rgba(48,209,88,0.35)":"1px solid rgba(255,255,255,0.07)",
+              background:meshSubTab==="matches"?"rgba(48,209,88,0.15)":pendingCount>0?"rgba(48,209,88,0.08)":"rgba(255,255,255,0.03)",
+              color:meshSubTab==="matches"?"#30d158":pendingCount>0?"#30d158":"#6b6b80",
+              fontSize:12,fontWeight:meshSubTab==="matches"?700:500,cursor:"pointer",fontFamily:"inherit",
               display:"flex",alignItems:"center",gap:6,
             }}>
               Matches
-              {matches.filter((m:any)=>!m.user_a_accepted||!m.user_b_accepted).length>0&&(
-                <span style={{background:"#30d158",color:"#000",fontSize:9,fontWeight:800,padding:"1px 5px",borderRadius:8}}>
-                  {matches.filter((m:any)=>!m.user_a_accepted||!m.user_b_accepted).length}
-                </span>
-              )}
+              {pendingCount>0&&<span style={{background:"#30d158",color:"#000",fontSize:9,fontWeight:800,padding:"1px 5px",borderRadius:8}}>{pendingCount}</span>}
             </button>
           </div>
+          );})()}
           <TabInfoBanner
             tabId="connect"
             title="Your AI Agent, Networking"
@@ -2146,6 +2149,7 @@ export default function Dashboard(){
             ctaText="Connect Brain"
             ctaAction={() => setView("agent")}
           />
+          {meshSubTab==="connections"&&<>
           <h2 style={{fontSize:22,fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.3px"}}><MMLogo size={28}/>Connect</h2>
           <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>Your AI is out there right now — meeting people, finding your next connection.</div>
 
@@ -2252,7 +2256,10 @@ export default function Dashboard(){
             </div>
           </div>)}
 
-          {/* ═══ PENDING MATCHES ═══ */}
+          </>}
+
+          {/* ═══ MATCHES SUB-TAB ═══ */}
+          {meshSubTab==="matches"&&<>
           {(pendingMatches.length>0||waitingMatches.length>0)&&(<div style={{marginBottom:16}}>
             <div style={{fontSize:14,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}}><Sparkles size={14} color={C.cold}/>Agent Found These{pendingMatches.length>0&&<span style={{fontSize:11,color:C.muted,fontWeight:400}}>({pendingMatches.length} new)</span>}</div>
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -2309,7 +2316,7 @@ export default function Dashboard(){
             </div>
           )}
 
-          {/* ═══ CONNECTIONS ═══ */}
+          {/* ═══ CONNECTIONS (accepted/revealed) — shown in Matches sub-tab too ═══ */}
           {acceptedMatches.length>0&&(<div style={{marginBottom:16}}>
             <div style={{fontSize:14,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",gap:6}}><MessageCircle size={14} color={C.match}/>Connections<span style={{fontSize:11,color:C.muted,fontWeight:400}}>({acceptedMatches.length})</span></div>
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -2341,6 +2348,8 @@ export default function Dashboard(){
               );})}
             </div>
           </div>)}
+
+          </>}
 
           {/* ═══ YOUR STATS ═══ — real data only */}
           <div style={{display:"flex",gap:8,padding:"16px 0",borderTop:`1px solid ${C.border}`,marginTop:16,flexWrap:"wrap"}}>
