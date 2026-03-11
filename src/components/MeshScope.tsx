@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ChainBadge, TokenLogo } from "@/components/hunt-token-card";
 
 const C = {
@@ -13,10 +13,10 @@ const C = {
 const CHAINS = [
   { id: "all", label: "All" },
   { id: "base", label: "Base" },
-  { id: "solana", label: "Solana" },
+  { id: "solana", label: "SOL" },
   { id: "ethereum", label: "ETH" },
   { id: "bsc", label: "BSC" },
-  { id: "arbitrum", label: "Arbitrum" },
+  { id: "arbitrum", label: "ARB" },
 ];
 
 interface Token {
@@ -54,30 +54,8 @@ interface MeshScopeProps {
   onSearch: (q: string) => void;
 }
 
-// ── Classification ──
-function classifyTokens(tokens: Token[]) {
-  const NEW: Token[] = [];
-  const HEATING: Token[] = [];
-  const FIRE: Token[] = [];
+// ── Helpers ──
 
-  tokens.forEach(token => {
-    const vol = token.volume1h || 0;
-    const score = token.score || 0;
-    const pc1h = token.priceChange1h || 0;
-
-    if (score >= 70 && (vol > 100000 || pc1h > 20)) {
-      FIRE.push(token);
-    } else if (score >= 45 || vol > 20000 || pc1h > 5) {
-      HEATING.push(token);
-    } else {
-      NEW.push(token);
-    }
-  });
-
-  return { NEW, HEATING, FIRE };
-}
-
-// ── Format helpers ──
 function fmtPrice(p: number): string {
   if (p >= 1) return `$${p.toFixed(2)}`;
   if (p >= 0.01) return `$${p.toFixed(4)}`;
@@ -85,6 +63,7 @@ function fmtPrice(p: number): string {
 }
 
 function formatBig(v: number): string {
+  if (v >= 1e9) return `$${(v / 1e9).toFixed(2)}B`;
   if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
   if (v >= 1e3) return `$${(v / 1e3).toFixed(0)}K`;
   return `$${v.toFixed(0)}`;
@@ -98,42 +77,568 @@ function formatAge(ts: number): string {
   return `${Math.floor(hrs / 24)}d`;
 }
 
-function generateAIBrief(token: Token): string {
+function getAIBrief(token: Token): string {
   const vol = token.volume24h || 0;
   const liq = token.liquidity || 0;
-  const priceChange = token.priceChange1h || 0;
-  const score = token.score || 0;
-  if (score >= 90) return "Exceptional signals across all metrics.";
-  if (priceChange > 50) return `Up ${priceChange.toFixed(0)}% — accelerating fast.`;
-  if (vol > 1000000) return `Over $${(vol / 1000000).toFixed(1)}M volume — serious flow.`;
-  if (liq > 500000) return `Deep liquidity ($${(liq / 1000).toFixed(0)}K) — safer entry.`;
-  if (priceChange > 20 && vol > 100000) return "Volume + price combo — early breakout.";
-  if (score >= 75) return "Strong fundamentals. All signals up.";
-  if (priceChange < -20) return "Sharp pullback — watch volume.";
+  const pc = token.priceChange1h || 0;
+  const s = token.score || 0;
+  if (s >= 90) return "Exceptional signals across all metrics.";
+  if (pc > 50) return `Up ${pc.toFixed(0)}% -- accelerating fast.`;
+  if (vol > 1000000) return `Over $${(vol / 1e6).toFixed(1)}M volume -- serious flow.`;
+  if (liq > 500000) return `Deep liquidity ($${(liq / 1e3).toFixed(0)}K) -- safer entry.`;
+  if (pc > 20 && vol > 100000) return "Volume + price combo -- early breakout.";
+  if (s >= 75) return "Strong fundamentals. All signals up.";
+  if (pc < -20) return "Sharp pullback -- watch volume.";
   return "Moderate signals. Monitor for confirmation.";
 }
 
-// ── Column config ──
-const colColors: Record<string, string> = { new: "#06b6d4", heating: "#f59e0b", fire: "#ff2d55" };
-const colLabels: Record<string, string> = { fire: "On Fire", heating: "Heating Up", new: "New Pairs" };
-const colDescs: Record<string, string> = { fire: "Full momentum", heating: "Building volume", new: "Fresh liquidity" };
+// ── Sparkline SVG ──
+function Sparkline({ points, width = 280, height = 60, color = C.match }: { points: number[]; width?: number; height?: number; color?: string }) {
+  if (!points || points.length < 2) return null;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || 1;
+  const step = width / (points.length - 1);
+  const pathD = points.map((p, i) => {
+    const x = i * step;
+    const y = height - ((p - min) / range) * (height - 4) - 2;
+    return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: "block", width: "100%", height }}>
+      <defs>
+        <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={`${pathD} L${width},${height} L0,${height} Z`} fill="url(#spark-grad)" />
+      <path d={pathD} fill="none" stroke={color} strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+// ── Compact Row ──
+function HuntCompactRow({
+  token, quickAmount, onSelect, isSelected, isNew, onQuickBuy, buyingAddr, buySuccess,
+}: {
+  token: Token;
+  quickAmount: number;
+  onSelect: () => void;
+  isSelected: boolean;
+  isNew: boolean;
+  onQuickBuy: (token: Token) => void;
+  buyingAddr: string | null;
+  buySuccess: Record<string, boolean>;
+}) {
+  const score = token.score || 0;
+  const pc = token.priceChange1h || 0;
+  return (
+    <div
+      onClick={onSelect}
+      style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "8px 12px",
+        background: isNew ? "rgba(48,209,88,0.08)" : isSelected ? "rgba(99,102,241,0.08)" : "transparent",
+        borderLeft: isSelected ? "2px solid #6366f1" : "2px solid transparent",
+        borderBottom: "1px solid rgba(255,255,255,0.04)",
+        cursor: "pointer",
+        transition: "all 0.15s",
+        position: "relative",
+        animation: isNew ? "hunt-new-flash 0.5s ease" : "none",
+      }}
+      onMouseEnter={e => { if (!isSelected && !isNew) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)"; }}
+      onMouseLeave={e => { if (!isSelected && !isNew) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+    >
+      {/* Logo */}
+      <TokenLogo imageUrl={token.imageUrl} symbol={token.symbol} address={token.address} chainId={token.chainId} size={28} />
+
+      {/* Symbol + name + chain */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: C.text, letterSpacing: "-0.01em" }}>
+            ${token.symbol}
+          </span>
+          <ChainBadge chainId={token.chainId} />
+        </div>
+        <div style={{ fontSize: 10, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 90 }}>
+          {token.name}
+        </div>
+      </div>
+
+      {/* Price + change */}
+      <div style={{ textAlign: "right", flexShrink: 0 }}>
+        <div style={{
+          fontSize: 12, fontWeight: 700,
+          fontFamily: "'JetBrains Mono',monospace",
+          color: C.text,
+        }}>
+          {fmtPrice(token.price)}
+        </div>
+        <div style={{
+          fontSize: 10, fontWeight: 700,
+          color: pc >= 0 ? C.match : C.hot,
+        }}>
+          {pc >= 0 ? "+" : ""}{pc.toFixed(1)}%
+        </div>
+      </div>
+
+      {/* Score pill */}
+      <div style={{
+        fontSize: 9, fontWeight: 800,
+        padding: "2px 5px", borderRadius: 4,
+        background: score >= 80 ? "rgba(48,209,88,0.15)" : score >= 60 ? "rgba(245,158,11,0.15)" : "rgba(255,255,255,0.05)",
+        color: score >= 80 ? C.match : score >= 60 ? "#f59e0b" : C.muted,
+        flexShrink: 0,
+      }}>
+        {score}
+      </div>
+
+      {/* AI signal dot */}
+      <div style={{
+        width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
+        background: score >= 80 ? C.match : score >= 60 ? "#f59e0b" : C.muted,
+        boxShadow: score >= 80 ? "0 0 6px #30d158" : "none",
+        animation: score >= 80 ? "hunt-live-dot 2s infinite" : "none",
+      }} title={getAIBrief(token)} />
+
+      {/* Quick buy */}
+      <button
+        onClick={e => { e.stopPropagation(); onQuickBuy(token); }}
+        disabled={!!buyingAddr}
+        style={{
+          padding: "4px 8px", borderRadius: 6, border: "none",
+          background: buySuccess[token.address] ? "rgba(48,209,88,0.25)" : "rgba(48,209,88,0.15)",
+          color: C.match,
+          fontSize: 10, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+          flexShrink: 0, whiteSpace: "nowrap",
+          opacity: buyingAddr && buyingAddr !== token.address ? 0.4 : 1,
+        }}
+      >
+        {buyingAddr === token.address ? (
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "hunt-spin 0.8s linear infinite" }}>
+            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          </svg>
+        ) : buySuccess[token.address] ? "OK" : `$${quickAmount}`}
+      </button>
+    </div>
+  );
+}
+
+// ── Detail Panel ──
+function DetailPanel({
+  token, onClose, quickAmount, walletEth, walletAddress, onQuickBuy, buyingAddr,
+}: {
+  token: Token;
+  onClose: () => void;
+  quickAmount: number;
+  walletEth: number;
+  walletAddress: string | null;
+  onQuickBuy: (token: Token, amount?: number, slip?: number) => void;
+  buyingAddr: string | null;
+}) {
+  const [tradeTab, setTradeTab] = useState<"buy" | "sell">("buy");
+  const [tradeAmount, setTradeAmount] = useState(quickAmount);
+  const [tradeSlippage, setTradeSlippage] = useState(1);
+  const [strategy, setStrategy] = useState<"sniper" | "momentum" | "safe">("sniper");
+
+  const score = token.score || 0;
+  const pc1h = token.priceChange1h || 0;
+  const pc24h = token.priceChange24h || 0;
+  const buys = token.txns1h?.buys || 0;
+  const sells = token.txns1h?.sells || 0;
+  const total = buys + sells || 1;
+  const buyPct = Math.round((buys / total) * 100);
+
+  const ethPrice = 2000;
+  const estTokens = tradeAmount / (token.price || 0.00001);
+
+  return (
+    <>
+      {/* Backdrop on mobile */}
+      <div className="mm-detail-backdrop" onClick={onClose} style={{
+        display: "none", position: "fixed", inset: 0,
+        background: "rgba(0,0,0,0.5)", zIndex: 199,
+      }} />
+
+      <div className="mm-detail-panel" style={{
+        position: "fixed", right: 0, top: 64, bottom: 0, width: 340, zIndex: 200,
+        background: "rgba(10,10,15,0.98)", borderLeft: "1px solid rgba(255,255,255,0.07)",
+        backdropFilter: "blur(20px)", overflowY: "auto",
+        transform: "translateX(0)", transition: "transform 0.25s ease",
+        scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.1) transparent",
+      }}>
+        {/* Close */}
+        <button onClick={onClose} style={{
+          position: "absolute", top: 12, right: 12, zIndex: 2,
+          background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 8,
+          width: 28, height: 28, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round">
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+
+        {/* Token header */}
+        <div style={{ padding: "20px 16px 12px", display: "flex", alignItems: "center", gap: 12 }}>
+          <TokenLogo imageUrl={token.imageUrl} symbol={token.symbol} address={token.address} chainId={token.chainId} size={44} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 16, fontWeight: 800, color: C.text }}>${token.symbol}</span>
+              <ChainBadge chainId={token.chainId} />
+            </div>
+            <div style={{ fontSize: 11, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {token.name}
+            </div>
+          </div>
+          <div style={{ textAlign: "right", flexShrink: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace", color: C.text }}>
+              {fmtPrice(token.price)}
+            </div>
+          </div>
+        </div>
+
+        {/* Change badges */}
+        <div style={{ padding: "0 16px 12px", display: "flex", gap: 6 }}>
+          {[
+            { label: "1h", val: pc1h },
+            { label: "24h", val: pc24h },
+          ].map(b => (
+            <span key={b.label} style={{
+              padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+              background: b.val >= 0 ? "rgba(48,209,88,0.12)" : "rgba(255,45,85,0.12)",
+              color: b.val >= 0 ? C.match : C.hot,
+            }}>
+              {b.label}: {b.val >= 0 ? "+" : ""}{b.val.toFixed(1)}%
+            </span>
+          ))}
+          {token.pairCreatedAt > 0 && (
+            <span style={{
+              padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+              background: "rgba(255,255,255,0.05)", color: C.muted,
+            }}>
+              Age: {formatAge(token.pairCreatedAt)}
+            </span>
+          )}
+        </div>
+
+        {/* Sparkline */}
+        <div style={{ padding: "0 16px 12px" }}>
+          <Sparkline
+            points={token.pricePoints}
+            height={80}
+            color={pc1h >= 0 ? C.match : C.hot}
+          />
+        </div>
+
+        {/* Stats grid */}
+        <div style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 1,
+          margin: "0 16px 12px", borderRadius: 8, overflow: "hidden",
+          background: "rgba(255,255,255,0.04)",
+        }}>
+          {[
+            { label: "MCap", val: formatBig(token.marketCap) },
+            { label: "FDV", val: formatBig(token.fdv) },
+            { label: "Liquidity", val: formatBig(token.liquidity) },
+            { label: "Vol 1h", val: formatBig(token.volume1h) },
+            { label: "Vol 24h", val: formatBig(token.volume24h) },
+            { label: "Score", val: String(score) },
+          ].map(s => (
+            <div key={s.label} style={{ padding: "8px 10px", background: "rgba(13,13,20,0.8)" }}>
+              <div style={{ fontSize: 9, color: C.muted, marginBottom: 2 }}>{s.label}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono',monospace" }}>{s.val}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Buy/Sell pressure bar */}
+        <div style={{ padding: "0 16px 12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.muted, marginBottom: 4 }}>
+            <span>Buys {buys}</span>
+            <span>Sells {sells}</span>
+          </div>
+          <div style={{ display: "flex", height: 4, borderRadius: 2, overflow: "hidden", background: "rgba(255,255,255,0.06)" }}>
+            <div style={{ width: `${buyPct}%`, background: C.match, borderRadius: "2px 0 0 2px" }} />
+            <div style={{ flex: 1, background: C.hot, borderRadius: "0 2px 2px 0" }} />
+          </div>
+        </div>
+
+        {/* AI Whisper */}
+        <div style={{
+          margin: "0 16px 12px", padding: "8px 12px", borderRadius: 8,
+          background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.15)",
+          display: "flex", alignItems: "flex-start", gap: 8,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.indigo} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+            <path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z" />
+            <line x1="9" y1="21" x2="15" y2="21" />
+          </svg>
+          <span style={{ fontSize: 11, color: C.indigo, lineHeight: 1.4 }}>
+            {getAIBrief(token)}
+          </span>
+        </div>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "0 16px 12px" }} />
+
+        {/* TRADE SECTION */}
+        <div style={{ padding: "0 16px 16px" }}>
+          {/* Buy/Sell tabs */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+            {(["buy", "sell"] as const).map(tab => (
+              <button key={tab} onClick={() => setTradeTab(tab)} style={{
+                flex: 1, padding: "8px 0", borderRadius: 8, border: "none", cursor: "pointer",
+                fontFamily: "inherit", fontSize: 12, fontWeight: 700, textTransform: "uppercase",
+                background: tradeTab === tab
+                  ? tab === "buy" ? "rgba(48,209,88,0.15)" : "rgba(255,45,85,0.15)"
+                  : "rgba(255,255,255,0.04)",
+                color: tradeTab === tab
+                  ? tab === "buy" ? C.match : C.hot
+                  : C.muted,
+              }}>
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          {/* Amount pills */}
+          <div style={{ fontSize: 10, color: C.muted, marginBottom: 6 }}>Amount (USD)</div>
+          <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+            {[25, 50, 100].map(amt => (
+              <button key={amt} onClick={() => setTradeAmount(amt)} style={{
+                flex: 1, padding: "7px 0", borderRadius: 6, border: "none", cursor: "pointer",
+                fontFamily: "inherit", fontSize: 11, fontWeight: 700,
+                background: tradeAmount === amt ? "rgba(99,102,241,0.15)" : "rgba(255,255,255,0.04)",
+                color: tradeAmount === amt ? C.indigo : C.muted,
+              }}>
+                ${amt}
+              </button>
+            ))}
+            <input
+              type="number"
+              placeholder="Custom"
+              value={tradeAmount !== 25 && tradeAmount !== 50 && tradeAmount !== 100 ? tradeAmount : ""}
+              onChange={e => {
+                const v = parseFloat(e.target.value);
+                if (v > 0) setTradeAmount(v);
+              }}
+              style={{
+                flex: 1, padding: "7px 8px", borderRadius: 6, border: `1px solid ${C.border}`,
+                background: "rgba(255,255,255,0.03)", color: C.text,
+                fontSize: 11, fontFamily: "inherit", outline: "none", minWidth: 0,
+              }}
+            />
+          </div>
+
+          {/* Slippage */}
+          <div style={{ fontSize: 10, color: C.muted, marginBottom: 6 }}>Slippage</div>
+          <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+            {[0.5, 1, 3].map(s => (
+              <button key={s} onClick={() => setTradeSlippage(s)} style={{
+                flex: 1, padding: "6px 0", borderRadius: 6, border: "none", cursor: "pointer",
+                fontFamily: "inherit", fontSize: 10, fontWeight: 700,
+                background: tradeSlippage === s ? "rgba(6,182,212,0.15)" : "rgba(255,255,255,0.04)",
+                color: tradeSlippage === s ? C.cyan : C.muted,
+              }}>
+                {s}%
+              </button>
+            ))}
+          </div>
+
+          {/* Quote */}
+          <div style={{
+            padding: "8px 10px", borderRadius: 6, marginBottom: 12,
+            background: "rgba(255,255,255,0.03)", fontSize: 11, color: C.muted,
+          }}>
+            ~{estTokens > 1e6 ? `${(estTokens / 1e6).toFixed(1)}M` : estTokens > 1e3 ? `${(estTokens / 1e3).toFixed(0)}K` : estTokens.toFixed(0)} ${token.symbol}
+            <span style={{ float: "right", fontSize: 10 }}>{(tradeAmount / ethPrice).toFixed(4)} ETH</span>
+          </div>
+
+          {/* Execute button */}
+          <button
+            onClick={() => onQuickBuy(token, tradeAmount, tradeSlippage)}
+            disabled={!!buyingAddr}
+            style={{
+              width: "100%", padding: "12px 0", borderRadius: 10, border: "none", cursor: "pointer",
+              fontFamily: "inherit", fontSize: 14, fontWeight: 800,
+              background: tradeTab === "buy"
+                ? "linear-gradient(135deg, #30d158, #06b6d4)"
+                : "linear-gradient(135deg, #ff2d55, #f59e0b)",
+              color: "white",
+              opacity: buyingAddr ? 0.6 : 1,
+            }}
+          >
+            {buyingAddr === token.address ? "Processing..." : `${tradeTab === "buy" ? "BUY" : "SELL"} $${token.symbol}`}
+          </button>
+          <div style={{ fontSize: 9, color: C.muted, textAlign: "center", marginTop: 4 }}>
+            Fee: 3% included
+          </div>
+        </div>
+
+        {/* Divider + Agent section */}
+        <div style={{ padding: "0 16px", marginBottom: 4 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8, marginBottom: 12,
+          }}>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
+            <span style={{ fontSize: 9, fontWeight: 700, color: C.muted, letterSpacing: "0.06em" }}>OR LET AGENT HANDLE IT</span>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+            {([
+              { id: "sniper" as const, label: "Sniper", icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={strategy === "sniper" ? C.hot : C.muted} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/></svg>, color: C.hot },
+              { id: "momentum" as const, label: "Momentum", icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={strategy === "momentum" ? C.gold : C.muted} strokeWidth="2" strokeLinecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>, color: C.gold },
+              { id: "safe" as const, label: "Safe", icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={strategy === "safe" ? C.match : C.muted} strokeWidth="2" strokeLinecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>, color: C.match },
+            ]).map(s => (
+              <button key={s.id} onClick={() => setStrategy(s.id)} style={{
+                flex: 1, padding: "7px 0", borderRadius: 8, cursor: "pointer",
+                fontFamily: "inherit", fontSize: 10, fontWeight: 700,
+                border: strategy === s.id ? `1px solid ${s.color}60` : `1px solid ${C.border}`,
+                background: strategy === s.id ? `${s.color}15` : "transparent",
+                color: strategy === s.id ? s.color : C.muted,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+              }}>
+                {s.icon} {s.label}
+              </button>
+            ))}
+          </div>
+
+          <button style={{
+            width: "100%", padding: "10px 0", borderRadius: 10,
+            border: `1px solid ${C.indigo}40`, cursor: "pointer",
+            fontFamily: "inherit", fontSize: 12, fontWeight: 700,
+            background: "rgba(99,102,241,0.08)", color: C.indigo,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}>
+            Hunt This Token
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        </div>
+
+        <div style={{ height: 32 }} />
+      </div>
+
+      {/* Detail panel responsive CSS */}
+      <style>{`
+        .mm-detail-backdrop{display:none}
+        .mm-detail-panel{right:0;top:64px;bottom:0;width:340px}
+        @media(max-width:640px){
+          .mm-detail-backdrop{display:block!important}
+          .mm-detail-panel{
+            top:auto!important;bottom:0!important;left:0!important;right:0!important;
+            width:100%!important;max-height:85vh;
+            border-left:none!important;border-top:1px solid rgba(255,255,255,0.07)!important;
+            border-radius:16px 16px 0 0!important;
+          }
+        }
+      `}</style>
+    </>
+  );
+}
+
+// ── Quick Buy Confirm Modal ──
+function ConfirmBuyModal({
+  token, amount, onConfirm, onCancel,
+}: {
+  token: Token;
+  amount: number;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const ethPrice = 2000;
+  const amountEth = amount / ethPrice;
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 9999, padding: 20,
+    }} onClick={onCancel}>
+      <div style={{
+        background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16,
+        padding: "24px 20px", maxWidth: 320, width: "100%", textAlign: "center",
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 12 }}>
+          <TokenLogo imageUrl={token.imageUrl} symbol={token.symbol} address={token.address} chainId={token.chainId} size={32} />
+          <span style={{ fontSize: 15, fontWeight: 800, color: C.text }}>Buy ${token.symbol} with ~${amount}?</span>
+        </div>
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 16, fontFamily: "'JetBrains Mono',monospace" }}>
+          ETH: {amountEth.toFixed(4)} -- Slippage: 1.5%
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onConfirm} style={{
+            flex: 1, padding: "10px 0", borderRadius: 10, border: "none",
+            background: "linear-gradient(135deg, #30d158, #06b6d4)",
+            color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+          }}>
+            Confirm Buy
+          </button>
+          <button onClick={onCancel} style={{
+            flex: 1, padding: "10px 0", borderRadius: 10,
+            border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.04)",
+            color: C.muted, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+          }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// ── MAIN COMPONENT ──
+// ══════════════════════════════════════════════════════════
 
 export default function MeshScope({
   tokens, loading, walletEth, walletAddress, onTokenSelect, quickAmount,
   chain, onChainChange, query, onSearch,
 }: MeshScopeProps) {
-  const [agentMode, setAgentMode] = useState(false);
-  const [activeCol, setActiveCol] = useState<"new" | "heating" | "fire">("fire");
-  const [buyingToken, setBuyingToken] = useState<string | null>(null);
+  const [mobileCol, setMobileCol] = useState<"emerging" | "heating" | "pumping">("pumping");
+  const [selectedToken, setSelectedToken] = useState<Token | null>(null);
+  const [buyingAddr, setBuyingAddr] = useState<string | null>(null);
   const [buySuccess, setBuySuccess] = useState<Record<string, boolean>>({});
+  const [confirmToken, setConfirmToken] = useState<Token | null>(null);
+  const [confirmAmount, setConfirmAmount] = useState(0);
 
-  const { NEW, HEATING, FIRE } = classifyTokens(tokens);
+  // Track new tokens for flash animation
+  const seenAddrs = useRef(new Set<string>());
+  const [newAddrs, setNewAddrs] = useState(new Set<string>());
 
-  const agentPicks = agentMode
-    ? FIRE.slice(0, 2).concat(HEATING.slice(0, 1)).map(t => t.address)
-    : [];
+  useEffect(() => {
+    const fresh = new Set<string>();
+    tokens.forEach(t => {
+      if (!seenAddrs.current.has(t.address)) {
+        fresh.add(t.address);
+        seenAddrs.current.add(t.address);
+      }
+    });
+    if (fresh.size > 0) {
+      setNewAddrs(fresh);
+      const timer = setTimeout(() => setNewAddrs(new Set()), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [tokens]);
 
-  const handleQuickBuy = async (token: Token) => {
+  // ── Classify tokens into 3 columns ──
+  const emergingTokens = tokens.filter(t => {
+    const ageMs = t.pairCreatedAt > 0 ? Date.now() - t.pairCreatedAt : Infinity;
+    return ageMs < 2 * 60 * 60 * 1000;
+  }).sort((a, b) => b.score - a.score);
+
+  const heatingTokens = tokens.filter(t => {
+    const ageMs = t.pairCreatedAt > 0 ? Date.now() - t.pairCreatedAt : Infinity;
+    return (ageMs >= 2 * 60 * 60 * 1000 || t.pairCreatedAt === 0) && t.score >= 60 && t.score < 80;
+  }).sort((a, b) => b.score - a.score);
+
+  const pumpingTokens = tokens.filter(t => t.score >= 80)
+    .sort((a, b) => b.score - a.score);
+
+  // ── Quick buy handler ──
+  const handleQuickBuy = async (token: Token, amount?: number, slip?: number) => {
     if (!walletAddress) {
       window.location.href = "/dashboard?tab=brew";
       return;
@@ -142,9 +647,12 @@ export default function MeshScope({
       window.location.href = "/dashboard?tab=brew";
       return;
     }
-    setBuyingToken(token.address);
+    const usdAmt = amount || quickAmount;
+    const ethAmount = usdAmt / 2000;
+    const slippage = slip || 1.5;
+
+    setBuyingAddr(token.address);
     try {
-      const ethAmount = quickAmount / 2000;
       const res = await fetch("/api/trading/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -153,314 +661,127 @@ export default function MeshScope({
           tokenAddress: token.address,
           tokenSymbol: token.symbol,
           amountEth: ethAmount,
-          slippagePct: 1.5,
+          slippagePct: slippage,
         }),
       });
       const data = await res.json();
       if (data.ok) {
         setBuySuccess(prev => ({ ...prev, [token.address]: true }));
         setTimeout(() => setBuySuccess(prev => ({ ...prev, [token.address]: false })), 4000);
-      } else {
-        console.error("Buy failed:", data.error);
       }
     } catch { /* non-blocking */ }
-    setBuyingToken(null);
+    setBuyingAddr(null);
   };
 
-  function renderTokenRow(token: Token) {
-    const isAgentPick = agentPicks.includes(token.address);
-    const pc = token.priceChange1h || 0;
-    return (
-      <div
-        key={`${token.chainId}-${token.address}`}
-        onClick={() => onTokenSelect(token)}
-        style={{
-          padding: "10px 12px",
-          borderBottom: "1px solid rgba(255,255,255,0.04)",
-          display: "flex", flexDirection: "column", gap: 6,
-          background: isAgentPick ? "rgba(99,102,241,0.05)" : "transparent",
-          borderLeft: isAgentPick ? "2px solid #6366f1" : "2px solid transparent",
-          cursor: "pointer",
-          transition: "background 0.15s",
-        }}
-        onMouseEnter={e => { if (!isAgentPick) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)"; }}
-        onMouseLeave={e => { if (!isAgentPick) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-      >
-        {/* ROW 1: logo + name + price + change */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <TokenLogo imageUrl={token.imageUrl} symbol={token.symbol} address={token.address} chainId={token.chainId} size={32} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: C.text }}>${token.symbol}</span>
-              <ChainBadge chainId={token.chainId} />
-              {isAgentPick && (
-                <span style={{
-                  fontSize: 8, fontWeight: 900, padding: "1px 5px", borderRadius: 3,
-                  background: "rgba(99,102,241,0.2)", color: "#6366f1",
-                  border: "1px solid rgba(99,102,241,0.4)", letterSpacing: "0.08em",
-                }}>AI PICK</span>
-              )}
-            </div>
-            <div style={{ fontSize: 10, color: C.muted, display: "flex", gap: 6 }}>
-              <span>{token.name.slice(0, 16)}</span>
-              <span>{formatAge(token.pairCreatedAt)}</span>
-              <span style={{ color: C.muted }}>Vol {formatBig(token.volume1h)}</span>
-            </div>
-          </div>
-          <div style={{ textAlign: "right", flexShrink: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, fontFamily: "'JetBrains Mono',monospace", color: C.text }}>
-              {fmtPrice(token.price)}
-            </div>
-            <div style={{
-              fontSize: 11, fontWeight: 700,
-              color: pc >= 0 ? C.match : C.hot,
-            }}>
-              {pc >= 0 ? "+" : ""}{pc.toFixed(1)}%
-            </div>
-          </div>
-        </div>
+  const handleQuickBuyFromRow = (token: Token) => {
+    setConfirmToken(token);
+    setConfirmAmount(quickAmount);
+  };
 
-        {/* ROW 2: action buttons + score bar */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleQuickBuy(token); }}
-            disabled={!!buyingToken}
-            style={{
-              padding: "5px 12px", borderRadius: 6, cursor: "pointer",
-              background: buySuccess[token.address] ? "rgba(48,209,88,0.2)" : "rgba(48,209,88,0.12)",
-              color: C.match,
-              border: "1px solid rgba(48,209,88,0.3)",
-              fontSize: 11, fontWeight: 800, fontFamily: "inherit",
-              minWidth: 60, transition: "all 0.15s",
-              opacity: buyingToken && buyingToken !== token.address ? 0.4 : 1,
-            }}
-          >
-            {buyingToken === token.address ? (
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "hunt-spin 0.8s linear infinite" }}>
-                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-              </svg>
-            ) : buySuccess[token.address] ? "Bought" : `Buy $${quickAmount}`}
-          </button>
+  const confirmQuickBuy = () => {
+    if (confirmToken) {
+      handleQuickBuy(confirmToken, confirmAmount);
+      setConfirmToken(null);
+    }
+  };
 
-          <button
-            onClick={(e) => { e.stopPropagation(); onTokenSelect(token); }}
-            style={{
-              padding: "5px 10px", borderRadius: 6, border: "1px solid rgba(99,102,241,0.3)",
-              background: "rgba(99,102,241,0.08)", color: "#6366f1",
-              fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-            }}
-          >
-            Hunt AI
-          </button>
-
-          <div style={{ flex: 1, height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
-            <div style={{
-              height: "100%", borderRadius: 2, width: `${token.score}%`,
-              background: token.score >= 75 ? C.match : token.score >= 50 ? "#f59e0b" : C.hot,
-              transition: "width 0.5s ease",
-            }} />
-          </div>
-          <span style={{ fontSize: 9, fontWeight: 700, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{token.score}</span>
-        </div>
-
-        {/* AI brief for agent picks */}
-        {isAgentPick && (
-          <div style={{ fontSize: 10, color: C.indigo, fontStyle: "italic", paddingLeft: 40 }}>
-            {generateAIBrief(token)}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  function renderColumn(key: string, items: Token[]) {
-    const color = colColors[key];
-    return (
-      <div style={{
-        background: "rgba(13,13,20,0.5)",
-        borderRight: "1px solid rgba(255,255,255,0.04)",
-        overflowY: "auto",
-        maxHeight: "calc(100vh - 280px)",
-        minHeight: 200,
-      }}>
-        {/* Column header */}
-        <div style={{
-          padding: "10px 12px",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          background: `${color}0F`,
-          borderBottom: `1px solid ${color}26`,
-          position: "sticky", top: 0, zIndex: 2,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {key === "new" && (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-            )}
-            {key === "heating" && (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round"><path d="M12 2c0 6-6 8-6 14a6 6 0 0 0 12 0c0-6-6-8-6-14z" /><path d="M12 12c0 3-2 4-2 6a2 2 0 0 0 4 0c0-2-2-3-2-6z" fill={color} /></svg>
-            )}
-            {key === "fire" && (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round"><path d="M12 2c0 6-8 10-8 16a8 8 0 0 0 16 0c0-6-8-10-8-16z" /></svg>
-            )}
-            <span style={{ fontSize: 11, fontWeight: 800, color, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              {colLabels[key]}
-            </span>
-          </div>
-          <span style={{
-            fontSize: 10, fontWeight: 700, color, background: `${color}18`,
-            padding: "2px 8px", borderRadius: 10,
-          }}>
-            {items.length}
-          </span>
-        </div>
-
-        {/* Agent mode banner */}
-        {agentMode && (
-          <div style={{
-            padding: "6px 12px", fontSize: 10, color: C.indigo,
-            background: "rgba(99,102,241,0.04)", borderBottom: "1px solid rgba(99,102,241,0.08)",
-            display: "flex", alignItems: "center", gap: 6,
-          }}>
-            <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.indigo, animation: "hunt-live-dot 1.5s infinite" }} />
-            Agent monitoring {items.length} tokens
-          </div>
-        )}
-
-        {/* Token rows */}
-        {items.length === 0 && !loading && (
-          <div style={{ padding: "24px 16px", textAlign: "center", color: C.muted, fontSize: 12 }}>
-            No tokens here yet — data refreshes every 10s
-          </div>
-        )}
-        {items.map(t => renderTokenRow(t))}
-      </div>
-    );
-  }
+  // ── Column config ──
+  const columns = [
+    { id: "emerging" as const, label: "EMERGING", count: emergingTokens.length, tokens: emergingTokens, color: "#06b6d4", desc: "New pairs < 2h" },
+    { id: "heating" as const, label: "HEATING", count: heatingTokens.length, tokens: heatingTokens, color: "#f59e0b", desc: "Score 60-79" },
+    { id: "pumping" as const, label: "PUMPING", count: pumpingTokens.length, tokens: pumpingTokens, color: "#30d158", desc: "Score 80+" },
+  ];
 
   return (
     <div style={{ background: C.bg }}>
-      {/* ── Header bar ── */}
+      {/* ── Top Control Bar ── */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)",
-        background: "rgba(10,10,15,0.95)", position: "sticky", top: 0, zIndex: 10,
-        flexWrap: "wrap", gap: 8,
+        padding: "8px 14px", gap: 10,
+        background: "rgba(10,10,15,0.95)",
+        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        position: "sticky", top: 0, zIndex: 100,
+        overflowX: "auto", flexWrap: "wrap",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff2d55" strokeWidth="2" strokeLinecap="round">
-            <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="3" />
-            <line x1="12" y1="2" x2="12" y2="5" /><line x1="12" y1="19" x2="12" y2="22" />
-            <line x1="2" y1="12" x2="5" y2="12" /><line x1="19" y1="12" x2="22" y2="12" />
-          </svg>
-          <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "-0.02em", color: C.text }}>MeshScope</span>
+        {/* LEFT: Chain filter pills + search */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "1 1 auto", minWidth: 0 }}>
           <div style={{
-            display: "flex", alignItems: "center", gap: 4,
-            padding: "2px 8px", borderRadius: 20,
-            background: "rgba(48,209,88,0.1)", border: "1px solid rgba(48,209,88,0.2)",
+            display: "flex", alignItems: "center", gap: 6, flex: "0 1 180px",
+            background: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}`,
+            borderRadius: 8, padding: "5px 8px", minWidth: 0,
           }}>
-            <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.match, animation: "hunt-live-dot 1.5s infinite" }} />
-            <span style={{ fontSize: 9, fontWeight: 800, color: C.match }}>LIVE</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text" placeholder="Search..."
+              value={query} onChange={e => onSearch(e.target.value)}
+              style={{
+                flex: 1, background: "none", border: "none", outline: "none",
+                color: C.text, fontSize: 11, fontFamily: "inherit", minWidth: 0,
+              }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 3, overflowX: "auto", scrollbarWidth: "none", flexShrink: 0 }}>
+            {CHAINS.map(c => (
+              <button key={c.id} onClick={() => onChainChange(c.id)} style={{
+                padding: "4px 9px", borderRadius: 14, flexShrink: 0, fontFamily: "inherit", cursor: "pointer",
+                border: chain === c.id ? `1px solid ${C.hot}` : `1px solid ${C.border}`,
+                background: chain === c.id ? `${C.hot}15` : "rgba(255,255,255,0.03)",
+                color: chain === c.id ? C.hot : C.muted,
+                fontSize: 10, fontWeight: 600, whiteSpace: "nowrap",
+              }}>
+                {c.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {/* RIGHT: LIVE indicator + wallet + quick amount pills */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 4,
+            padding: "3px 8px", borderRadius: 20,
+            background: "rgba(48,209,88,0.1)", border: "1px solid rgba(48,209,88,0.2)",
+          }}>
+            <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.match, animation: "hunt-live-dot 1.5s infinite" }} />
+            <span style={{ fontSize: 9, fontWeight: 800, color: C.match }}>LIVE 5s</span>
+          </div>
           {walletEth > 0 && (
             <div style={{
-              padding: "4px 10px", borderRadius: 20,
-              background: "rgba(6,182,212,0.08)", border: "1px solid rgba(6,182,212,0.2)",
-              fontSize: 11, fontWeight: 700, color: C.cyan,
+              padding: "3px 8px", borderRadius: 14,
+              background: "rgba(6,182,212,0.08)", border: "1px solid rgba(6,182,212,0.15)",
+              fontSize: 10, fontWeight: 700, color: C.cyan,
               fontFamily: "'JetBrains Mono',monospace",
             }}>
               {walletEth.toFixed(4)} ETH
             </div>
           )}
-          <button onClick={() => setAgentMode(!agentMode)} style={{
-            padding: "5px 10px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
-            border: agentMode ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(255,255,255,0.1)",
-            background: agentMode ? "rgba(99,102,241,0.15)" : "rgba(255,255,255,0.04)",
-            color: agentMode ? C.indigo : C.muted,
-            fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", gap: 5,
-          }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z" />
-              <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z" />
-            </svg>
-            {agentMode ? "AI ON" : "AI OFF"}
-          </button>
+          <div className="mm-scope-quick-pills" style={{ display: "flex", gap: 3 }}>
+            {[25, 50, 100].map(amt => (
+              <button key={amt} onClick={() => {/* quickAmount is controlled by parent */}} style={{
+                padding: "3px 7px", borderRadius: 6, border: "none", cursor: "default",
+                fontFamily: "inherit", fontSize: 9, fontWeight: 700,
+                background: quickAmount === amt ? "rgba(99,102,241,0.15)" : "rgba(255,255,255,0.04)",
+                color: quickAmount === amt ? C.indigo : C.muted,
+              }}>
+                ${amt}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-
-      {/* ── Search + Chain filter row ── */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8, padding: "10px 16px",
-        borderBottom: "1px solid rgba(255,255,255,0.04)", flexWrap: "wrap",
-      }}>
-        <div style={{
-          display: "flex", alignItems: "center", gap: 8, flex: "1 1 200px",
-          background: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}`,
-          borderRadius: 8, padding: "6px 10px", minWidth: 0,
-        }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            type="text" placeholder="Search tokens..."
-            value={query} onChange={e => onSearch(e.target.value)}
-            style={{
-              flex: 1, background: "none", border: "none", outline: "none",
-              color: C.text, fontSize: 12, fontFamily: "inherit", minWidth: 0,
-            }}
-          />
-          {query && (
-            <button onClick={() => onSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 0 }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: 4, overflowX: "auto", scrollbarWidth: "none", flexShrink: 0 }}>
-          {CHAINS.map(c => (
-            <button key={c.id} onClick={() => onChainChange(c.id)} style={{
-              padding: "5px 10px", borderRadius: 16, flexShrink: 0, fontFamily: "inherit", cursor: "pointer",
-              border: chain === c.id ? `1px solid ${C.hot}` : `1px solid ${C.border}`,
-              background: chain === c.id ? `${C.hot}15` : "rgba(255,255,255,0.03)",
-              color: chain === c.id ? C.hot : C.muted,
-              fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
-            }}>
-              {c.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Mobile column selector ── */}
-      <div className="mm-scope-mobile-nav" style={{ display: "flex", gap: 6, padding: "10px 16px", overflowX: "auto", scrollbarWidth: "none" }}>
-        {(["fire", "heating", "new"] as const).map(col => (
-          <button key={col} onClick={() => setActiveCol(col)} style={{
-            padding: "6px 14px", borderRadius: 20, flexShrink: 0, fontFamily: "inherit", cursor: "pointer",
-            background: activeCol === col ? `${colColors[col]}20` : "rgba(255,255,255,0.04)",
-            border: activeCol === col ? `1px solid ${colColors[col]}50` : "1px solid rgba(255,255,255,0.07)",
-            color: activeCol === col ? colColors[col] : C.muted,
-            fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
-          }}>
-            {colLabels[col]}
-            <span style={{ marginLeft: 6, fontSize: 10, opacity: 0.7 }}>
-              {col === "fire" ? FIRE.length : col === "heating" ? HEATING.length : NEW.length}
-            </span>
-          </button>
-        ))}
       </div>
 
       {/* ── Loading skeletons ── */}
       {loading && tokens.length === 0 && (
-        <div className="mm-scope-columns" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 1 }}>
+        <div style={{ display: "flex", gap: 1, height: "calc(100vh - 300px)" }}>
           {[0, 1, 2].map(col => (
-            <div key={col} style={{ background: "rgba(13,13,20,0.5)", padding: 8 }}>
-              {[0, 1, 2].map(i => (
+            <div key={col} style={{ flex: 1, background: "rgba(13,13,20,0.5)", padding: 8 }}>
+              {[0, 1, 2, 3, 4].map(i => (
                 <div key={i} style={{
-                  background: "rgba(255,255,255,0.05)", borderRadius: 6, height: 72,
+                  background: "rgba(255,255,255,0.05)", borderRadius: 6, height: 52,
                   margin: "4px 0", animation: "hunt-skeleton 1.5s ease infinite",
-                  animationDelay: `${(col * 3 + i) * 0.1}s`,
+                  animationDelay: `${(col * 5 + i) * 0.1}s`,
                 }} />
               ))}
             </div>
@@ -468,33 +789,158 @@ export default function MeshScope({
         </div>
       )}
 
-      {/* ── Desktop 3-column grid ── */}
+      {/* ── Desktop 3-column layout ── */}
       {(!loading || tokens.length > 0) && (
-        <div className="mm-scope-columns" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 1, background: "rgba(255,255,255,0.02)" }}>
-          {renderColumn("new", NEW)}
-          {renderColumn("heating", HEATING)}
-          {renderColumn("fire", FIRE)}
+        <div className="mm-hunt-cols-desktop" style={{ display: "none" }}>
+          <div style={{ display: "flex", gap: 0, height: "calc(100vh - 300px)", overflow: "hidden" }}>
+            {columns.map((col, i) => (
+              <div key={col.id} style={{
+                flex: 1, display: "flex", flexDirection: "column",
+                borderRight: i < 2 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                minWidth: 0,
+              }}>
+                {/* Column header */}
+                <div style={{
+                  padding: "10px 14px 8px",
+                  borderBottom: "1px solid rgba(255,255,255,0.06)",
+                  background: "rgba(13,13,20,0.8)", flexShrink: 0,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: col.color, letterSpacing: "0.08em" }}>
+                      {col.label}
+                    </span>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700,
+                      background: `${col.color}15`, color: col.color,
+                      padding: "2px 7px", borderRadius: 10,
+                    }}>
+                      {col.count}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>{col.desc}</div>
+                </div>
+
+                {/* Scrollable token list */}
+                <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.1) transparent" }}>
+                  {col.tokens.length === 0 && (
+                    <div style={{ padding: "24px 14px", textAlign: "center", fontSize: 11, color: C.muted }}>
+                      No tokens in this range yet
+                    </div>
+                  )}
+                  {col.tokens.map(t => (
+                    <HuntCompactRow
+                      key={t.address}
+                      token={t}
+                      quickAmount={quickAmount}
+                      onSelect={() => setSelectedToken(t)}
+                      isSelected={selectedToken?.address === t.address}
+                      isNew={newAddrs.has(t.address)}
+                      onQuickBuy={handleQuickBuyFromRow}
+                      buyingAddr={buyingAddr}
+                      buySuccess={buySuccess}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* ── Mobile single column ── */}
+      {/* ── Mobile layout (single column with tabs) ── */}
       {(!loading || tokens.length > 0) && (
-        <div className="mm-scope-mobile-col">
-          {activeCol === "fire" && renderColumn("fire", FIRE)}
-          {activeCol === "heating" && renderColumn("heating", HEATING)}
-          {activeCol === "new" && renderColumn("new", NEW)}
+        <div className="mm-hunt-cols-mobile" style={{ display: "block" }}>
+          {/* Tab switcher */}
+          <div style={{ display: "flex", gap: 0, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+            {(["emerging", "heating", "pumping"] as const).map(col => {
+              const colConfig = columns.find(c => c.id === col)!;
+              return (
+                <button key={col} onClick={() => setMobileCol(col)} style={{
+                  flex: 1, padding: "10px 0",
+                  background: "transparent", border: "none",
+                  borderBottom: mobileCol === col ? `2px solid ${colConfig.color}` : "2px solid transparent",
+                  color: mobileCol === col ? C.text : C.muted,
+                  fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                  letterSpacing: "0.06em", textTransform: "uppercase",
+                }}>
+                  {col}
+                  <span style={{ marginLeft: 4, fontSize: 9, opacity: 0.7 }}>{colConfig.count}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Token rows */}
+          <div style={{ maxHeight: "calc(100vh - 360px)", overflowY: "auto" }}>
+            {(mobileCol === "emerging" ? emergingTokens : mobileCol === "heating" ? heatingTokens : pumpingTokens).map(t => (
+              <HuntCompactRow
+                key={t.address}
+                token={t}
+                quickAmount={quickAmount}
+                onSelect={() => setSelectedToken(t)}
+                isSelected={selectedToken?.address === t.address}
+                isNew={newAddrs.has(t.address)}
+                onQuickBuy={handleQuickBuyFromRow}
+                buyingAddr={buyingAddr}
+                buySuccess={buySuccess}
+              />
+            ))}
+            {(mobileCol === "emerging" ? emergingTokens : mobileCol === "heating" ? heatingTokens : pumpingTokens).length === 0 && (
+              <div style={{ padding: "24px 14px", textAlign: "center", fontSize: 11, color: C.muted }}>
+                No tokens in this range yet
+              </div>
+            )}
+          </div>
         </div>
+      )}
+
+      {/* ── Detail Slide Panel ── */}
+      {selectedToken && (
+        <DetailPanel
+          token={selectedToken}
+          onClose={() => setSelectedToken(null)}
+          quickAmount={quickAmount}
+          walletEth={walletEth}
+          walletAddress={walletAddress}
+          onQuickBuy={handleQuickBuy}
+          buyingAddr={buyingAddr}
+        />
+      )}
+
+      {/* ── Confirm Quick Buy Modal ── */}
+      {confirmToken && (
+        <ConfirmBuyModal
+          token={confirmToken}
+          amount={confirmAmount}
+          onConfirm={confirmQuickBuy}
+          onCancel={() => setConfirmToken(null)}
+        />
       )}
 
       {/* ── Responsive CSS ── */}
       <style>{`
-        .mm-scope-mobile-nav { display: flex; }
-        .mm-scope-columns { display: none !important; }
-        .mm-scope-mobile-col { display: block; }
-        @media(min-width:768px) {
-          .mm-scope-mobile-nav { display: none !important; }
-          .mm-scope-columns { display: grid !important; }
-          .mm-scope-mobile-col { display: none !important; }
+        .mm-hunt-cols-desktop{display:none}
+        .mm-hunt-cols-mobile{display:block}
+        .mm-scope-quick-pills{display:none}
+        @media(min-width:641px){
+          .mm-hunt-cols-desktop{display:block!important}
+          .mm-hunt-cols-mobile{display:none!important}
+          .mm-scope-quick-pills{display:flex!important}
+        }
+        @keyframes hunt-new-flash {
+          0% { background: rgba(48,209,88,0.25); }
+          100% { background: rgba(48,209,88,0.08); }
+        }
+        @keyframes hunt-live-dot {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(0.7); }
+        }
+        @keyframes hunt-spin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes hunt-skeleton {
+          0%, 100% { opacity: 0.05; }
+          50% { opacity: 0.1; }
         }
       `}</style>
     </div>
