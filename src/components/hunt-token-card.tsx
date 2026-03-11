@@ -981,4 +981,4 @@ export default function HuntTokenCard({
 }
 
 // ── Exported for use in hunt/page.tsx compact rows ──
-export { ChainBadge, CHAIN_COLORS };
+export { ChainBadge, TokenLogo, CHAIN_COLORS };

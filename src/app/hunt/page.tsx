@@ -1,15 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { AnimatePresence } from "framer-motion";
-import HuntTokenCard, { ChainBadge } from "@/components/hunt-token-card";
-import HuntPulseViz from "@/components/hunt-pulse-viz";
+import { ChainBadge } from "@/components/hunt-token-card";
 import MobileTabBar from "@/components/mobile-tab-bar";
-import CoHuntCard from "@/components/co-hunt-card";
-import NetworkSignalsCard from "@/components/network-signals-card";
 import TabInfoBanner from "@/components/TabInfoBanner";
 import HuntWalletBar from "@/components/HuntWalletBar";
 import HuntTradePanel from "@/components/HuntTradePanel";
+import MeshScope from "@/components/MeshScope";
 
 const C = {
   bg: "#0a0a0f", surface: "#0d0d14", s2: "#1a1a24",
@@ -49,74 +46,8 @@ interface Token {
   pricePoints: number[];
 }
 
-// ── AI Brief Rule Engines ──
-function generateAIBrief(token: Token): string {
-  const vol = token.volume24h || 0;
-  const liq = token.liquidity || 0;
-  const priceChange = token.priceChange1h || 0;
-  const score = token.score || 0;
-
-  if (score >= 90) return `Exceptional signals across all metrics — this is the strongest setup on the feed right now.`;
-  if (priceChange > 50) return `Price up ${priceChange.toFixed(0)}% in the last hour — momentum is accelerating fast.`;
-  if (vol > 1000000) return `Over $${(vol / 1000000).toFixed(1)}M in volume — serious money is moving here.`;
-  if (liq > 500000) return `Deep liquidity ($${(liq / 1000).toFixed(0)}K) means lower slippage and safer entry.`;
-  if (priceChange > 20 && vol > 100000) return `Volume + price momentum combo — early stage breakout pattern.`;
-  if (score >= 75) return `Strong fundamentals. Volume, liquidity, and price action all pointing up.`;
-  if (priceChange < -20) return `Sharp pullback — either a dip opportunity or distribution. Watch volume.`;
-  return `Moderate signals. Monitor for volume confirmation before entry.`;
-}
-
-function generateHuntBrief(token: Token): string {
-  const score = token.score || 0;
-  const priceChange = token.priceChange1h || 0;
-  const vol = token.volume24h || 0;
-  const liq = token.liquidity || 0;
-
-  if (score >= 90) return `Score ${score}/100. All signals aligned — volume, liquidity, and momentum are all strong. This is a high-conviction setup.`;
-  if (priceChange > 30 && vol > 500000) return `Up ${priceChange.toFixed(0)}% with $${(vol / 1000).toFixed(0)}K volume backing it. Momentum play — get in early or wait for a pullback.`;
-  if (liq < 50000) return `Low liquidity ($${(liq / 1000).toFixed(0)}K) — high risk. Large orders will move the price significantly. Only small positions.`;
-  if (priceChange > 10 && liq > 200000) return `Healthy breakout with solid liquidity. Score ${score}/100. Reasonable risk-reward here.`;
-  if (priceChange < -15) return `Down ${Math.abs(priceChange).toFixed(0)}% — could be a shakeout or distribution. Wait for volume to confirm direction.`;
-  return `Score ${score}/100. Moderate setup. Check volume trend before committing.`;
-}
 
 // ── SVG Icons ──
-function SearchIcon({ size = 15, color = C.muted }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="8" />
-      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
-  );
-}
-
-function RefreshIcon({ size = 11, color = C.muted, spinning = false }: { size?: number; color?: string; spinning?: boolean }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      style={{ animation: spinning ? "hunt-spin 0.8s linear infinite" : "none" }}>
-      <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
-      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-    </svg>
-  );
-}
-
-function CrosshairIcon({ size = 14, color = C.muted }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
-      <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="3" />
-      <line x1="12" y1="2" x2="12" y2="5" /><line x1="12" y1="19" x2="12" y2="22" />
-      <line x1="2" y1="12" x2="5" y2="12" /><line x1="19" y1="12" x2="22" y2="12" />
-    </svg>
-  );
-}
-
-function ChevronDownIcon({ size = 14, color = C.text }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  );
-}
 
 function BrainIcon({ size = 14, color = C.indigo }: { size?: number; color?: string }) {
   return (
@@ -191,19 +122,17 @@ function StopIcon({ size = 14, color = C.hot }: { size?: number; color?: string 
   );
 }
 
-// ── Agent Ticker Items ──
-const agentTicker = [
-  "NOVA-7 is watching 12 pairs on Base",
-  "3 agents signaled $ETH breakout in the last hour",
-  "CIPHER-3 just flagged a volume spike on Arbitrum",
-  "Scout mode active across 847 pairs",
-  "2 agents entered positions in the last 5 minutes",
-];
 
 const MODE_DESC: Record<string, string> = {
-  scout: "Browse live tokens. AI scores and explains each one.",
-  hunt: "Pick a token and trade it. AI whispers advice as you go.",
-  auto: "Set your budget. Your agent hunts and trades automatically.",
+  scout: "Live 3-column token scanner. AI highlights picks.",
+  hunt: "Select a token and trade manually. AI guides you.",
+  auto: "Set budget + strategy. Agent trades for you.",
+};
+
+const MODE_LABELS: Record<string, string> = {
+  scout: "SCOPE",
+  hunt: "TRADE",
+  auto: "AUTO",
 };
 
 const STRATEGIES = [
@@ -235,8 +164,6 @@ export default function HuntPage() {
   const [chain, setChain] = useState("all");
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(20);
-  const [highlightedAddr, setHighlightedAddr] = useState<string | null>(null);
-  const [coHunts, setCoHunts] = useState<any[]>([]);
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   // Mode state
@@ -304,22 +231,6 @@ export default function HuntPage() {
     return () => clearInterval(iv);
   }, [fetchTickerPrices]);
 
-  // Watchlist
-  const [watchlist, setWatchlist] = useState<string[]>([]);
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("hunt-watchlist");
-      if (saved) setWatchlist(JSON.parse(saved));
-    } catch {}
-  }, []);
-  function toggleWatch(addr: string) {
-    setWatchlist(prev => {
-      const next = prev.includes(addr) ? prev.filter(a => a !== addr) : [...prev, addr];
-      localStorage.setItem("hunt-watchlist", JSON.stringify(next));
-      return next;
-    });
-  }
-
   // ── Wallet fetch ──
   const fetchWallet = useCallback(() => {
     fetch("/api/wallet").then(r => r.json()).then(data => {
@@ -378,44 +289,6 @@ export default function HuntPage() {
 
   useEffect(() => { fetchTokens(); }, [fetchTokens]);
 
-  useEffect(() => {
-    async function fetchCoHunts() {
-      try {
-        const sessionRes = await fetch("/api/auth/session");
-        const session = await sessionRes.json();
-        const userId = session?.user?.id;
-        if (!userId) return;
-        const res = await fetch(`/api/co-hunt?userId=${userId}`);
-        const data = await res.json();
-        if (data.coHunts) setCoHunts(data.coHunts);
-      } catch {}
-    }
-    fetchCoHunts();
-  }, []);
-
-  async function handleEndCoHunt(coHuntId: string) {
-    try {
-      const sessionRes = await fetch("/api/auth/session");
-      const session = await sessionRes.json();
-      const userId = session?.user?.id;
-      if (!userId) return;
-      await fetch("/api/co-hunt", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ coHuntId, userId }) });
-      setCoHunts(prev => prev.filter(ch => ch.id !== coHuntId));
-    } catch {}
-  }
-
-  async function handleAcceptCoHunt(coHuntId: string) {
-    try {
-      const sessionRes = await fetch("/api/auth/session");
-      const session = await sessionRes.json();
-      const userId = session?.user?.id;
-      if (!userId) return;
-      const res = await fetch("/api/co-hunt", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ coHuntId, userId }) });
-      const data = await res.json();
-      if (data.coHunt) { setCoHunts(prev => prev.map(ch => ch.id === coHuntId ? { ...ch, status: "active" } : ch)); }
-    } catch {}
-  }
-
   // Main list: poll every 10s in scout/hunt, 30s in auto
   const pollInterval = huntMode === 'auto' ? 30000 : 10000;
   useEffect(() => {
@@ -447,12 +320,6 @@ export default function HuntPage() {
     setQuery(val);
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => { fetchTokens(val || undefined); }, 500);
-  }
-
-  function handleSelectOrb(address: string) {
-    setHighlightedAddr(address);
-    const el = document.getElementById(`hunt-card-${address}`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   const hotCount = tokens.filter(t => t.score >= 80).length;
@@ -569,7 +436,7 @@ export default function HuntPage() {
                 color: active ? col : C.muted,
                 transition: "all 0.2s", flex: 1,
               }}>
-                {mode.toUpperCase()}
+                {MODE_LABELS[mode]}
               </button>
             );
           })}
@@ -595,210 +462,23 @@ export default function HuntPage() {
         />
       </div>
 
-      {/* ══════════════════════════ SCOUT MODE ══════════════════════════ */}
+      {/* ══════════════════════════ SCOPE MODE ══════════════════════════ */}
       {huntMode === "scout" && (
-        <>
-          {/* Agent Activity Ticker */}
-          <div style={{ padding: "0 16px", marginBottom: 12 }}>
-            <div style={{
-              background: "rgba(13,13,20,0.8)", border: "1px solid rgba(255,255,255,0.05)",
-              borderRadius: 8, padding: "6px 12px", overflow: "hidden", whiteSpace: "nowrap",
-              display: "flex", alignItems: "center", gap: 8,
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                <div style={{
-                  width: 6, height: 6, borderRadius: "50%", background: C.match,
-                  animation: "hunt-live-dot 1.5s infinite",
-                }} />
-                <span style={{ fontSize: 10, fontWeight: 700, color: C.match }}>Live</span>
-              </div>
-              <div style={{ overflow: "hidden", flex: 1 }}>
-                <div style={{ display: "inline-block", animation: "hunt-ticker 30s linear infinite" }}>
-                  {[...agentTicker, ...agentTicker].map((item, i) => (
-                    <span key={i} style={{ fontSize: 11, color: C.muted, marginRight: 40 }}>{item}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Pulse Viz */}
-          <HuntPulseViz tokens={tokens} loading={loading} onSelectToken={handleSelectOrb} />
-
-          {/* Chain filter pills */}
-          <div style={{
-            display: "flex", gap: 6, padding: "14px 14px 0",
-            overflowX: "auto", WebkitOverflowScrolling: "touch",
-            scrollbarWidth: "none",
-          }}>
-            {CHAINS.map(c => (
-              <button key={c.id} onClick={() => setChain(c.id)} style={{
-                padding: "6px 14px", borderRadius: 20, flexShrink: 0,
-                border: chain === c.id ? `1px solid ${C.hot}` : `1px solid ${C.border}`,
-                background: chain === c.id ? `${C.hot}15` : "rgba(255,255,255,0.03)",
-                color: chain === c.id ? C.hot : C.muted,
-                fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
-                cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
-              }}>
-                {c.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Network Signals */}
-          <div style={{ padding: "10px 14px 0" }}><NetworkSignalsCard /></div>
-
-          {/* Co-Hunt Cards */}
-          {coHunts.length > 0 && (
-            <div style={{ padding: "10px 14px 0", display: "flex", flexDirection: "column", gap: 8 }}>
-              <AnimatePresence>
-                {coHunts.map(ch => (
-                  <CoHuntCard key={ch.id} coHunt={ch} onEnd={handleEndCoHunt} onAccept={handleAcceptCoHunt} />
-                ))}
-              </AnimatePresence>
-            </div>
-          )}
-
-          {/* Search bar */}
-          <div style={{ padding: "10px 14px" }}>
-            <div style={{
-              display: "flex", alignItems: "center", gap: 10,
-              background: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}`,
-              borderRadius: 12, padding: "9px 14px",
-            }}>
-              <SearchIcon size={15} />
-              <input type="text" placeholder="Search tokens by name, symbol, or address..."
-                value={query} onChange={(e) => handleSearch(e.target.value)}
-                style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontSize: 13, fontFamily: "inherit" }}
-              />
-              {query && (
-                <button onClick={() => { setQuery(""); fetchTokens(); }}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 0, flexShrink: 0 }}>
-                  <CrosshairIcon size={14} />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Section header */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 14px 10px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 15, fontWeight: 700 }}>Hot Right Now</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: C.match }}>
-                <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.match, animation: "hunt-live-dot 1.5s infinite" }} />
-                LIVE
-              </div>
-            </div>
-            <button onClick={() => fetchTokens(query || undefined)} disabled={loading}
-              style={{
-                display: "flex", alignItems: "center", gap: 4,
-                background: "none", border: "none", color: C.muted, fontSize: 11,
-                cursor: "pointer", fontFamily: "inherit", opacity: loading ? 0.4 : 1, padding: 0,
-              }}>
-              <RefreshIcon size={11} spinning={loading} />
-              {loading ? "Loading..." : "Refresh"}
-            </button>
-          </div>
-
-          {/* Error */}
-          {error && (
-            <div style={{
-              margin: "0 14px 10px", padding: "10px 14px",
-              background: `${C.hot}10`, border: `1px solid ${C.hot}22`,
-              borderRadius: 10, fontSize: 12, color: C.hot,
-            }}>{error}</div>
-          )}
-
-          {/* Loading skeletons */}
-          {loading && tokens.length === 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10, padding: "0 14px" }}>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} style={{
-                  background: "rgba(255,255,255,0.03)", borderRadius: 16, height: 195,
-                  animation: "hunt-skeleton 1.8s ease-in-out infinite", animationDelay: `${i * 0.12}s`,
-                }} />
-              ))}
-            </div>
-          )}
-
-          {/* Token cards grid with AI Brief */}
-          <div style={{
-            display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-            gap: 10, padding: "0 14px", contain: "layout style",
-          }}>
-            {tokens.map((token, i) => (
-              <div key={`${token.chainId}-${token.address}`}>
-                <HuntTokenCard
-                  token={token} index={i}
-                  highlighted={highlightedAddr === token.address}
-                  onHighlight={() => setHighlightedAddr(highlightedAddr === token.address ? null : token.address)}
-                />
-                {/* AI Brief */}
-                <div style={{
-                  background: "rgba(99,102,241,0.06)", borderTop: "1px solid rgba(255,255,255,0.05)",
-                  padding: "8px 12px", borderRadius: "0 0 12px 12px",
-                  display: "flex", alignItems: "flex-start", gap: 8, marginTop: -4,
-                }}>
-                  <span style={{
-                    fontSize: 7, fontWeight: 800, textTransform: "uppercase",
-                    background: `${C.indigo}30`, color: C.indigo, padding: "2px 5px",
-                    borderRadius: 4, flexShrink: 0, marginTop: 1, letterSpacing: "0.05em",
-                  }}>AI</span>
-                  <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.4 }}>{generateAIBrief(token)}</span>
-                </div>
-                {/* Scout quick actions */}
-                <div style={{ display: "flex", gap: 6, padding: "6px 0 2px" }}>
-                  <button onClick={() => { setSelectedToken(token); setHuntMode("hunt"); }}
-                    style={{
-                      flex: 1, padding: "6px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-                      background: "rgba(99,102,241,0.08)", border: `1px solid rgba(99,102,241,0.2)`,
-                      color: C.indigo, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
-                    }}>Research</button>
-                  <button onClick={() => { setSelectedToken(token); setHuntMode("hunt"); }}
-                    style={{
-                      flex: 1, padding: "6px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-                      background: "rgba(48,209,88,0.08)", border: "1px solid rgba(48,209,88,0.2)",
-                      color: C.match, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
-                    }}>Buy</button>
-                  <button onClick={() => toggleWatch(token.address)}
-                    style={{
-                      flex: 1, padding: "6px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-                      background: watchlist.includes(token.address) ? "rgba(255,215,0,0.1)" : "rgba(255,255,255,0.04)",
-                      border: watchlist.includes(token.address) ? `1px solid rgba(255,215,0,0.3)` : `1px solid ${C.border}`,
-                      color: watchlist.includes(token.address) ? C.gold : C.muted,
-                      cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
-                    }}>
-                    {watchlist.includes(token.address) ? "Watching" : "Watch"}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Empty state */}
-          {!loading && tokens.length === 0 && !error && (
-            <div style={{ textAlign: "center", padding: "60px 20px" }}>
-              <CrosshairIcon size={32} color={C.dim} />
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.muted, marginBottom: 6, marginTop: 12 }}>No tokens found</div>
-              <div style={{ fontSize: 12, color: C.dim }}>Try a different chain or search term</div>
-            </div>
-          )}
-
-          {/* Load more */}
-          {tokens.length >= limit && !loading && (
-            <div style={{ padding: "16px 14px", textAlign: "center" }}>
-              <button onClick={() => setLimit(l => l + 20)} style={{
-                padding: "11px 28px", borderRadius: 12,
-                background: C.s2, border: `1px solid ${C.border}`,
-                color: C.text, fontSize: 13, fontWeight: 600,
-                cursor: "pointer", fontFamily: "inherit",
-                display: "inline-flex", alignItems: "center", gap: 6,
-              }}>
-                <ChevronDownIcon size={14} /> Load More
-              </button>
-            </div>
-          )}
-        </>
+        <MeshScope
+          tokens={tokens}
+          loading={loading}
+          walletEth={walletEth}
+          walletAddress={walletAddress}
+          onTokenSelect={(token) => {
+            setSelectedToken(token);
+            setHuntMode("hunt");
+          }}
+          quickAmount={quickAmount}
+          chain={chain}
+          onChainChange={setChain}
+          query={query}
+          onSearch={handleSearch}
+        />
       )}
 
       {/* ══════════════════════════ HUNT MODE ══════════════════════════ */}
@@ -852,7 +532,7 @@ export default function HuntPage() {
                 borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10,
                 marginBottom: 10,
               }}>
-                <SearchIcon size={15} />
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
                 <input type="text" placeholder="Search tokens..." value={query}
                   onChange={(e) => handleSearch(e.target.value)}
                   style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontSize: 14, fontFamily: "inherit" }}
