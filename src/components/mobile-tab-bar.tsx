@@ -33,7 +33,7 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
 
   const tabs = [
     { id: "mesh", label: "Connect", icon: MeshIcon, badge: 0 },
-    { id: "hunt", label: "MeshScope", icon: HuntIcon, badge: hotCount, activeColor: C.hot },
+    { id: "hunt", label: "MeshScope", icon: HuntIcon, badge: hotCount, activeColor: C.hot, aura: true },
     { id: "feed", label: "Feed", icon: FeedIcon, badge: 0, activeColor: C.cyan },
     { id: "wallet", label: "Wallet", icon: WalletIcon, badge: 0, alert: lowBalance },
     { id: "agent", label: "Agent", icon: AgentIcon, badge: 0, activeColor: C.indigo },
@@ -56,6 +56,7 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
         {tabs.map(tab => {
           const active = activeTab === tab.id;
           const ac = (tab as any).activeColor || C.indigo;
+          const hasAura = !!(tab as any).aura;
           return (
             <button key={tab.id} onClick={() => onTabChange(tab.id)} style={{
               flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
@@ -69,8 +70,51 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
                   background: ac, boxShadow: `0 0 8px ${ac}60`,
                 }} />
               )}
+
+              {/* MeshScope aura glow */}
+              {hasAura && !active && (
+                <>
+                  {/* Rotating blue-red orbit ring */}
+                  <div style={{
+                    position: "absolute", top: "50%", left: "50%",
+                    transform: "translate(-50%, -56%)",
+                    width: 44, height: 44, borderRadius: "50%", pointerEvents: "none",
+                    background: "transparent",
+                    boxShadow: "0 0 0 1.5px rgba(0,82,255,0.35)",
+                    animation: "ms-orbit 3s linear infinite",
+                  }} />
+                  {/* Inner red pulse */}
+                  <div style={{
+                    position: "absolute", top: "50%", left: "50%",
+                    transform: "translate(-50%, -56%)",
+                    width: 36, height: 36, borderRadius: "50%", pointerEvents: "none",
+                    background: "radial-gradient(circle, rgba(255,45,85,0.18) 0%, transparent 70%)",
+                    animation: "ms-pulse 2s ease-in-out infinite",
+                  }} />
+                  {/* Blue comet dot orbiting */}
+                  <div style={{
+                    position: "absolute", top: "50%", left: "50%",
+                    width: 5, height: 5, borderRadius: "50%", pointerEvents: "none",
+                    background: "#0052FF",
+                    boxShadow: "0 0 6px #0052FF, 0 0 12px #0052FF88",
+                    animation: "ms-comet 3s linear infinite",
+                    transformOrigin: "0 0",
+                  }} />
+                </>
+              )}
+              {/* Active aura */}
+              {hasAura && active && (
+                <div style={{
+                  position: "absolute", top: "50%", left: "50%",
+                  transform: "translate(-50%, -56%)",
+                  width: 44, height: 44, borderRadius: "50%", pointerEvents: "none",
+                  background: "radial-gradient(circle, rgba(255,45,85,0.25) 0%, rgba(0,82,255,0.15) 50%, transparent 70%)",
+                  animation: "ms-pulse 1.5s ease-in-out infinite",
+                }} />
+              )}
+
               {/* Icon */}
-              <div style={{ position: "relative" }}>
+              <div style={{ position: "relative", zIndex: 1 }}>
                 <tab.icon active={active} />
                 {/* Badge */}
                 {tab.badge > 0 && (
@@ -94,8 +138,9 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
               {/* Label */}
               <span style={{
                 fontSize: 10, fontWeight: active ? 700 : 500,
-                color: active ? ac : C.muted,
+                color: active ? ac : hasAura ? "rgba(255,255,255,0.7)" : C.muted,
                 transition: "color 0.2s",
+                position: "relative", zIndex: 1,
               }}>{tab.label}</span>
             </button>
           );
@@ -104,6 +149,12 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
 
       <style>{`
         @keyframes tab-alert{0%,100%{opacity:0.5;transform:scale(0.8)}50%{opacity:1;transform:scale(1.2)}}
+        @keyframes ms-pulse{0%,100%{opacity:0.6;transform:translate(-50%,-56%) scale(0.9)}50%{opacity:1;transform:translate(-50%,-56%) scale(1.1)}}
+        @keyframes ms-orbit{from{transform:translate(-50%,-56%) rotate(0deg)}to{transform:translate(-50%,-56%) rotate(360deg)}}
+        @keyframes ms-comet{
+          0%{transform:translate(-50%,-56%) rotate(0deg) translateX(20px)}
+          100%{transform:translate(-50%,-56%) rotate(360deg) translateX(20px)}
+        }
         @media(min-width:641px){
           .mm-mobile-tab-bar{display:none!important}
           .mm-tab-spacer{display:none!important}

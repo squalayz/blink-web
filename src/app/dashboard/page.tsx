@@ -1468,7 +1468,7 @@ export default function Dashboard(){
       <style>{`nav.mm-global-nav{display:none!important}`}</style>
       {/* Base ETH Banner */}
       <div style={{position:"sticky",top:0,left:0,right:0,zIndex:1000,background:"linear-gradient(90deg,rgba(0,82,255,0.12),rgba(99,102,241,0.10),rgba(6,182,212,0.08))",borderBottom:"1px solid rgba(99,102,241,0.1)",padding:"6px 16px",textAlign:"center",fontSize:10,fontWeight:500,color:"rgba(165,180,252,0.8)",letterSpacing:"0.5px",display:"flex",alignItems:"center",justifyContent:"center",gap:8,animation:"banner-glow 4s ease-in-out infinite"}}>
-        <style>{`@keyframes banner-glow{0%,100%{background:linear-gradient(90deg,rgba(0,82,255,0.10),rgba(99,102,241,0.08),rgba(6,182,212,0.06))}50%{background:linear-gradient(90deg,rgba(0,82,255,0.18),rgba(99,102,241,0.14),rgba(6,182,212,0.10))}}@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(1.4)}}@keyframes mm-brain-pulse{0%,100%{opacity:0.5;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}@keyframes mm-brain-glow{0%,100%{box-shadow:0 0 8px rgba(99,102,241,0.15)}50%{box-shadow:0 0 18px rgba(99,102,241,0.35),0 0 8px rgba(6,182,212,0.2)}}@keyframes txn-slide{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#FF9F0A;border:2px solid rgba(0,0,0,0.3);cursor:pointer;box-shadow:0 0 8px rgba(255,159,10,0.4)}input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#FF9F0A;border:2px solid rgba(0,0,0,0.3);cursor:pointer;box-shadow:0 0 8px rgba(255,159,10,0.4)}`}</style>
+        <style>{`@keyframes ms-tab-glow{0%,100%{box-shadow:0 0 16px rgba(0,82,255,0.25), 0 0 8px rgba(255,45,85,0.15)}50%{box-shadow:0 0 24px rgba(0,82,255,0.4), 0 0 16px rgba(255,45,85,0.25)}}@keyframes ms-orbit{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}@keyframes ms-pulse{0%,100%{opacity:0.6;transform:translate(-50%,-50%) scale(0.9)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.1)}}@keyframes banner-glow{0%,100%{background:linear-gradient(90deg,rgba(0,82,255,0.10),rgba(99,102,241,0.08),rgba(6,182,212,0.06))}50%{background:linear-gradient(90deg,rgba(0,82,255,0.18),rgba(99,102,241,0.14),rgba(6,182,212,0.10))}}@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(1.4)}}@keyframes mm-brain-pulse{0%,100%{opacity:0.5;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}@keyframes mm-brain-glow{0%,100%{box-shadow:0 0 8px rgba(99,102,241,0.15)}50%{box-shadow:0 0 18px rgba(99,102,241,0.35),0 0 8px rgba(6,182,212,0.2)}}@keyframes txn-slide{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#FF9F0A;border:2px solid rgba(0,0,0,0.3);cursor:pointer;box-shadow:0 0 8px rgba(255,159,10,0.4)}input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#FF9F0A;border:2px solid rgba(0,0,0,0.3);cursor:pointer;box-shadow:0 0 8px rgba(255,159,10,0.4)}`}</style>
         <span style={{display:"inline-flex",alignItems:"center",gap:4}}><svg width="14" height="14" viewBox="0 0 111 111" style={{verticalAlign:"-2px"}} fill="none"><circle cx="55.5" cy="55.5" r="55.5" fill="#0052FF"/><path d="M55.7 14.7c-22.6 0-40.8 18.3-40.8 40.8s18.3 40.8 40.8 40.8 40.8-18.3 40.8-40.8H55.7V14.7z" fill="white"/></svg> Powered by AI & Base L2</span>
         <span style={{opacity:0.3}}>·</span>
         <span>All deposits & trades use ETH on Base</span>
@@ -1527,59 +1527,71 @@ export default function Dashboard(){
 
       {/* ── Tabs ── */}
       <div style={{padding:"8px 16px 10px",display:"flex",gap:6,borderBottom:`1px solid ${C.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",msOverflowStyle:"none"}}>
-        {[
-          {id:"mesh",label:"Connect",icon:<svg width="15" height="13" viewBox="0 0 28 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="7" cy="13" r="5"/><circle cx="21" cy="13" r="5"/><path d="M12 13h4"/><path d="M7 8V5l3-3h8l3 3v3"/><path d="M12 8h4"/></svg>},
-          {id:"agent",label:"Agent",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/></svg>},
-          {id:"brew",label:"Wallet",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="14" r="1.5" fill="currentColor" stroke="none"/></svg>},
-          {id:"feed",label:"Feed",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49" opacity="0.6"/><path d="M7.76 16.24a6 6 0 0 1 0-8.49" opacity="0.6"/></svg>},
-          {id:"discover",label:"Discover",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="7" r="3"/><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5" strokeLinecap="round"/><circle cx="17" cy="8" r="2.5" opacity="0.6"/></svg>},
-          {id:"buzz",label:"Stats",icon:<TrendingUp size={13}/>},
-          {id:"evolve",label:"Grow",icon:<Sparkles size={13}/>},
-        ].map(t=>(
-          <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="mesh"){if(!groupMeshes.length)loadGroupMeshes();if(!userPrefs)loadUserPrefs();}if(t.id==="discover"){if(user&&!discoverProfiles.length)loadDiscoverFeed(user.id);}if(t.id==="brew"){if(!wallet)loadWallet();if(!nfts.length)loadNfts();if(!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();}}if(t.id==="buzz")loadBuzzData();if(t.id==="evolve"&&!referralStats)loadReferralStats();}} style={{
-            flex:1,
-            background:view===t.id?"linear-gradient(135deg, rgba(99,102,241,0.25), rgba(6,182,212,0.15))":"rgba(255,255,255,0.03)",
+        {/* Connect tab */}
+        {[{id:"mesh",label:"Connect",icon:<svg width="15" height="13" viewBox="0 0 28 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="7" cy="13" r="5"/><circle cx="21" cy="13" r="5"/><path d="M12 13h4"/><path d="M7 8V5l3-3h8l3 3v3"/><path d="M12 8h4"/></svg>}].map(t=>(
+          <button key={t.id} onClick={()=>{setView(t.id);if(!groupMeshes.length)loadGroupMeshes();if(!userPrefs)loadUserPrefs();}} style={{
+            flex:1,background:view===t.id?"linear-gradient(135deg, rgba(99,102,241,0.25), rgba(6,182,212,0.15))":"rgba(255,255,255,0.03)",
             border:view===t.id?`1px solid rgba(99,102,241,0.5)`:`1px solid rgba(255,255,255,0.06)`,
-            borderRadius:22,
-            padding:"9px 16px",
-            color:view===t.id?"#fff":C.muted,
-            cursor:"pointer",
-            fontSize:12,
-            fontWeight:view===t.id?700:500,
-            fontFamily:"inherit",
-            display:"flex",
-            alignItems:"center",
-            justifyContent:"center",
-            gap:6,
-            whiteSpace:"nowrap",
-            transition:"all 0.2s ease",
+            borderRadius:22,padding:"9px 16px",color:view===t.id?"#fff":C.muted,cursor:"pointer",fontSize:12,
+            fontWeight:view===t.id?700:500,fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",
+            gap:6,whiteSpace:"nowrap",transition:"all 0.2s ease",
             boxShadow:view===t.id?"0 0 16px rgba(99,102,241,0.3), 0 0 4px rgba(6,182,212,0.2)":"none",
           }}>{t.icon}{t.label}</button>
         ))}
-        {/* Hunt tab — links to /hunt */}
+
+        {/* MeshScope tab — right next to Connect, always glowing */}
         <a href="/hunt" style={{
-          flex:1,
-          background:"rgba(255,45,85,0.08)",
-          border:`1px solid rgba(255,45,85,0.3)`,
-          borderRadius:22,
-          padding:"9px 16px",
-          color:"#ff2d55",
-          cursor:"pointer",
-          fontSize:12,
-          fontWeight:700,
-          fontFamily:"inherit",
-          display:"flex",
-          alignItems:"center",
-          justifyContent:"center",
-          gap:6,
-          whiteSpace:"nowrap",
-          transition:"all 0.2s ease",
-          textDecoration:"none",
-          boxShadow:"0 0 12px rgba(255,45,85,0.15)",
+          flex:1, position:"relative",
+          background:"linear-gradient(135deg, rgba(0,82,255,0.12), rgba(255,45,85,0.08))",
+          border:"1px solid rgba(0,82,255,0.35)",
+          borderRadius:22, padding:"9px 16px",
+          color:"#e8e8f0", cursor:"pointer", fontSize:12, fontWeight:700,
+          fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center",
+          gap:6, whiteSpace:"nowrap", transition:"all 0.2s ease", textDecoration:"none",
+          boxShadow:"0 0 16px rgba(0,82,255,0.25), 0 0 8px rgba(255,45,85,0.15)",
+          animation:"ms-tab-glow 3s ease-in-out infinite",
+          overflow:"hidden",
         }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ff2d55" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
-          MeshScope
+          {/* Orbit ring inside the tab */}
+          <div style={{
+            position:"absolute", top:"50%", left:"50%",
+            width:80, height:80, borderRadius:"50%",
+            transform:"translate(-50%,-50%)",
+            background:"transparent",
+            border:"1px solid rgba(0,82,255,0.2)",
+            animation:"ms-orbit 4s linear infinite",
+            pointerEvents:"none",
+          }} />
+          <div style={{
+            position:"absolute", top:"50%", left:"50%",
+            width:60, height:60, borderRadius:"50%",
+            transform:"translate(-50%,-50%)",
+            background:"radial-gradient(circle, rgba(255,45,85,0.1) 0%, transparent 70%)",
+            animation:"ms-pulse 2s ease-in-out infinite",
+            pointerEvents:"none",
+          }} />
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0052FF" strokeWidth="2.5" strokeLinecap="round" style={{position:"relative",zIndex:1}}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
+          <span style={{position:"relative",zIndex:1}}>MeshScope</span>
         </a>
+
+        {/* Remaining tabs */}
+        {[
+          {id:"agent",label:"Agent",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/></svg>},
+          {id:"brew",label:"Wallet",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="14" r="1.5" fill="currentColor" stroke="none"/></svg>},
+          {id:"feed",label:"Feed",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49" opacity="0.6"/><path d="M7.76 16.24a6 6 0 0 1 0-8.49" opacity="0.6"/></svg>},
+          {id:"buzz",label:"Stats",icon:<TrendingUp size={13}/>},
+          {id:"evolve",label:"Grow",icon:<Sparkles size={13}/>},
+        ].map(t=>(
+          <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="discover"){if(user&&!discoverProfiles.length)loadDiscoverFeed(user.id);}if(t.id==="brew"){if(!wallet)loadWallet();if(!nfts.length)loadNfts();if(!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();}}if(t.id==="buzz")loadBuzzData();if(t.id==="evolve"&&!referralStats)loadReferralStats();}} style={{
+            flex:1,
+            background:view===t.id?"linear-gradient(135deg, rgba(99,102,241,0.25), rgba(6,182,212,0.15))":"rgba(255,255,255,0.03)",
+            border:view===t.id?`1px solid rgba(99,102,241,0.5)`:`1px solid rgba(255,255,255,0.06)`,
+            borderRadius:22, padding:"9px 16px", color:view===t.id?"#fff":C.muted, cursor:"pointer", fontSize:12,
+            fontWeight:view===t.id?700:500, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center",
+            gap:6, whiteSpace:"nowrap", transition:"all 0.2s ease",
+            boxShadow:view===t.id?"0 0 16px rgba(99,102,241,0.3), 0 0 4px rgba(6,182,212,0.2)":"none",
+          }}>{t.icon}{t.label}</button>
+        ))}
       </div>
 
       <div style={{padding:20,maxWidth:view==="mesh"||view==="discover"||view==="feed"?1100:720,margin:"0 auto",transition:"max-width 0.3s"}}>
