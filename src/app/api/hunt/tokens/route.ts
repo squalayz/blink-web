@@ -93,7 +93,7 @@ function mapPair(p: any): TokenResult | null {
     marketCap: parseFloat(p.marketCap || "0"),
     txns1h: { buys: txns.buys || 0, sells: txns.sells || 0 },
     pairCreatedAt: p.pairCreatedAt || 0,
-    imageUrl: p.info?.imageUrl || p.info?.header || null,
+    imageUrl: p.info?.imageUrl || p.info?.header || p.baseToken?.logoURI || null,
     url: p.url || `https://dexscreener.com/${p.chainId}/${p.pairAddress}`,
     score: 0,
     tags: [],

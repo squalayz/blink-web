@@ -185,6 +185,64 @@ function tokenOrbColor(t: Token): string {
   return C.hot;
 }
 
+// ── Token logo with multi-source fallback ──────────────
+function getTokenLogoUrl(token: { address: string; chainId: string; imageUrl: string | null }): string | null {
+  if (token.imageUrl) return token.imageUrl;
+  if (token.address && token.chainId) {
+    return `https://dd.dexscreener.com/ds-data/tokens/${token.chainId}/${token.address.toLowerCase()}/header.png`;
+  }
+  return null;
+}
+
+function TokenLogo({ token, size }: { token: Token; size: number }) {
+  const [imgSrc, setImgSrc] = useState<string | null>(() => getTokenLogoUrl(token));
+  const [failed, setFailed] = useState(false);
+
+  const color = (() => {
+    const p = token.priceChange1h ?? 0;
+    if (p > 10) return C.match;
+    if (p > 5) return C.lime;
+    if (p > 0) return C.cyan;
+    if (p > -5) return C.yellow;
+    if (p > -10) return C.orange;
+    return C.hot;
+  })();
+
+  const initials = token.symbol.slice(0, 2).toUpperCase();
+  const fontSize = size >= 36 ? 10 : size >= 26 ? 8 : 7;
+
+  if (failed || !imgSrc) {
+    return (
+      <div style={{
+        width: "100%", height: "100%",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: `radial-gradient(circle at 35% 35%, ${lightenColor(color)}, ${color})`,
+        borderRadius: "50%", flexShrink: 0,
+      }}>
+        <span style={{ fontSize, fontWeight: 900, color: "white", letterSpacing: "-0.02em" }}>
+          {initials}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imgSrc}
+      alt={token.symbol}
+      style={{ width: "80%", height: "80%", borderRadius: "50%", objectFit: "cover", display: "block", pointerEvents: "none" }}
+      onError={() => {
+        const cdnUrl = `https://dd.dexscreener.com/ds-data/tokens/${token.chainId}/${token.address.toLowerCase()}/header.png`;
+        if (imgSrc !== cdnUrl) {
+          setImgSrc(cdnUrl);
+        } else {
+          setFailed(true);
+        }
+      }}
+    />
+  );
+}
+
 const LOG_DOT_COLORS: Record<string, string> = {
   scanning: C.cyan,
   analyzing: C.gold,
@@ -1045,27 +1103,7 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
               setHoverCard(null);
             }}
           >
-            {t.imageUrl ? (
-              <img
-                src={t.imageUrl}
-                alt={t.symbol}
-                style={{
-                  width: "75%", height: "75%",
-                  borderRadius: "50%",
-                  objectFit: "cover",
-                  display: "block",
-                  pointerEvents: "none",
-                }}
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-              />
-            ) : (
-              <span style={{
-                fontSize: size > 32 ? 9 : 7, fontWeight: 800, color: "white",
-                letterSpacing: "-0.02em", pointerEvents: "none",
-              }}>
-                {t.symbol.slice(0, 2).toUpperCase()}
-              </span>
-            )}
+            <TokenLogo token={t} size={size} />
 
             {/* Badges */}
             {(isHot || isNew) && (
@@ -1478,15 +1516,7 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
                             animationTimingFunction: "linear",
                             animationIterationCount: "infinite",
                           }}>
-                            {t.imageUrl ? (
-                              <img src={t.imageUrl} alt={t.symbol}
-                                style={{ width: "75%", height: "75%", borderRadius: "50%", objectFit: "cover" }}
-                                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                            ) : (
-                              <span style={{ fontSize: size > 30 ? 8 : 7, fontWeight: 800, color: "white" }}>
-                                {t.symbol.slice(0, 2)}
-                              </span>
-                            )}
+                            <TokenLogo token={t} size={size} />
                           </div>
                         </div>
                       );
@@ -1511,12 +1541,7 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
                             background: `radial-gradient(circle at 35% 35%, ${lightenColor(c)}, ${c})`,
                             display: "flex", alignItems: "center", justifyContent: "center",
                           }}>
-                            {t.imageUrl ? (
-                              <img src={t.imageUrl} alt="" style={{ width: "78%", height: "78%", borderRadius: "50%", objectFit: "cover" }}
-                                onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                            ) : (
-                              <span style={{ fontSize: 6, fontWeight: 800, color: "white" }}>{t.symbol.slice(0,2)}</span>
-                            )}
+                            <TokenLogo token={t} size={20} />
                           </div>
                           <span style={{ fontSize: 11, fontWeight: 700, color: C.text, flex: 1 }}>{t.symbol}</span>
                           <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono',monospace", color: t.priceChange1h >= 0 ? C.match : C.hot }}>
@@ -1663,30 +1688,9 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
 
           {/* Token Header */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-            {t.imageUrl ? (
-              <img
-                src={t.imageUrl}
-                alt=""
-                style={{ width: 44, height: 44, borderRadius: "50%", background: C.s2 }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: "50%",
-                  background: `radial-gradient(circle, ${orbColor(t.priceChange1h)}88, ${orbColor(t.priceChange1h)}44)`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 14,
-                  fontWeight: 800,
-                  color: "#fff",
-                }}
-              >
-                {t.symbol.slice(0, 2)}
-              </div>
-            )}
+            <div style={{ width: 44, height: 44, borderRadius: "50%", overflow: "hidden", flexShrink: 0 }}>
+              <TokenLogo token={t} size={44} />
+            </div>
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 18, fontWeight: 800, color: C.text }}>{t.symbol}</span>
@@ -2006,12 +2010,7 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
                 flexShrink: 0, overflow: "hidden",
                 boxShadow: `0 0 12px ${color}66`,
               }}>
-                {hc.token.imageUrl ? (
-                  <img src={hc.token.imageUrl} alt="" style={{ width: "78%", height: "78%", borderRadius: "50%", objectFit: "cover" }}
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                ) : (
-                  <span style={{ fontSize: 12, fontWeight: 800, color: "white" }}>{hc.token.symbol.slice(0, 2)}</span>
-                )}
+                <TokenLogo token={hc.token} size={40} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 15, fontWeight: 900, color: C.text, letterSpacing: "-0.3px" }}>
