@@ -18,6 +18,7 @@ const PreferenceSetup = dynamic(() => import("@/components/PreferenceSetup"), { 
 const MatchNFTCard = dynamic(() => import("@/components/match-nft-card"), { ssr: false });
 const SocialVerify = dynamic(() => import("@/components/social-verify"), { ssr: false });
 const MeshFeed = dynamic(() => import("@/components/MeshFeed"), { ssr: false });
+const HuntTabView = dynamic(() => import("@/components/HuntTabView"), { ssr: false });
 import TabInfoBanner from "@/components/TabInfoBanner";
 
 const supabase = createClient(
@@ -334,7 +335,7 @@ export default function Dashboard(){
   const[agent,setAgent]=useState<any>(null);
   const[loading,setLoading]=useState(true);
   // Support deep-linking: /dashboard?tab=wallet, ?tab=profile, etc.
-  const initialTab=(()=>{const t=searchParams?.get("tab");const map:Record<string,string>={wallet:"brew",matches:"matches",chat:"mesh",profile:"profile",stats:"buzz",agent:"agent",grow:"evolve",discover:"discover"};return(t&&(map[t]||t))||"mesh";})();
+  const initialTab=(()=>{const t=searchParams?.get("tab");const map:Record<string,string>={wallet:"brew",matches:"matches",chat:"mesh",profile:"profile",stats:"buzz",agent:"agent",grow:"evolve",discover:"discover",hunt:"hunt"};return(t&&(map[t]||t))||"mesh";})();
   const[view,setView]=useState(initialTab);
   const[matches,setMatches]=useState<any[]>([]);
   const[notifications,setNotifications]=useState<any[]>([]);
@@ -1540,15 +1541,15 @@ export default function Dashboard(){
         ))}
 
         {/* MeshScope tab — right next to Connect, always glowing */}
-        <a href="/hunt" style={{
+        <button onClick={()=>setView("hunt")} style={{
           flex:1, position:"relative",
-          background:"linear-gradient(135deg, rgba(0,82,255,0.12), rgba(255,45,85,0.08))",
-          border:"1px solid rgba(0,82,255,0.35)",
+          background:view==="hunt"?"linear-gradient(135deg, rgba(0,82,255,0.25), rgba(255,45,85,0.15))":"linear-gradient(135deg, rgba(0,82,255,0.12), rgba(255,45,85,0.08))",
+          border:view==="hunt"?"1px solid rgba(0,82,255,0.5)":"1px solid rgba(0,82,255,0.35)",
           borderRadius:22, padding:"9px 16px",
           color:"#e8e8f0", cursor:"pointer", fontSize:12, fontWeight:700,
           fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center",
-          gap:6, whiteSpace:"nowrap", transition:"all 0.2s ease", textDecoration:"none",
-          boxShadow:"0 0 16px rgba(0,82,255,0.25), 0 0 8px rgba(255,45,85,0.15)",
+          gap:6, whiteSpace:"nowrap", transition:"all 0.2s ease",
+          boxShadow:view==="hunt"?"0 0 20px rgba(0,82,255,0.35), 0 0 10px rgba(255,45,85,0.2)":"0 0 16px rgba(0,82,255,0.25), 0 0 8px rgba(255,45,85,0.15)",
           animation:"ms-tab-glow 3s ease-in-out infinite",
           overflow:"hidden",
         }}>
@@ -1572,7 +1573,7 @@ export default function Dashboard(){
           }} />
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0052FF" strokeWidth="2.5" strokeLinecap="round" style={{position:"relative",zIndex:1}}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
           <span style={{position:"relative",zIndex:1}}>MeshScope</span>
-        </a>
+        </button>
 
         {/* Remaining tabs */}
         {[
@@ -3214,14 +3215,17 @@ export default function Dashboard(){
         </div>
       )}
 
+      {/* ── Hunt / MeshScope Tab ── */}
+      {view==="hunt"&&<HuntTabView/>}
+
       {/* ── Match NFT Celebration ── */}
       {showMatchNFT&&<MatchNFTCard userA={showMatchNFT.userA} userB={showMatchNFT.userB} matchId={showMatchNFT.matchId} onClose={()=>setShowMatchNFT(null)} onStartTrading={()=>{setShowMatchNFT(null);setView("mesh");}}/>}
 
       {/* ── Mobile Tab Bar — shown on dashboard ── */}
       <MobileTabBar
-        activeTab={view==="mesh"?"mesh":view==="feed"?"feed":view==="discover"?"discover":view==="brew"?"wallet":view==="agent"?"agent":view==="profile"?"agent":"mesh"}
+        activeTab={view==="hunt"?"hunt":view==="mesh"?"mesh":view==="feed"?"feed":view==="discover"?"discover":view==="brew"?"wallet":view==="agent"?"agent":view==="profile"?"agent":"mesh"}
         onTabChange={(tab)=>{
-          if(tab==="hunt"){router.push("/hunt");return;}
+          if(tab==="hunt"){setView("hunt");return;}
           if(tab==="feed"){setView("feed");return;}
           if(tab==="discover"){setView("discover");if(user&&!discoverProfiles.length)loadDiscoverFeed(user.id);return;}
           if(tab==="wallet"){setView("brew");return;}
