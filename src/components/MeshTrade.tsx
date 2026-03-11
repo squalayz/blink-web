@@ -10,7 +10,7 @@ import {
 } from "react";
 
 // ═══════════════════════════════════════════════════════════
-// MeshTrade v2 — AI Agent Trading Galaxy
+// MeshTrade v3 — 3-Column Orbital Galaxy
 // ═══════════════════════════════════════════════════════════
 
 const C = {
@@ -85,6 +85,7 @@ interface MeshTradeProps {
   user: any;
   agent: any;
   wallet: any;
+  onConnectBrain?: () => void;
   onFundWallet?: () => void;
 }
 
@@ -148,18 +149,11 @@ function orbColor(change1h: number): string {
   return C.hot;
 }
 
-function orbGlow(change1h: number): string {
-  if (change1h > 10) return `0 0 12px 4px ${C.match}55`;
-  if (change1h < -10) return `0 0 12px 4px ${C.hot}55`;
-  return "none";
-}
-
-function pulseDuration(pairCreatedAt: number): string {
-  const ageHours = (Date.now() - pairCreatedAt) / 3600000;
-  if (ageHours < 1) return "1.2s";
-  if (ageHours < 6) return "2s";
-  if (ageHours < 24) return "3s";
-  return "4.5s";
+function lightenColor(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgb(${Math.min(255, r + 60)},${Math.min(255, g + 60)},${Math.min(255, b + 60)})`;
 }
 
 const LOG_DOT_COLORS: Record<string, string> = {
@@ -229,12 +223,31 @@ const KEYFRAMES = `
   0% { stroke-dashoffset: 0; }
   100% { stroke-dashoffset: -20; }
 }
+@keyframes mt-spin-cw {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes mt-spin-ccw {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+@keyframes mt-agent-pulse {
+  0%, 100% { box-shadow: 0 0 20px 6px rgba(99,102,241,0.4), 0 0 40px 12px rgba(6,182,212,0.15); }
+  50% { box-shadow: 0 0 30px 10px rgba(99,102,241,0.6), 0 0 60px 20px rgba(6,182,212,0.25); }
+}
+@keyframes mt-analyze-ring {
+  0% { transform: translate(-50%,-50%) scale(0.8); opacity: 0.8; }
+  100% { transform: translate(-50%,-50%) scale(1.6); opacity: 0; }
+}
 @media (max-width: 640px) {
   .mt-layout { flex-direction: column !important; }
   .mt-brain { width: 100% !important; max-width: 100% !important; border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.07) !important; }
-  .mt-galaxy { min-height: 320px !important; height: 320px !important; }
+  .mt-galaxy { min-height: 420px !important; }
   .mt-log { width: 100% !important; max-width: 100% !important; border-left: none !important; border-top: 1px solid rgba(255,255,255,0.07) !important; max-height: 320px !important; }
-  .mt-wallet-bar { flex-wrap: wrap !important; }
+  .mt-orbital-cols { flex-direction: column !important; }
+  .mt-orbital-col { min-height: 280px !important; }
+  .mt-brain-collapse { max-height: 0px !important; overflow: hidden !important; padding: 0 !important; }
+  .mt-brain-collapse.mt-brain-open { max-height: 2000px !important; overflow: visible !important; padding: 20px !important; }
 }
 `;
 
@@ -242,7 +255,7 @@ const KEYFRAMES = `
 // Main Component
 // ═══════════════════════════════════════════════════════════
 
-export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTradeProps) {
+export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundWallet }: MeshTradeProps) {
   // ── State ──
   const [tokens, setTokens] = useState<Token[]>([]);
   const [settings, setSettings] = useState<Settings>({
@@ -261,15 +274,20 @@ export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTra
   const [searchQuery, setSearchQuery] = useState("");
   const [hoveredToken, setHoveredToken] = useState<Token | null>(null);
   const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
-  const [scanTargets, setScanTargets] = useState<number[]>([]);
   const [watchlist, setWatchlist] = useState<string[]>([]);
+  const [agentColIdx, setAgentColIdx] = useState(0);
+  const [agentTokenAddr, setAgentTokenAddr] = useState<string | null>(null);
+  const [mobileColTab, setMobileColTab] = useState<"emerging" | "heating" | "pumping">("pumping");
+  const [brainExpanded, setBrainExpanded] = useState(false);
 
   const settingsTimerRef = useRef<NodeJS.Timeout | null>(null);
   const tokenIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const stateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const triggerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const agentMoveRef = useRef<NodeJS.Timeout | null>(null);
   const galaxyRef = useRef<HTMLDivElement | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
+  const checkedTokensRef = useRef<Set<string>>(new Set());
 
   const brainConnected = !!user?.ai_api_key_encrypted;
   const GAS_RESERVE = 0.002;
@@ -277,7 +295,7 @@ export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTra
   // ── Computed ──
   const walletEth = wallet?.balance_eth ?? 0;
   const walletUsd = wallet?.balance_usd ?? 0;
-  const inPositions = positions.reduce((s, p) => s + (p.amount * p.entryPrice), 0);
+  const inPositions = positions.reduce((s, p) => s + Math.abs(p.amount * p.entryPrice), 0);
   const available = Math.max(0, walletEth - GAS_RESERVE);
 
   // ── Computed Mood ──
@@ -295,6 +313,33 @@ export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTra
     },
     [brainConnected]
   );
+
+  // ── Token categorization (same as MeshScope) ──
+  const { pumpingTokens, emergingTokens, heatingTokens, columns } = useMemo(() => {
+    const ft = searchQuery
+      ? tokens.filter(t =>
+          t.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          t.address.toLowerCase().includes(searchQuery.toLowerCase()))
+      : tokens;
+
+    const pumping = [...ft].sort((a, b) => b.score - a.score).slice(0, Math.ceil(ft.length / 3));
+    const pumpSet = new Set(pumping.map(t => t.address));
+    const emerging = [...ft]
+      .filter(t => !pumpSet.has(t.address))
+      .sort((a, b) => b.pairCreatedAt - a.pairCreatedAt)
+      .slice(0, Math.ceil(ft.length / 3));
+    const emergeSet = new Set(emerging.map(t => t.address));
+    const heating = ft.filter(t => !pumpSet.has(t.address) && !emergeSet.has(t.address));
+
+    const cols = [
+      { id: "emerging" as const, label: "EMERGING", tokens: emerging, color: "#06b6d4", desc: "New pairs < 2h" },
+      { id: "heating" as const, label: "HEATING", tokens: heating, color: "#f59e0b", desc: "Building momentum" },
+      { id: "pumping" as const, label: "PUMPING", tokens: pumping, color: "#30d158", desc: "Score 80+" },
+    ];
+
+    return { pumpingTokens: pumping, emergingTokens: emerging, heatingTokens: heating, columns: cols };
+  }, [tokens, searchQuery]);
 
   // ── Fetch tokens ──
   const fetchTokens = useCallback(async () => {
@@ -393,7 +438,6 @@ export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTra
         if (entry) {
           setLogEntries((prev) => [entry!, ...prev.slice(0, 49)]);
         }
-        // Refresh state after trigger
         fetchState();
       }
     } catch (err: any) {
@@ -413,7 +457,6 @@ export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTra
     const next = !settings.unleashed;
     updateSetting("unleashed", next);
     if (next) {
-      // Trigger immediately on unleash
       setTimeout(() => triggerTrade(), 500);
     }
   }, [settings.unleashed, updateSetting, brainConnected, triggerTrade]);
@@ -478,26 +521,57 @@ export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTra
     setMood(computeMood(positions, tokens, settings.unleashed));
   }, [positions, tokens, settings.unleashed, computeMood]);
 
-  // ── Scan targets rotation ──
+  // ── Agent movement between columns ──
   useEffect(() => {
-    if (mood !== "SCANNING" || tokens.length < 3) {
-      setScanTargets([]);
-      return;
-    }
-    const pick = () => {
-      const sorted = [...tokens].sort((a, b) => b.score - a.score).slice(0, 10);
-      const idxs: number[] = [];
-      while (idxs.length < Math.min(3, sorted.length)) {
-        const r = Math.floor(Math.random() * sorted.length);
-        const realIdx = tokens.indexOf(sorted[r]);
-        if (!idxs.includes(realIdx)) idxs.push(realIdx);
+    if (agentMoveRef.current) clearInterval(agentMoveRef.current);
+
+    const moveAgent = () => {
+      const allTokens = [...columns[0].tokens, ...columns[1].tokens, ...columns[2].tokens];
+      if (allTokens.length === 0) return;
+
+      if (!settings.unleashed || !brainConnected) {
+        setAgentColIdx(0);
+        setAgentTokenAddr(null);
+        return;
       }
-      setScanTargets(idxs);
+
+      // Find highest-scored token not checked in past 30s
+      const now = Date.now();
+      const unchecked = allTokens
+        .filter(t => !checkedTokensRef.current.has(t.address))
+        .sort((a, b) => b.score - a.score);
+
+      let target = unchecked[0] || allTokens.sort((a, b) => b.score - a.score)[0];
+      if (!target) return;
+
+      // Reset checked set periodically
+      if (checkedTokensRef.current.size > allTokens.length * 0.8) {
+        checkedTokensRef.current.clear();
+      }
+      checkedTokensRef.current.add(target.address);
+
+      // Find which column this token is in
+      for (let ci = 0; ci < columns.length; ci++) {
+        if (columns[ci].tokens.some(t => t.address === target.address)) {
+          setAgentColIdx(ci);
+          break;
+        }
+      }
+      setAgentTokenAddr(target.address);
+
+      // Log analyzing
+      setLogEntries(prev => [
+        { ts: now, status: "analyzing", message: `Analyzing ${target.symbol} (score: ${target.score})` },
+        ...prev.slice(0, 49),
+      ]);
     };
-    pick();
-    const iv = setInterval(pick, 4000);
-    return () => clearInterval(iv);
-  }, [mood, tokens]);
+
+    moveAgent();
+    agentMoveRef.current = setInterval(moveAgent, 4000);
+    return () => {
+      if (agentMoveRef.current) clearInterval(agentMoveRef.current);
+    };
+  }, [columns, settings.unleashed, brainConnected]);
 
   // ── Polling: tokens ──
   useEffect(() => {
@@ -529,32 +603,6 @@ export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTra
     };
   }, [settings.unleashed, brainConnected, triggerTrade]);
 
-  // ── Filtered tokens ──
-  const filteredTokens = useMemo(() => {
-    if (!searchQuery) return tokens;
-    const q = searchQuery.toLowerCase();
-    return tokens.filter(
-      (t) =>
-        t.symbol.toLowerCase().includes(q) ||
-        t.name.toLowerCase().includes(q) ||
-        t.address.toLowerCase().includes(q)
-    );
-  }, [tokens, searchQuery]);
-
-  // ── Star field (80+ background dots) ──
-  const stars = useMemo(() => {
-    const s: { x: number; y: number; size: number; opacity: number }[] = [];
-    for (let i = 0; i < 90; i++) {
-      s.push({
-        x: ((i * 7 + 13) * 97) % 100,
-        y: ((i * 11 + 29) * 83) % 100,
-        size: 1 + (i % 2),
-        opacity: 0.1 + (((i * 31) % 4) / 10),
-      });
-    }
-    return s;
-  }, []);
-
   // ── Ticker tokens (top 5) ──
   const tickerTokens = useMemo(() => tokens.slice(0, 5), [tokens]);
 
@@ -573,64 +621,6 @@ export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTra
   // ═════════════════════════════════════════════════════════
   // SUB-RENDERS
   // ═════════════════════════════════════════════════════════
-
-  // ── Wallet Bar ──
-  function renderWalletBar() {
-    const addr = wallet?.address || user?.wallet_address || "";
-    const truncAddr = addr ? addr.slice(0, 6) + "..." + addr.slice(-4) : "No wallet";
-    const lowBalance = walletEth < GAS_RESERVE;
-
-    return (
-      <div
-        className="mt-wallet-bar"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          padding: "8px 16px",
-          background: C.baseBg,
-          borderBottom: `1px solid ${C.baseBorder}`,
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 11,
-          flexShrink: 0,
-          overflowX: "auto",
-        }}
-      >
-        {/* Base logo */}
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="11" stroke="#0052FF" strokeWidth="2" />
-          <text x="12" y="16" textAnchor="middle" fill="#0052FF" fontSize="12" fontWeight="700">B</text>
-        </svg>
-        <span style={{ color: C.muted }}>{truncAddr}</span>
-        <span style={{ color: C.text, fontWeight: 700 }}>{walletEth.toFixed(4)} ETH</span>
-        <span style={{ color: C.muted }}>{formatDollar(walletUsd)}</span>
-        <span style={{ color: C.muted }}>In Positions: <span style={{ color: C.text }}>{formatDollar(inPositions)}</span></span>
-        <span style={{ color: C.muted }}>Available: <span style={{ color: C.text }}>{available.toFixed(4)} ETH</span></span>
-        {lowBalance && (
-          <span style={{ color: C.orange, fontWeight: 600, fontSize: 10 }}>Low balance -- min 0.002 ETH needed</span>
-        )}
-        {onFundWallet && (
-          <button
-            onClick={onFundWallet}
-            style={{
-              marginLeft: "auto",
-              padding: "4px 12px",
-              borderRadius: 6,
-              border: `1px solid ${C.indigo}44`,
-              background: C.indigo + "20",
-              color: C.indigo,
-              fontSize: 10,
-              fontWeight: 700,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Fund Wallet
-          </button>
-        )}
-      </div>
-    );
-  }
 
   // ── Zone 1: Brain Panel ──
   function renderBrainPanel() {
@@ -653,6 +643,21 @@ export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTra
           overflowY: "auto",
         }}
       >
+        {/* Mobile toggle */}
+        <div className="mt-brain-toggle" style={{ display: "none" }}>
+          <button
+            onClick={() => setBrainExpanded(!brainExpanded)}
+            style={{
+              width: "100%", padding: "10px 0", background: C.s2,
+              border: `1px solid ${C.border}`, borderRadius: 8,
+              color: C.text, fontSize: 12, fontWeight: 700, cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            {brainExpanded ? "Hide Brain Panel" : "Show Brain Panel"}
+          </button>
+        </div>
+
         {/* Plasma Orb */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
           <div
@@ -707,21 +712,79 @@ export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTra
           </div>
         </div>
 
-        {/* Brain offline notice */}
+        {/* CHANGE 1: Connect Brain CTA when no API key */}
         {!brainConnected && (
           <div style={{
-            background: C.hot + "12",
-            border: `1px solid ${C.hot}33`,
-            borderRadius: 8,
-            padding: "10px 12px",
-            fontSize: 11,
-            color: C.hot,
-            lineHeight: 1.5,
-            textAlign: "center",
+            background: "rgba(255,45,85,0.08)", border: "1px solid rgba(255,45,85,0.2)",
+            borderRadius: 12, padding: "14px 16px", marginTop: 12, textAlign: "center",
           }}>
-            AI Brain not connected -- connect your API key in the Agent tab to activate MeshTrade
+            <div style={{ fontSize: 12, color: "#ff2d55", fontWeight: 700, marginBottom: 8 }}>AI Brain not connected</div>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
+              Connect your API key to activate your agent and start trading.
+            </div>
+            <button onClick={() => onConnectBrain?.()} style={{
+              width: "100%", padding: "10px 0",
+              background: "linear-gradient(135deg,#6366f1,#a855f7)",
+              border: "none", borderRadius: 10, color: "white",
+              fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+            }}>Connect AI Brain</button>
           </div>
         )}
+
+        {/* CHANGE 2: Wallet Card */}
+        <div style={{
+          background: C.s2, borderRadius: 12, padding: "12px 14px",
+          border: `1px solid ${C.border}`, marginBottom: 12,
+        }}>
+          <div style={{
+            fontSize: 9, fontWeight: 700, color: C.cyan, textTransform: "uppercase",
+            letterSpacing: "0.08em", marginBottom: 8, display: "flex", alignItems: "center", gap: 4,
+          }}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="11" stroke="#0052FF" strokeWidth="2" />
+              <text x="12" y="16" textAnchor="middle" fill="#0052FF" fontSize="12" fontWeight="700">B</text>
+            </svg>
+            Wallet · Base L2
+          </div>
+          <div style={{
+            fontSize: 28, fontWeight: 900, color: C.text, letterSpacing: "-0.5px",
+            fontFamily: "'JetBrains Mono',monospace", lineHeight: 1, marginBottom: 2,
+          }}>
+            {wallet?.balance_eth?.toFixed(4) ?? "0.0000"} ETH
+          </div>
+          {wallet?.balance_usd != null && (
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>
+              ${wallet.balance_usd.toFixed(2)} USD
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ fontSize: 10, color: C.muted }}>In Positions</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, fontFamily: "'JetBrains Mono',monospace" }}>
+              ${inPositions.toFixed(2)}
+            </span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ fontSize: 10, color: C.muted }}>Available</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: C.match, fontFamily: "'JetBrains Mono',monospace" }}>
+              {available.toFixed(4)} ETH
+            </span>
+          </div>
+          {walletEth < 0.002 && (
+            <div style={{
+              fontSize: 10, color: "#f59e0b", padding: "6px 8px",
+              background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)",
+              borderRadius: 6, marginBottom: 8, lineHeight: 1.4,
+            }}>
+              Low balance -- min 0.002 ETH to trade
+            </div>
+          )}
+          <button onClick={() => onFundWallet?.()} style={{
+            width: "100%", padding: "8px 0", borderRadius: 8,
+            background: `linear-gradient(135deg,${C.indigo},${C.cyan})`,
+            border: "none", color: "white", fontSize: 11, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>Fund Wallet</button>
+        </div>
 
         {/* Sliders */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -876,9 +939,131 @@ export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTra
     );
   }
 
-  // ── Zone 2: Galaxy View ──
-  function renderGalaxy() {
+  // ── Render orbital column tokens ──
+  function renderOrbitalTokens(colTokens: Token[], colColor: string) {
     const positionAddrs = new Set(positions.map((p) => p.tokenAddress));
+
+    return colTokens.map((t, i) => {
+      const size = Math.max(18, Math.min(48, Math.log10(Math.max(t.marketCap || 1, 1)) / 10 * 36 + 18));
+      const color = orbColor(t.priceChange1h);
+      const orbitR = 20 + (i % 5) * 22;
+      const speed = Math.max(8, 40 - (t.volume1h / 50000) * 32);
+      const offsetHash = hashPos(t.address, 7);
+      const offset = (offsetHash / 75) * speed;
+      const dir = t.address.charCodeAt(0) % 2 === 0 ? "cw" : "ccw";
+      const isPosition = positionAddrs.has(t.address);
+      const isHot = t.score >= 85;
+      const isNew = (Date.now() - t.pairCreatedAt) < 7200000;
+      const isAnalyzing = agentTokenAddr === t.address;
+
+      return (
+        <div
+          key={t.address}
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            width: 0,
+            height: 0,
+            animationName: dir === "cw" ? "mt-spin-cw" : "mt-spin-ccw",
+            animationDuration: `${speed}s`,
+            animationDelay: `${-offset}s`,
+            animationTimingFunction: "linear",
+            animationIterationCount: "infinite",
+          }}
+          onClick={() => setSelectedToken(t)}
+          onMouseEnter={(e: ReactMouseEvent) => {
+            setHoveredToken(t);
+            setHoverPos({ x: e.clientX, y: e.clientY });
+          }}
+          onMouseMove={(e: ReactMouseEvent) => {
+            setHoverPos({ x: e.clientX, y: e.clientY });
+          }}
+          onMouseLeave={() => setHoveredToken(null)}
+        >
+          <div
+            style={{
+              position: "absolute",
+              left: orbitR,
+              top: -size / 2,
+              width: size,
+              height: size,
+              borderRadius: "50%",
+              background: `radial-gradient(circle at 35% 35%, ${lightenColor(color)}, ${color})`,
+              boxShadow: isPosition
+                ? `0 0 16px 4px ${C.match}55`
+                : `0 0 ${size / 3}px ${color}88`,
+              border: isPosition ? `2px solid ${C.match}` : `1px solid ${color}44`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              animationName: dir === "cw" ? "mt-spin-ccw" : "mt-spin-cw",
+              animationDuration: `${speed}s`,
+              animationDelay: `${-offset}s`,
+              animationTimingFunction: "linear",
+              animationIterationCount: "infinite",
+              transition: "transform 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.transform = "scale(1.3)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.transform = "scale(1)";
+            }}
+          >
+            <span style={{
+              fontSize: size > 32 ? 8 : 7, fontWeight: 800, color: "white",
+              letterSpacing: "-0.02em", pointerEvents: "none",
+            }}>
+              {t.symbol.slice(0, 5)}
+            </span>
+
+            {/* Badges */}
+            {(isHot || isNew) && (
+              <div style={{
+                position: "absolute", top: -6, right: -6,
+                display: "flex", gap: 1, zIndex: 12,
+              }}>
+                {isHot && (
+                  <span style={{
+                    fontSize: 6, fontWeight: 800, color: "#fff",
+                    background: C.hot, borderRadius: 4, padding: "0px 3px", lineHeight: 1.4,
+                  }}>HOT</span>
+                )}
+                {isNew && (
+                  <span style={{
+                    fontSize: 6, fontWeight: 800, color: "#fff",
+                    background: C.cyan, borderRadius: 4, padding: "0px 3px", lineHeight: 1.4,
+                  }}>NEW</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Analyze ring */}
+          {isAnalyzing && (
+            <div style={{
+              position: "absolute",
+              left: orbitR + size / 2,
+              top: 0,
+              width: size + 16,
+              height: size + 16,
+              borderRadius: "50%",
+              border: `2px solid ${C.indigo}`,
+              transform: "translate(-50%, -50%)",
+              animation: "mt-analyze-ring 1.5s ease-out infinite",
+              pointerEvents: "none",
+            }} />
+          )}
+        </div>
+      );
+    });
+  }
+
+  // ── Zone 2: Galaxy View (3-column orbital) ──
+  function renderGalaxy() {
+    const colCenters = [16.67, 50, 83.33]; // % positions for agent
 
     return (
       <div
@@ -889,7 +1074,6 @@ export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTra
           background: C.bg,
           position: "relative",
           overflow: "hidden",
-          minHeight: "calc(100vh - 160px)",
           display: "flex",
           flexDirection: "column",
         }}
@@ -999,279 +1183,148 @@ export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTra
           </div>
         </div>
 
-        {/* Star Field + Tokens */}
-        <div style={{ flex: 1, position: "relative" }}>
-          {/* Stars (static background dots) */}
-          {stars.map((s, i) => (
-            <div
-              key={`star-${i}`}
+        {/* Mobile column tab switcher */}
+        <div className="mt-mobile-col-tabs" style={{
+          display: "none", padding: "0 12px 8px", gap: 4,
+        }}>
+          {columns.map(col => (
+            <button
+              key={col.id}
+              onClick={() => setMobileColTab(col.id)}
               style={{
-                position: "absolute",
-                left: `${s.x}%`,
-                top: `${s.y}%`,
-                width: s.size,
-                height: s.size,
-                borderRadius: "50%",
-                background: "#ffffff",
-                opacity: s.opacity,
-                pointerEvents: "none",
+                flex: 1, padding: "6px 0", borderRadius: 6,
+                border: mobileColTab === col.id ? `1px solid ${col.color}` : `1px solid ${C.border}`,
+                background: mobileColTab === col.id ? col.color + "20" : "transparent",
+                color: mobileColTab === col.id ? col.color : C.muted,
+                fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                letterSpacing: "0.06em",
               }}
-            />
+            >
+              {col.label} ({col.tokens.length})
+            </button>
           ))}
+        </div>
 
-          {/* Agent Orb */}
+        {/* 3-column orbital layout */}
+        <div style={{ flex: 1, position: "relative" }}>
           <div
+            className="mt-orbital-cols"
             style={{
-              position: "absolute",
-              left: "35%",
-              top: "45%",
-              width: 72,
-              height: 72,
+              display: "flex",
+              flexDirection: "row",
+              height: "100%",
+            }}
+          >
+            {columns.map((col, ci) => (
+              <div
+                key={col.id}
+                className="mt-orbital-col"
+                style={{
+                  flex: 1,
+                  position: "relative",
+                  overflow: "hidden",
+                  borderRight: ci < 2 ? `1px solid ${C.border}` : "none",
+                }}
+              >
+                {/* Column Header */}
+                <div style={{
+                  padding: "10px 12px 8px",
+                  borderBottom: `1px solid ${C.border}`,
+                  flexShrink: 0,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                    <div style={{
+                      width: 3, height: 16, borderRadius: 2, background: col.color,
+                    }} />
+                    <span style={{
+                      fontSize: 11, fontWeight: 800, color: col.color,
+                      letterSpacing: "0.1em",
+                    }}>{col.label}</span>
+                    <span style={{
+                      fontSize: 10, color: C.muted, fontWeight: 600,
+                      fontFamily: "'JetBrains Mono',monospace",
+                    }}>
+                      {col.tokens.length}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 9, color: C.muted, paddingLeft: 9 }}>{col.desc}</div>
+                </div>
+
+                {/* Orbital Body */}
+                <div style={{
+                  position: "relative",
+                  width: "100%",
+                  height: "calc(100% - 52px)",
+                  overflow: "hidden",
+                }}>
+                  {/* Center dot */}
+                  <div style={{
+                    position: "absolute", left: "50%", top: "50%",
+                    width: 6, height: 6, borderRadius: "50%",
+                    background: col.color, opacity: 0.4,
+                    transform: "translate(-50%, -50%)",
+                  }} />
+
+                  {/* Orbit ring guides */}
+                  {[0, 1, 2, 3, 4].map(ring => (
+                    <div key={ring} style={{
+                      position: "absolute", left: "50%", top: "50%",
+                      width: (20 + ring * 22) * 2,
+                      height: (20 + ring * 22) * 2,
+                      borderRadius: "50%",
+                      border: `1px solid rgba(255,255,255,0.03)`,
+                      transform: "translate(-50%, -50%)",
+                      pointerEvents: "none",
+                    }} />
+                  ))}
+
+                  {/* Token orbs */}
+                  {renderOrbitalTokens(col.tokens, col.color)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* CHANGE 4: Agent orb floating over columns */}
+          <div style={{
+            position: "absolute",
+            left: `${colCenters[agentColIdx]}%`,
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 30,
+            pointerEvents: "none",
+            transition: "left 1.2s cubic-bezier(0.34,1.56,0.64,1), top 0.8s ease",
+          }}>
+            <div style={{
+              width: 56,
+              height: 56,
               borderRadius: "50%",
               background: !brainConnected
                 ? "radial-gradient(circle at 35% 35%, #3a3a50, #2a2a3a)"
                 : "radial-gradient(circle at 35% 35%, #6366f1, #06b6d4, #4f46e5)",
               boxShadow: !brainConnected
                 ? "0 0 12px 3px rgba(60,60,80,0.3)"
-                : "0 0 30px 8px rgba(99,102,241,0.5), 0 0 60px 16px rgba(6,182,212,0.15)",
-              animation: !brainConnected ? "none" : "mt-drift 12s ease-in-out infinite",
-              zIndex: 20,
+                : undefined,
+              animation: brainConnected ? "mt-agent-pulse 2s ease-in-out infinite" : "none",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              pointerEvents: "none",
-              transform: "translate(-50%, -50%)",
-            }}
-          >
-            <span
-              style={{
-                fontSize: 9,
-                color: "#fff",
-                fontWeight: 800,
-                letterSpacing: "0.05em",
-                textTransform: "uppercase",
-                opacity: 0.9,
-              }}
-            >
-              AGENT
-            </span>
+            }}>
+              <span style={{
+                fontSize: 8, color: "#fff", fontWeight: 800,
+                letterSpacing: "0.05em", textTransform: "uppercase", opacity: 0.9,
+              }}>AGENT</span>
+            </div>
+            <div style={{
+              fontSize: 8, fontWeight: 700,
+              color: brainConnected ? C.indigo : C.dim,
+              letterSpacing: "0.08em",
+              textAlign: "center",
+              marginTop: 4,
+            }}>
+              {settings.unleashed ? "HUNTING" : "IDLE"}
+            </div>
           </div>
-          {/* Agent label below */}
-          <div style={{
-            position: "absolute",
-            left: "35%",
-            top: "45%",
-            transform: "translate(-50%, 40px)",
-            fontSize: 9,
-            fontWeight: 700,
-            color: brainConnected ? C.indigo : C.dim,
-            letterSpacing: "0.08em",
-            pointerEvents: "none",
-            zIndex: 20,
-            textAlign: "center",
-          }}>
-            AGENT
-          </div>
-
-          {/* Scan Lines (dashed, animated) */}
-          {mood === "SCANNING" &&
-            scanTargets.map((idx) => {
-              const t = filteredTokens[idx];
-              if (!t) return null;
-              const tx = hashPos(t.address, 17);
-              const ty = hashPos(t.address, 53);
-              return (
-                <svg
-                  key={`scan-${idx}`}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    pointerEvents: "none",
-                    zIndex: 15,
-                  }}
-                >
-                  <line
-                    x1="35%"
-                    y1="45%"
-                    x2={`${tx}%`}
-                    y2={`${ty}%`}
-                    stroke={C.cyan}
-                    strokeWidth="1"
-                    strokeDasharray="6 4"
-                    style={{ animation: "mt-dash 1s linear infinite, mt-scan-line 2s ease-in-out infinite" }}
-                  />
-                </svg>
-              );
-            })}
-
-          {/* Lock Lines for open positions (thick solid glow) */}
-          {filteredTokens.map((t) => {
-            if (!positionAddrs.has(t.address)) return null;
-            const tx = hashPos(t.address, 17);
-            const ty = hashPos(t.address, 53);
-            return (
-              <svg
-                key={`lock-${t.address}`}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: "100%",
-                  pointerEvents: "none",
-                  zIndex: 15,
-                }}
-              >
-                <line
-                  x1="35%"
-                  y1="45%"
-                  x2={`${tx}%`}
-                  y2={`${ty}%`}
-                  stroke={C.match}
-                  strokeWidth="2.5"
-                  opacity={0.8}
-                  filter="url(#glow-green)"
-                />
-                <defs>
-                  <filter id="glow-green">
-                    <feGaussianBlur stdDeviation="3" result="blur" />
-                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-                  </filter>
-                </defs>
-              </svg>
-            );
-          })}
-
-          {/* Token Orbs */}
-          {filteredTokens.map((t) => {
-            const size = orbSize(t.marketCap);
-            const color = orbColor(t.priceChange1h);
-            const glow = orbGlow(t.priceChange1h);
-            const x = hashPos(t.address, 17);
-            const y = hashPos(t.address, 53);
-            const isPosition = positionAddrs.has(t.address);
-            const dur = pulseDuration(t.pairCreatedAt);
-            const isHot = t.score >= 85;
-            const isNew = (Date.now() - t.pairCreatedAt) < 7200000; // 2h
-            const inWatchlist = watchlist.includes(t.address);
-            const changeStr = (t.priceChange1h >= 0 ? "+" : "") + t.priceChange1h.toFixed(1) + "%";
-
-            return (
-              <div
-                key={t.address}
-                style={{
-                  position: "absolute",
-                  left: `${x}%`,
-                  top: `${y}%`,
-                  transform: "translate(-50%, -50%)",
-                  zIndex: 10,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  cursor: "pointer",
-                }}
-                onClick={() => setSelectedToken(t)}
-                onMouseEnter={(e: ReactMouseEvent) => {
-                  setHoveredToken(t);
-                  setHoverPos({ x: e.clientX, y: e.clientY });
-                }}
-                onMouseMove={(e: ReactMouseEvent) => {
-                  setHoverPos({ x: e.clientX, y: e.clientY });
-                }}
-                onMouseLeave={() => setHoveredToken(null)}
-              >
-                {/* Badges */}
-                <div style={{
-                  position: "absolute",
-                  top: -8,
-                  right: -10,
-                  display: "flex",
-                  gap: 2,
-                  zIndex: 12,
-                }}>
-                  {isHot && (
-                    <span style={{
-                      fontSize: 7,
-                      fontWeight: 800,
-                      color: "#fff",
-                      background: C.hot,
-                      borderRadius: 6,
-                      padding: "1px 4px",
-                      lineHeight: 1.4,
-                    }}>HOT</span>
-                  )}
-                  {isNew && (
-                    <span style={{
-                      fontSize: 7,
-                      fontWeight: 800,
-                      color: "#fff",
-                      background: C.cyan,
-                      borderRadius: 6,
-                      padding: "1px 4px",
-                      lineHeight: 1.4,
-                    }}>NEW</span>
-                  )}
-                </div>
-
-                {/* Orb */}
-                <div
-                  style={{
-                    width: size,
-                    height: size,
-                    borderRadius: "50%",
-                    background: `radial-gradient(circle at 40% 35%, ${color}cc, ${color}66)`,
-                    border: isPosition ? `2px solid ${C.match}` : inWatchlist ? `1.5px dashed ${C.gold}` : `1px solid ${color}44`,
-                    boxShadow: isPosition
-                      ? `0 0 16px 4px ${C.match}55`
-                      : glow !== "none" ? glow : `0 0 ${size / 3}px ${size / 6}px ${color}33`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    animation: `mt-orb-pulse ${dur} ease-in-out infinite`,
-                    transition: "transform 0.15s ease, box-shadow 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.transform = "scale(1.3)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.transform = "scale(1)";
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: Math.max(7, Math.min(9, size / 4)),
-                      color: "#fff",
-                      fontWeight: 800,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      maxWidth: size - 4,
-                      textAlign: "center",
-                      lineHeight: 1,
-                      pointerEvents: "none",
-                    }}
-                  >
-                    {t.symbol.length > 5 ? t.symbol.slice(0, 5) : t.symbol}
-                  </span>
-                </div>
-
-                {/* Price change label below orb */}
-                <span style={{
-                  fontSize: 8,
-                  fontWeight: 700,
-                  color: color,
-                  marginTop: 2,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  pointerEvents: "none",
-                }}>
-                  {changeStr}
-                </span>
-              </div>
-            );
-          })}
         </div>
 
         {/* Token count indicator */}
@@ -1286,7 +1339,7 @@ export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTra
             zIndex: 25,
           }}
         >
-          {filteredTokens.length} tokens on Base
+          {tokens.length} tokens on Base
         </div>
 
         {/* Tooltip */}
@@ -1886,10 +1939,7 @@ export default function MeshTrade({ user, agent, wallet, onFundWallet }: MeshTra
       {/* Keyframe styles */}
       <style dangerouslySetInnerHTML={{ __html: KEYFRAMES }} />
 
-      {/* Wallet Bar */}
-      {renderWalletBar()}
-
-      {/* Layout */}
+      {/* Layout — no wallet bar (CHANGE 5: removed) */}
       <div
         className="mt-layout"
         style={{

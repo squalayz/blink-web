@@ -3301,7 +3301,7 @@ export default function Dashboard(){
         {/* ── Hunt / MeshScope Tab ── */}
         {view==="hunt"&&(
           <div style={{paddingBottom:96}}>
-            <MeshTrade user={user} agent={agent} wallet={wallet} onFundWallet={()=>{setView("brew");setShowDepositCard(true);}}/>
+            <MeshTrade user={user} agent={agent} wallet={wallet} onConnectBrain={()=>setView("agent")} onFundWallet={()=>{setView("brew");setShowDepositCard(true);}}/>
           </div>
         )}
       </div>
