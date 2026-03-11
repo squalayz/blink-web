@@ -71,61 +71,76 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
                 }} />
               )}
 
-              {/* MeshScope aura glow — anchored around icon only */}
-              {hasAura && !active && (
-                <>
-                  {/* Rotating orbit ring — centered on icon div */}
-                  <div style={{
-                    position: "absolute", top: 6, left: "50%",
-                    transform: "translateX(-50%)",
-                    width: 36, height: 36, borderRadius: "50%", pointerEvents: "none",
-                    background: "transparent",
-                    boxShadow: "0 0 0 1.5px rgba(0,82,255,0.35)",
-                    animation: "ms-orbit 3s linear infinite",
-                  }} />
-                  {/* Inner red pulse */}
-                  <div style={{
-                    position: "absolute", top: 6, left: "50%",
-                    transform: "translateX(-50%)",
-                    width: 36, height: 36, borderRadius: "50%", pointerEvents: "none",
-                    background: "radial-gradient(circle, rgba(255,45,85,0.15) 0%, transparent 70%)",
-                    animation: "ms-pulse2 2s ease-in-out infinite",
-                  }} />
-                </>
+              {/* Icon with aura wrapper for Hunt, plain for others */}
+              {hasAura ? (
+                <div style={{ position: "relative", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {!active && (
+                    <>
+                      {/* Orbit ring */}
+                      <div style={{
+                        position: "absolute", top: "50%", left: "50%",
+                        width: 36, height: 36, borderRadius: "50%",
+                        transform: "translate(-50%,-50%)",
+                        background: "transparent",
+                        boxShadow: "0 0 0 1.5px rgba(0,82,255,0.4)",
+                        animation: "ms-orbit 3s linear infinite",
+                        pointerEvents: "none",
+                      }} />
+                      {/* Red pulse */}
+                      <div style={{
+                        position: "absolute", top: "50%", left: "50%",
+                        width: 34, height: 34, borderRadius: "50%",
+                        transform: "translate(-50%,-50%)",
+                        background: "radial-gradient(circle, rgba(255,45,85,0.18) 0%, transparent 70%)",
+                        animation: "ms-pulse2 2s ease-in-out infinite",
+                        pointerEvents: "none",
+                      }} />
+                    </>
+                  )}
+                  {active && (
+                    <div style={{
+                      position: "absolute", top: "50%", left: "50%",
+                      width: 36, height: 36, borderRadius: "50%",
+                      transform: "translate(-50%,-50%)",
+                      background: "radial-gradient(circle, rgba(255,45,85,0.25) 0%, rgba(0,82,255,0.12) 50%, transparent 70%)",
+                      animation: "ms-pulse2 1.5s ease-in-out infinite",
+                      pointerEvents: "none",
+                    }} />
+                  )}
+                  <div style={{ position: "relative", zIndex: 1 }}>
+                    <tab.icon active={active} />
+                    {tab.badge > 0 && (
+                      <div style={{
+                        position: "absolute", top: -4, right: -8,
+                        minWidth: 16, height: 16, borderRadius: 8,
+                        background: C.hot, color: "white", fontSize: 9, fontWeight: 800,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        padding: "0 4px",
+                      }}>{tab.badge > 99 ? "99+" : tab.badge}</div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ position: "relative", zIndex: 1 }}>
+                  <tab.icon active={active} />
+                  {tab.badge > 0 && (
+                    <div style={{
+                      position: "absolute", top: -4, right: -8,
+                      minWidth: 16, height: 16, borderRadius: 8,
+                      background: C.hot, color: "white", fontSize: 9, fontWeight: 800,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      padding: "0 4px",
+                    }}>{tab.badge > 99 ? "99+" : tab.badge}</div>
+                  )}
+                  {tab.alert && (
+                    <div style={{
+                      position: "absolute", top: -2, right: -4,
+                      width: 8, height: 8, borderRadius: "50%",
+                      background: C.hot, animation: "tab-alert 1s infinite",
+                    }} />
+                  )}
+                </div>
               )}
-              {/* Active aura */}
-              {hasAura && active && (
-                <div style={{
-                  position: "absolute", top: 6, left: "50%",
-                  transform: "translateX(-50%)",
-                  width: 36, height: 36, borderRadius: "50%", pointerEvents: "none",
-                  background: "radial-gradient(circle, rgba(255,45,85,0.2) 0%, rgba(0,82,255,0.1) 50%, transparent 70%)",
-                  animation: "ms-pulse2 1.5s ease-in-out infinite",
-                }} />
-              )}
-
-              {/* Icon */}
-              <div style={{ position: "relative", zIndex: 1 }}>
-                <tab.icon active={active} />
-                {/* Badge */}
-                {tab.badge > 0 && (
-                  <div style={{
-                    position: "absolute", top: -4, right: -8,
-                    minWidth: 16, height: 16, borderRadius: 8,
-                    background: C.hot, color: "white", fontSize: 9, fontWeight: 800,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    padding: "0 4px",
-                  }}>{tab.badge > 99 ? "99+" : tab.badge}</div>
-                )}
-                {/* Alert dot (low balance) */}
-                {tab.alert && (
-                  <div style={{
-                    position: "absolute", top: -2, right: -4,
-                    width: 8, height: 8, borderRadius: "50%",
-                    background: C.hot, animation: "tab-alert 1s infinite",
-                  }} />
-                )}
-              </div>
               {/* Label */}
               <span style={{
                 fontSize: 10, fontWeight: active ? 700 : 500,
@@ -141,8 +156,8 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
 
       <style>{`
         @keyframes tab-alert{0%,100%{opacity:0.5;transform:scale(0.8)}50%{opacity:1;transform:scale(1.2)}}
-        @keyframes ms-pulse2{0%,100%{opacity:0.5;transform:translateX(-50%) scale(0.88)}50%{opacity:1;transform:translateX(-50%) scale(1.08)}}
-        @keyframes ms-orbit{from{transform:translateX(-50%) rotate(0deg)}to{transform:translateX(-50%) rotate(360deg)}}
+        @keyframes ms-pulse2{0%,100%{opacity:0.4;transform:translate(-50%,-50%) scale(0.85)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.1)}}
+        @keyframes ms-orbit{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
         @media(min-width:641px){
           .mm-mobile-tab-bar{display:none!important}
           .mm-tab-spacer{display:none!important}
