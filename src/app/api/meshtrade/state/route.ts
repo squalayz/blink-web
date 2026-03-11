@@ -38,7 +38,7 @@ export async function GET(_req: NextRequest) {
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .limit(20),
+      .limit(50),
 
     // 4. Today's trades for session stats
     supabaseAdmin
