@@ -35,15 +35,11 @@ import type {
 // ══════════════════════════════════════════
 
 const BIRTH_QUESTIONS = [
-  "Alright, I'm your new AI agent and I literally know nothing. Tell me who you are — not the resume version, the REAL version.",
-  "What makes you lose track of time? Like what could you talk about for 3 hours straight?",
-  "When you meet someone new, what's the thing that makes you think 'oh hell yes, I want to work with this person'?",
-  "What's your hot take that most people disagree with?",
-  "Be honest — are you more of a 'let's plan everything' person or a 'fuck it, let's go' person?",
-  "What pisses you off in business? Like what's an instant dealbreaker?",
-  "If your work style was a movie character, who would it be?",
-  "Quick — give me your most unhinged business idea. The one you'd never say in a meeting.",
-  "Last one: what's the dream? Like if everything goes perfectly in the next 2 years, what does your life look like?",
+  "I'm your new AI agent and I know nothing about you yet. Tell me who you are — not the resume version, the real one. What are you building and why does it matter to you?",
+  "What kind of people do you want to meet? Describe your ideal collaborator, investor, or partner — what makes you immediately think 'yes, I need this person'?",
+  "What's your hot take that most people in your space disagree with? The opinion you hold that makes people uncomfortable.",
+  "How do you actually work? Are you more 'let's plan everything out' or 'fuck it, let's ship and learn'? And what's your biggest pet peeve in how people do business?",
+  "Last one: paint me the picture. If everything goes perfectly in the next 2 years — what does your life look like? What did you build? Who are you working with?",
 ];
 
 /**
@@ -96,14 +92,19 @@ Rephrase this question to match the conversation's tone so far. Keep it natural,
 export async function extractSoul(
   userId: string,
   transcript: BirthMessage[],
-  agentName: string
+  agentName: string,
+  personalityHint?: string
 ): Promise<AgentSoul> {
   const config = await getUserAIConfig(userId);
   const convo = transcript.map(m =>
     `${m.role === "agent" ? "Agent" : "User"}: ${m.content}`
   ).join("\n");
 
-  const prompt = `Analyze this birth interview conversation and extract a detailed personality profile for an AI agent named "${agentName}".
+  const personalityNote = personalityHint
+    ? `\n\nADDITIONAL PERSONALITY DIRECTION FROM USER: "${personalityHint}" — incorporate this into the soul.`
+    : "";
+
+  const prompt = `Analyze this birth interview conversation and extract a detailed personality profile for an AI agent named "${agentName}".${personalityNote}
 
 CONVERSATION:
 ${convo}

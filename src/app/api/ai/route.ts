@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session";
 import { supabaseAdmin } from "@/lib/supabase";
 import { testAIConnection, getModelsForProvider, getDefaultModel, estimateCostPerMatch, type AIProvider, type AIConfig } from "@/lib/ai-providers";
+import { encryptApiKey, decryptApiKey } from "@/lib/encryption";
 
 // POST /api/ai — save AI settings or test connection
 export async function POST(req: NextRequest) {
@@ -37,10 +38,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Provider and API key required" }, { status: 400 });
     }
 
-    // TODO: Encrypt apiKey before storing in production
+    const encryptedKey = await encryptApiKey(apiKey);
     const { error } = await supabaseAdmin.from("users").update({
       ai_provider: provider,
-      ai_api_key_encrypted: apiKey,
+      ai_api_key_encrypted: encryptedKey,
       ai_model: model || getDefaultModel(provider),
       ai_endpoint: endpoint || null,
     }).eq("id", userId);

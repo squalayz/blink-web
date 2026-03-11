@@ -176,16 +176,23 @@ export async function POST(req: NextRequest) {
 
     // ── BIRTH COMPLETE ──
     if (action === "birth_complete") {
-      const { agent_name } = body;
+      const { agent_name, personality_hint } = body;
       if (!agent_name || agent_name.length < 1) return err("Name your agent!");
 
       const transcript = myAgent?.birth_transcript || [];
-      if (transcript.filter((m: any) => m.role === "user").length < 3) {
-        return err("Answer at least 3 questions first");
+      const userTurns = transcript.filter((m: any) => m.role === "user").length;
+      if (userTurns < 3) {
+        return err(`Answer at least 3 questions first (you've answered ${userTurns})`);
       }
 
-      // Extract soul from interview
-      const soul = await extractSoul(user.id, transcript, agent_name.slice(0, 30));
+      // Extract soul from interview — wrap in try/catch so a bad LLM response doesn't silently kill birth
+      let soul: any;
+      try {
+        soul = await extractSoul(user.id, transcript, agent_name.slice(0, 30), personality_hint);
+      } catch (e: any) {
+        log("error", "extractSoul failed", { error: e.message });
+        return NextResponse.json({ error: "Failed to generate personality — check your AI key is valid and has credits." }, { status: 500 });
+      }
 
       // Generate quirks
       const quirks = await generateQuirks(user.id, soul, 5);

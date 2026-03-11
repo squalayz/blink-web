@@ -367,6 +367,7 @@ export default function Dashboard(){
   const[showPrivateKey,setShowPrivateKey]=useState(false);
   const[privateKey,setPrivateKey]=useState<string|null>(null);
   const[keyRevealing,setKeyRevealing]=useState(false);
+  const[showDepositCard,setShowDepositCard]=useState(false);
   const[withdrawForm,setWithdrawForm]=useState({address:"",amount:""});
   const[withdrawing,setWithdrawing]=useState(false);
   const[showRiskModal,setShowRiskModal]=useState(false);
@@ -2407,14 +2408,74 @@ export default function Dashboard(){
               </div>
             )}
             {/* Action buttons */}
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>{const addr=wallet?.wallet_address||user?.wallet_address;if(addr){navigator.clipboard?.writeText(addr);alert("Address copied!\n\n"+addr+"\n\nSend ETH on Base L2.");}}} style={{flex:1,padding:"12px",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,boxShadow:`0 4px 20px rgba(99,102,241,0.3)`,fontFamily:"inherit"}}>
+            <div style={{display:"flex",gap:8,marginBottom:12}}>
+              <button onClick={()=>setShowDepositCard((v:boolean)=>!v)} style={{flex:1,padding:"12px",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,boxShadow:`0 4px 20px rgba(99,102,241,0.3)`,fontFamily:"inherit"}}>
                 <Zap size={14}/>Fund Wallet
               </button>
               <button onClick={revealPrivateKey} disabled={keyRevealing} style={{padding:"12px 16px",background:"rgba(255,45,85,0.08)",border:`1px solid rgba(255,45,85,0.2)`,borderRadius:10,cursor:keyRevealing?"wait":"pointer",color:C.hot,fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",flexShrink:0}}>
                 <Key size={13}/>{keyRevealing?"...":"Export Key"}
               </button>
             </div>
+
+            {/* ── DEPOSIT CARD ── */}
+            {showDepositCard&&(()=>{
+              const addr=wallet?.wallet_address||user?.wallet_address||"";
+              const qrUrl=addr?`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=ethereum:${addr}@8453&bgcolor=0d0d14&color=6366f1&margin=10`:"";
+              return(
+                <div style={{background:C.s2,borderRadius:14,padding:20,border:`1px solid rgba(99,102,241,0.3)`,boxShadow:"0 0 24px rgba(99,102,241,0.12)"}}>
+                  {/* Step label */}
+                  <div style={{fontSize:10,fontWeight:700,color:C.cold,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:14,display:"flex",alignItems:"center",gap:6}}>
+                    <div style={{width:5,height:5,borderRadius:"50%",background:C.match,animation:"mm-brain-pulse 2s infinite"}}/>
+                    Deposit ETH on Base
+                  </div>
+
+                  {/* Steps */}
+                  {[
+                    {n:"1",text:"Open Coinbase, MetaMask, or any wallet"},
+                    {n:"2",text:"Send ETH on Base network (not Ethereum mainnet)"},
+                    {n:"3",text:"Paste your address or scan the QR code below"},
+                    {n:"4",text:"Minimum 0.002 ETH (~$5) to activate trading"},
+                  ].map(s=>(
+                    <div key={s.n} style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:8}}>
+                      <div style={{width:20,height:20,borderRadius:"50%",background:"rgba(99,102,241,0.2)",border:`1px solid ${C.cold}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:C.cold,flexShrink:0}}>{s.n}</div>
+                      <div style={{fontSize:12,color:C.muted,lineHeight:1.4,paddingTop:2}}>{s.text}</div>
+                    </div>
+                  ))}
+
+                  {/* Address + copy */}
+                  <div style={{background:"rgba(0,0,0,0.3)",borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:8,margin:"14px 0"}}>
+                    <div style={{flex:1,fontSize:11,color:C.text,fontFamily:"'JetBrains Mono',monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{addr||"Generating..."}</div>
+                    <button onClick={()=>{if(addr){navigator.clipboard?.writeText(addr);}}} style={{background:`rgba(99,102,241,0.2)`,border:`1px solid rgba(99,102,241,0.3)`,borderRadius:6,padding:"5px 12px",cursor:"pointer",color:C.cold,fontSize:11,fontWeight:700,display:"flex",alignItems:"center",gap:4,flexShrink:0,fontFamily:"inherit"}}>
+                      <Copy size={10}/>Copy
+                    </button>
+                  </div>
+
+                  {/* QR Code */}
+                  {qrUrl&&(
+                    <div style={{textAlign:"center",marginBottom:14}}>
+                      <div style={{display:"inline-block",background:"#0d0d14",borderRadius:12,padding:8,border:`1px solid ${C.border}`}}>
+                        <img src={qrUrl} alt="Deposit QR" width={160} height={160} style={{display:"block",borderRadius:8}}/>
+                      </div>
+                      <div style={{fontSize:10,color:C.muted,marginTop:6}}>Scan with your mobile wallet</div>
+                    </div>
+                  )}
+
+                  {/* Network warning */}
+                  <div style={{background:"rgba(255,159,10,0.08)",border:"1px solid rgba(255,159,10,0.25)",borderRadius:8,padding:"8px 12px",display:"flex",gap:8,alignItems:"flex-start"}}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" style={{flexShrink:0,marginTop:1}}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <div style={{fontSize:11,color:"#f59e0b",lineHeight:1.4}}>
+                      <strong>Base network only.</strong> Do not send from Ethereum mainnet or other chains — funds will be lost.
+                    </div>
+                  </div>
+
+                  {/* Live detection note */}
+                  <div style={{marginTop:10,fontSize:11,color:C.muted,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                    <div style={{width:6,height:6,borderRadius:"50%",background:C.match,animation:"mm-brain-pulse 1.5s infinite"}}/>
+                    Balance updates automatically — no need to refresh
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* ═══ AGENT PERSONALITY ═══ */}

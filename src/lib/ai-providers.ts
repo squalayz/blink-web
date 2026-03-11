@@ -226,9 +226,12 @@ export async function getUserAIConfig(userId: string): Promise<AIConfig | null> 
 
   if (!data?.ai_api_key_encrypted) return null;
 
+  const { decryptApiKey } = await import("@/lib/encryption");
+  const apiKey = await decryptApiKey(data.ai_api_key_encrypted);
+
   return {
     provider: data.ai_provider || "openai",
-    apiKey: data.ai_api_key_encrypted, // In production: decrypt this
+    apiKey,
     model: data.ai_model || getDefaultModel(data.ai_provider || "openai"),
     endpoint: data.ai_endpoint || undefined,
   };
