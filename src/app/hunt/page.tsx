@@ -464,7 +464,7 @@ export default function HuntPage() {
     <div style={{
       minHeight: "100vh", background: C.bg, color: C.text,
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Outfit', sans-serif",
-      paddingTop: 64, overflowX: "hidden", overflowY: "auto", isolation: "isolate",
+      paddingTop: 64, overflowX: "hidden", isolation: "isolate",
     }}>
 
       {/* ── Page Header ── */}
