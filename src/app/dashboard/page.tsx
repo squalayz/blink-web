@@ -1597,7 +1597,7 @@ export default function Dashboard(){
         ))}
       </div>
 
-      <div style={{padding:view==="hunt"?0:20,maxWidth:view==="mesh"||view==="discover"||view==="feed"||view==="hunt"?1100:720,margin:"0 auto",transition:"max-width 0.3s"}}>
+      <div style={{padding:view==="hunt"?0:20,maxWidth:view==="hunt"?"none":view==="mesh"||view==="discover"||view==="feed"?1100:720,margin:"0 auto",transition:"max-width 0.3s"}}>
 
 
         {/* ═══════════════════════════════════════════════════════════

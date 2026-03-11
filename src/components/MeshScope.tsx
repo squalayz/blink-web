@@ -118,6 +118,14 @@ function Sparkline({ points, width = 280, height = 60, color = C.match }: { poin
   );
 }
 
+function fmtAge(ts: number): string {
+  if (!ts) return "";
+  const s = Math.floor((Date.now() - ts * 1000) / 1000);
+  if (s < 3600) return Math.floor(s / 60) + "m";
+  if (s < 86400) return Math.floor(s / 3600) + "h";
+  return Math.floor(s / 86400) + "d";
+}
+
 // ── Format helpers for card metrics ──
 function fmtK(n: number): string {
   if (!n || isNaN(n)) return "—";
@@ -148,9 +156,12 @@ function HuntCompactRow({
   const total = buys + sells || 1;
   const buyPct = Math.round((buys / total) * 100);
   const scoreColor = score >= 80 ? C.match : score >= 60 ? "#f59e0b" : C.muted;
+  const scoreBg = score >= 80 ? "rgba(48,209,88,0.15)" : score >= 60 ? "rgba(245,158,11,0.15)" : "rgba(255,255,255,0.06)";
+  const age = fmtAge(token.pairCreatedAt);
 
   return (
     <div
+      className="mm-hunt-card"
       onClick={onSelect}
       style={{
         padding: "9px 12px 8px",
@@ -166,12 +177,23 @@ function HuntCompactRow({
     >
       {/* ── Row 1: Logo + Name + Price + Change + Buy button ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        <TokenLogo imageUrl={token.imageUrl} symbol={token.symbol} address={token.address} chainId={token.chainId} size={32} />
-        
+        {/* Mobile: 32px logo, Desktop: 40px — use className to swap */}
+        <span className="mm-hunt-row-mobile-logo">
+          <TokenLogo imageUrl={token.imageUrl} symbol={token.symbol} address={token.address} chainId={token.chainId} size={32} />
+        </span>
+        <span className="mm-hunt-row-desktop">
+          <TokenLogo imageUrl={token.imageUrl} symbol={token.symbol} address={token.address} chainId={token.chainId} size={40} />
+        </span>
+
         {/* Name block */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: "-0.02em" }}>
+            {/* Mobile: 13px symbol */}
+            <span className="mm-hunt-row-mobile-logo" style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: "-0.02em" }}>
+              {token.symbol}
+            </span>
+            {/* Desktop: 14px/900 symbol */}
+            <span className="mm-hunt-row-desktop" style={{ fontSize: 14, fontWeight: 900, color: C.text, letterSpacing: "-0.02em" }}>
               {token.symbol}
             </span>
             {score >= 80 && (
@@ -187,28 +209,51 @@ function HuntCompactRow({
               }}>NEW</div>
             )}
           </div>
-          <div style={{ fontSize: 10, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 110 }}>
+          {/* Mobile: truncated name */}
+          <div className="mm-hunt-row-mobile-logo" style={{ fontSize: 10, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 110 }}>
+            {token.name}
+          </div>
+          {/* Desktop: full name, no truncation */}
+          <div className="mm-hunt-row-desktop" style={{ fontSize: 10, color: C.muted }}>
             {token.name}
           </div>
         </div>
 
         {/* Price */}
         <div style={{ textAlign: "right", flexShrink: 0 }}>
-          <div style={{
+          {/* Mobile price */}
+          <div className="mm-hunt-row-mobile-logo" style={{
             fontSize: 13, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: C.text,
           }}>
             {fmtPrice(token.price)}
           </div>
-          <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
+          {/* Desktop price: 14px */}
+          <div className="mm-hunt-row-desktop" style={{
+            fontSize: 14, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: C.text,
+          }}>
+            {fmtPrice(token.price)}
+          </div>
+          {/* Mobile: 1h only */}
+          <div className="mm-hunt-row-mobile-logo" style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: pc1h >= 0 ? C.match : C.hot }}>
               {pc1h >= 0 ? "+" : ""}{pc1h.toFixed(1)}%
             </span>
             <span style={{ fontSize: 10, color: C.muted }}>1h</span>
           </div>
+          {/* Desktop: 1h + 24h */}
+          <div className="mm-hunt-row-desktop" style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: pc1h >= 0 ? C.match : C.hot }}>
+              {pc1h >= 0 ? "+" : ""}{pc1h.toFixed(1)}% <span style={{ color: C.muted, fontWeight: 400 }}>1h</span>
+            </span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: pc24h >= 0 ? C.match : C.hot }}>
+              {pc24h >= 0 ? "+" : ""}{pc24h.toFixed(1)}% <span style={{ color: C.muted, fontWeight: 400 }}>24h</span>
+            </span>
+          </div>
         </div>
 
-        {/* Buy button */}
+        {/* Buy button — mobile */}
         <button
+          className="mm-hunt-row-mobile-logo"
           onClick={e => { e.stopPropagation(); onQuickBuy(token); }}
           disabled={!!buyingAddr}
           style={{
@@ -226,38 +271,51 @@ function HuntCompactRow({
             </svg>
           ) : buySuccess[token.address] ? "OK" : `$${quickAmount}`}
         </button>
+        {/* Buy button — desktop (larger) */}
+        <button
+          className="mm-hunt-row-desktop"
+          onClick={e => { e.stopPropagation(); onQuickBuy(token); }}
+          disabled={!!buyingAddr}
+          style={{
+            padding: "7px 14px", borderRadius: 8, border: "none",
+            background: buySuccess[token.address] ? "rgba(48,209,88,0.3)" : "rgba(48,209,88,0.12)",
+            color: C.match, fontSize: 12, fontWeight: 800, cursor: "pointer",
+            fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap",
+            opacity: buyingAddr && buyingAddr !== token.address ? 0.3 : 1,
+            transition: "background 0.15s",
+          }}
+        >
+          {buyingAddr === token.address ? (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "hunt-spin 0.8s linear infinite" }}>
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            </svg>
+          ) : buySuccess[token.address] ? "OK" : `$${quickAmount}`}
+        </button>
       </div>
 
-      {/* ── Row 2: Metrics grid ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 0, flexWrap: "nowrap", overflow: "hidden" }}>
-        {/* MCap */}
+      {/* ── Row 2: Metrics grid (mobile — unchanged) ── */}
+      <div className="mm-hunt-row-mobile-logo" style={{ display: "flex", alignItems: "center", gap: 0, flexWrap: "nowrap", overflow: "hidden" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>MCap</div>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono',monospace" }}>
             {fmtK(token.marketCap)}
           </div>
         </div>
-        {/* Divider */}
         <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.06)", marginRight: 8, flexShrink: 0 }} />
-        {/* Vol 1h */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Vol 1h</div>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.cyan, fontFamily: "'JetBrains Mono',monospace" }}>
             {fmtK(token.volume1h)}
           </div>
         </div>
-        {/* Divider */}
         <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.06)", marginRight: 8, flexShrink: 0 }} />
-        {/* Liquidity */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Liq</div>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono',monospace" }}>
             {fmtK(token.liquidity)}
           </div>
         </div>
-        {/* Divider */}
         <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.06)", marginRight: 8, flexShrink: 0 }} />
-        {/* Txns buys/sells */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Txns</div>
           <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
@@ -266,7 +324,6 @@ function HuntCompactRow({
             <span style={{ fontSize: 10, fontWeight: 700, color: C.hot }}>{sells}S</span>
           </div>
         </div>
-        {/* Buy pressure bar */}
         <div style={{ width: 36, flexShrink: 0, marginLeft: 6 }}>
           <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>
             {buyPct}% B
@@ -279,13 +336,75 @@ function HuntCompactRow({
             }} />
           </div>
         </div>
-        {/* Score glow dot */}
         <div style={{
           width: 8, height: 8, borderRadius: "50%", flexShrink: 0, marginLeft: 8,
           background: scoreColor,
           boxShadow: score >= 80 ? `0 0 8px ${scoreColor}` : "none",
           animation: score >= 80 ? "hunt-live-dot 2s infinite" : "none",
         }} title={getAIBrief(token)} />
+      </div>
+
+      {/* ── Row 2 desktop: Richer metrics ── */}
+      <div className="mm-hunt-row-desktop">
+        {/* MCap / Vol / Age / Txns row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 0, flexWrap: "nowrap", overflow: "hidden", marginBottom: 6 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>MCap</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono',monospace" }}>
+              {fmtK(token.marketCap)}
+            </div>
+          </div>
+          <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.06)", marginRight: 8, flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Vol 1h</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.cyan, fontFamily: "'JetBrains Mono',monospace" }}>
+              {fmtK(token.volume1h)}
+            </div>
+          </div>
+          <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.06)", marginRight: 8, flexShrink: 0 }} />
+          {age && (
+            <>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Age</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.text }}>{age} ago</div>
+              </div>
+              <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.06)", marginRight: 8, flexShrink: 0 }} />
+            </>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 9, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Txns</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: C.match }}>{buys}B</span>
+              <span style={{ fontSize: 9, color: C.muted }}>/</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: C.hot }}>{sells}S</span>
+            </div>
+          </div>
+        </div>
+        {/* Buy pressure bar (full width) */}
+        <div style={{ marginBottom: 5 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: C.muted, marginBottom: 2 }}>
+            <span>{buyPct}% buys</span>
+            <span>{100 - buyPct}% sells</span>
+          </div>
+          <div style={{ height: 4, borderRadius: 2, display: "flex", overflow: "hidden" }}>
+            <div style={{
+              width: `${buyPct}%`, height: "100%",
+              background: buyPct >= 60 ? C.match : buyPct >= 40 ? "#f59e0b" : C.hot,
+              transition: "width 0.4s ease",
+            }} />
+            <div style={{ flex: 1, background: "rgba(255,45,85,0.3)" }} />
+          </div>
+        </div>
+        {/* Score badge */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{
+            fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 10,
+            background: scoreBg, color: scoreColor,
+          }}>
+            {score}
+          </span>
+          <span style={{ fontSize: 10, color: C.muted }}>{getAIBrief(token)}</span>
+        </div>
       </div>
     </div>
   );
@@ -846,7 +965,7 @@ export default function MeshScope({
 
       {/* ── Loading skeletons ── */}
       {loading && tokens.length === 0 && (
-        <div style={{ display: "flex", gap: 1, height: "calc(100vh - 200px)" }}>
+        <div style={{ display: "flex", gap: 1, height: "calc(100vh - 160px)" }}>
           {[0, 1, 2].map(col => (
             <div key={col} style={{ flex: 1, background: "rgba(13,13,20,0.5)", padding: 8 }}>
               {[0, 1, 2, 3, 4].map(i => (
@@ -864,7 +983,7 @@ export default function MeshScope({
       {/* ── Desktop 3-column layout ── */}
       {(!loading || tokens.length > 0) && (
         <div className="mm-hunt-cols-desktop" style={{ display: "none" }}>
-          <div style={{ display: "flex", gap: 0, height: "calc(100vh - 200px)", overflow: "hidden" }}>
+          <div style={{ display: "flex", gap: 0, height: "calc(100vh - 160px)", overflow: "hidden" }}>
             {columns.map((col, i) => (
               <div key={col.id} style={{
                 flex: 1, display: "flex", flexDirection: "column",
@@ -1002,10 +1121,20 @@ export default function MeshScope({
         .mm-hunt-cols-desktop{display:none}
         .mm-hunt-cols-mobile{display:block}
         .mm-scope-quick-pills{display:none}
+        .mm-hunt-row-desktop{display:none}
+        .mm-hunt-row-mobile-logo{display:block}
+        button.mm-hunt-row-mobile-logo{display:inline-block}
         @media(min-width:641px){
           .mm-hunt-cols-desktop{display:block!important}
           .mm-hunt-cols-mobile{display:none!important}
           .mm-scope-quick-pills{display:flex!important}
+          .mm-hunt-row-desktop{display:block!important}
+          button.mm-hunt-row-desktop{display:inline-block!important}
+          .mm-hunt-row-mobile-logo{display:none!important}
+          button.mm-hunt-row-mobile-logo{display:none!important}
+          span.mm-hunt-row-mobile-logo{display:none!important}
+          div.mm-hunt-row-mobile-logo{display:none!important}
+          .mm-hunt-cols-desktop .mm-hunt-card{padding:11px 16px 10px!important}
         }
         @keyframes hunt-new-flash {
           0% { background: rgba(48,209,88,0.25); }
