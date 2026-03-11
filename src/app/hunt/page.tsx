@@ -467,6 +467,36 @@ export default function HuntPage() {
       paddingTop: 64, overflowX: "hidden", isolation: "isolate",
     }}>
 
+      {/* ── Desktop Tab Nav (hidden on mobile — mobile uses MobileTabBar) ── */}
+      <div className="mm-hunt-desktop-nav" style={{ padding: "8px 16px 0", borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none" }}>
+          {[
+            { label: "Connect", href: "/dashboard?tab=mesh", icon: <svg width="13" height="13" viewBox="0 0 28 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="7" cy="13" r="5"/><circle cx="21" cy="13" r="5"/><path d="M12 13h4"/><path d="M7 8V5l3-3h8l3 3v3"/><path d="M12 8h4"/></svg> },
+            { label: "Hunt", href: "/hunt", active: true, icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg> },
+            { label: "Feed", href: "/dashboard?tab=feed", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49" opacity="0.6"/><path d="M7.76 16.24a6 6 0 0 1 0-8.49" opacity="0.6"/></svg> },
+            { label: "Discover", href: "/dashboard?tab=discover", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="7" r="3"/><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5" strokeLinecap="round"/><circle cx="17" cy="8" r="2.5" opacity="0.6"/></svg> },
+            { label: "Wallet", href: "/dashboard?tab=brew", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="14" r="1.5" fill="currentColor" stroke="none"/></svg> },
+            { label: "Agent", href: "/dashboard?tab=agent", icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/></svg> },
+          ].map(t => (
+            <a key={t.label} href={t.href} style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "9px 16px", borderRadius: "22px 22px 0 0",
+              background: t.active ? "linear-gradient(135deg, rgba(255,45,85,0.2), rgba(99,102,241,0.12))" : "rgba(255,255,255,0.03)",
+              border: t.active ? `1px solid rgba(255,45,85,0.4)` : `1px solid rgba(255,255,255,0.06)`,
+              borderBottom: t.active ? `1px solid ${C.bg}` : `1px solid rgba(255,255,255,0.06)`,
+              color: t.active ? C.hot : C.muted,
+              fontSize: 12, fontWeight: t.active ? 700 : 500,
+              textDecoration: "none", whiteSpace: "nowrap",
+              boxShadow: t.active ? "0 0 16px rgba(255,45,85,0.2)" : "none",
+              transition: "all 0.2s",
+            }}>
+              {t.icon}{t.label}
+            </a>
+          ))}
+        </div>
+      </div>
+      <style>{`.mm-hunt-desktop-nav{display:none}@media(min-width:641px){.mm-hunt-desktop-nav{display:block}}`}</style>
+
       {/* ── Page Header ── */}
       <div style={{ padding: "20px 16px 12px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
