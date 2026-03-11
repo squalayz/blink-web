@@ -150,10 +150,39 @@ function orbColor(change1h: number): string {
 }
 
 function lightenColor(hex: string): string {
+  // Handle both hex (#abc123) and named CSS colors by falling back gracefully
+  if (!hex.startsWith("#") || hex.length < 7) return hex;
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
-  return `rgb(${Math.min(255, r + 60)},${Math.min(255, g + 60)},${Math.min(255, b + 60)})`;
+  const lr = Math.min(255, r + 80), lg = Math.min(255, g + 80), lb = Math.min(255, b + 80);
+  return `rgb(${lr},${lg},${lb})`;
+}
+
+function fmtK(n: number): string {
+  if (!n) return "$0";
+  if (n >= 1e9) return "$" + (n / 1e9).toFixed(2) + "B";
+  if (n >= 1e6) return "$" + (n / 1e6).toFixed(2) + "M";
+  if (n >= 1e3) return "$" + (n / 1e3).toFixed(1) + "K";
+  return "$" + n.toFixed(0);
+}
+
+function fmtAge(ts: number): string {
+  if (!ts) return "";
+  const s = Math.floor((Date.now() - ts * 1000) / 1000);
+  if (s < 3600) return Math.floor(s / 60) + "m";
+  if (s < 86400) return Math.floor(s / 3600) + "h";
+  return Math.floor(s / 86400) + "d";
+}
+
+function tokenOrbColor(t: Token): string {
+  const p = t.priceChange1h || 0;
+  if (p > 10) return C.match;
+  if (p > 5) return C.lime;
+  if (p > 0) return C.cyan;
+  if (p > -5) return C.yellow;
+  if (p > -10) return C.orange;
+  return C.hot;
 }
 
 const LOG_DOT_COLORS: Record<string, string> = {
@@ -239,11 +268,11 @@ const KEYFRAMES = `
   0% { transform: translate(-50%,-50%) scale(0.8); opacity: 0.8; }
   100% { transform: translate(-50%,-50%) scale(1.6); opacity: 0; }
 }
+@keyframes mt-card-in { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (max-width: 640px) {
   .mt-layout { flex-direction: column !important; }
   .mt-brain { width: 100% !important; max-width: 100% !important; border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.07) !important; }
   .mt-galaxy { min-height: 420px !important; }
-  .mt-log { width: 100% !important; max-width: 100% !important; border-left: none !important; border-top: 1px solid rgba(255,255,255,0.07) !important; max-height: 320px !important; }
   .mt-orbital-cols { flex-direction: column !important; }
   .mt-orbital-col { min-height: 280px !important; }
   .mt-brain-collapse { max-height: 0px !important; overflow: hidden !important; padding: 0 !important; }
@@ -272,8 +301,7 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
   const [selectedToken, setSelectedToken] = useState<Token | null>(null);
   const [hint, setHint] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [hoveredToken, setHoveredToken] = useState<Token | null>(null);
-  const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
+  const [hoverCard, setHoverCard] = useState<{ token: Token; x: number; y: number } | null>(null);
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [agentColIdx, setAgentColIdx] = useState(0);
   const [agentTokenAddr, setAgentTokenAddr] = useState<string | null>(null);
@@ -285,6 +313,7 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
   const stateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const triggerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const agentMoveRef = useRef<NodeJS.Timeout | null>(null);
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
   const galaxyRef = useRef<HTMLDivElement | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
   const checkedTokensRef = useRef<Set<string>>(new Set());
@@ -971,15 +1000,11 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
             animationTimingFunction: "linear",
             animationIterationCount: "infinite",
           }}
-          onClick={() => setSelectedToken(t)}
-          onMouseEnter={(e: ReactMouseEvent) => {
-            setHoveredToken(t);
-            setHoverPos({ x: e.clientX, y: e.clientY });
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedToken(t);
+            setHoverCard(null);
           }}
-          onMouseMove={(e: ReactMouseEvent) => {
-            setHoverPos({ x: e.clientX, y: e.clientY });
-          }}
-          onMouseLeave={() => setHoveredToken(null)}
         >
           <div
             style={{
@@ -1007,17 +1032,38 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
             }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLElement).style.transform = "scale(1.3)";
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              hoverTimerRef.current = setTimeout(() => {
+                setHoverCard({ token: t, x: rect.left + rect.width / 2, y: rect.top });
+              }, 300);
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLElement).style.transform = "scale(1)";
+              if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+              setHoverCard(null);
             }}
           >
-            <span style={{
-              fontSize: size > 32 ? 8 : 7, fontWeight: 800, color: "white",
-              letterSpacing: "-0.02em", pointerEvents: "none",
-            }}>
-              {t.symbol.slice(0, 5)}
-            </span>
+            {t.imageUrl ? (
+              <img
+                src={t.imageUrl}
+                alt={t.symbol}
+                style={{
+                  width: "75%", height: "75%",
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                  display: "block",
+                  pointerEvents: "none",
+                }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            ) : (
+              <span style={{
+                fontSize: size > 32 ? 9 : 7, fontWeight: 800, color: "white",
+                letterSpacing: "-0.02em", pointerEvents: "none",
+              }}>
+                {t.symbol.slice(0, 2).toUpperCase()}
+              </span>
+            )}
 
             {/* Badges */}
             {(isHot || isNew) && (
@@ -1207,6 +1253,60 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
 
         {/* 3-column orbital layout */}
         <div style={{ flex: 1, position: "relative" }}>
+          {/* Stardust background */}
+          <div style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
+            {/* Small stars */}
+            {Array.from({ length: 120 }, (_, i) => {
+              const x = ((i * 7 + 13) * 31) % 100;
+              const y = ((i * 11 + 7) * 23) % 100;
+              const sz = 1 + (i % 2);
+              const op = 0.05 + (((i * 17) % 30) / 100);
+              return (
+                <div key={`star-${i}`} style={{
+                  position: "absolute",
+                  left: `${x}%`, top: `${y}%`,
+                  width: sz, height: sz, borderRadius: "50%",
+                  background: "white", opacity: op,
+                }} />
+              );
+            })}
+            {/* Bright stars */}
+            {Array.from({ length: 20 }, (_, i) => {
+              const x = ((i * 37 + 19) * 53) % 100;
+              const y = ((i * 43 + 29) * 41) % 100;
+              const sz = 2 + (i % 2);
+              const op = 0.4 + (((i * 13) % 20) / 100);
+              return (
+                <div key={`bstar-${i}`} style={{
+                  position: "absolute",
+                  left: `${x}%`, top: `${y}%`,
+                  width: sz, height: sz, borderRadius: "50%",
+                  background: "white", opacity: op,
+                  boxShadow: "0 0 3px 1px rgba(255,255,255,0.3)",
+                }} />
+              );
+            })}
+            {/* Nebula blobs */}
+            {[
+              { x: 10, y: 20, sz: 180, color: C.indigo },
+              { x: 70, y: 15, sz: 140, color: C.cyan },
+              { x: 40, y: 60, sz: 200, color: "#a855f7" },
+              { x: 85, y: 70, sz: 160, color: C.hot },
+              { x: 20, y: 80, sz: 120, color: C.indigo },
+              { x: 55, y: 30, sz: 150, color: C.cyan },
+              { x: 90, y: 45, sz: 130, color: "#a855f7" },
+              { x: 30, y: 45, sz: 170, color: C.hot },
+            ].map((nb, i) => (
+              <div key={`neb-${i}`} style={{
+                position: "absolute",
+                left: `${nb.x}%`, top: `${nb.y}%`,
+                width: nb.sz, height: nb.sz, borderRadius: "50%",
+                background: `radial-gradient(circle, ${nb.color}10, transparent 70%)`,
+                opacity: 0.03 + (i % 4) * 0.01,
+                transform: "translate(-50%, -50%)",
+              }} />
+            ))}
+          </div>
           <div
             className="mt-orbital-cols"
             style={{
@@ -1342,236 +1442,6 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
           {tokens.length} tokens on Base
         </div>
 
-        {/* Tooltip */}
-        {hoveredToken && (
-          <div
-            style={{
-              position: "fixed",
-              left: hoverPos.x + 12,
-              top: hoverPos.y - 10,
-              background: C.s2,
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              padding: "10px 14px",
-              zIndex: 1000,
-              pointerEvents: "none",
-              minWidth: 200,
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 2 }}>
-              {hoveredToken.symbol}
-              <span style={{ fontSize: 10, color: C.muted, fontWeight: 400, marginLeft: 6 }}>{hoveredToken.name}</span>
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "auto auto",
-                gap: "2px 12px",
-                fontSize: 11,
-                fontFamily: "'JetBrains Mono', monospace",
-              }}
-            >
-              <span style={{ color: C.muted }}>Price</span>
-              <span style={{ color: C.text }}>{formatPrice(hoveredToken.price)}</span>
-              <span style={{ color: C.muted }}>1h</span>
-              <span style={{ color: hoveredToken.priceChange1h >= 0 ? C.match : C.hot }}>
-                {hoveredToken.priceChange1h >= 0 ? "+" : ""}{hoveredToken.priceChange1h.toFixed(1)}%
-              </span>
-              <span style={{ color: C.muted }}>24h</span>
-              <span style={{ color: hoveredToken.priceChange24h >= 0 ? C.match : C.hot }}>
-                {hoveredToken.priceChange24h >= 0 ? "+" : ""}{hoveredToken.priceChange24h.toFixed(1)}%
-              </span>
-              <span style={{ color: C.muted }}>MCap</span>
-              <span style={{ color: C.text }}>{formatCompact(hoveredToken.marketCap)}</span>
-              <span style={{ color: C.muted }}>Vol 1h</span>
-              <span style={{ color: C.text }}>{formatCompact(hoveredToken.volume1h)}</span>
-              <span style={{ color: C.muted }}>Age</span>
-              <span style={{ color: C.text }}>{formatAge(hoveredToken.pairCreatedAt)}</span>
-              <span style={{ color: C.muted }}>Score</span>
-              <span
-                style={{
-                  color: hoveredToken.score >= 85 ? C.gold : hoveredToken.score >= 50 ? C.cyan : C.muted,
-                  fontWeight: 700,
-                }}
-              >
-                {hoveredToken.score}
-                {hoveredToken.score >= 85 ? " HOT" : hoveredToken.score >= 70 ? " GOOD" : ""}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── Zone 3: Hunt Log ──
-  function renderLogPanel() {
-    return (
-      <div
-        className="mt-log"
-        style={{
-          width: 260,
-          minWidth: 260,
-          background: C.surface,
-          borderLeft: `1px solid ${C.border}`,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: "14px 16px 10px",
-            borderBottom: `1px solid ${C.border}`,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            flexShrink: 0,
-          }}
-        >
-          <div
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: "50%",
-              background: brainConnected && settings.unleashed ? C.match : C.dim,
-              animation: brainConnected && settings.unleashed ? "mt-live-dot 1.2s infinite" : "none",
-            }}
-          />
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 700,
-              color: C.text,
-              letterSpacing: "0.1em",
-            }}
-          >
-            AGENT LOG
-          </span>
-        </div>
-
-        {/* Log entries */}
-        <div
-          ref={logRef}
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "8px 12px",
-          }}
-        >
-          {displayLog.map((entry, i) => {
-            const dotColor = LOG_DOT_COLORS[entry.status] || C.muted;
-            const isBrainOffline = !brainConnected && entry.status === "info";
-            return (
-              <div
-                key={`log-${i}`}
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  padding: "6px 0",
-                  borderBottom: i < displayLog.length - 1 ? `1px solid ${C.border}` : "none",
-                  alignItems: "flex-start",
-                  borderLeft: `3px solid ${dotColor}`,
-                  paddingLeft: 8,
-                  marginBottom: 2,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 9,
-                    color: C.muted,
-                    fontFamily: "'JetBrains Mono', monospace",
-                    flexShrink: 0,
-                    marginTop: 2,
-                  }}
-                >
-                  {formatTime(entry.ts)}
-                </span>
-                <span style={{
-                  fontSize: 11,
-                  color: isBrainOffline ? C.hot : C.text,
-                  lineHeight: 1.4,
-                  opacity: isBrainOffline ? 0.8 : 1,
-                }}>
-                  {entry.message}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Open Positions */}
-        {positions.length > 0 && (
-          <div
-            style={{
-              borderTop: `1px solid ${C.border}`,
-              padding: "10px 12px",
-              flexShrink: 0,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                color: C.muted,
-                letterSpacing: "0.08em",
-                marginBottom: 8,
-              }}
-            >
-              OPEN POSITIONS
-            </div>
-            {positions.map((p) => (
-              <div
-                key={p.tokenAddress}
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                  padding: "8px 0",
-                  borderBottom: `1px solid ${C.border}`,
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: C.text }}>{p.symbol}</span>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      fontFamily: "'JetBrains Mono', monospace",
-                      color: p.pnl >= 0 ? C.match : C.hot,
-                    }}
-                  >
-                    {p.pnl >= 0 ? "+" : ""}
-                    {formatDollar(p.pnl)} ({p.pnlPercent >= 0 ? "+" : ""}
-                    {p.pnlPercent.toFixed(1)}%)
-                  </span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 10, color: C.muted, fontFamily: "'JetBrains Mono', monospace" }}>
-                    {formatPrice(p.entryPrice)} {"->"} {formatPrice(p.currentPrice)}
-                  </span>
-                  <button
-                    onClick={() => forceSell(p.tokenAddress)}
-                    style={{
-                      fontSize: 9,
-                      fontWeight: 700,
-                      color: C.hot,
-                      background: C.hot + "15",
-                      border: `1px solid ${C.hot}33`,
-                      borderRadius: 4,
-                      padding: "3px 8px",
-                      cursor: "pointer",
-                      letterSpacing: "0.05em",
-                    }}
-                  >
-                    FORCE SELL
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     );
   }
@@ -1923,39 +1793,170 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
   // ═════════════════════════════════════════════════════════
 
   return (
-    <div
-      style={{
-        width: "100%",
-        height: "100vh",
-        background: C.bg,
-        color: C.text,
-        fontFamily:
-          "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-      }}
-    >
-      {/* Keyframe styles */}
-      <style dangerouslySetInnerHTML={{ __html: KEYFRAMES }} />
-
-      {/* Layout — no wallet bar (CHANGE 5: removed) */}
+    <>
       <div
-        className="mt-layout"
         style={{
-          flex: 1,
+          width: "100%",
+          height: "100vh",
+          background: C.bg,
+          color: C.text,
+          fontFamily:
+            "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
           display: "flex",
-          flexDirection: "row",
+          flexDirection: "column",
           overflow: "hidden",
         }}
       >
-        {renderBrainPanel()}
-        {renderGalaxy()}
-        {renderLogPanel()}
+        {/* Keyframe styles */}
+        <style dangerouslySetInnerHTML={{ __html: KEYFRAMES }} />
+
+        {/* Layout */}
+        <div
+          className="mt-layout"
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "row",
+            overflow: "hidden",
+          }}
+        >
+          {renderBrainPanel()}
+          {renderGalaxy()}
+        </div>
+
+        {/* Modal */}
+        {renderModal()}
       </div>
 
-      {/* Modal */}
-      {renderModal()}
-    </div>
+      {/* Hover Card — outside main div to avoid overflow clipping */}
+      {hoverCard && (() => {
+        const hc = hoverCard;
+        const color = tokenOrbColor(hc.token);
+        return (
+          <div
+            style={{
+              position: "fixed",
+              left: Math.min(Math.max(hc.x - 150, 10), typeof window !== "undefined" ? window.innerWidth - 310 : 700),
+              top: Math.max(hc.y - 280, 10),
+              width: 300,
+              background: "rgba(13,13,20,0.97)",
+              border: `1px solid ${color}44`,
+              borderRadius: 16,
+              padding: 16,
+              zIndex: 9999,
+              backdropFilter: "blur(20px)",
+              boxShadow: `0 8px 40px rgba(0,0,0,0.7), 0 0 24px ${color}22`,
+              pointerEvents: "none",
+              animation: "mt-card-in 0.15s ease",
+              fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+            }}
+          >
+            {/* Header row */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: "50%",
+                background: `radial-gradient(circle at 35% 35%, ${lightenColor(color)}, ${color})`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0, overflow: "hidden",
+                boxShadow: `0 0 12px ${color}66`,
+              }}>
+                {hc.token.imageUrl ? (
+                  <img src={hc.token.imageUrl} alt="" style={{ width: "78%", height: "78%", borderRadius: "50%", objectFit: "cover" }}
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                ) : (
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "white" }}>{hc.token.symbol.slice(0, 2)}</span>
+                )}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 900, color: C.text, letterSpacing: "-0.3px" }}>
+                  {hc.token.symbol}
+                </div>
+                <div style={{ fontSize: 11, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {hc.token.name}
+                </div>
+              </div>
+              <div style={{
+                padding: "3px 8px", borderRadius: 10, fontSize: 10, fontWeight: 800,
+                background: hc.token.score >= 80 ? "rgba(48,209,88,0.15)" : hc.token.score >= 60 ? "rgba(245,158,11,0.15)" : "rgba(255,255,255,0.05)",
+                color: hc.token.score >= 80 ? C.match : hc.token.score >= 60 ? C.yellow : C.muted,
+              }}>
+                {Math.round(hc.token.score)}
+              </div>
+            </div>
+
+            {/* Price row */}
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 20, fontWeight: 900, fontFamily: "'JetBrains Mono',monospace", color: C.text }}>
+                {formatPrice(hc.token.price)}
+              </span>
+              <span style={{
+                fontSize: 13, fontWeight: 700,
+                color: hc.token.priceChange1h >= 0 ? C.match : C.hot,
+              }}>
+                {hc.token.priceChange1h >= 0 ? "+" : ""}{hc.token.priceChange1h.toFixed(2)}% 1h
+              </span>
+              <span style={{
+                fontSize: 11, fontWeight: 600,
+                color: hc.token.priceChange24h >= 0 ? C.match : C.hot,
+                opacity: 0.7,
+              }}>
+                {hc.token.priceChange24h >= 0 ? "+" : ""}{hc.token.priceChange24h.toFixed(1)}% 24h
+              </span>
+            </div>
+
+            {/* Stats grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+              {[
+                { label: "MCap", value: fmtK(hc.token.marketCap) },
+                { label: "Vol 1h", value: fmtK(hc.token.volume1h) },
+                { label: "Liquidity", value: fmtK(hc.token.liquidity) },
+                { label: "FDV", value: fmtK(hc.token.fdv) },
+              ].map(s => (
+                <div key={s.label} style={{ background: C.s2, borderRadius: 8, padding: "8px 10px" }}>
+                  <div style={{ fontSize: 9, color: C.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>{s.label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: C.text, fontFamily: "'JetBrains Mono',monospace" }}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Live buy/sell bar */}
+            {(() => {
+              const b = hc.token.txns1h?.buys || 0;
+              const s = hc.token.txns1h?.sells || 0;
+              const total = b + s || 1;
+              const buyPct = Math.round((b / total) * 100);
+              return (
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: 10, color: C.match, fontWeight: 700 }}>{b} buys</span>
+                    <span style={{ fontSize: 10, color: C.muted }}>1h txns</span>
+                    <span style={{ fontSize: 10, color: C.hot, fontWeight: 700 }}>{s} sells</span>
+                  </div>
+                  <div style={{ height: 6, background: C.dim, borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{
+                      height: "100%", width: `${buyPct}%`,
+                      background: buyPct >= 60 ? `linear-gradient(90deg,${C.match},#22c55e)` :
+                                   buyPct >= 40 ? `linear-gradient(90deg,${C.yellow},#eab308)` :
+                                   `linear-gradient(90deg,${C.hot},#dc2626)`,
+                      borderRadius: 3, transition: "width 0.3s",
+                    }} />
+                  </div>
+                  <div style={{ fontSize: 9, color: C.muted, marginTop: 3, textAlign: "center" }}>
+                    {buyPct}% buy pressure
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Age */}
+            {hc.token.pairCreatedAt > 0 && (
+              <div style={{ marginTop: 10, fontSize: 10, color: C.muted, textAlign: "center" }}>
+                Pair age: {fmtAge(hc.token.pairCreatedAt)} -- Click to point agent
+              </div>
+            )}
+          </div>
+        );
+      })()}
+    </>
   );
 }
