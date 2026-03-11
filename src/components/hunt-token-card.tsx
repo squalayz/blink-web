@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const C = {
@@ -330,6 +330,427 @@ function StatCell({ label, value }: { label: string; value: string }) {
   );
 }
 
+// ── Quick Buy Button ──
+
+function QuickBuyButton({ token }: { token: Token }) {
+  const [state, setState] = useState<'idle' | 'confirm' | 'loading' | 'success' | 'error'>('idle');
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (state === 'idle') {
+      setState('confirm');
+      setTimeout(() => { if (state === 'confirm') setState('idle'); }, 4000);
+      return;
+    }
+    if (state === 'confirm') {
+      setState('loading');
+      fetch("/api/trading/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "buy",
+          tokenAddress: token.address,
+          tokenSymbol: token.symbol,
+          amountEth: 0.025,
+          slippagePct: 1.5,
+        }),
+      })
+        .then(r => r.json())
+        .then(d => {
+          setState(d.ok ? 'success' : 'error');
+          setTimeout(() => setState('idle'), 3000);
+        })
+        .catch(() => {
+          setState('error');
+          setTimeout(() => setState('idle'), 3000);
+        });
+    }
+  };
+
+  const label = state === 'idle' ? 'Buy $50' : state === 'confirm' ? 'Confirm?' : state === 'loading' ? '...' : state === 'success' ? 'Done' : 'Failed';
+  const bg = state === 'success' ? 'rgba(48,209,88,0.25)' : state === 'error' ? 'rgba(255,45,85,0.15)' : 'rgba(48,209,88,0.15)';
+  const borderColor = state === 'confirm' ? 'rgba(48,209,88,0.6)' : 'rgba(48,209,88,0.3)';
+
+  return (
+    <button onClick={handleClick} style={{
+      flex: 1.5, display: "flex", alignItems: "center", justifyContent: "center",
+      padding: "9px 0", borderRadius: 8,
+      background: bg, border: `1px solid ${borderColor}`,
+      color: state === 'error' ? '#ff2d55' : '#30d158',
+      fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+      transition: "all 0.15s",
+    }}>
+      {label}
+    </button>
+  );
+}
+
+// ── Strategy config ──
+
+const STRATEGIES = [
+  { id: 'sniper' as const, color: '#ff2d55', label: 'Sniper', desc: 'Hunt new pairs', risk: 'High risk', maxSize: '5%' },
+  { id: 'momentum' as const, color: '#6366f1', label: 'Momentum', desc: 'Follow breakout', risk: 'Med risk', maxSize: '15%' },
+  { id: 'safe' as const, color: '#30d158', label: 'Safe Entry', desc: 'Wait for dip', risk: 'Low risk', maxSize: '30%' },
+];
+
+const POSITION_SIZES = [25, 50, 100, 200];
+const TP_OPTIONS = [20, 50, 100];
+const SL_OPTIONS = [-10, -20, -30];
+
+// ── Strategy Icon SVGs ──
+
+function TargetSvg() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+    </svg>
+  );
+}
+
+function ZapSvg() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+    </svg>
+  );
+}
+
+function ShieldSvg() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    </svg>
+  );
+}
+
+const STRAT_ICONS: Record<string, React.ReactNode> = {
+  sniper: <TargetSvg />,
+  momentum: <ZapSvg />,
+  safe: <ShieldSvg />,
+};
+
+// ── Hunt-with-Agent Bottom Sheet ──
+
+function HuntAgentSheet({ token, onClose }: { token: Token; onClose: () => void }) {
+  const [strategy, setStrategy] = useState<'sniper' | 'momentum' | 'safe'>('momentum');
+  const [positionSize, setPositionSize] = useState(50);
+  const [customSize, setCustomSize] = useState('');
+  const [takeProfit, setTakeProfit] = useState(50);
+  const [customTp, setCustomTp] = useState('');
+  const [stopLoss, setStopLoss] = useState(-20);
+  const [customSl, setCustomSl] = useState('');
+  const [showNote, setShowNote] = useState(false);
+  const [note, setNote] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [agentName, setAgentName] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError('');
+    try {
+      const res = await fetch('/api/agents/hunt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tokenAddress: token.address,
+          tokenSymbol: token.symbol,
+          chainId: token.chainId,
+          strategy,
+          positionSize: customSize ? parseFloat(customSize) : positionSize,
+          takeProfit: customTp ? parseFloat(customTp) : takeProfit,
+          stopLoss: customSl ? parseFloat(customSl) : stopLoss,
+          note: note || null,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setAgentName(data.agentName || 'Agent');
+        setSubmitted(true);
+      } else {
+        setError(data.error || 'Failed to start hunt');
+      }
+    } catch {
+      setError('Network error');
+    }
+    setSubmitting(false);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 1000,
+        background: "rgba(0,0,0,0.6)",
+        display: "flex", alignItems: "flex-end", justifyContent: "center",
+      }}
+    >
+      <motion.div
+        initial={{ y: 400 }}
+        animate={{ y: 0 }}
+        exit={{ y: 400 }}
+        transition={{ type: "spring", damping: 28, stiffness: 300 }}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%", maxWidth: 480,
+          background: C.surface,
+          borderRadius: "20px 20px 0 0",
+          padding: "16px 20px 40px",
+          border: `1px solid ${C.border}`,
+          borderBottom: "none",
+          maxHeight: "90vh",
+          overflowY: "auto",
+        }}
+      >
+        {/* Drag handle */}
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: C.dim, margin: "0 auto 14px" }} />
+
+        {submitted ? (
+          /* ── Success state ── */
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "32px 20px" }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#30d158" strokeWidth="2" strokeLinecap="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+            <div style={{ fontSize: 20, fontWeight: 800, color: C.text }}>Agent is on it!</div>
+            <div style={{ fontSize: 13, color: C.muted, textAlign: "center" }}>
+              {agentName} is now hunting ${token.symbol} with {strategy} strategy.
+            </div>
+            <div style={{ fontSize: 11, color: C.dim, textAlign: "center" }}>
+              You'll get a Feed post when it enters a position.
+            </div>
+            <div style={{ display: "flex", gap: 10, width: "100%", marginTop: 8 }}>
+              <button onClick={() => { window.location.href = "/dashboard?tab=feed"; }} style={{
+                flex: 1, padding: "12px 0", borderRadius: 10, border: "none",
+                background: "linear-gradient(135deg, #6366f1, #06b6d4)",
+                color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+              }}>View Feed</button>
+              <button onClick={onClose} style={{
+                flex: 1, padding: "12px 0", borderRadius: 10,
+                background: "transparent", border: `1px solid ${C.border}`,
+                color: C.muted, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+              }}>Close</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* ── Token header ── */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                background: `linear-gradient(135deg, ${C.indigo}44, ${C.cyan}22)`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 14, fontWeight: 800, color: C.indigo,
+              }}>
+                {token.symbol.slice(0, 2)}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 15, fontWeight: 800, color: C.text }}>${token.symbol}</span>
+                  <span style={{ fontSize: 11, color: C.muted }}>{formatPrice(token.price)}</span>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700,
+                    color: token.priceChange1h >= 0 ? "#30d158" : "#ff2d55",
+                  }}>
+                    {token.priceChange1h >= 0 ? "+" : ""}{token.priceChange1h.toFixed(1)}% 1h
+                  </span>
+                </div>
+              </div>
+              <ChainBadge chainId={token.chainId} />
+            </div>
+
+            {/* ── Choose Strategy ── */}
+            <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 8 }}>
+              Choose Your Strategy
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
+              {STRATEGIES.map(s => {
+                const sel = strategy === s.id;
+                return (
+                  <div key={s.id} onClick={() => setStrategy(s.id)} style={{
+                    background: sel ? `${s.color}12` : "rgba(255,255,255,0.03)",
+                    border: sel ? `1px solid ${s.color}50` : "1px solid rgba(255,255,255,0.07)",
+                    borderRadius: 12, padding: "12px 8px", cursor: "pointer", textAlign: "center",
+                    transition: "all 0.15s",
+                  }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: "50%", margin: "0 auto 6px",
+                      background: `${s.color}20`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: s.color,
+                    }}>
+                      {STRAT_ICONS[s.id]}
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: sel ? s.color : C.text, marginBottom: 2 }}>{s.label}</div>
+                    <div style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>{s.desc}</div>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                      background: `${s.color}15`, color: s.color,
+                    }}>{s.risk}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── Position Size ── */}
+            <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 8 }}>
+              Position Size
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+              {POSITION_SIZES.map(amt => (
+                <button key={amt} onClick={() => { setPositionSize(amt); setCustomSize(''); }} style={{
+                  flex: 1, padding: "7px 0", borderRadius: 6, fontSize: 12, fontWeight: 700,
+                  border: positionSize === amt && !customSize ? "1px solid rgba(48,209,88,0.5)" : `1px solid ${C.border}`,
+                  background: positionSize === amt && !customSize ? "rgba(48,209,88,0.12)" : "rgba(255,255,255,0.03)",
+                  color: positionSize === amt && !customSize ? "#30d158" : C.muted,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}>${amt}</button>
+              ))}
+              <input
+                type="number" placeholder="Custom" value={customSize}
+                onChange={e => { setCustomSize(e.target.value); if (e.target.value) setPositionSize(0); }}
+                style={{
+                  flex: 1, padding: "7px 6px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                  border: customSize ? "1px solid rgba(48,209,88,0.5)" : `1px solid ${C.border}`,
+                  background: "rgba(255,255,255,0.03)", color: C.text,
+                  fontFamily: "inherit", outline: "none", textAlign: "center",
+                }}
+              />
+            </div>
+            <div style={{ fontSize: 10, color: C.dim, marginBottom: 16 }}>
+              Wallet balance shown in Hunt mode
+            </div>
+
+            {/* ── Take Profit ── */}
+            <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 6 }}>
+              Take Profit At
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+              {TP_OPTIONS.map(tp => (
+                <button key={tp} onClick={() => { setTakeProfit(tp); setCustomTp(''); }} style={{
+                  flex: 1, padding: "5px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                  border: takeProfit === tp && !customTp ? "1px solid rgba(48,209,88,0.5)" : `1px solid ${C.border}`,
+                  background: takeProfit === tp && !customTp ? "rgba(48,209,88,0.12)" : "rgba(255,255,255,0.03)",
+                  color: takeProfit === tp && !customTp ? "#30d158" : C.muted,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}>+{tp}%</button>
+              ))}
+              <input
+                type="number" placeholder="Custom" value={customTp}
+                onChange={e => { setCustomTp(e.target.value); if (e.target.value) setTakeProfit(0); }}
+                style={{
+                  flex: 1, padding: "5px 6px", borderRadius: 6, fontSize: 11,
+                  border: customTp ? "1px solid rgba(48,209,88,0.5)" : `1px solid ${C.border}`,
+                  background: "rgba(255,255,255,0.03)", color: C.text,
+                  fontFamily: "inherit", outline: "none", textAlign: "center",
+                }}
+              />
+            </div>
+
+            {/* ── Stop Loss ── */}
+            <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 6 }}>
+              Stop Loss At
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+              {SL_OPTIONS.map(sl => (
+                <button key={sl} onClick={() => { setStopLoss(sl); setCustomSl(''); }} style={{
+                  flex: 1, padding: "5px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                  border: stopLoss === sl && !customSl ? "1px solid rgba(255,45,85,0.5)" : `1px solid ${C.border}`,
+                  background: stopLoss === sl && !customSl ? "rgba(255,45,85,0.12)" : "rgba(255,255,255,0.03)",
+                  color: stopLoss === sl && !customSl ? "#ff2d55" : C.muted,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}>{sl}%</button>
+              ))}
+              <input
+                type="number" placeholder="Custom" value={customSl}
+                onChange={e => { setCustomSl(e.target.value); if (e.target.value) setStopLoss(0); }}
+                style={{
+                  flex: 1, padding: "5px 6px", borderRadius: 6, fontSize: 11,
+                  border: customSl ? "1px solid rgba(255,45,85,0.5)" : `1px solid ${C.border}`,
+                  background: "rgba(255,255,255,0.03)", color: C.text,
+                  fontFamily: "inherit", outline: "none", textAlign: "center",
+                }}
+              />
+            </div>
+
+            {/* ── Agent Instructions (collapsible) ── */}
+            {!showNote ? (
+              <button onClick={() => setShowNote(true)} style={{
+                width: "100%", padding: "8px 0", borderRadius: 8,
+                background: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}`,
+                color: C.muted, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                marginBottom: 16,
+              }}>+ Add instructions for agent</button>
+            ) : (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase" as const, letterSpacing: "0.08em", marginBottom: 6 }}>
+                  Agent Instructions
+                </div>
+                <textarea
+                  value={note} onChange={e => setNote(e.target.value)}
+                  placeholder="Optional: Tell your agent anything specific \u2014 'only sell in green', 'hold minimum 4 hours'..."
+                  style={{
+                    width: "100%", padding: "10px 12px",
+                    background: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}`,
+                    borderRadius: 10, color: C.text, fontSize: 12, fontFamily: "inherit",
+                    resize: "none", minHeight: 60, outline: "none", boxSizing: "border-box",
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Error */}
+            {error && (
+              <div style={{
+                background: "rgba(255,45,85,0.08)", border: "1px solid rgba(255,45,85,0.2)",
+                borderRadius: 8, padding: "8px 12px", marginBottom: 12,
+                fontSize: 12, color: C.hot, fontWeight: 600,
+              }}>{error}</div>
+            )}
+
+            {/* ── Hunt This Token button ── */}
+            <button onClick={handleSubmit} disabled={submitting} style={{
+              width: "100%", padding: 14, borderRadius: 12, border: "none",
+              background: "linear-gradient(135deg, #30d158, #06b6d4)",
+              color: "white", fontSize: 15, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+              boxShadow: "0 4px 20px rgba(48,209,88,0.3)",
+              opacity: submitting ? 0.6 : 1, transition: "opacity 0.2s",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}>
+              {submitting ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+                    style={{ animation: "htc-spin 1s linear infinite" }}>
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                  </svg>
+                  Submitting...
+                </>
+              ) : (
+                "Hunt This Token"
+              )}
+            </button>
+
+            {/* ── Manual Trade Instead ── */}
+            <button onClick={onClose} style={{
+              width: "100%", marginTop: 8, padding: "10px 0", borderRadius: 10,
+              background: "transparent", border: `1px solid ${C.border}`,
+              color: C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}>
+              Manual Trade Instead
+            </button>
+          </>
+        )}
+
+        <style>{`@keyframes htc-spin { to { transform: rotate(360deg); } }`}</style>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 // ── Main Card ──
 
 export default function HuntTokenCard({
@@ -528,6 +949,7 @@ export default function HuntTokenCard({
             </svg>
             Watch
           </button>
+          <QuickBuyButton token={token} />
           <button
             onClick={(e) => { e.stopPropagation(); setShowSheet(true); }}
             style={{
@@ -548,117 +970,10 @@ export default function HuntTokenCard({
         </div>
       </motion.div>
 
-      {/* Bottom sheet modal */}
+      {/* Hunt-with-Agent Modal */}
       <AnimatePresence>
         {showSheet && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowSheet(false)}
-            style={{
-              position: "fixed", inset: 0, zIndex: 1000,
-              background: "rgba(0,0,0,0.6)",
-              display: "flex", alignItems: "flex-end", justifyContent: "center",
-            }}
-          >
-            <motion.div
-              initial={{ y: 300 }}
-              animate={{ y: 0 }}
-              exit={{ y: 300 }}
-              transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: "100%", maxWidth: 480,
-                background: C.surface,
-                borderRadius: "20px 20px 0 0",
-                padding: "20px 20px 40px",
-                border: `1px solid ${C.border}`,
-                borderBottom: "none",
-              }}
-            >
-              <div style={{
-                width: 36, height: 4, borderRadius: 2,
-                background: C.dim, margin: "0 auto 16px",
-              }} />
-
-              <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4 }}>
-                Hunt ${token.symbol}
-              </div>
-              <div style={{ fontSize: 12, color: C.muted, marginBottom: 20 }}>
-                {token.name} on {CHAIN_COLORS[token.chainId]?.label || token.chainId}
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {[
-                  {
-                    label: "Auto Trade", desc: "Agent buys & manages position", color: C.match,
-                    icon: (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                        <rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="3"/>
-                      </svg>
-                    ),
-                  },
-                  {
-                    label: "Alert Me First", desc: "Notify before any action", color: C.cyan,
-                    icon: (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                      </svg>
-                    ),
-                  },
-                  {
-                    label: "Just Watch", desc: "Track without trading", color: C.muted,
-                    icon: (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                      </svg>
-                    ),
-                  },
-                ].map(opt => (
-                  <button
-                    key={opt.label}
-                    onClick={() => setShowSheet(false)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 12,
-                      padding: "14px 16px", borderRadius: 12,
-                      background: C.s2, border: `1px solid ${C.border}`,
-                      cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-                    }}
-                  >
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 10,
-                      background: `${opt.color}18`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      color: opt.color,
-                    }}>
-                      {opt.icon}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{opt.label}</div>
-                      <div style={{ fontSize: 11, color: C.muted }}>{opt.desc}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              <button
-                onClick={() => setShowSheet(false)}
-                style={{
-                  width: "100%", marginTop: 12, padding: "12px 0",
-                  background: "transparent", border: `1px solid ${C.border}`,
-                  borderRadius: 12, color: C.muted, fontSize: 13, fontWeight: 600,
-                  cursor: "pointer", fontFamily: "inherit",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-                Cancel
-              </button>
-            </motion.div>
-          </motion.div>
+          <HuntAgentSheet token={token} onClose={() => setShowSheet(false)} />
         )}
       </AnimatePresence>
     </>

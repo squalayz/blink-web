@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
 const C = {
   bg: "#0a0a0f", surface: "#0d0d14", s2: "#1a1a24",
@@ -98,7 +98,24 @@ export default function HuntTradePanel({
   const [recentTrades, setRecentTrades] = useState<Array<{ action: string; token_symbol: string; amount: number; tx_hash: string; created_at: string }>>([]);
 
   // ETH price for USD conversion
+  // ETH price for USD conversion
   const [ethPrice, setEthPrice] = useState(0);
+
+  // Price tick animation
+  const [prevPrice, setPrevPrice] = useState(token?.price || 0);
+  const [priceTick, setPriceTick] = useState<'up' | 'down' | null>(null);
+
+  useEffect(() => {
+    if (!token?.price) return;
+    if (token.price > prevPrice && prevPrice > 0) {
+      setPriceTick('up');
+      setTimeout(() => setPriceTick(null), 600);
+    } else if (token.price < prevPrice && prevPrice > 0) {
+      setPriceTick('down');
+      setTimeout(() => setPriceTick(null), 600);
+    }
+    setPrevPrice(token.price);
+  }, [token?.price]);
 
   useEffect(() => {
     fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd")
@@ -308,8 +325,10 @@ export default function HuntTradePanel({
           </a>
         </div>
         <div style={{
-          fontSize: 24, fontWeight: 800, color: C.text,
-          fontFamily: "'JetBrains Mono', monospace", letterSpacing: "-0.03em",
+          fontSize: 28, fontWeight: 900,
+          fontFamily: "'JetBrains Mono', monospace", letterSpacing: "-0.04em",
+          color: priceTick === 'up' ? '#30d158' : priceTick === 'down' ? '#ff2d55' : '#e8e8f0',
+          transition: 'color 0.3s',
         }}>{fmtPrice(token.price)}</div>
         <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
           <span style={{

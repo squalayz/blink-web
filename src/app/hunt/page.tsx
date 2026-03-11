@@ -263,6 +263,47 @@ export default function HuntPage() {
   const [tradeToast, setTradeToast] = useState<{ message: string; txHash: string } | null>(null);
   const [positions, setPositions] = useState<Array<{ symbol: string; address: string; totalBuy: number; totalSell: number; netEth: number }>>([]);
 
+  // Live ticker prices
+  const TRACKED_TOKENS = useRef([
+    { symbol: "WETH", address: "0x4200000000000000000000000000000000000006", chain: "base" },
+    { symbol: "AERO", address: "0x940181a94A35A4569E4529A3CDfB74e38FD98631", chain: "base" },
+    { symbol: "BRETT", address: "0x532f27101965dd16442E59d40670FaF5eBB142E4", chain: "base" },
+    { symbol: "TOSHI", address: "0xAC1Bd2486aAf3B5C0fc3Fd868558b082a531B2B4", chain: "base" },
+    { symbol: "DEGEN", address: "0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed", chain: "base" },
+  ]).current;
+  const [tickerPrices, setTickerPrices] = useState<Record<string, { price: number; change: number }>>({});
+
+  const fetchTickerPrices = useCallback(async () => {
+    try {
+      const addresses = TRACKED_TOKENS.map(t => t.address).join(",");
+      const res = await fetch(`https://api.dexscreener.com/tokens/v1/base/${addresses}`, { cache: "no-store" });
+      const pairs = await res.json();
+      const pairsArr = Array.isArray(pairs) ? pairs : pairs?.pairs || [];
+      const priceMap: Record<string, { price: number; change: number }> = {};
+      for (const tk of TRACKED_TOKENS) {
+        const matching = pairsArr.filter((p: any) =>
+          p.baseToken?.address?.toLowerCase() === tk.address.toLowerCase()
+        );
+        if (matching.length > 0) {
+          const best = matching.sort((a: any, b: any) =>
+            parseFloat(b.liquidity?.usd || "0") - parseFloat(a.liquidity?.usd || "0")
+          )[0];
+          priceMap[tk.symbol] = {
+            price: parseFloat(best.priceUsd || "0"),
+            change: parseFloat(best.priceChange?.h1 || "0"),
+          };
+        }
+      }
+      setTickerPrices(priceMap);
+    } catch {}
+  }, [TRACKED_TOKENS]);
+
+  useEffect(() => {
+    fetchTickerPrices();
+    const iv = setInterval(fetchTickerPrices, 10000);
+    return () => clearInterval(iv);
+  }, [fetchTickerPrices]);
+
   // Watchlist
   const [watchlist, setWatchlist] = useState<string[]>([]);
   useEffect(() => {
@@ -375,10 +416,32 @@ export default function HuntPage() {
     } catch {}
   }
 
+  // Main list: poll every 10s in scout/hunt, 30s in auto
+  const pollInterval = huntMode === 'auto' ? 30000 : 10000;
   useEffect(() => {
-    const iv = setInterval(() => fetchTokens(), 30000);
+    const iv = setInterval(() => fetchTokens(), pollInterval);
     return () => clearInterval(iv);
-  }, [fetchTokens]);
+  }, [fetchTokens, pollInterval]);
+
+  // Fast single-token refresh for selected token in HUNT mode (5s)
+  useEffect(() => {
+    if (huntMode !== 'hunt' || !selectedToken) return;
+    const fastPoll = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `/api/hunt/tokens/single?chain=${selectedToken.chainId}&address=${selectedToken.address}`
+        );
+        const data = await res.json();
+        if (data.token) {
+          setSelectedToken(data.token);
+          setTokens(prev => prev.map(t =>
+            t.address === data.token.address ? { ...t, ...data.token, score: t.score, tags: t.tags } : t
+          ));
+        }
+      } catch {}
+    }, 5000);
+    return () => clearInterval(fastPoll);
+  }, [huntMode, selectedToken?.address, selectedToken?.chainId]);
 
   function handleSearch(val: string) {
     setQuery(val);
@@ -424,6 +487,39 @@ export default function HuntPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Live Price Ticker ── */}
+      {Object.keys(tickerPrices).length > 0 && (
+        <div style={{
+          background: "rgba(13,13,20,0.9)",
+          borderBottom: "1px solid rgba(255,255,255,0.05)",
+          padding: "6px 16px", overflow: "hidden", whiteSpace: "nowrap",
+          fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+          marginBottom: 4,
+        }}>
+          <div style={{ display: "inline-block", animation: "hunt-ticker 40s linear infinite" }}>
+            {[...TRACKED_TOKENS, ...TRACKED_TOKENS].map((tk, i) => {
+              const data = tickerPrices[tk.symbol];
+              if (!data) return null;
+              const priceStr = data.price >= 1 ? `$${data.price.toFixed(2)}` : data.price >= 0.01 ? `$${data.price.toFixed(4)}` : `$${data.price.toPrecision(4)}`;
+              return (
+                <span key={`${tk.symbol}-${i}`} style={{ marginRight: 32 }}>
+                  <span style={{ color: "#e8e8f0", fontWeight: 700 }}>{tk.symbol}</span>
+                  {" "}
+                  <span style={{ color: "#a0a0b0" }}>{priceStr}</span>
+                  {" "}
+                  <span style={{ color: data.change >= 0 ? "#30d158" : "#ff2d55", fontWeight: 700 }}>
+                    {data.change >= 0 ? "+" : ""}{data.change.toFixed(1)}%
+                  </span>
+                  {i < TRACKED_TOKENS.length * 2 - 1 && (
+                    <span style={{ color: "rgba(255,255,255,0.15)", margin: "0 12px" }}>&middot;</span>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Mode Switcher ── */}
       <div style={{ padding: "0 16px" }}>
