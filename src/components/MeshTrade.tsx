@@ -278,6 +278,7 @@ const KEYFRAMES = `
   .mt-mobile-col-view { display: flex !important; flex-direction: column !important; flex: 1 !important; }
   .mt-brain-collapse { max-height: 0px !important; overflow: hidden !important; padding: 0 !important; }
   .mt-brain-collapse.mt-brain-open { max-height: 2000px !important; overflow: visible !important; padding: 20px !important; }
+  .mt-agent-float { display: none !important; }
 }
 `;
 
@@ -1394,86 +1395,133 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
             {(() => {
               const col = columns.find(c => c.id === mobileColTab) || columns[2];
               return (
-                <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
                   {/* Column Header */}
                   <div style={{
-                    padding: "10px 12px 8px",
-                    borderBottom: `1px solid ${col.color}33`,
+                    padding: "8px 12px 6px", borderBottom: `1px solid ${col.color}33`,
                     background: `linear-gradient(180deg, ${col.color}08, transparent)`,
+                    flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
                   }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                      <div style={{ width: 3, height: 16, borderRadius: 2, background: col.color }} />
-                      <span style={{ fontSize: 12, fontWeight: 900, color: col.color, letterSpacing: "0.06em" }}>{col.label}</span>
-                      <span style={{ fontSize: 10, color: C.muted, marginLeft: "auto" }}>{col.tokens.length} tokens</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ width: 3, height: 14, borderRadius: 2, background: col.color }} />
+                      <span style={{ fontSize: 11, fontWeight: 900, color: col.color, letterSpacing: "0.06em" }}>{col.label}</span>
                     </div>
-                    <div style={{ fontSize: 10, color: C.muted }}>{col.desc}</div>
+                    <span style={{ fontSize: 10, color: C.muted }}>{col.tokens.length} tokens</span>
                   </div>
 
-                  {/* Scrollable token list for mobile */}
-                  <div style={{ overflowY: "auto", flex: 1, maxHeight: "calc(100% - 52px)" }}>
-                    {col.tokens.length === 0 && (
-                      <div style={{ padding: 24, textAlign: "center", color: C.muted, fontSize: 12 }}>
-                        No tokens yet
-                      </div>
-                    )}
-                    {col.tokens.map(t => {
+                  {/* Floating orbs container */}
+                  <div style={{
+                    flex: 1, position: "relative", overflow: "hidden",
+                    minHeight: 300,
+                  }}>
+                    {/* Stardust — 40 stars on mobile */}
+                    {Array.from({ length: 40 }, (_, i) => (
+                      <div key={`mstar-${i}`} style={{
+                        position: "absolute",
+                        left: `${((i * 23 + 7) * 17) % 100}%`,
+                        top: `${((i * 31 + 13) * 11) % 100}%`,
+                        width: 1 + (i % 2), height: 1 + (i % 2),
+                        borderRadius: "50%", background: "white",
+                        opacity: 0.05 + ((i * 13) % 25) / 100,
+                        pointerEvents: "none",
+                      }} />
+                    ))}
+
+                    {/* Center glow dot */}
+                    <div style={{
+                      position: "absolute", left: "50%", top: "50%",
+                      transform: "translate(-50%,-50%)",
+                      width: 6, height: 6, borderRadius: "50%",
+                      background: col.color, opacity: 0.3,
+                      boxShadow: `0 0 20px 8px ${col.color}33`,
+                      pointerEvents: "none",
+                    }} />
+
+                    {/* Orbiting token orbs */}
+                    {col.tokens.slice(0, 20).map((t, i) => {
                       const color = orbColor(t.priceChange1h);
-                      const b = t.txns1h?.buys || 0;
-                      const s = t.txns1h?.sells || 0;
-                      const total = b + s || 1;
-                      const buyPct = Math.round((b / total) * 100);
+                      const size = Math.max(22, Math.min(42, Math.log10(Math.max(t.marketCap || 1, 1)) / 10 * 30 + 18));
+                      const orbitR = 22 + (i % 5) * 28;
+                      const speed = Math.max(10, 45 - (t.volume1h / 30000) * 35);
+                      const offset = -(hashPos(t.address, 7) / 75) * speed;
+                      const dir = t.address.charCodeAt(0) % 2 === 0 ? "mt-spin-cw" : "mt-spin-ccw";
+                      const counterDir = dir === "mt-spin-cw" ? "mt-spin-ccw" : "mt-spin-cw";
                       return (
                         <div
                           key={t.address}
-                          onClick={() => setSelectedToken(t)}
                           style={{
-                            display: "flex", alignItems: "center", gap: 10,
-                            padding: "10px 14px",
-                            borderBottom: `1px solid ${C.border}`,
-                            cursor: "pointer",
-                            background: "transparent",
+                            position: "absolute", left: "50%", top: "50%",
+                            width: 0, height: 0,
+                            animationName: dir,
+                            animationDuration: `${speed}s`,
+                            animationDelay: `${offset}s`,
+                            animationTimingFunction: "linear",
+                            animationIterationCount: "infinite",
                           }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.02)"; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                          onClick={() => setSelectedToken(t)}
                         >
-                          {/* Logo/orb */}
                           <div style={{
-                            width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                            position: "absolute",
+                            left: orbitR,
+                            top: -size / 2,
+                            width: size, height: size,
+                            borderRadius: "50%",
                             background: `radial-gradient(circle at 35% 35%, ${lightenColor(color)}, ${color})`,
-                            boxShadow: `0 0 8px ${color}66`,
+                            boxShadow: `0 0 ${size / 3}px ${color}88`,
                             display: "flex", alignItems: "center", justifyContent: "center",
+                            cursor: "pointer",
                             overflow: "hidden",
+                            animationName: counterDir,
+                            animationDuration: `${speed}s`,
+                            animationDelay: `${offset}s`,
+                            animationTimingFunction: "linear",
+                            animationIterationCount: "infinite",
                           }}>
                             {t.imageUrl ? (
                               <img src={t.imageUrl} alt={t.symbol}
-                                style={{ width: "78%", height: "78%", borderRadius: "50%", objectFit: "cover" }}
+                                style={{ width: "75%", height: "75%", borderRadius: "50%", objectFit: "cover" }}
                                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                             ) : (
-                              <span style={{ fontSize: 9, fontWeight: 800, color: "white" }}>{t.symbol.slice(0, 2)}</span>
+                              <span style={{ fontSize: size > 30 ? 8 : 7, fontWeight: 800, color: "white" }}>
+                                {t.symbol.slice(0, 2)}
+                              </span>
                             )}
                           </div>
-                          {/* Info */}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
-                              <span style={{ fontSize: 13, fontWeight: 800, color: C.text }}>{t.symbol}</span>
-                              {t.score >= 80 && <span style={{ fontSize: 8, fontWeight: 800, padding: "1px 4px", borderRadius: 6, background: "rgba(48,209,88,0.15)", color: C.match }}>HOT</span>}
-                            </div>
-                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                              <span style={{ fontSize: 10, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 80 }}>{t.name}</span>
-                              <div style={{ flex: 1, height: 3, background: C.dim, borderRadius: 2, overflow: "hidden" }}>
-                                <div style={{ height: "100%", width: `${buyPct}%`, background: buyPct >= 60 ? C.match : buyPct >= 40 ? C.yellow : C.hot, borderRadius: 2 }} />
-                              </div>
-                            </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Bottom token name list — scrollable, compact */}
+                  <div style={{
+                    maxHeight: 120, overflowY: "auto", borderTop: `1px solid ${C.border}`,
+                    flexShrink: 0,
+                  }}>
+                    {col.tokens.slice(0, 15).map(t => {
+                      const c = orbColor(t.priceChange1h);
+                      return (
+                        <div key={t.address} onClick={() => setSelectedToken(t)} style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          padding: "6px 12px", borderBottom: `1px solid ${C.border}`,
+                          cursor: "pointer",
+                        }}>
+                          <div style={{
+                            width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
+                            background: `radial-gradient(circle at 35% 35%, ${lightenColor(c)}, ${c})`,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}>
+                            {t.imageUrl ? (
+                              <img src={t.imageUrl} alt="" style={{ width: "78%", height: "78%", borderRadius: "50%", objectFit: "cover" }}
+                                onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                            ) : (
+                              <span style={{ fontSize: 6, fontWeight: 800, color: "white" }}>{t.symbol.slice(0,2)}</span>
+                            )}
                           </div>
-                          {/* Price */}
-                          <div style={{ textAlign: "right", flexShrink: 0 }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: C.text }}>
-                              ${t.price < 0.01 ? t.price.toExponential(1) : t.price.toFixed(4)}
-                            </div>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: t.priceChange1h >= 0 ? C.match : C.hot }}>
-                              {t.priceChange1h >= 0 ? "+" : ""}{t.priceChange1h.toFixed(1)}%
-                            </div>
-                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: C.text, flex: 1 }}>{t.symbol}</span>
+                          <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono',monospace", color: t.priceChange1h >= 0 ? C.match : C.hot }}>
+                            {t.priceChange1h >= 0 ? "+" : ""}{t.priceChange1h.toFixed(1)}%
+                          </span>
                         </div>
                       );
                     })}
@@ -1484,7 +1532,7 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
           </div>
 
           {/* CHANGE 4: Agent orb floating over columns */}
-          <div style={{
+          <div className="mt-agent-float" style={{
             position: "absolute",
             left: `${colCenters[agentColIdx]}%`,
             top: "50%",
