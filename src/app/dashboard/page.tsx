@@ -1595,7 +1595,7 @@ export default function Dashboard(){
         ))}
       </div>
 
-      <div style={{padding:20,maxWidth:view==="mesh"||view==="discover"||view==="feed"?1100:720,margin:"0 auto",transition:"max-width 0.3s"}}>
+      <div style={{padding:view==="hunt"?0:20,maxWidth:view==="mesh"||view==="discover"||view==="feed"||view==="hunt"?1100:720,margin:"0 auto",transition:"max-width 0.3s"}}>
 
 
         {/* ═══════════════════════════════════════════════════════════
@@ -1643,7 +1643,7 @@ export default function Dashboard(){
                     </div>
                   ))}
                 </div>
-                <button onClick={()=>setView("brew")} style={{width:"100%",padding:"12px 0",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",letterSpacing:"-0.2px"}}>Connect My AI Brain →</button>
+                <button onClick={()=>setView("agent")} style={{width:"100%",padding:"12px 0",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",letterSpacing:"-0.2px"}}>Connect My AI Brain →</button>
               </div>
             </div>
           ):(
@@ -1707,6 +1707,17 @@ export default function Dashboard(){
            TAB: MY AGENT — Orb Customizer + Brain + Personality
            ═══════════════════════════════════════════════════════════ */}
         {view==="agent"&&(<div style={{paddingBottom:8}}>
+          {/* Sub-nav — mobile access to Stats, Grow, Profile */}
+          <div style={{display:"flex",gap:6,marginBottom:16,overflowX:"auto",scrollbarWidth:"none" as const}}>
+            {([{id:"agent",label:"My Agent"},{id:"buzz",label:"Stats"},{id:"evolve",label:"Grow"},{id:"profile",label:"Profile"}] as {id:string,label:string}[]).map(sub=>(
+              <button key={sub.id} onClick={()=>setView(sub.id)} style={{
+                padding:"7px 14px",borderRadius:20,flexShrink:0,border:view===sub.id?"1px solid rgba(99,102,241,0.5)":"1px solid rgba(255,255,255,0.07)",
+                background:view===sub.id?"rgba(99,102,241,0.15)":"rgba(255,255,255,0.03)",
+                color:view===sub.id?"#6366f1":"#6b6b80",
+                fontSize:12,fontWeight:view===sub.id?700:500,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap" as const,
+              }}>{sub.label}</button>
+            ))}
+          </div>
           <TabInfoBanner
             tabId="agent"
             title="Your AI Agent"
@@ -1830,7 +1841,7 @@ export default function Dashboard(){
     ):(
       <div>
         <div style={{fontSize:12,color:C.muted,marginBottom:12,lineHeight:1.5}}>Connect your own AI API key. Your agent uses YOUR credits — we charge nothing. Once connected, it starts matching, trading, and learning automatically.</div>
-        <button onClick={()=>setView("brew")} style={{width:"100%",padding:"12px",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+        <button onClick={()=>setView("agent")} style={{width:"100%",padding:"12px",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           Connect AI Brain
         </button>
@@ -2096,6 +2107,29 @@ export default function Dashboard(){
            TAB 1: THE MESH — Social Hub
            ═══════════════════════════════════════════════════════════ */}
         {view==="mesh"&&(<div>
+          {/* Connect sub-nav — Connections + Matches */}
+          <div style={{display:"flex",gap:6,marginBottom:16}}>
+            <button onClick={()=>setView("mesh")} style={{
+              padding:"7px 14px",borderRadius:20,border:"1px solid rgba(99,102,241,0.5)",
+              background:"rgba(99,102,241,0.15)",color:"#6366f1",
+              fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+            }}>Connections</button>
+            <button onClick={()=>setView("matches")} style={{
+              padding:"7px 14px",borderRadius:20,
+              border:matches.filter((m:any)=>!m.user_a_accepted||!m.user_b_accepted).length>0?"1px solid rgba(48,209,88,0.5)":"1px solid rgba(255,255,255,0.07)",
+              background:matches.filter((m:any)=>!m.user_a_accepted||!m.user_b_accepted).length>0?"rgba(48,209,88,0.12)":"rgba(255,255,255,0.03)",
+              color:matches.filter((m:any)=>!m.user_a_accepted||!m.user_b_accepted).length>0?"#30d158":"#6b6b80",
+              fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit",
+              display:"flex",alignItems:"center",gap:6,
+            }}>
+              Matches
+              {matches.filter((m:any)=>!m.user_a_accepted||!m.user_b_accepted).length>0&&(
+                <span style={{background:"#30d158",color:"#000",fontSize:9,fontWeight:800,padding:"1px 5px",borderRadius:8}}>
+                  {matches.filter((m:any)=>!m.user_a_accepted||!m.user_b_accepted).length}
+                </span>
+              )}
+            </button>
+          </div>
           <TabInfoBanner
             tabId="connect"
             title="Your AI Agent, Networking"
@@ -2146,7 +2180,7 @@ export default function Dashboard(){
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:800,color:"#ff2d55",marginBottom:3}}>Your agent has no brain yet</div>
                   <div style={{fontSize:12,color:C.muted,lineHeight:1.5,marginBottom:10}}>Connect your AI key and your agent wakes up — it starts networking, finding matches, and trading for you automatically.</div>
-                  <button onClick={()=>setView("brew")} style={{padding:"8px 16px",background:"rgba(255,45,85,0.15)",border:"1px solid rgba(255,45,85,0.4)",borderRadius:8,color:"#ff2d55",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Connect AI Brain in My Agent →</button>
+                  <button onClick={()=>setView("agent")} style={{padding:"8px 16px",background:"rgba(255,45,85,0.15)",border:"1px solid rgba(255,45,85,0.4)",borderRadius:8,color:"#ff2d55",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Connect AI Brain in My Agent →</button>
                 </div>
               </div>
             );
@@ -2185,7 +2219,7 @@ export default function Dashboard(){
               {showPrefSetup?(
                 <PreferenceSetup existingPrefs={userPrefs} onComplete={()=>{setShowPrefSetup(false);loadUserPrefs();}}/>
               ):(
-                <MeshDiscoveryFeed userId={user?.id||""} agentName={agent?.agent_name} hasAI={!!user?.ai_api_key_encrypted} hasPrefs={!!(userPrefs?.connection_types?.length)} onSetupPrefs={()=>setShowPrefSetup(true)} onConnectBrain={()=>setView("brew")}/>
+                <MeshDiscoveryFeed userId={user?.id||""} agentName={agent?.agent_name} hasAI={!!user?.ai_api_key_encrypted} hasPrefs={!!(userPrefs?.connection_types?.length)} onSetupPrefs={()=>setShowPrefSetup(true)} onConnectBrain={()=>setView("agent")}/>
               )}
             </div>
           </div>
@@ -2197,7 +2231,7 @@ export default function Dashboard(){
               <div style={{fontSize:26,fontWeight:900,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginTop:2}}>{feedStats?.reputation||50}</div>
               <div style={{fontSize:8,color:C.dim}}>visible to others</div>
             </div>
-            <div onClick={()=>router.push("/hunt")} style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center",cursor:"pointer"}}>
+            <div onClick={()=>setView("hunt")} style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center",cursor:"pointer"}}>
               <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em"}}>Co-Hunt</div>
               {feedStats?.hunt_score?(<div style={{fontSize:26,fontWeight:900,color:C.hot,marginTop:2}}>{feedStats.hunt_score}</div>):(<div style={{fontSize:11,color:C.hot,fontWeight:600,marginTop:6}}>Hunt Now →</div>)}
             </div>
@@ -2606,6 +2640,16 @@ export default function Dashboard(){
            TAB 3: THE BUZZ — Live Command Center
            ═══════════════════════════════════════════════════════════ */}
         {view==="buzz"&&(<div>
+          <div style={{display:"flex",gap:6,marginBottom:16,overflowX:"auto",scrollbarWidth:"none" as const}}>
+            {([{id:"agent",label:"My Agent"},{id:"buzz",label:"Stats"},{id:"evolve",label:"Grow"},{id:"profile",label:"Profile"}] as {id:string,label:string}[]).map(sub=>(
+              <button key={sub.id} onClick={()=>setView(sub.id)} style={{
+                padding:"7px 14px",borderRadius:20,flexShrink:0,border:view===sub.id?"1px solid rgba(99,102,241,0.5)":"1px solid rgba(255,255,255,0.07)",
+                background:view===sub.id?"rgba(99,102,241,0.15)":"rgba(255,255,255,0.03)",
+                color:view===sub.id?"#6366f1":"#6b6b80",
+                fontSize:12,fontWeight:view===sub.id?700:500,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap" as const,
+              }}>{sub.label}</button>
+            ))}
+          </div>
           <h2 style={{fontSize:22,fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.3px"}}><TrendingUp size={20}/>Stats</h2>
           <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>Your agent's live performance. Every trade, every win, every number.</div>
 
@@ -2763,6 +2807,16 @@ export default function Dashboard(){
            TAB 4: EVOLVE — Growth Engine
            ═══════════════════════════════════════════════════════════ */}
         {view==="evolve"&&(<div>
+          <div style={{display:"flex",gap:6,marginBottom:16,overflowX:"auto",scrollbarWidth:"none" as const}}>
+            {([{id:"agent",label:"My Agent"},{id:"buzz",label:"Stats"},{id:"evolve",label:"Grow"},{id:"profile",label:"Profile"}] as {id:string,label:string}[]).map(sub=>(
+              <button key={sub.id} onClick={()=>setView(sub.id)} style={{
+                padding:"7px 14px",borderRadius:20,flexShrink:0,border:view===sub.id?"1px solid rgba(99,102,241,0.5)":"1px solid rgba(255,255,255,0.07)",
+                background:view===sub.id?"rgba(99,102,241,0.15)":"rgba(255,255,255,0.03)",
+                color:view===sub.id?"#6366f1":"#6b6b80",
+                fontSize:12,fontWeight:view===sub.id?700:500,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap" as const,
+              }}>{sub.label}</button>
+            ))}
+          </div>
           <h2 style={{fontSize:22,fontWeight:800,marginBottom:4,display:"flex",alignItems:"center",gap:8,letterSpacing:"-0.3px"}}><Sparkles size={20}/>Grow</h2>
           <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>Refer friends. Unlock rewards. Evolve your agent into something legendary.</div>
 
@@ -2857,6 +2911,16 @@ export default function Dashboard(){
 
         {/* ════ PROFILE ════ */}
         {view==="profile"&&(<div>
+          <div style={{display:"flex",gap:6,marginBottom:16,overflowX:"auto",scrollbarWidth:"none" as const}}>
+            {([{id:"agent",label:"My Agent"},{id:"buzz",label:"Stats"},{id:"evolve",label:"Grow"},{id:"profile",label:"Profile"}] as {id:string,label:string}[]).map(sub=>(
+              <button key={sub.id} onClick={()=>setView(sub.id)} style={{
+                padding:"7px 14px",borderRadius:20,flexShrink:0,border:view===sub.id?"1px solid rgba(99,102,241,0.5)":"1px solid rgba(255,255,255,0.07)",
+                background:view===sub.id?"rgba(99,102,241,0.15)":"rgba(255,255,255,0.03)",
+                color:view===sub.id?"#6366f1":"#6b6b80",
+                fontSize:12,fontWeight:view===sub.id?700:500,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap" as const,
+              }}>{sub.label}</button>
+            ))}
+          </div>
           <h2 style={{fontSize:20,fontWeight:700,marginBottom:16}}>Your Profile</h2>
           <div style={{background:C.surface,borderRadius:14,padding:24,border:`1px solid ${C.border}`}}>
             <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:20}}>
@@ -3162,6 +3226,13 @@ export default function Dashboard(){
             })}
           </div>}
         </div>)}
+
+        {/* ── Hunt / MeshScope Tab ── */}
+        {view==="hunt"&&(
+          <div style={{paddingBottom:96}}>
+            <HuntTabView/>
+          </div>
+        )}
       </div>
 
       {/* ═══ RISK DISCLAIMER MODAL ═══ */}
@@ -3215,15 +3286,12 @@ export default function Dashboard(){
         </div>
       )}
 
-      {/* ── Hunt / MeshScope Tab ── */}
-      {view==="hunt"&&<HuntTabView/>}
-
       {/* ── Match NFT Celebration ── */}
       {showMatchNFT&&<MatchNFTCard userA={showMatchNFT.userA} userB={showMatchNFT.userB} matchId={showMatchNFT.matchId} onClose={()=>setShowMatchNFT(null)} onStartTrading={()=>{setShowMatchNFT(null);setView("mesh");}}/>}
 
       {/* ── Mobile Tab Bar — shown on dashboard ── */}
       <MobileTabBar
-        activeTab={view==="hunt"?"hunt":view==="mesh"?"mesh":view==="feed"?"feed":view==="discover"?"discover":view==="brew"?"wallet":view==="agent"?"agent":view==="profile"?"agent":"mesh"}
+        activeTab={view==="hunt"?"hunt":view==="mesh"||view==="matches"?"mesh":view==="feed"?"feed":view==="discover"?"discover":view==="brew"?"wallet":view==="agent"||view==="profile"||view==="buzz"||view==="evolve"?"agent":"mesh"}
         onTabChange={(tab)=>{
           if(tab==="hunt"){setView("hunt");return;}
           if(tab==="feed"){setView("feed");return;}
