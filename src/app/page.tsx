@@ -31,13 +31,14 @@ export default function Home() {
 
   if (checking) {
     return (
-      <div style={{ 
-        minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-        background: "#0a0a0f", color: "#f0f0f5"
+      <div style={{
+        position: "fixed", inset: 0, background: "#050508",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 9999,
       }}>
         <div style={{ textAlign: "center" }}>
           <MMLogo size={80} />
-          <div style={{ 
+          <div style={{
             fontWeight: 800, fontSize: 28, marginTop: 16,
             background: "linear-gradient(135deg, #6366f1, #06b6d4)",
             WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent"
@@ -47,12 +48,21 @@ export default function Home() {
     );
   }
 
-  // Render landing page inline via iframe — fill entire viewport, hide nav
+  // Render landing page inline via iframe — full screen takeover
   return (
-    <>
-      <style>{`nav, header { display: none !important; } body { overflow: hidden; }`}</style>
-      <iframe src="/landing.html" style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", border: "none", zIndex: 9999 }} />
-    </>
+    <iframe
+      src="/landing.html"
+      title="MishMesh"
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100vw",
+        height: "100vh",
+        border: "none",
+        zIndex: 9999,
+      }}
+    />
   );
 }
 

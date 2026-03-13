@@ -16,6 +16,9 @@ function getThreshold(eth: number): { color: string; level: "green" | "yellow" |
 
 export default function NavBar() {
   const pathname = usePathname();
+
+  // Don't render navbar on the landing page
+  if (pathname === "/") return null;
   const [scrolled, setScrolled] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
