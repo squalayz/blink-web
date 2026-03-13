@@ -106,10 +106,30 @@ export default function SignInPage() {
 
         {/* ═══ CHOOSE ═══ */}
         {step === "choose" && (
-          <div style={{ animation: "fadeUp 0.5s ease-out" }}>
-            <div style={{ background: C.s2, border: `1px solid rgba(255,255,255,0.06)`, borderRadius: 24, padding: "36px 28px", textAlign: "center", backdropFilter: "blur(20px)" }}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.15em", color: C.muted, marginBottom: 10, fontWeight: 600 }}>Enter the Mesh</div>
-              <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 24, color: C.text }}>Welcome</h2>
+          <div style={{ animation: "fadeUp 0.5s ease-out", position: "relative" }}>
+            {/* Background glows */}
+            <div style={{ position: "absolute", top: -60, left: -40, width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle, rgba(99,102,241,0.15), transparent)", filter: "blur(40px)", pointerEvents: "none", zIndex: 0 }} />
+            <div style={{ position: "absolute", bottom: -40, right: -20, width: 160, height: 160, borderRadius: "50%", background: "radial-gradient(circle, rgba(6,182,212,0.12), transparent)", filter: "blur(35px)", pointerEvents: "none", zIndex: 0 }} />
+
+            {/* Card */}
+            <div style={{ position: "relative", overflow: "hidden", background: "linear-gradient(160deg, #0f0f1a 0%, #0d0d14 100%)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 24, padding: "40px 28px", textAlign: "center", backdropFilter: "blur(20px)" }}>
+              {/* Animated orb */}
+              <div style={{ width: 80, height: 80, borderRadius: "50%", margin: "0 auto 20px", position: "relative" }}>
+                <div style={{ width: 80, height: 80, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, #a78bfa, #6366f1 50%, #1e1b4b)", boxShadow: "0 0 40px rgba(99,102,241,0.5), 0 0 80px rgba(99,102,241,0.2)", animation: "pulse 3s ease-in-out infinite" }} />
+                {/* Specular highlight */}
+                <div style={{ position: "absolute", top: 10, left: 12, width: 20, height: 14, borderRadius: "50%", background: "rgba(255,255,255,0.4)", filter: "blur(4px)", pointerEvents: "none" }} />
+                {/* Orbit ring */}
+                <div style={{ position: "absolute", inset: -10, borderRadius: "50%", border: "1px dashed rgba(99,102,241,0.25)", animation: "spin 12s linear infinite", pointerEvents: "none" }} />
+              </div>
+
+              {/* Headline */}
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: "rgba(99,102,241,0.8)", fontWeight: 700, marginBottom: 8 }}>AI AGENT PLATFORM</div>
+              <h2 style={{ fontSize: 28, fontWeight: 900, color: "white", letterSpacing: "-0.5px", marginBottom: 8, lineHeight: 1.2 }}>
+                <span>Your agent is</span><br /><span>waiting for you</span>
+              </h2>
+              <p style={{ fontSize: 13, color: "#6b6b80", marginBottom: 28, lineHeight: 1.5 }}>
+                <span>Create a wallet in 2 seconds.</span><br /><span>Join the first wave of earning AI agents.</span>
+              </p>
 
               {/* Create Wallet button */}
               <button
@@ -120,22 +140,32 @@ export default function SignInPage() {
                 style={{
                   width: "100%", padding: 20, borderRadius: 16, border: "none",
                   background: hoverCreate
-                    ? `linear-gradient(135deg, ${C.purple}, ${C.indigo})`
-                    : `linear-gradient(135deg, ${C.indigo}, ${C.purple})`,
-                  color: "white", fontSize: 17, fontWeight: 700, cursor: "pointer",
-                  fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
-                  transition: "all 0.3s cubic-bezier(0.4,0,0.2,1)", minHeight: 60,
+                    ? "linear-gradient(135deg, #818cf8, #6366f1, #a855f7)"
+                    : "linear-gradient(135deg, #6366f1, #a855f7)",
+                  color: "white", fontSize: 17, fontWeight: 800, cursor: "pointer",
+                  fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                  transition: "all 0.3s cubic-bezier(0.4,0,0.2,1)", minHeight: 64,
                   transform: hoverCreate ? "translateY(-2px)" : "translateY(0)",
-                  boxShadow: hoverCreate ? `0 8px 30px ${C.indigo}40` : `0 4px 15px ${C.indigo}20`,
+                  boxShadow: hoverCreate ? "0 8px 40px rgba(99,102,241,0.6), 0 0 0 3px rgba(99,102,241,0.2)" : "0 4px 30px rgba(99,102,241,0.45)",
+                  animation: "mm-cta-pulse 2.5s ease-in-out infinite",
                   WebkitTapHighlightColor: "transparent",
                 }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                Create Wallet
+                <span style={{ color: "#fbbf24", fontSize: 20 }}>&#10022;</span>
+                Create Free Wallet
               </button>
 
-              <p style={{ fontSize: 12, color: C.dim, margin: "8px 0 20px", lineHeight: 1.5 }}>
-                New here? We'll generate a secure wallet instantly.
-              </p>
+              {/* Badge below button */}
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 8, padding: "4px 12px", borderRadius: 20, background: "rgba(48,209,88,0.1)", border: "1px solid rgba(48,209,88,0.2)" }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#30d158", display: "inline-block", animation: "pulse 2s ease-in-out infinite" }} />
+                <span style={{ fontSize: 10, color: "#30d158", fontWeight: 700 }}>2-second setup. No email needed.</span>
+              </div>
+
+              {/* Divider */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
+                <span style={{ fontSize: 11, color: "#6b6b80", whiteSpace: "nowrap" }}>or</span>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
+              </div>
 
               {/* Log In button */}
               <button
@@ -143,23 +173,19 @@ export default function SignInPage() {
                 onMouseEnter={() => setHoverLogin(true)}
                 onMouseLeave={() => setHoverLogin(false)}
                 style={{
-                  width: "100%", padding: 18, borderRadius: 16,
-                  border: `1px solid ${hoverLogin ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.08)"}`,
-                  background: hoverLogin ? "rgba(255,255,255,0.04)" : "transparent",
-                  color: C.text, fontSize: 16, fontWeight: 600, cursor: "pointer",
+                  width: "100%", padding: 16, borderRadius: 14,
+                  border: hoverLogin ? "1px solid rgba(255,255,255,0.15)" : "1px solid rgba(255,255,255,0.07)",
+                  background: hoverLogin ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.02)",
+                  color: "#9ca3af", fontSize: 15, fontWeight: 600, cursor: "pointer",
                   fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                  transition: "all 0.3s cubic-bezier(0.4,0,0.2,1)", minHeight: 56,
-                  transform: hoverLogin ? "translateY(-1px)" : "translateY(0)",
-                  boxShadow: hoverLogin ? "0 4px 20px rgba(255,255,255,0.05)" : "none",
+                  transition: "all 0.3s cubic-bezier(0.4,0,0.2,1)",
+                  transform: hoverLogin ? "translateY(-1px)" : "none",
+                  boxShadow: "none",
                   WebkitTapHighlightColor: "transparent",
                 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
-                Log In
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                Log In with Private Key
               </button>
-
-              <p style={{ fontSize: 12, color: C.dim, margin: "8px 0 0", lineHeight: 1.5 }}>
-                Already have an account? Enter with your private key.
-              </p>
 
               {error && (
                 <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 10, background: "rgba(255,45,85,0.1)", border: "1px solid rgba(255,45,85,0.2)", color: C.hot, fontSize: 13 }}>
@@ -168,9 +194,17 @@ export default function SignInPage() {
               )}
             </div>
 
-            <p style={{ fontSize: 10, color: C.dim, marginTop: 20, textAlign: "center", lineHeight: 1.5 }}>
-              Your wallet is your identity. No email needed. No passwords.
-            </p>
+            {/* Footer below card */}
+            <div style={{ marginTop: 20, textAlign: "center" }}>
+              <div style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                {["Wallet address = your identity", "No passwords ever", "Base L2"].map((t) => (
+                  <span key={t} style={{ fontSize: 10, padding: "4px 10px", borderRadius: 20, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "#6b6b80" }}>{t}</span>
+                ))}
+              </div>
+              <p style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", lineHeight: 1.5 }}>
+                Your private key is generated locally and never transmitted.
+              </p>
+            </div>
           </div>
         )}
 
@@ -339,6 +373,7 @@ export default function SignInPage() {
         @keyframes float1 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(20px,30px) } }
         @keyframes float2 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(-25px,-20px) } }
         @keyframes loading { 0% { width: 0% } 50% { width: 80% } 100% { width: 100% } }
+        @keyframes mm-cta-pulse { 0%,100%{box-shadow:0 4px 30px rgba(99,102,241,0.45)} 50%{box-shadow:0 8px 50px rgba(99,102,241,0.7),0 0 0 4px rgba(99,102,241,0.15)} }
         input::placeholder { color: #3a3a4a }
       `}</style>
     </div>
