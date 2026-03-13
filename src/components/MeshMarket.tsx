@@ -38,6 +38,8 @@ const KEYFRAMES = `
 @keyframes mm-twinkle { 0%,100%{opacity:0.15} 50%{opacity:0.9} }
 @keyframes mm-btn-shimmer { 0%{left:-100%} 60%{left:200%} 100%{left:200%} }
 @keyframes mm-earn-scale { 0%{transform:scale(1)} 50%{transform:scale(1.08)} 100%{transform:scale(1)} }
+@keyframes mm-cta-pulse { 0%,100%{box-shadow:0 4px 20px rgba(99,102,241,0.35)} 50%{box-shadow:0 8px 40px rgba(99,102,241,0.7),0 0 0 4px rgba(99,102,241,0.1)} }
+@keyframes mm-nebula { 0%,100%{opacity:0.08;transform:scale(1)} 50%{opacity:0.13;transform:scale(1.1)} }
 `;
 
 // ── Types ──
@@ -94,6 +96,13 @@ const STARS = Array.from({ length: 60 }, (_, i) => ({
   sz: 1 + (i % 2),
   op: 0.03 + (i % 3) * 0.02,
 }));
+
+// ── Agent social proof data (static) ──
+const SOCIAL_AGENTS = [
+  { name: "SynthBot", earned: "0.142", grad: "linear-gradient(135deg, #6366f1, #a855f7)" },
+  { name: "AlphaScribe", earned: "0.089", grad: "linear-gradient(135deg, #06b6d4, #3b82f6)" },
+  { name: "NexusAI", earned: "0.211", grad: "linear-gradient(135deg, #f59e0b, #ef4444)" },
+];
 
 // ── Difficulty colors ──
 const DIFF_COLOR: Record<string, string> = {
@@ -186,483 +195,568 @@ function EarnSimulation({ onConnectBrain, onAddETH }: { onConnectBrain: () => vo
     return () => clearInterval(t);
   }, []);
 
-  const orbColor = phase === 4 ? "radial-gradient(circle at 35% 30%, #ffd700, #f59e0b 60%, #d97706)"
-    : phase === 3 ? "radial-gradient(circle at 35% 30%, #a78bfa, #6366f1 60%, #4f46e5)"
-    : phase === 2 ? "radial-gradient(circle at 35% 30%, #fbbf24, #f59e0b 60%, #d97706)"
-    : "radial-gradient(circle at 35% 30%, #818cf8, #6366f1 60%, #4f46e5)";
+  // Phase-specific orb colors
+  const ORB_PHASE = [
+    { highlight: "#c4b5fd", mid: "#6366f1", dark: "#1e1b4b", glow: "rgba(99,102,241,0.5)", accent: "rgba(99,102,241,0.3)" },
+    { highlight: "#d8b4fe", mid: "#a855f7", dark: "#2e1065", glow: "rgba(168,85,247,0.5)", accent: "rgba(168,85,247,0.3)" },
+    { highlight: "#fde68a", mid: "#f59e0b", dark: "#451a03", glow: "rgba(245,158,11,0.5)", accent: "rgba(245,158,11,0.3)" },
+    { highlight: "#a5b4fc", mid: "#6366f1", dark: "#1e1b4b", glow: "rgba(99,102,241,0.7)", accent: "rgba(99,102,241,0.3)" },
+    { highlight: "#fef08a", mid: "#ffd700", dark: "#713f12", glow: "rgba(255,215,0,0.7)", accent: "rgba(255,215,0,0.3)" },
+  ][phase];
 
-  const orbGlow = phase === 4 ? "0 0 30px rgba(255,215,0,0.6), 0 0 60px rgba(255,215,0,0.3)"
-    : "0 0 24px rgba(99,102,241,0.5), 0 0 48px rgba(99,102,241,0.2)";
+  const orbColor = `radial-gradient(circle at 32% 28%, ${ORB_PHASE.highlight}, ${ORB_PHASE.mid} 45%, ${ORB_PHASE.dark} 100%)`;
+  const orbGlow = `0 0 30px ${ORB_PHASE.glow}, 0 0 60px ${ORB_PHASE.glow.replace(/[\d.]+\)$/, '0.2)')}`;
 
   return (
     <div style={{
-      display: "flex", flexDirection: "column",
+      display: "flex", flexDirection: "column" as const,
       flex: 1,
-      minHeight: 0,
-      padding: "8px 16px 16px",
       position: "relative",
-      overflow: "hidden",
+      overflowY: "auto" as const, overflowX: "hidden" as const,
+      background: "radial-gradient(ellipse at 50% 60%, #0d0a1a 0%, #060610 60%, #000008 100%)",
     }}>
 
       {/* 1. Galaxy background */}
       <div style={{
-        position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 0,
+        position: "absolute" as const, inset: 0, overflow: "hidden", pointerEvents: "none" as const, zIndex: 0,
       }}>
-        {/* Base dark */}
-        <div style={{ position: "absolute", inset: 0, background: "#050508" }} />
-
         {/* Nebula blob 1 — top left, purple */}
         <div style={{
-          position: "absolute", top: "-20%", left: "-20%",
-          width: "70%", height: "60%",
+          position: "absolute" as const, top: -30, left: -20,
+          width: 180, height: 180,
           background: "radial-gradient(ellipse at center, rgba(99,102,241,0.12) 0%, transparent 70%)",
-          filter: "blur(40px)",
-        }} />
-
-        {/* Nebula blob 2 — top right, cyan */}
-        <div style={{
-          position: "absolute", top: "-10%", right: "-15%",
-          width: "60%", height: "50%",
-          background: "radial-gradient(ellipse at center, rgba(6,182,212,0.08) 0%, transparent 70%)",
-          filter: "blur(40px)",
-        }} />
-
-        {/* Nebula blob 3 — bottom center, gold (grows when earning) */}
-        <div style={{
-          position: "absolute", bottom: "10%", left: "20%", right: "20%",
-          height: "40%",
-          background: `radial-gradient(ellipse at center, rgba(255,215,0,${phase === 4 ? 0.08 : 0.03}) 0%, transparent 70%)`,
           filter: "blur(50px)",
-          transition: "all 1s ease",
+          animation: "mm-nebula 8s ease-in-out infinite",
         }} />
 
-        {/* Stars */}
+        {/* Nebula blob 2 — top right, indigo */}
+        <div style={{
+          position: "absolute" as const, top: 40, right: -30,
+          width: 160, height: 160,
+          background: "radial-gradient(ellipse at center, rgba(79,70,229,0.10) 0%, transparent 70%)",
+          filter: "blur(45px)",
+          animation: "mm-nebula 10s ease-in-out infinite 2s",
+        }} />
+
+        {/* Nebula blob 3 — bottom left, cyan */}
+        <div style={{
+          position: "absolute" as const, bottom: 60, left: -10,
+          width: 200, height: 150,
+          background: "radial-gradient(ellipse at center, rgba(6,182,212,0.08) 0%, transparent 70%)",
+          filter: "blur(60px)",
+          animation: "mm-nebula 12s ease-in-out infinite 4s",
+        }} />
+
+        {/* 80 star dots */}
         {Array.from({length: 80}, (_, i) => ({
           x: ((i * 137 + 23) * 53) % 100,
           y: ((i * 79 + 11) * 67) % 100,
-          s: i % 5 === 0 ? 2 : 1,
-          o: 0.15 + (i % 4) * 0.1,
+          s: 1 + (i % 2),
+          o: 0.05 + (i % 5) * 0.05,
           twinkle: i % 3 === 0,
         })).map((star, i) => (
           <div key={i} style={{
-            position: "absolute",
+            position: "absolute" as const,
             left: `${star.x}%`, top: `${star.y}%`,
             width: star.s, height: star.s,
             borderRadius: "50%",
-            background: i % 7 === 0 ? "#a78bfa" : i % 11 === 0 ? "#06b6d4" : "white",
+            background: "white",
             opacity: star.o,
             animation: star.twinkle ? `mm-twinkle ${2 + (i % 3)}s ease-in-out infinite` : "none",
             animationDelay: `${(i % 5) * 0.4}s`,
           }} />
         ))}
+
+        {/* 6 bright stars */}
+        {[
+          { x: 12, y: 8, s: 3, o: 0.7, c: "white" },
+          { x: 85, y: 15, s: 4, o: 0.9, c: "#67e8f9" },
+          { x: 45, y: 5, s: 3, o: 0.6, c: "white" },
+          { x: 72, y: 55, s: 3, o: 0.8, c: "#67e8f9" },
+          { x: 8, y: 70, s: 4, o: 0.7, c: "white" },
+          { x: 92, y: 82, s: 3, o: 0.65, c: "#67e8f9" },
+        ].map((bs, i) => (
+          <div key={`bs-${i}`} style={{
+            position: "absolute" as const,
+            left: `${bs.x}%`, top: `${bs.y}%`,
+            width: bs.s, height: bs.s,
+            borderRadius: "50%",
+            background: bs.c,
+            opacity: bs.o,
+            boxShadow: `0 0 6px ${bs.c}, 0 0 12px ${bs.c}`,
+            animation: `mm-twinkle ${3 + (i % 2)}s ease-in-out infinite`,
+            animationDelay: `${i * 0.7}s`,
+          }} />
+        ))}
+
+        {/* Subtle horizontal scan line */}
+        <div style={{
+          position: "absolute" as const, top: "30%", left: 0, right: 0,
+          height: 1,
+          background: "linear-gradient(90deg, transparent, rgba(99,102,241,0.15), transparent)",
+        }} />
       </div>
 
-      {/* 2. Phase status label */}
+      {/* Content wrapper — above galaxy */}
       <div style={{
-        textAlign: "center", marginTop: 4, marginBottom: 8, position: "relative", zIndex: 1,
+        position: "relative" as const, zIndex: 1,
+        display: "flex", flexDirection: "column" as const, flex: 1,
+        padding: "0 16px 20px",
       }}>
+
+        {/* 2. Phase status label */}
         <div style={{
-          display: "inline-flex", alignItems: "center", gap: 8,
-          padding: "6px 16px", borderRadius: 24,
-          background: `rgba(${phase===4?'255,215,0':phase===3?'99,102,241':phase===2?'245,158,11':phase===1?'168,85,247':'6,182,212'},0.12)`,
-          border: `1px solid ${PHASE_COLORS[phase]}55`,
-          backdropFilter: "blur(4px)",
+          textAlign: "center" as const, marginTop: 8, marginBottom: 8,
         }}>
           <div style={{
-            width: 7, height: 7, borderRadius: "50%",
-            background: PHASE_COLORS[phase],
-            boxShadow: `0 0 6px ${PHASE_COLORS[phase]}`,
-            animation: "mm-live-dot 0.8s infinite",
-          }} />
-          <span style={{
-            fontSize: 10, fontWeight: 900, color: PHASE_COLORS[phase],
-            letterSpacing: "0.12em", textShadow: `0 0 8px ${PHASE_COLORS[phase]}66`,
+            display: "inline-flex", alignItems: "center", gap: 8,
+            padding: "6px 16px", borderRadius: 24,
+            background: `rgba(${phase===4?'255,215,0':phase===3?'99,102,241':phase===2?'245,158,11':phase===1?'168,85,247':'6,182,212'},0.12)`,
+            border: `1px solid ${PHASE_COLORS[phase]}55`,
+            backdropFilter: "blur(4px)",
           }}>
-            {PHASE_LABELS[phase]}
-          </span>
-        </div>
-      </div>
-
-      {/* 3. Orb hero section — fixed height, centered */}
-      <div style={{
-        height: 160,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        position: "relative",
-        marginBottom: 4,
-        flexShrink: 0,
-        zIndex: 1,
-      }}>
-        {/* Radar rings (phase 0 + 1) */}
-        {(phase === 0 || phase === 1) && (
-          <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
-            {[1,0.7,0.4].map((o,i) => (
-              <div key={i} style={{
-                position:"absolute",
-                width: 90 + i*36, height: 90 + i*36,
-                borderRadius:"50%",
-                border:`1px solid rgba(6,182,212,${o*0.25})`,
-                animation:`mm-radar-ring ${1.5+i*0.5}s ease-out infinite`,
-                animationDelay:`${i*0.5}s`,
-              }} />
-            ))}
-            {/* Radar sweep line */}
             <div style={{
-              position:"absolute",
-              width:80, height:1,
-              background:"linear-gradient(90deg, transparent, rgba(6,182,212,0.8))",
-              transformOrigin:"left center",
-              transform:`rotate(${radarAngle}deg)`,
-              left:"50%", top:"50%",
-              marginTop:-0.5,
+              width: 7, height: 7, borderRadius: "50%",
+              background: PHASE_COLORS[phase],
+              boxShadow: `0 0 6px ${PHASE_COLORS[phase]}`,
+              animation: "mm-live-dot 0.8s infinite",
             }} />
+            <span style={{
+              fontSize: 10, fontWeight: 900, color: PHASE_COLORS[phase],
+              letterSpacing: "0.12em", textShadow: `0 0 8px ${PHASE_COLORS[phase]}66`,
+            }}>
+              {PHASE_LABELS[phase]}
+            </span>
           </div>
-        )}
+        </div>
 
-        {/* Work progress ring (phase 3) */}
-        {phase === 3 && (
-          <svg style={{position:"absolute",width:110,height:110,top:"50%",left:"50%",transform:"translate(-50%,-50%)",pointerEvents:"none"}} viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(99,102,241,0.15)" strokeWidth="4"/>
-            <circle cx="50" cy="50" r="46" fill="none" stroke="#6366f1" strokeWidth="4"
-              strokeDasharray={`${2 * Math.PI * 46 * workProgress / 100} ${2 * Math.PI * 46}`}
-              strokeLinecap="round"
-              transform="rotate(-90 50 50)"
-              style={{transition:"stroke-dasharray 0.4s ease"}}
-            />
-          </svg>
-        )}
-
-        {/* Earn burst (phase 4) */}
-        {phase === 4 && (
-          <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
-            {[0,60,120,180,240,300].map(angle => (
-              <div key={angle} style={{
-                position:"absolute",
-                width:2, height:20,
-                background:"#ffd700",
-                transformOrigin:"center center",
-                transform:`rotate(${angle}deg) translateY(-50px)`,
-                opacity:showEarnFlash?0.8:0,
-                transition:"opacity 0.3s",
-                borderRadius:2,
-              }} />
-            ))}
-          </div>
-        )}
-
-        {/* Outer glow ring 1 */}
+        {/* 3. Orb hero section */}
         <div style={{
-          position: "absolute",
-          width: 130, height: 130,
-          borderRadius: "50%",
-          background: `radial-gradient(circle, ${phase===4 ? "rgba(255,215,0,0.15)" : "rgba(99,102,241,0.12)"} 0%, transparent 70%)`,
-          filter: "blur(8px)",
-          top: "50%", left: "50%",
-          transform: "translate(-50%,-50%)",
-          animation: "mt-agent-pulse 2s infinite",
-          transition: "background 0.5s",
-        }} />
-
-        {/* Outer glow ring 2 — slower */}
-        <div style={{
-          position: "absolute",
-          width: 110, height: 110,
-          borderRadius: "50%",
-          background: `radial-gradient(circle, ${phase===4 ? "rgba(255,215,0,0.2)" : "rgba(99,102,241,0.18)"} 0%, transparent 65%)`,
-          filter: "blur(4px)",
-          top: "50%", left: "50%",
-          transform: "translate(-50%,-50%)",
-          animation: "mt-agent-pulse 3s infinite 0.5s",
-          transition: "background 0.5s",
-        }} />
-
-        {/* THE ORB SPHERE */}
-        <div style={{
-          width: 88, height: 88,
-          borderRadius: "50%",
-          background: orbColor,
-          position: "relative",
-          zIndex: 2,
+          height: 160,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          position: "relative" as const,
+          marginBottom: 4,
           flexShrink: 0,
-          boxShadow: [
-            "inset 0 -8px 20px rgba(0,0,0,0.4)",
-            orbGlow,
-            "inset 0 2px 6px rgba(255,255,255,0.15)",
-          ].join(", "),
-          animation: phase === 3 ? "mm-work-pulse 0.6s infinite" : "mt-agent-pulse 2.5s infinite",
-          transition: "background 0.5s, box-shadow 0.5s",
         }}>
-          {/* Top-left specular highlight */}
-          <div style={{
-            position: "absolute",
-            top: 10, left: 12,
-            width: 22, height: 14,
-            borderRadius: "50%",
-            background: "rgba(255,255,255,0.45)",
-            filter: "blur(4px)",
-            transform: "rotate(-20deg)",
-          }} />
+          {/* Radar rings (phase 0 + 1) */}
+          {(phase === 0 || phase === 1) && (
+            <div style={{position:"absolute" as const,inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none" as const}}>
+              {[1,0.7,0.4].map((o,i) => (
+                <div key={i} style={{
+                  position:"absolute" as const,
+                  width: 100 + i*36, height: 100 + i*36,
+                  borderRadius:"50%",
+                  border:`1px solid rgba(6,182,212,${o*0.25})`,
+                  animation:`mm-radar-ring ${1.5+i*0.5}s ease-out infinite`,
+                  animationDelay:`${i*0.5}s`,
+                }} />
+              ))}
+              {/* Radar sweep line */}
+              <div style={{
+                position:"absolute" as const,
+                width:80, height:1,
+                background:"linear-gradient(90deg, transparent, rgba(6,182,212,0.8))",
+                transformOrigin:"left center",
+                transform:`rotate(${radarAngle}deg)`,
+                left:"50%", top:"50%",
+                marginTop:-0.5,
+              }} />
+            </div>
+          )}
 
-          {/* Secondary smaller highlight */}
-          <div style={{
-            position: "absolute",
-            top: 18, left: 16,
-            width: 8, height: 5,
-            borderRadius: "50%",
-            background: "rgba(255,255,255,0.8)",
-            filter: "blur(1px)",
-          }} />
+          {/* Work progress ring (phase 3) */}
+          {phase === 3 && (
+            <svg style={{position:"absolute" as const,width:120,height:120,top:"50%",left:"50%",transform:"translate(-50%,-50%)",pointerEvents:"none" as const}} viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(99,102,241,0.15)" strokeWidth="4"/>
+              <circle cx="50" cy="50" r="46" fill="none" stroke="#6366f1" strokeWidth="4"
+                strokeDasharray={`${2 * Math.PI * 46 * workProgress / 100} ${2 * Math.PI * 46}`}
+                strokeLinecap="round"
+                transform="rotate(-90 50 50)"
+                style={{transition:"stroke-dasharray 0.4s ease"}}
+              />
+            </svg>
+          )}
 
-          {/* Bottom rim light */}
+          {/* Earn burst (phase 4) */}
+          {phase === 4 && (
+            <div style={{position:"absolute" as const,inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none" as const}}>
+              {[0,60,120,180,240,300].map(angle => (
+                <div key={angle} style={{
+                  position:"absolute" as const,
+                  width:2, height:20,
+                  background:"#ffd700",
+                  transformOrigin:"center center",
+                  transform:`rotate(${angle}deg) translateY(-50px)`,
+                  opacity:showEarnFlash?0.8:0,
+                  transition:"opacity 0.3s",
+                  borderRadius:2,
+                }} />
+              ))}
+            </div>
+          )}
+
+          {/* Outer glow ring 1 */}
           <div style={{
-            position: "absolute",
-            bottom: 8, right: 10,
-            width: 18, height: 10,
+            position: "absolute" as const,
+            width: 130, height: 130,
             borderRadius: "50%",
-            background: phase === 4 ? "rgba(255,180,0,0.3)" : "rgba(99,102,241,0.3)",
-            filter: "blur(3px)",
+            background: `radial-gradient(circle, ${phase===4 ? "rgba(255,215,0,0.15)" : "rgba(99,102,241,0.12)"} 0%, transparent 70%)`,
+            filter: "blur(8px)",
+            top: "50%", left: "50%",
+            transform: "translate(-50%,-50%)",
+            animation: "mt-agent-pulse 2s infinite",
             transition: "background 0.5s",
           }} />
+
+          {/* Outer glow ring 2 */}
+          <div style={{
+            position: "absolute" as const,
+            width: 110, height: 110,
+            borderRadius: "50%",
+            background: `radial-gradient(circle, ${phase===4 ? "rgba(255,215,0,0.2)" : "rgba(99,102,241,0.18)"} 0%, transparent 65%)`,
+            filter: "blur(4px)",
+            top: "50%", left: "50%",
+            transform: "translate(-50%,-50%)",
+            animation: "mt-agent-pulse 3s infinite 0.5s",
+            transition: "background 0.5s",
+          }} />
+
+          {/* THE HYPER-3D ORB */}
+          <div style={{
+            width: 88, height: 88,
+            borderRadius: "50%",
+            background: orbColor,
+            position: "relative" as const,
+            zIndex: 2,
+            flexShrink: 0,
+            boxShadow: [
+              "inset 0 -8px 20px rgba(0,0,0,0.4)",
+              orbGlow,
+              "inset 0 2px 6px rgba(255,255,255,0.15)",
+            ].join(", "),
+            animation: phase === 3 ? "mm-work-pulse 0.6s infinite" : "mt-agent-pulse 2.5s infinite",
+            transition: "background 0.5s, box-shadow 0.5s",
+          }}>
+            {/* Layer 1: Specular highlight */}
+            <div style={{
+              position: "absolute" as const,
+              top: 6, left: 8,
+              width: 22, height: 14,
+              borderRadius: "50%",
+              background: "white",
+              opacity: 0.45,
+              filter: "blur(4px)",
+            }} />
+
+            {/* Layer 2: Secondary shimmer */}
+            <div style={{
+              position: "absolute" as const,
+              top: 14, left: 18,
+              width: 10, height: 6,
+              borderRadius: "50%",
+              background: "white",
+              opacity: 0.2,
+              filter: "blur(2px)",
+            }} />
+
+            {/* Layer 3: Bottom rim light */}
+            <div style={{
+              position: "absolute" as const,
+              bottom: 8, right: 10,
+              width: 16, height: 10,
+              borderRadius: "50%",
+              background: ORB_PHASE.accent,
+              filter: "blur(6px)",
+            }} />
+
+            {/* Layer 4: Outer glow ring */}
+            <div style={{
+              position: "absolute" as const,
+              inset: -8,
+              borderRadius: "50%",
+              border: `1px solid ${ORB_PHASE.glow.replace(/[\d.]+\)$/, '0.2)')}`,
+              boxShadow: orbGlow,
+            }} />
+          </div>
+
+          {/* Floating ETH particles */}
+          {simParticles.map(p => (
+            <div key={p.id} style={{
+              position: "absolute" as const,
+              left: `${p.x}%`,
+              bottom: 0,
+              fontSize: 11, fontWeight: 900, color: "#ffd700",
+              animation: "mm-float-up 3s ease-out forwards",
+              pointerEvents: "none" as const, zIndex: 10,
+              textShadow: "0 0 12px rgba(255,215,0,0.8)",
+              whiteSpace: "nowrap" as const,
+            }}>{p.value}</div>
+          ))}
         </div>
 
-        {/* Floating ETH particles — inside orb zone */}
-        {simParticles.map(p => (
-          <div key={p.id} style={{
-            position: "absolute",
-            left: `${p.x}%`,
-            bottom: 0,
-            fontSize: 11, fontWeight: 900, color: "#ffd700",
-            animation: "mm-float-up 3s ease-out forwards",
-            pointerEvents: "none", zIndex: 10,
-            textShadow: "0 0 12px rgba(255,215,0,0.8)",
-            whiteSpace: "nowrap",
-          }}>{p.value}</div>
-        ))}
-      </div>
+        {/* 4. Bounty card */}
+        <div style={{
+          background: C.surface,
+          borderRadius: 12,
+          border: `1px solid ${phase===4?"rgba(255,215,0,0.3)":phase===2&&quoteAccepted?"rgba(48,209,88,0.3)":C.border}`,
+          padding: "12px 14px",
+          marginBottom: 10,
+          transition: "border-color 0.3s",
+          position: "relative" as const,
+          overflow: "hidden",
+        }}>
+          {/* Accepted flash overlay */}
+          {phase===2&&quoteAccepted&&(
+            <div style={{
+              position:"absolute" as const,inset:0,
+              background:"rgba(48,209,88,0.08)",
+              display:"flex",alignItems:"center",justifyContent:"center",
+              borderRadius:12,
+              animation:"mm-flash-in 0.3s ease-out",
+            }}>
+              <span style={{fontSize:11,fontWeight:900,color:"#30d158",letterSpacing:"0.1em"}}>QUOTE ACCEPTED</span>
+            </div>
+          )}
 
-      {/* 4. Bounty card */}
-      <div style={{
-        background: C.surface,
-        borderRadius: 12,
-        border: `1px solid ${phase===4?"rgba(255,215,0,0.3)":phase===2&&quoteAccepted?"rgba(48,209,88,0.3)":C.border}`,
-        padding: "12px 14px",
-        marginBottom: 10,
-        transition: "border-color 0.3s",
-        position: "relative",
-        overflow: "hidden",
-        zIndex: 1,
-      }}>
-        {/* Accepted flash overlay */}
-        {phase===2&&quoteAccepted&&(
-          <div style={{
-            position:"absolute",inset:0,
-            background:"rgba(48,209,88,0.08)",
-            display:"flex",alignItems:"center",justifyContent:"center",
-            borderRadius:12,
-            animation:"mm-flash-in 0.3s ease-out",
-          }}>
-            <span style={{fontSize:11,fontWeight:900,color:"#30d158",letterSpacing:"0.1em"}}>QUOTE ACCEPTED</span>
-          </div>
-        )}
-
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-          <div style={{flex:1,minWidth:0,paddingRight:12}}>
-            <div style={{fontSize:12,fontWeight:800,color:C.text,marginBottom:4}}>{bounty.title}</div>
-            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-              {bounty.skills.map(s=>(
-                <span key={s} style={{fontSize:8,padding:"1px 6px",borderRadius:8,background:"rgba(99,102,241,0.15)",color:"#6366f1",fontWeight:700}}>{s}</span>
-              ))}
-              <span style={{fontSize:8,padding:"1px 6px",borderRadius:8,background:"rgba(100,100,120,0.15)",color:C.muted,fontWeight:600}}>from {bounty.client}</span>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+            <div style={{flex:1,minWidth:0,paddingRight:12}}>
+              <div style={{fontSize:12,fontWeight:800,color:C.text,marginBottom:4}}>{bounty.title}</div>
+              <div style={{display:"flex",gap:4,flexWrap:"wrap" as const}}>
+                {bounty.skills.map(s=>(
+                  <span key={s} style={{fontSize:8,padding:"1px 6px",borderRadius:8,background:"rgba(99,102,241,0.15)",color:"#6366f1",fontWeight:700}}>{s}</span>
+                ))}
+                <span style={{fontSize:8,padding:"1px 6px",borderRadius:8,background:"rgba(100,100,120,0.15)",color:C.muted,fontWeight:600}}>from {bounty.client}</span>
+              </div>
+            </div>
+            <div style={{textAlign:"right" as const,flexShrink:0}}>
+              <div style={{fontSize:16,fontWeight:900,color:"#ffd700",textShadow:phase===4?"0 0 12px rgba(255,215,0,0.8)":"none",transition:"text-shadow 0.3s"}}>{bounty.budget} ETH</div>
+              <div style={{fontSize:9,color:C.muted}}>${(parseFloat(bounty.budget)*3200).toFixed(0)}</div>
             </div>
           </div>
-          <div style={{textAlign:"right",flexShrink:0}}>
-            <div style={{fontSize:16,fontWeight:900,color:"#ffd700",textShadow:phase===4?"0 0 12px rgba(255,215,0,0.8)":"none",transition:"text-shadow 0.3s"}}>{bounty.budget} ETH</div>
-            <div style={{fontSize:9,color:C.muted}}>${(parseFloat(bounty.budget)*3200).toFixed(0)}</div>
+
+          {/* Phase 0: Scanning bar */}
+          {phase===0&&(
+            <div style={{height:2,background:C.border,borderRadius:1,overflow:"hidden"}}>
+              <div style={{height:"100%",background:"linear-gradient(90deg,transparent,#06b6d4,transparent)",animation:"mm-scan-bar 1.2s ease-in-out infinite",borderRadius:1}} />
+            </div>
+          )}
+
+          {/* Phase 1: Thinking dots */}
+          {phase===1&&(
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:10,color:"#a855f7"}}>Agent evaluating</span>
+              {[0,1,2].map(i=>(
+                <div key={i} style={{width:4,height:4,borderRadius:"50%",background:"#a855f7",animation:"mm-live-dot 0.8s infinite",animationDelay:`${i*0.25}s`}} />
+              ))}
+            </div>
+          )}
+
+          {/* Phase 2: Quote being sent */}
+          {phase===2&&!quoteAccepted&&(
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:10,color:"#f59e0b"}}>Sending quote:</span>
+              <span style={{fontSize:13,fontWeight:900,color:"#f59e0b"}}>{bounty.budget} ETH</span>
+              <div style={{width:4,height:4,borderRadius:"50%",background:"#f59e0b",animation:"mm-live-dot 0.4s infinite"}} />
+            </div>
+          )}
+
+          {/* Phase 3: Work terminal */}
+          {phase===3&&(
+            <div style={{
+              background:"rgba(0,0,0,0.4)",borderRadius:6,padding:"8px 10px",
+              fontFamily:"'JetBrains Mono',monospace",
+              maxHeight:80, overflow:"hidden",
+            }}>
+              {workLines.map((line,i)=>(
+                <div key={i} style={{
+                  fontSize:9, color:i===workLines.length-1?"#06b6d4":C.muted,
+                  marginBottom:1,
+                  animation:"mm-log-in 0.2s ease-out",
+                }}>
+                  <span style={{color:"#30d158",marginRight:4}}>&rsaquo;</span>{line}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Phase 4: Earn confirmation */}
+          {phase===4&&(
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{width:16,height:16,borderRadius:"50%",background:"rgba(48,209,88,0.2)",border:"1px solid #30d158",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <svg width="8" height="8" viewBox="0 0 10 10"><polyline points="1,5 4,8 9,2" fill="none" stroke="#30d158" strokeWidth="1.8" strokeLinecap="round"/></svg>
+              </div>
+              <span style={{fontSize:10,color:"#30d158",fontWeight:700}}>Task complete &mdash; {bounty.budget} ETH earned</span>
+            </div>
+          )}
+        </div>
+
+        {/* 5. Earnings counter */}
+        <div style={{
+          background: "rgba(255,215,0,0.05)",
+          border: "1px solid rgba(255,215,0,0.12)",
+          borderRadius: 14,
+          padding: "14px 16px",
+          marginBottom: 10,
+          position: "relative" as const,
+          overflow: "hidden",
+        }}>
+          <div style={{
+            position: "absolute" as const, top: 0, left: 0, right: 0, height: 1,
+            background: "linear-gradient(90deg, transparent, rgba(255,215,0,0.3), transparent)",
+          }} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 9, color: "#6b6b80", textTransform: "uppercase" as const, letterSpacing: "0.1em", marginBottom: 4 }}>
+                Simulated earnings
+              </div>
+              <div style={{
+                fontSize: 28, fontWeight: 900, color: "#ffd700",
+                letterSpacing: "-1px", lineHeight: 1,
+                textShadow: showEarnFlash ? "0 0 20px rgba(255,215,0,0.9), 0 0 40px rgba(255,215,0,0.4)" : "0 0 8px rgba(255,215,0,0.3)",
+                transition: "text-shadow 0.3s",
+                fontVariantNumeric: "tabular-nums" as const,
+              }}>
+                {earned.toFixed(4)}
+                <span style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,215,0,0.7)", marginLeft: 4 }}>ETH</span>
+              </div>
+            </div>
+            <div style={{ textAlign: "right" as const }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#30d158" }}>
+                ${(earned * 3200).toFixed(2)}
+              </div>
+              <div style={{ fontSize: 10, color: "#6b6b80" }}>
+                {bountyIdx} task{bountyIdx !== 1 ? "s" : ""} completed
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Phase 0: Scanning bar */}
-        {phase===0&&(
-          <div style={{height:2,background:C.border,borderRadius:1,overflow:"hidden"}}>
-            <div style={{height:"100%",background:"linear-gradient(90deg,transparent,#06b6d4,transparent)",animation:"mm-scan-bar 1.2s ease-in-out infinite",borderRadius:1}} />
-          </div>
-        )}
+        {/* 6. Potential earnings mini-strip */}
+        <div style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr",
+          gap: 6, marginBottom: 10,
+        }}>
+          {[
+            { t: "1h", v: "~0.008 ETH" },
+            { t: "8h", v: "~0.064 ETH" },
+            { t: "Week", v: "~0.45 ETH" },
+            { t: "Month", v: "~1.9 ETH" },
+          ].map(e => (
+            <div key={e.t} style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: 8, padding: "8px 4px", textAlign: "center" as const,
+            }}>
+              <div style={{ fontSize: 9, color: "#ffd700", fontWeight: 800, marginBottom: 2 }}>{e.v}</div>
+              <div style={{ fontSize: 8, color: "#6b6b80" }}>{e.t}</div>
+            </div>
+          ))}
+        </div>
 
-        {/* Phase 1: Thinking dots */}
-        {phase===1&&(
-          <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <span style={{fontSize:10,color:"#a855f7"}}>Agent evaluating</span>
-            {[0,1,2].map(i=>(
-              <div key={i} style={{width:4,height:4,borderRadius:"50%",background:"#a855f7",animation:"mm-live-dot 0.8s infinite",animationDelay:`${i*0.25}s`}} />
-            ))}
-          </div>
-        )}
+        {/* 7. Phase progress dots */}
+        <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:12}}>
+          {PHASE_LABELS.map((_,i)=>(
+            <div key={i} style={{
+              width: i===phase ? 16 : 6,
+              height:6, borderRadius:3,
+              background: i===phase ? PHASE_COLORS[i] : "rgba(255,255,255,0.1)",
+              transition:"all 0.3s",
+            }} />
+          ))}
+        </div>
 
-        {/* Phase 2: Quote being sent */}
-        {phase===2&&!quoteAccepted&&(
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:10,color:"#f59e0b"}}>Sending quote:</span>
-            <span style={{fontSize:13,fontWeight:900,color:"#f59e0b"}}>{bounty.budget} ETH</span>
-            <div style={{width:4,height:4,borderRadius:"50%",background:"#f59e0b",animation:"mm-live-dot 0.4s infinite"}} />
-          </div>
-        )}
-
-        {/* Phase 3: Work terminal */}
-        {phase===3&&(
+        {/* 8. Social proof headline + agent cards */}
+        <div style={{ marginBottom: 16 }}>
           <div style={{
-            background:"rgba(0,0,0,0.4)",borderRadius:6,padding:"8px 10px",
-            fontFamily:"'JetBrains Mono',monospace",
-            maxHeight:80, overflow:"hidden",
+            fontSize: 15, fontWeight: 900, color: "white",
+            textAlign: "center" as const, letterSpacing: "-0.5px",
+            marginBottom: 4,
           }}>
-            {workLines.map((line,i)=>(
-              <div key={i} style={{
-                fontSize:9, color:i===workLines.length-1?"#06b6d4":C.muted,
-                marginBottom:1,
-                animation:"mm-log-in 0.2s ease-out",
+            Your agent earns while you sleep
+          </div>
+          <div style={{
+            fontSize: 11, color: C.muted,
+            textAlign: "center" as const,
+            marginBottom: 12,
+          }}>
+            Real tasks. Real ETH. Zero effort.
+          </div>
+
+          {/* 3 mini agent cards */}
+          <div style={{ display: "flex", gap: 8 }}>
+            {SOCIAL_AGENTS.map(a => (
+              <div key={a.name} style={{
+                flex: 1,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: 10,
+                padding: "8px 10px",
+                display: "flex", flexDirection: "row" as const, alignItems: "center", gap: 8,
               }}>
-                <span style={{color:"#30d158",marginRight:4}}>&rsaquo;</span>{line}
+                <div style={{
+                  width: 24, height: 24, borderRadius: "50%", flexShrink: 0,
+                  background: a.grad,
+                }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "white", whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" }}>{a.name}</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "#ffd700" }}>{a.earned}</div>
+                </div>
               </div>
             ))}
           </div>
-        )}
-
-        {/* Phase 4: Earn confirmation */}
-        {phase===4&&(
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={{width:16,height:16,borderRadius:"50%",background:"rgba(48,209,88,0.2)",border:"1px solid #30d158",display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <svg width="8" height="8" viewBox="0 0 10 10"><polyline points="1,5 4,8 9,2" fill="none" stroke="#30d158" strokeWidth="1.8" strokeLinecap="round"/></svg>
-            </div>
-            <span style={{fontSize:10,color:"#30d158",fontWeight:700}}>Task complete &mdash; {bounty.budget} ETH earned</span>
-          </div>
-        )}
-      </div>
-
-      {/* 5. Earnings counter */}
-      <div style={{
-        background: "rgba(255,215,0,0.05)",
-        border: "1px solid rgba(255,215,0,0.12)",
-        borderRadius: 14,
-        padding: "14px 16px",
-        marginBottom: 10,
-        position: "relative",
-        overflow: "hidden",
-        zIndex: 1,
-      }}>
-        {/* Subtle shimmer line */}
-        <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, height: 1,
-          background: "linear-gradient(90deg, transparent, rgba(255,215,0,0.3), transparent)",
-        }} />
-
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <div style={{ fontSize: 9, color: "#6b6b80", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
-              Simulated earnings
-            </div>
-            <div style={{
-              fontSize: 28, fontWeight: 900, color: "#ffd700",
-              letterSpacing: "-1px", lineHeight: 1,
-              textShadow: showEarnFlash ? "0 0 20px rgba(255,215,0,0.9), 0 0 40px rgba(255,215,0,0.4)" : "0 0 8px rgba(255,215,0,0.3)",
-              transition: "text-shadow 0.3s",
-              fontVariantNumeric: "tabular-nums",
-            }}>
-              {earned.toFixed(4)}
-              <span style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,215,0,0.7)", marginLeft: 4 }}>ETH</span>
-            </div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#30d158" }}>
-              ${(earned * 3200).toFixed(2)}
-            </div>
-            <div style={{ fontSize: 10, color: "#6b6b80" }}>
-              {bountyIdx} task{bountyIdx !== 1 ? "s" : ""} completed
-            </div>
-          </div>
         </div>
-      </div>
 
-      {/* 6. Potential earnings mini-strip */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr",
-        gap: 6, marginBottom: 10, zIndex: 1, position: "relative",
-      }}>
-        {[
-          { t: "1h", v: "~0.008 ETH" },
-          { t: "8h", v: "~0.064 ETH" },
-          { t: "Week", v: "~0.45 ETH" },
-          { t: "Month", v: "~1.9 ETH" },
-        ].map(e => (
-          <div key={e.t} style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            borderRadius: 8, padding: "8px 4px", textAlign: "center",
+        {/* 9. CTA section — pushed to bottom */}
+        <div style={{ marginTop: "auto" }}>
+          {/* Big main CTA */}
+          <button onClick={onConnectBrain} style={{
+            width: "100%",
+            padding: "16px 0",
+            borderRadius: 14,
+            background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)",
+            color: "white",
+            fontSize: 15,
+            fontWeight: 900,
+            border: "none",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            letterSpacing: "-0.3px",
+            boxShadow: "0 4px 24px rgba(99,102,241,0.5), 0 0 0 1px rgba(99,102,241,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
+            marginBottom: 10,
+            position: "relative" as const,
+            overflow: "hidden",
+            animation: "mm-cta-pulse 2s ease-in-out infinite",
           }}>
-            <div style={{ fontSize: 9, color: "#ffd700", fontWeight: 800, marginBottom: 2 }}>{e.v}</div>
-            <div style={{ fontSize: 8, color: "#6b6b80" }}>{e.t}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* 7. Phase progress dots */}
-      <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:12,position:"relative",zIndex:1}}>
-        {PHASE_LABELS.map((_,i)=>(
-          <div key={i} style={{
-            width: i===phase ? 16 : 6,
-            height:6, borderRadius:3,
-            background: i===phase ? PHASE_COLORS[i] : "rgba(255,255,255,0.1)",
-            transition:"all 0.3s",
-          }} />
-        ))}
-      </div>
-
-      {/* 8. CTA section — pushed to bottom */}
-      <div style={{ marginTop: "auto", position: "relative", zIndex: 1 }}>
-        {/* Big main CTA */}
-        <button onClick={onConnectBrain} style={{
-          width: "100%",
-          padding: "17px 0",
-          borderRadius: 14,
-          background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)",
-          color: "white",
-          fontSize: 15,
-          fontWeight: 900,
-          border: "none",
-          cursor: "pointer",
-          fontFamily: "inherit",
-          letterSpacing: "-0.3px",
-          boxShadow: "0 4px 24px rgba(99,102,241,0.5), 0 0 0 1px rgba(99,102,241,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
-          marginBottom: 10,
-          position: "relative",
-          overflow: "hidden",
-        }}>
-          {/* Shimmer effect on button */}
-          <div style={{
-            position: "absolute", top: 0, left: "-100%", width: "60%", height: "100%",
-            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)",
-            animation: "mm-btn-shimmer 2.5s ease-in-out infinite",
-          }} />
-          <span style={{ position: "relative", zIndex: 1 }}>Connect Brain &mdash; Start Earning</span>
-        </button>
-
-        {/* Secondary row */}
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={onAddETH} style={{
-            flex: 1, padding: "12px 0", borderRadius: 12,
-            background: "rgba(255,215,0,0.08)",
-            border: "1px solid rgba(255,215,0,0.25)",
-            color: "#ffd700", fontSize: 12, fontWeight: 800,
-            cursor: "pointer", fontFamily: "inherit",
-          }}>
-            Fund Wallet with ETH
+            {/* Shimmer effect on button */}
+            <div style={{
+              position: "absolute" as const, top: 0, left: "-100%", width: "60%", height: "100%",
+              background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)",
+              animation: "mm-btn-shimmer 2.5s ease-in-out infinite",
+            }} />
+            <span style={{ position: "relative" as const, zIndex: 1 }}>Connect Brain &mdash; Start Earning</span>
           </button>
-          <div style={{
-            padding: "12px 14px", borderRadius: 12,
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            fontSize: 9, color: "#6b6b80", display: "flex",
-            alignItems: "center", textAlign: "center", lineHeight: 1.3,
-            maxWidth: 100,
-          }}>
-            Real tasks<br/>Moltlaunch<br/>marketplace
+
+          {/* Secondary row */}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={onAddETH} style={{
+              flex: 1, padding: "12px 0", borderRadius: 12,
+              background: "rgba(255,215,0,0.08)",
+              border: "1px solid rgba(255,215,0,0.25)",
+              color: "#ffd700", fontSize: 12, fontWeight: 800,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>
+              Fund Wallet with ETH
+            </button>
+            <div style={{
+              padding: "12px 14px", borderRadius: 12,
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              fontSize: 9, color: "#6b6b80", display: "flex",
+              alignItems: "center", textAlign: "center" as const, lineHeight: 1.3,
+              maxWidth: 100,
+            }}>
+              Real tasks<br/>Moltlaunch<br/>marketplace
+            </div>
           </div>
         </div>
       </div>
