@@ -35,6 +35,9 @@ const KEYFRAMES = `
 @keyframes mm-work-pulse { 0%,100%{box-shadow:0 0 16px rgba(99,102,241,0.6)} 50%{box-shadow:0 0 32px rgba(99,102,241,0.9)} }
 @keyframes mm-flash-in { from{opacity:0} to{opacity:1} }
 @keyframes mt-agent-pulse { 0%,100%{box-shadow:0 0 24px rgba(99,102,241,0.5)} 50%{box-shadow:0 0 32px rgba(99,102,241,0.7)} }
+@keyframes mm-twinkle { 0%,100%{opacity:0.15} 50%{opacity:0.9} }
+@keyframes mm-btn-shimmer { 0%{left:-100%} 60%{left:200%} 100%{left:200%} }
+@keyframes mm-earn-scale { 0%{transform:scale(1)} 50%{transform:scale(1.08)} 100%{transform:scale(1)} }
 `;
 
 // ── Types ──
@@ -192,47 +195,110 @@ function EarnSimulation({ onConnectBrain, onAddETH }: { onConnectBrain: () => vo
     : "0 0 24px rgba(99,102,241,0.5), 0 0 48px rgba(99,102,241,0.2)";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "20px 16px 16px", position: "relative", overflow: "hidden" }}>
+    <div style={{
+      display: "flex", flexDirection: "column",
+      flex: 1,
+      minHeight: 0,
+      padding: "8px 16px 16px",
+      position: "relative",
+      overflow: "hidden",
+    }}>
 
-      {/* Stardust */}
-      {Array.from({length:50},(_,i)=>({x:((i*7+13)*31)%100,y:((i*11+7)*23)%100,s:1+(i%2),o:0.03+(i%3)*0.02})).map((s,i)=>(
-        <div key={i} style={{position:"absolute",left:`${s.x}%`,top:`${s.y}%`,width:s.s,height:s.s,borderRadius:"50%",background:"white",opacity:s.o,pointerEvents:"none"}} />
-      ))}
+      {/* 1. Galaxy background */}
+      <div style={{
+        position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 0,
+      }}>
+        {/* Base dark */}
+        <div style={{ position: "absolute", inset: 0, background: "#050508" }} />
 
-      {/* Floating ETH particles */}
-      {simParticles.map(p => (
-        <div key={p.id} style={{
-          position:"absolute", left:`${p.x}%`, bottom:"35%",
-          fontSize:12, fontWeight:900, color:"#ffd700",
-          animation:"mm-float-up 3s ease-out forwards",
-          pointerEvents:"none", zIndex:10,
-          textShadow:"0 0 12px rgba(255,215,0,0.8)",
-        }}>{p.value}</div>
-      ))}
-
-      {/* Phase label */}
-      <div style={{ textAlign:"center", marginBottom:12, marginTop:4 }}>
+        {/* Nebula blob 1 — top left, purple */}
         <div style={{
-          display:"inline-flex", alignItems:"center", gap:6,
-          padding:"4px 12px", borderRadius:20,
-          background:`rgba(${phase===4?'255,215,0':phase===3?'99,102,241':phase===2?'245,158,11':phase===1?'168,85,247':'6,182,212'},0.12)`,
-          border:`1px solid ${PHASE_COLORS[phase]}44`,
+          position: "absolute", top: "-20%", left: "-20%",
+          width: "70%", height: "60%",
+          background: "radial-gradient(ellipse at center, rgba(99,102,241,0.12) 0%, transparent 70%)",
+          filter: "blur(40px)",
+        }} />
+
+        {/* Nebula blob 2 — top right, cyan */}
+        <div style={{
+          position: "absolute", top: "-10%", right: "-15%",
+          width: "60%", height: "50%",
+          background: "radial-gradient(ellipse at center, rgba(6,182,212,0.08) 0%, transparent 70%)",
+          filter: "blur(40px)",
+        }} />
+
+        {/* Nebula blob 3 — bottom center, gold (grows when earning) */}
+        <div style={{
+          position: "absolute", bottom: "10%", left: "20%", right: "20%",
+          height: "40%",
+          background: `radial-gradient(ellipse at center, rgba(255,215,0,${phase === 4 ? 0.08 : 0.03}) 0%, transparent 70%)`,
+          filter: "blur(50px)",
+          transition: "all 1s ease",
+        }} />
+
+        {/* Stars */}
+        {Array.from({length: 80}, (_, i) => ({
+          x: ((i * 137 + 23) * 53) % 100,
+          y: ((i * 79 + 11) * 67) % 100,
+          s: i % 5 === 0 ? 2 : 1,
+          o: 0.15 + (i % 4) * 0.1,
+          twinkle: i % 3 === 0,
+        })).map((star, i) => (
+          <div key={i} style={{
+            position: "absolute",
+            left: `${star.x}%`, top: `${star.y}%`,
+            width: star.s, height: star.s,
+            borderRadius: "50%",
+            background: i % 7 === 0 ? "#a78bfa" : i % 11 === 0 ? "#06b6d4" : "white",
+            opacity: star.o,
+            animation: star.twinkle ? `mm-twinkle ${2 + (i % 3)}s ease-in-out infinite` : "none",
+            animationDelay: `${(i % 5) * 0.4}s`,
+          }} />
+        ))}
+      </div>
+
+      {/* 2. Phase status label */}
+      <div style={{
+        textAlign: "center", marginTop: 4, marginBottom: 8, position: "relative", zIndex: 1,
+      }}>
+        <div style={{
+          display: "inline-flex", alignItems: "center", gap: 8,
+          padding: "6px 16px", borderRadius: 24,
+          background: `rgba(${phase===4?'255,215,0':phase===3?'99,102,241':phase===2?'245,158,11':phase===1?'168,85,247':'6,182,212'},0.12)`,
+          border: `1px solid ${PHASE_COLORS[phase]}55`,
+          backdropFilter: "blur(4px)",
         }}>
-          <div style={{width:6,height:6,borderRadius:"50%",background:PHASE_COLORS[phase],animation:"mm-live-dot 0.8s infinite"}} />
-          <span style={{fontSize:9,fontWeight:900,color:PHASE_COLORS[phase],letterSpacing:"0.1em"}}>{PHASE_LABELS[phase]}</span>
+          <div style={{
+            width: 7, height: 7, borderRadius: "50%",
+            background: PHASE_COLORS[phase],
+            boxShadow: `0 0 6px ${PHASE_COLORS[phase]}`,
+            animation: "mm-live-dot 0.8s infinite",
+          }} />
+          <span style={{
+            fontSize: 10, fontWeight: 900, color: PHASE_COLORS[phase],
+            letterSpacing: "0.12em", textShadow: `0 0 8px ${PHASE_COLORS[phase]}66`,
+          }}>
+            {PHASE_LABELS[phase]}
+          </span>
         </div>
       </div>
 
-      {/* AGENT ORB + phase visual */}
-      <div style={{ display:"flex", justifyContent:"center", marginBottom:16, position:"relative" }}>
-
+      {/* 3. Orb hero section — fixed height, centered */}
+      <div style={{
+        height: 160,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        position: "relative",
+        marginBottom: 4,
+        flexShrink: 0,
+        zIndex: 1,
+      }}>
         {/* Radar rings (phase 0 + 1) */}
         {(phase === 0 || phase === 1) && (
-          <div style={{position:"absolute",inset:-32,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
+          <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
             {[1,0.7,0.4].map((o,i) => (
               <div key={i} style={{
                 position:"absolute",
-                width: 80 + i*36, height: 80 + i*36,
+                width: 90 + i*36, height: 90 + i*36,
                 borderRadius:"50%",
                 border:`1px solid rgba(6,182,212,${o*0.25})`,
                 animation:`mm-radar-ring ${1.5+i*0.5}s ease-out infinite`,
@@ -254,7 +320,7 @@ function EarnSimulation({ onConnectBrain, onAddETH }: { onConnectBrain: () => vo
 
         {/* Work progress ring (phase 3) */}
         {phase === 3 && (
-          <svg style={{position:"absolute",width:100,height:100,top:-10,left:"50%",transform:"translateX(-50%)",pointerEvents:"none"}} viewBox="0 0 100 100">
+          <svg style={{position:"absolute",width:110,height:110,top:"50%",left:"50%",transform:"translate(-50%,-50%)",pointerEvents:"none"}} viewBox="0 0 100 100">
             <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(99,102,241,0.15)" strokeWidth="4"/>
             <circle cx="50" cy="50" r="46" fill="none" stroke="#6366f1" strokeWidth="4"
               strokeDasharray={`${2 * Math.PI * 46 * workProgress / 100} ${2 * Math.PI * 46}`}
@@ -267,15 +333,14 @@ function EarnSimulation({ onConnectBrain, onAddETH }: { onConnectBrain: () => vo
 
         {/* Earn burst (phase 4) */}
         {phase === 4 && (
-          <div style={{position:"absolute",inset:-20,pointerEvents:"none"}}>
+          <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
             {[0,60,120,180,240,300].map(angle => (
               <div key={angle} style={{
                 position:"absolute",
-                left:"50%", top:"50%",
                 width:2, height:20,
                 background:"#ffd700",
-                transformOrigin:"0 0",
-                transform:`rotate(${angle}deg) translateY(-40px)`,
+                transformOrigin:"center center",
+                transform:`rotate(${angle}deg) translateY(-50px)`,
                 opacity:showEarnFlash?0.8:0,
                 transition:"opacity 0.3s",
                 borderRadius:2,
@@ -284,29 +349,107 @@ function EarnSimulation({ onConnectBrain, onAddETH }: { onConnectBrain: () => vo
           </div>
         )}
 
-        {/* The orb */}
+        {/* Outer glow ring 1 */}
         <div style={{
-          width:72, height:72, borderRadius:"50%",
+          position: "absolute",
+          width: 130, height: 130,
+          borderRadius: "50%",
+          background: `radial-gradient(circle, ${phase===4 ? "rgba(255,215,0,0.15)" : "rgba(99,102,241,0.12)"} 0%, transparent 70%)`,
+          filter: "blur(8px)",
+          top: "50%", left: "50%",
+          transform: "translate(-50%,-50%)",
+          animation: "mt-agent-pulse 2s infinite",
+          transition: "background 0.5s",
+        }} />
+
+        {/* Outer glow ring 2 — slower */}
+        <div style={{
+          position: "absolute",
+          width: 110, height: 110,
+          borderRadius: "50%",
+          background: `radial-gradient(circle, ${phase===4 ? "rgba(255,215,0,0.2)" : "rgba(99,102,241,0.18)"} 0%, transparent 65%)`,
+          filter: "blur(4px)",
+          top: "50%", left: "50%",
+          transform: "translate(-50%,-50%)",
+          animation: "mt-agent-pulse 3s infinite 0.5s",
+          transition: "background 0.5s",
+        }} />
+
+        {/* THE ORB SPHERE */}
+        <div style={{
+          width: 88, height: 88,
+          borderRadius: "50%",
           background: orbColor,
-          boxShadow: orbGlow,
-          animation: phase===3 ? "mm-work-pulse 0.6s infinite" : "mt-agent-pulse 2s infinite",
-          position:"relative", zIndex:2, flexShrink:0,
+          position: "relative",
+          zIndex: 2,
+          flexShrink: 0,
+          boxShadow: [
+            "inset 0 -8px 20px rgba(0,0,0,0.4)",
+            orbGlow,
+            "inset 0 2px 6px rgba(255,255,255,0.15)",
+          ].join(", "),
+          animation: phase === 3 ? "mm-work-pulse 0.6s infinite" : "mt-agent-pulse 2.5s infinite",
+          transition: "background 0.5s, box-shadow 0.5s",
         }}>
-          {/* Inner shimmer */}
-          <div style={{position:"absolute",top:8,left:10,width:12,height:8,borderRadius:"50%",background:"rgba(255,255,255,0.35)",filter:"blur(2px)"}} />
+          {/* Top-left specular highlight */}
+          <div style={{
+            position: "absolute",
+            top: 10, left: 12,
+            width: 22, height: 14,
+            borderRadius: "50%",
+            background: "rgba(255,255,255,0.45)",
+            filter: "blur(4px)",
+            transform: "rotate(-20deg)",
+          }} />
+
+          {/* Secondary smaller highlight */}
+          <div style={{
+            position: "absolute",
+            top: 18, left: 16,
+            width: 8, height: 5,
+            borderRadius: "50%",
+            background: "rgba(255,255,255,0.8)",
+            filter: "blur(1px)",
+          }} />
+
+          {/* Bottom rim light */}
+          <div style={{
+            position: "absolute",
+            bottom: 8, right: 10,
+            width: 18, height: 10,
+            borderRadius: "50%",
+            background: phase === 4 ? "rgba(255,180,0,0.3)" : "rgba(99,102,241,0.3)",
+            filter: "blur(3px)",
+            transition: "background 0.5s",
+          }} />
         </div>
+
+        {/* Floating ETH particles — inside orb zone */}
+        {simParticles.map(p => (
+          <div key={p.id} style={{
+            position: "absolute",
+            left: `${p.x}%`,
+            bottom: 0,
+            fontSize: 11, fontWeight: 900, color: "#ffd700",
+            animation: "mm-float-up 3s ease-out forwards",
+            pointerEvents: "none", zIndex: 10,
+            textShadow: "0 0 12px rgba(255,215,0,0.8)",
+            whiteSpace: "nowrap",
+          }}>{p.value}</div>
+        ))}
       </div>
 
-      {/* BOUNTY CARD */}
+      {/* 4. Bounty card */}
       <div style={{
         background: C.surface,
-        borderRadius:12,
-        border:`1px solid ${phase===4?"rgba(255,215,0,0.3)":phase===2&&quoteAccepted?"rgba(48,209,88,0.3)":C.border}`,
-        padding:"12px 14px",
-        marginBottom:12,
-        transition:"border-color 0.3s",
-        position:"relative",
-        overflow:"hidden",
+        borderRadius: 12,
+        border: `1px solid ${phase===4?"rgba(255,215,0,0.3)":phase===2&&quoteAccepted?"rgba(48,209,88,0.3)":C.border}`,
+        padding: "12px 14px",
+        marginBottom: 10,
+        transition: "border-color 0.3s",
+        position: "relative",
+        overflow: "hidden",
+        zIndex: 1,
       }}>
         {/* Accepted flash overlay */}
         {phase===2&&quoteAccepted&&(
@@ -336,8 +479,6 @@ function EarnSimulation({ onConnectBrain, onAddETH }: { onConnectBrain: () => vo
             <div style={{fontSize:9,color:C.muted}}>${(parseFloat(bounty.budget)*3200).toFixed(0)}</div>
           </div>
         </div>
-
-        {/* Phase-specific content inside card */}
 
         {/* Phase 0: Scanning bar */}
         {phase===0&&(
@@ -395,29 +536,74 @@ function EarnSimulation({ onConnectBrain, onAddETH }: { onConnectBrain: () => vo
         )}
       </div>
 
-      {/* Earnings counter */}
+      {/* 5. Earnings counter */}
       <div style={{
-        background:"rgba(255,215,0,0.06)",
-        border:"1px solid rgba(255,215,0,0.15)",
-        borderRadius:10, padding:"10px 14px",
-        display:"flex", justifyContent:"space-between", alignItems:"center",
-        marginBottom:16,
+        background: "rgba(255,215,0,0.05)",
+        border: "1px solid rgba(255,215,0,0.12)",
+        borderRadius: 14,
+        padding: "14px 16px",
+        marginBottom: 10,
+        position: "relative",
+        overflow: "hidden",
+        zIndex: 1,
       }}>
-        <div>
-          <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:2}}>Simulated earnings</div>
-          <div style={{fontSize:20,fontWeight:900,color:"#ffd700",letterSpacing:"-0.5px",textShadow:showEarnFlash?"0 0 16px rgba(255,215,0,0.8)":"none",transition:"text-shadow 0.3s"}}>
-            {earned.toFixed(4)} ETH
+        {/* Subtle shimmer line */}
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: 1,
+          background: "linear-gradient(90deg, transparent, rgba(255,215,0,0.3), transparent)",
+        }} />
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 9, color: "#6b6b80", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
+              Simulated earnings
+            </div>
+            <div style={{
+              fontSize: 28, fontWeight: 900, color: "#ffd700",
+              letterSpacing: "-1px", lineHeight: 1,
+              textShadow: showEarnFlash ? "0 0 20px rgba(255,215,0,0.9), 0 0 40px rgba(255,215,0,0.4)" : "0 0 8px rgba(255,215,0,0.3)",
+              transition: "text-shadow 0.3s",
+              fontVariantNumeric: "tabular-nums",
+            }}>
+              {earned.toFixed(4)}
+              <span style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,215,0,0.7)", marginLeft: 4 }}>ETH</span>
+            </div>
           </div>
-        </div>
-        <div style={{textAlign:"right"}}>
-          <div style={{fontSize:9,color:C.muted,marginBottom:2}}>USD value</div>
-          <div style={{fontSize:14,fontWeight:800,color:"#30d158"}}>${(earned*3200).toFixed(2)}</div>
-          <div style={{fontSize:9,color:C.muted}}>{bountyIdx} tasks done</div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#30d158" }}>
+              ${(earned * 3200).toFixed(2)}
+            </div>
+            <div style={{ fontSize: 10, color: "#6b6b80" }}>
+              {bountyIdx} task{bountyIdx !== 1 ? "s" : ""} completed
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Phase progress dots */}
-      <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:16}}>
+      {/* 6. Potential earnings mini-strip */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr",
+        gap: 6, marginBottom: 10, zIndex: 1, position: "relative",
+      }}>
+        {[
+          { t: "1h", v: "~0.008 ETH" },
+          { t: "8h", v: "~0.064 ETH" },
+          { t: "Week", v: "~0.45 ETH" },
+          { t: "Month", v: "~1.9 ETH" },
+        ].map(e => (
+          <div key={e.t} style={{
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: 8, padding: "8px 4px", textAlign: "center",
+          }}>
+            <div style={{ fontSize: 9, color: "#ffd700", fontWeight: 800, marginBottom: 2 }}>{e.v}</div>
+            <div style={{ fontSize: 8, color: "#6b6b80" }}>{e.t}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 7. Phase progress dots */}
+      <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:12,position:"relative",zIndex:1}}>
         {PHASE_LABELS.map((_,i)=>(
           <div key={i} style={{
             width: i===phase ? 16 : 6,
@@ -428,26 +614,57 @@ function EarnSimulation({ onConnectBrain, onAddETH }: { onConnectBrain: () => vo
         ))}
       </div>
 
-      {/* CTA */}
-      <div style={{display:"flex",gap:10}}>
+      {/* 8. CTA section — pushed to bottom */}
+      <div style={{ marginTop: "auto", position: "relative", zIndex: 1 }}>
+        {/* Big main CTA */}
         <button onClick={onConnectBrain} style={{
-          flex:1, padding:"14px 0", borderRadius:12,
-          background:"linear-gradient(135deg,#6366f1,#a855f7)",
-          color:"white", fontSize:13, fontWeight:800, border:"none", cursor:"pointer",
-          boxShadow:"0 4px 20px rgba(99,102,241,0.35)", fontFamily:"inherit",
-          letterSpacing:"-0.2px",
-        }}>Connect Brain &mdash; Start Earning</button>
-        <button onClick={onAddETH} style={{
-          padding:"14px 16px", borderRadius:12,
-          background:"rgba(255,215,0,0.1)", border:"1px solid rgba(255,215,0,0.3)",
-          color:"#ffd700", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit",
-          whiteSpace:"nowrap",
-        }}>Add ETH</button>
-      </div>
+          width: "100%",
+          padding: "17px 0",
+          borderRadius: 14,
+          background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)",
+          color: "white",
+          fontSize: 15,
+          fontWeight: 900,
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "inherit",
+          letterSpacing: "-0.3px",
+          boxShadow: "0 4px 24px rgba(99,102,241,0.5), 0 0 0 1px rgba(99,102,241,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
+          marginBottom: 10,
+          position: "relative",
+          overflow: "hidden",
+        }}>
+          {/* Shimmer effect on button */}
+          <div style={{
+            position: "absolute", top: 0, left: "-100%", width: "60%", height: "100%",
+            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)",
+            animation: "mm-btn-shimmer 2.5s ease-in-out infinite",
+          }} />
+          <span style={{ position: "relative", zIndex: 1 }}>Connect Brain &mdash; Start Earning</span>
+        </button>
 
-      {/* Disclaimer */}
-      <div style={{textAlign:"center",marginTop:10,fontSize:9,color:C.muted}}>
-        Live simulation &mdash; real tasks from Moltlaunch marketplace
+        {/* Secondary row */}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onAddETH} style={{
+            flex: 1, padding: "12px 0", borderRadius: 12,
+            background: "rgba(255,215,0,0.08)",
+            border: "1px solid rgba(255,215,0,0.25)",
+            color: "#ffd700", fontSize: 12, fontWeight: 800,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>
+            Fund Wallet with ETH
+          </button>
+          <div style={{
+            padding: "12px 14px", borderRadius: 12,
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            fontSize: 9, color: "#6b6b80", display: "flex",
+            alignItems: "center", textAlign: "center", lineHeight: 1.3,
+            maxWidth: 100,
+          }}>
+            Real tasks<br/>Moltlaunch<br/>marketplace
+          </div>
+        </div>
       </div>
     </div>
   );
