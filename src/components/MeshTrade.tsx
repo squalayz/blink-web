@@ -215,11 +215,20 @@ function tokenOrbColor(t: Token): string {
 }
 
 // ── Token logo with multi-source fallback ──────────────
+const LOGO_GRADIENTS = [
+  ["#6366f1","#a855f7"],["#06b6d4","#3b82f6"],["#10b981","#06b6d4"],
+  ["#f59e0b","#ef4444"],["#ec4899","#a855f7"],["#14b8a6","#6366f1"],
+  ["#f97316","#ec4899"],["#8b5cf6","#06b6d4"],["#22c55e","#16a34a"],
+  ["#ef4444","#dc2626"],["#3b82f6","#1d4ed8"],["#a78bfa","#7c3aed"],
+];
+function tokenGradient(addr: string): [string, string] {
+  const idx = (parseInt(addr.slice(2, 6) || "0", 16) || 0) % LOGO_GRADIENTS.length;
+  return LOGO_GRADIENTS[idx] as [string, string];
+}
+
 function getTokenLogoUrl(token: { address: string; chainId: string; imageUrl: string | null }): string | null {
-  if (token.imageUrl) return token.imageUrl;
-  if (token.address && token.chainId) {
-    return `https://dd.dexscreener.com/ds-data/tokens/${token.chainId}/${token.address.toLowerCase()}/header.png`;
-  }
+  // Only use imageUrl if it's a real URL (not null/empty)
+  if (token.imageUrl && token.imageUrl.startsWith("http")) return token.imageUrl;
   return null;
 }
 
@@ -227,47 +236,36 @@ function TokenLogo({ token, size }: { token: Token; size: number }) {
   const [imgSrc, setImgSrc] = useState<string | null>(() => getTokenLogoUrl(token));
   const [failed, setFailed] = useState(false);
 
-  const color = (() => {
-    const p = token.priceChange1h ?? 0;
-    if (p > 10) return C.match;
-    if (p > 5) return C.lime;
-    if (p > 0) return C.cyan;
-    if (p > -5) return C.yellow;
-    if (p > -10) return C.orange;
-    return C.hot;
-  })();
+  const [gradA, gradB] = tokenGradient(token.address || "0x000000");
+  const initials = (token.symbol || "??").slice(0, 2).toUpperCase();
+  const fontSize = Math.max(9, Math.round(size * 0.32));
 
-  const initials = token.symbol.slice(0, 2).toUpperCase();
-  const fontSize = size >= 36 ? 10 : size >= 26 ? 8 : 7;
-
-  if (failed || !imgSrc) {
-    return (
-      <div style={{
-        width: "100%", height: "100%",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        background: `radial-gradient(circle at 35% 35%, ${lightenColor(color)}, ${color})`,
-        borderRadius: "50%", flexShrink: 0,
+  // Initials fallback — looks like a proper colored logo
+  const InitialsFallback = (
+    <div style={{
+      width: "100%", height: "100%",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: `linear-gradient(135deg, ${gradA}, ${gradB})`,
+      borderRadius: "50%",
+    }}>
+      <span style={{
+        fontSize, fontWeight: 900, color: "white",
+        letterSpacing: "-0.02em", lineHeight: 1,
+        textShadow: "0 1px 3px rgba(0,0,0,0.4)",
       }}>
-        <span style={{ fontSize, fontWeight: 900, color: "white", letterSpacing: "-0.02em" }}>
-          {initials}
-        </span>
-      </div>
-    );
-  }
+        {initials}
+      </span>
+    </div>
+  );
+
+  if (failed || !imgSrc) return InitialsFallback;
 
   return (
     <img
       src={imgSrc}
       alt={token.symbol}
       style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", display: "block", pointerEvents: "none" }}
-      onError={() => {
-        const cdnUrl = `https://dd.dexscreener.com/ds-data/tokens/${token.chainId}/${token.address.toLowerCase()}/header.png`;
-        if (imgSrc !== cdnUrl) {
-          setImgSrc(cdnUrl);
-        } else {
-          setFailed(true);
-        }
-      }}
+      onError={() => setFailed(true)}
     />
   );
 }
