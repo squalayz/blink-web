@@ -328,6 +328,37 @@ const KEYFRAMES = `
 }
 @keyframes onb-slide-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes mt-card-in { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes mt-shoot-in {
+  0% {
+    transform: translate(var(--shoot-x), var(--shoot-y)) scale(0.1);
+    opacity: 0;
+    filter: blur(4px) brightness(3);
+    box-shadow: 0 0 0px 0px rgba(99,102,241,0);
+  }
+  30% {
+    opacity: 0.8;
+    filter: blur(1px) brightness(2);
+  }
+  60% {
+    transform: translate(calc(var(--shoot-x) * 0.05), calc(var(--shoot-y) * 0.05)) scale(1.15);
+    filter: blur(0px) brightness(1.5);
+    box-shadow: 0 0 20px 8px rgba(99,102,241,0.6);
+  }
+  80% {
+    transform: translate(0, 0) scale(0.9);
+    box-shadow: 0 0 10px 3px rgba(99,102,241,0.3);
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+    filter: blur(0px) brightness(1);
+    box-shadow: none;
+  }
+}
+@keyframes mt-shoot-trail {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(3); }
+}
 @media (max-width: 640px) {
   .mt-layout { flex-direction: column !important; }
   .mt-brain { width: 100% !important; max-width: 100% !important; border-right: none !important; border-top: 1px solid rgba(255,255,255,0.07) !important; border-bottom: none !important; order: 2 !important; }
@@ -386,6 +417,8 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
   const galaxyRef = useRef<HTMLDivElement | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
   const checkedTokensRef = useRef<Set<string>>(new Set());
+  const seenTokensRef = useRef<Set<string>>(new Set());
+  const [enteringTokens, setEnteringTokens] = useState<Set<string>>(new Set());
 
   const brainConnected = !!user?.ai_api_key_encrypted;
   const GAS_RESERVE = 0.002;
@@ -438,6 +471,30 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
 
     return { pumpingTokens: pumping, emergingTokens: emerging, heatingTokens: heating, columns: cols };
   }, [tokens, searchQuery]);
+
+  // ── Track newly arrived tokens for shoot-in animation ──
+  useEffect(() => {
+    const allCurrentAddresses = new Set<string>();
+    const newlyArrived = new Set<string>();
+
+    columns.forEach(col => {
+      col.tokens.forEach(t => {
+        allCurrentAddresses.add(t.address);
+        if (seenTokensRef.current.size > 0 && !seenTokensRef.current.has(t.address)) {
+          newlyArrived.add(t.address);
+        }
+      });
+    });
+
+    if (newlyArrived.size > 0) {
+      setEnteringTokens(newlyArrived);
+      setTimeout(() => {
+        setEnteringTokens(new Set());
+      }, 1200);
+    }
+
+    seenTokensRef.current = allCurrentAddresses;
+  }, [columns]);
 
   // ── Fetch tokens ──
   const fetchTokens = useCallback(async () => {
@@ -1081,6 +1138,14 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
       const isHot = t.score >= 85;
       const isNew = (Date.now() - t.pairCreatedAt) < 7200000;
       const isAnalyzing = agentTokenAddr === t.address;
+      const isEntering = enteringTokens.has(t.address);
+
+      // Deterministic shoot direction from token address
+      const shootSeed = t.address.charCodeAt(2) + t.address.charCodeAt(3);
+      const shootAngle = (shootSeed % 8) * 45;
+      const shootDist = 300 + (shootSeed % 200);
+      const shootX = Math.round(Math.cos(shootAngle * Math.PI / 180) * shootDist);
+      const shootY = Math.round(Math.sin(shootAngle * Math.PI / 180) * shootDist);
 
       return (
         <div
@@ -1120,13 +1185,20 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer",
-              animationName: dir === "cw" ? "mt-spin-ccw" : "mt-spin-cw",
-              animationDuration: `${speed}s`,
-              animationDelay: `${-offset}s`,
-              animationTimingFunction: "linear",
-              animationIterationCount: "infinite",
-              transition: "transform 0.15s ease",
-            }}
+              animationName: isEntering
+                ? "mt-shoot-in"
+                : dir === "cw" ? "mt-spin-ccw" : "mt-spin-cw",
+              animationDuration: isEntering ? "1.2s" : `${speed}s`,
+              animationDelay: isEntering ? "0s" : `${-offset}s`,
+              animationTimingFunction: isEntering
+                ? "cubic-bezier(0.22, 1, 0.36, 1)"
+                : "linear",
+              animationIterationCount: isEntering ? 1 : "infinite",
+              animationFillMode: isEntering ? "forwards" : "none",
+              transition: isEntering ? "none" : "transform 0.15s ease",
+              "--shoot-x": `${shootX}px`,
+              "--shoot-y": `${shootY}px`,
+            } as React.CSSProperties}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLElement).style.transform = "scale(1.3)";
               const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -1142,19 +1214,39 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
           >
             <TokenLogo token={t} size={size} />
 
+            {/* Comet trail for entering tokens */}
+            {isEntering && (
+              <div style={{
+                position: "absolute",
+                inset: -4,
+                borderRadius: "50%",
+                background: `radial-gradient(circle, ${color}88, transparent 70%)`,
+                animation: "mt-shoot-trail 1.2s ease forwards",
+                pointerEvents: "none",
+              }} />
+            )}
+
             {/* Badges */}
-            {(isHot || isNew) && (
+            {(isHot || isNew || isEntering) && (
               <div style={{
                 position: "absolute", top: -6, right: -6,
                 display: "flex", gap: 1, zIndex: 12,
               }}>
+                {isEntering && (
+                  <span style={{
+                    fontSize: 6, fontWeight: 900, color: "#fff",
+                    background: "#30d158", borderRadius: 4, padding: "1px 3px", lineHeight: 1.4,
+                    boxShadow: "0 0 8px rgba(48,209,88,0.6)",
+                    animation: "mt-card-in 0.3s ease",
+                  }}>NEW</span>
+                )}
                 {isHot && (
                   <span style={{
                     fontSize: 6, fontWeight: 800, color: "#fff",
                     background: C.hot, borderRadius: 4, padding: "0px 3px", lineHeight: 1.4,
                   }}>HOT</span>
                 )}
-                {isNew && (
+                {isNew && !isEntering && (
                   <span style={{
                     fontSize: 6, fontWeight: 800, color: "#fff",
                     background: C.cyan, borderRadius: 4, padding: "0px 3px", lineHeight: 1.4,
@@ -1522,6 +1614,14 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
                       const offset = -(hashPos(t.address, 7) / 75) * speed;
                       const dir = t.address.charCodeAt(0) % 2 === 0 ? "mt-spin-cw" : "mt-spin-ccw";
                       const counterDir = dir === "mt-spin-cw" ? "mt-spin-ccw" : "mt-spin-cw";
+                      const isEntering = enteringTokens.has(t.address);
+
+                      const shootSeed = t.address.charCodeAt(2) + t.address.charCodeAt(3);
+                      const shootAngle = (shootSeed % 8) * 45;
+                      const shootDist = 300 + (shootSeed % 200);
+                      const shootX = Math.round(Math.cos(shootAngle * Math.PI / 180) * shootDist);
+                      const shootY = Math.round(Math.sin(shootAngle * Math.PI / 180) * shootDist);
+
                       return (
                         <div
                           key={t.address}
@@ -1547,13 +1647,44 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
                             display: "flex", alignItems: "center", justifyContent: "center",
                             cursor: "pointer",
                             overflow: "hidden",
-                            animationName: counterDir,
-                            animationDuration: `${speed}s`,
-                            animationDelay: `${offset}s`,
-                            animationTimingFunction: "linear",
-                            animationIterationCount: "infinite",
-                          }}>
+                            animationName: isEntering
+                              ? "mt-shoot-in"
+                              : counterDir,
+                            animationDuration: isEntering ? "1.2s" : `${speed}s`,
+                            animationDelay: isEntering ? "0s" : `${offset}s`,
+                            animationTimingFunction: isEntering
+                              ? "cubic-bezier(0.22, 1, 0.36, 1)"
+                              : "linear",
+                            animationIterationCount: isEntering ? 1 : "infinite",
+                            animationFillMode: isEntering ? "forwards" : "none",
+                            "--shoot-x": `${shootX}px`,
+                            "--shoot-y": `${shootY}px`,
+                          } as React.CSSProperties}>
                             <TokenLogo token={t} size={size} />
+
+                            {/* Comet trail */}
+                            {isEntering && (
+                              <div style={{
+                                position: "absolute",
+                                inset: -4,
+                                borderRadius: "50%",
+                                background: `radial-gradient(circle, ${color}88, transparent 70%)`,
+                                animation: "mt-shoot-trail 1.2s ease forwards",
+                                pointerEvents: "none",
+                              }} />
+                            )}
+
+                            {/* NEW badge */}
+                            {isEntering && (
+                              <div style={{
+                                position: "absolute", top: -8, right: -8,
+                                fontSize: 7, fontWeight: 900, color: "#fff",
+                                background: "#30d158", borderRadius: 4, padding: "2px 4px",
+                                letterSpacing: "0.05em", zIndex: 10,
+                                animation: "mt-card-in 0.3s ease",
+                                boxShadow: "0 0 8px rgba(48,209,88,0.6)",
+                              }}>NEW</div>
+                            )}
                           </div>
                         </div>
                       );
