@@ -118,6 +118,13 @@ function formatCompact(n: number): string {
   return n.toFixed(0);
 }
 
+function formatShort(n: number): string {
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + "B";
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(0) + "K";
+  return n.toFixed(0);
+}
+
 function formatTime(ts: number): string {
   const d = new Date(ts);
   return (
@@ -419,6 +426,7 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
   const checkedTokensRef = useRef<Set<string>>(new Set());
   const seenTokensRef = useRef<Set<string>>(new Set());
   const [enteringTokens, setEnteringTokens] = useState<Set<string>>(new Set());
+  const [expandedOrb, setExpandedOrb] = useState<string | null>(null);
 
   const brainConnected = !!user?.ai_api_key_encrypted;
   const GAS_RESERVE = 0.002;
@@ -1122,158 +1130,243 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
     );
   }
 
-  // ── Render orbital column tokens ──
-  function renderOrbitalTokens(colTokens: Token[], colColor: string) {
+  // ── Render orbital column tokens (3-ring system) ──
+  function renderOrbitalTokens(colTokens: Token[], colColor: string, colHeight: number) {
     const positionAddrs = new Set(positions.map((p) => p.tokenAddress));
 
-    return colTokens.map((t, i) => {
-      const size = Math.max(18, Math.min(48, Math.log10(Math.max(t.marketCap || 1, 1)) / 10 * 36 + 18));
-      const color = orbColor(t.priceChange1h);
-      const orbitR = 20 + (i % 5) * 22;
-      const speed = Math.max(8, 40 - (t.volume1h / 50000) * 32);
-      const offsetHash = hashPos(t.address, 7);
-      const offset = (offsetHash / 75) * speed;
-      const dir = t.address.charCodeAt(0) % 2 === 0 ? "cw" : "ccw";
-      const isPosition = positionAddrs.has(t.address);
-      const isHot = t.score >= 85;
-      const isNew = (Date.now() - t.pairCreatedAt) < 7200000;
-      const isAnalyzing = agentTokenAddr === t.address;
-      const isEntering = enteringTokens.has(t.address);
+    // Sort by absolute 1h change descending (most volatile = inner ring)
+    const sorted = [...colTokens].sort((a, b) =>
+      Math.abs(b.priceChange1h || 0) - Math.abs(a.priceChange1h || 0)
+    );
+    const ring1 = sorted.slice(0, 4);
+    const ring2 = sorted.slice(4, 10);
+    const ring3 = sorted.slice(10, 18);
 
-      // Deterministic shoot direction from token address
-      const shootSeed = t.address.charCodeAt(2) + t.address.charCodeAt(3);
-      const shootAngle = (shootSeed % 8) * 45;
-      const shootDist = 300 + (shootSeed % 200);
-      const shootX = Math.round(Math.cos(shootAngle * Math.PI / 180) * shootDist);
-      const shootY = Math.round(Math.sin(shootAngle * Math.PI / 180) * shootDist);
+    const rings = [
+      { tokens: ring1, radiusPct: 0.28, orbSize: 36, baseDuration: 20 },
+      { tokens: ring2, radiusPct: 0.42, orbSize: 32, baseDuration: 35 },
+      { tokens: ring3, radiusPct: 0.56, orbSize: 28, baseDuration: 50 },
+    ];
 
-      return (
-        <div
-          key={t.address}
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: "50%",
-            width: 0,
-            height: 0,
-            animationName: dir === "cw" ? "mt-spin-cw" : "mt-spin-ccw",
-            animationDuration: `${speed}s`,
-            animationDelay: `${-offset}s`,
-            animationTimingFunction: "linear",
-            animationIterationCount: "infinite",
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedToken(t);
-            setHoverCard(null);
-          }}
-        >
+    const elements: React.ReactNode[] = [];
+
+    rings.forEach((ring, ringIdx) => {
+      const ringRadius = Math.max(40, colHeight * ring.radiusPct * 0.5);
+
+      ring.tokens.forEach((t, i) => {
+        const color = orbColor(t.priceChange1h);
+        const angle = (i / Math.max(ring.tokens.length, 1)) * 360;
+        const vol = t.volume1h || 0;
+        const orbitDuration = ring.baseDuration / (1 + Math.log10(Math.max(1, vol / 10000)));
+        const isPosition = positionAddrs.has(t.address);
+        const isAnalyzing = agentTokenAddr === t.address;
+        const isEntering = enteringTokens.has(t.address);
+        const change1h = t.priceChange1h || 0;
+        const change24h = t.priceChange24h || 0;
+        const buyPressure = t.txns1h.buys + t.txns1h.sells > 0
+          ? (t.txns1h.buys / (t.txns1h.buys + t.txns1h.sells)) * 100
+          : 50;
+
+        const shootSeed = t.address.charCodeAt(2) + t.address.charCodeAt(3);
+        const shootAngle = (shootSeed % 8) * 45;
+        const shootDist = 300 + (shootSeed % 200);
+        const shootX = Math.round(Math.cos(shootAngle * Math.PI / 180) * shootDist);
+        const shootY = Math.round(Math.sin(shootAngle * Math.PI / 180) * shootDist);
+
+        elements.push(
           <div
+            key={t.address}
             style={{
               position: "absolute",
-              left: orbitR,
-              top: -size / 2,
-              width: size,
-              height: size,
-              borderRadius: "50%",
-              background: `radial-gradient(circle at 35% 35%, ${lightenColor(color)}, ${color})`,
-              boxShadow: isPosition
-                ? `0 0 16px 4px ${C.match}55`
-                : `0 0 ${size / 3}px ${color}88`,
-              border: isPosition ? `2px solid ${C.match}` : `1px solid ${color}44`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              animationName: isEntering
-                ? "mt-shoot-in"
-                : dir === "cw" ? "mt-spin-ccw" : "mt-spin-cw",
-              animationDuration: isEntering ? "1.2s" : `${speed}s`,
-              animationDelay: isEntering ? "0s" : `${-offset}s`,
-              animationTimingFunction: isEntering
-                ? "cubic-bezier(0.22, 1, 0.36, 1)"
-                : "linear",
-              animationIterationCount: isEntering ? 1 : "infinite",
-              animationFillMode: isEntering ? "forwards" : "none",
-              transition: isEntering ? "none" : "transform 0.15s ease",
-              "--shoot-x": `${shootX}px`,
-              "--shoot-y": `${shootY}px`,
-            } as React.CSSProperties}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.transform = "scale(1.3)";
-              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              hoverTimerRef.current = setTimeout(() => {
-                setHoverCard({ token: t, x: rect.left + rect.width / 2, y: rect.top });
-              }, 300);
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.transform = "scale(1)";
-              if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-              setHoverCard(null);
+              left: "50%",
+              top: "50%",
+              width: 0,
+              height: 0,
+              animation: `mt-spin-cw ${orbitDuration}s linear infinite`,
+              zIndex: expandedOrb === t.address ? 100 : 10,
             }}
           >
-            <TokenLogo token={t} size={size} />
-
-            {/* Comet trail for entering tokens */}
-            {isEntering && (
-              <div style={{
+            {/* Positioned at radius along current angle */}
+            <div
+              style={{
                 position: "absolute",
-                inset: -4,
-                borderRadius: "50%",
-                background: `radial-gradient(circle, ${color}88, transparent 70%)`,
-                animation: "mt-shoot-trail 1.2s ease forwards",
-                pointerEvents: "none",
-              }} />
-            )}
+                left: 0,
+                top: 0,
+                transform: `rotate(${angle}deg) translateX(${ringRadius}px)`,
+              }}
+            >
+              {/* Counter-rotate to stay upright */}
+              <div
+                style={{
+                  transform: "translate(-50%, -50%)",
+                  animation: `mt-spin-ccw ${orbitDuration}s linear infinite`,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  ...(isEntering ? {
+                    "--shoot-x": `${shootX}px`,
+                    "--shoot-y": `${shootY}px`,
+                  } as React.CSSProperties : {}),
+                }}
+              >
+                {/* The orb circle */}
+                <div
+                  style={{
+                    width: ring.orbSize,
+                    height: ring.orbSize,
+                    borderRadius: "50%",
+                    background: `radial-gradient(circle at 35% 35%, ${lightenColor(color)}, ${color})`,
+                    boxShadow: isPosition
+                      ? `0 0 16px 4px ${C.match}55`
+                      : `0 0 ${ring.orbSize / 3}px ${color}88`,
+                    border: isPosition ? `2px solid ${C.match}` : `1px solid ${color}44`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    transition: "transform 0.2s",
+                    position: "relative",
+                    overflow: "hidden",
+                    animation: isEntering ? "mt-shoot-in 1.2s cubic-bezier(0.22,1,0.36,1) forwards" : undefined,
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpandedOrb(expandedOrb === t.address ? null : t.address);
+                    setHoverCard(null);
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.transform = "scale(1.2)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.transform = "scale(1)";
+                  }}
+                >
+                  <TokenLogo token={t} size={ring.orbSize} />
+                  {/* Comet trail */}
+                  {isEntering && (
+                    <div style={{
+                      position: "absolute", inset: -4, borderRadius: "50%",
+                      background: `radial-gradient(circle, ${color}88, transparent 70%)`,
+                      animation: "mt-shoot-trail 1.2s ease forwards",
+                      pointerEvents: "none",
+                    }} />
+                  )}
+                  {/* NEW badge */}
+                  {isEntering && (
+                    <div style={{
+                      position: "absolute", top: -6, right: -6,
+                      fontSize: 6, fontWeight: 900, color: "#fff",
+                      background: "#30d158", borderRadius: 4, padding: "1px 3px",
+                      lineHeight: 1.4, zIndex: 12,
+                      boxShadow: "0 0 8px rgba(48,209,88,0.6)",
+                      animation: "mt-card-in 0.3s ease",
+                    }}>NEW</div>
+                  )}
+                </div>
 
-            {/* Badges */}
-            {(isHot || isNew || isEntering) && (
-              <div style={{
-                position: "absolute", top: -6, right: -6,
-                display: "flex", gap: 1, zIndex: 12,
-              }}>
-                {isEntering && (
-                  <span style={{
-                    fontSize: 6, fontWeight: 900, color: "#fff",
-                    background: "#30d158", borderRadius: 4, padding: "1px 3px", lineHeight: 1.4,
-                    boxShadow: "0 0 8px rgba(48,209,88,0.6)",
-                    animation: "mt-card-in 0.3s ease",
-                  }}>NEW</span>
+                {/* Always-visible label below orb */}
+                <div style={{
+                  marginTop: 4,
+                  textAlign: "center",
+                  pointerEvents: "none",
+                }}>
+                  <div style={{
+                    fontSize: 9, fontWeight: 800, color: "#e8e8f0",
+                    letterSpacing: "0.05em", lineHeight: 1.2,
+                    textShadow: "0 1px 4px rgba(0,0,0,0.8)",
+                  }}>
+                    {t.symbol.length > 6 ? t.symbol.slice(0, 6) : t.symbol}
+                  </div>
+                  <div style={{
+                    fontSize: 9, fontWeight: 700, lineHeight: 1.2,
+                    color: change1h >= 0 ? "#30d158" : "#ff2d55",
+                    textShadow: "0 1px 4px rgba(0,0,0,0.8)",
+                  }}>
+                    {change1h >= 0 ? "+" : ""}{change1h.toFixed(1)}%
+                  </div>
+                </div>
+
+                {/* Expanded info card */}
+                {expandedOrb === t.address && (
+                  <div style={{
+                    marginTop: 6,
+                    background: "rgba(13,13,20,0.95)",
+                    border: "1px solid rgba(99,102,241,0.4)",
+                    borderRadius: 10,
+                    padding: "8px 10px",
+                    minWidth: 130,
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.6), 0 0 20px rgba(99,102,241,0.15)",
+                    animation: "mt-card-in 0.2s ease",
+                    pointerEvents: "auto",
+                    zIndex: 100,
+                  }} onClick={(e) => e.stopPropagation()}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#e8e8f0", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {t.name.slice(0, 18)}
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: "#e8e8f0", marginBottom: 6 }}>
+                      ${parseFloat(String(t.price || "0")).toFixed(parseFloat(String(t.price || "0")) < 0.001 ? 8 : 4)}
+                    </div>
+                    <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+                      <span style={{ fontSize: 9, color: change1h >= 0 ? "#30d158" : "#ff2d55" }}>
+                        1h {change1h >= 0 ? "+" : ""}{change1h.toFixed(1)}%
+                      </span>
+                      <span style={{ fontSize: 9, color: change24h >= 0 ? "#30d158" : "#ff2d55" }}>
+                        24h {change24h >= 0 ? "+" : ""}{change24h.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 9, color: "#6b6b80", marginBottom: 6 }}>
+                      MCap ${formatShort(t.marketCap)} · Vol ${formatShort(t.volume24h)}
+                    </div>
+                    {/* Buy pressure bar */}
+                    <div style={{ height: 4, borderRadius: 2, background: "#1a1a24", marginBottom: 8, overflow: "hidden" }}>
+                      <div style={{
+                        height: "100%",
+                        width: `${Math.min(100, Math.max(0, buyPressure))}%`,
+                        background: buyPressure > 50 ? "#30d158" : "#ff2d55",
+                        borderRadius: 2,
+                      }} />
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedOrb(null);
+                        setSelectedToken(t);
+                      }}
+                      style={{
+                        width: "100%", padding: "5px 0", borderRadius: 6,
+                        border: "none",
+                        background: "linear-gradient(135deg, #6366f1, #a855f7)",
+                        color: "white", fontSize: 9, fontWeight: 800,
+                        cursor: "pointer", fontFamily: "inherit",
+                      }}
+                    >
+                      ANALYZE
+                    </button>
+                  </div>
                 )}
-                {isHot && (
-                  <span style={{
-                    fontSize: 6, fontWeight: 800, color: "#fff",
-                    background: C.hot, borderRadius: 4, padding: "0px 3px", lineHeight: 1.4,
-                  }}>HOT</span>
-                )}
-                {isNew && !isEntering && (
-                  <span style={{
-                    fontSize: 6, fontWeight: 800, color: "#fff",
-                    background: C.cyan, borderRadius: 4, padding: "0px 3px", lineHeight: 1.4,
-                  }}>NEW</span>
+
+                {/* Analyze ring */}
+                {isAnalyzing && (
+                  <div style={{
+                    position: "absolute",
+                    left: "50%", top: ring.orbSize / 2,
+                    width: ring.orbSize + 16,
+                    height: ring.orbSize + 16,
+                    borderRadius: "50%",
+                    border: `2px solid ${C.indigo}`,
+                    transform: "translate(-50%, -50%)",
+                    animation: "mt-analyze-ring 1.5s ease-out infinite",
+                    pointerEvents: "none",
+                  }} />
                 )}
               </div>
-            )}
+            </div>
           </div>
-
-          {/* Analyze ring */}
-          {isAnalyzing && (
-            <div style={{
-              position: "absolute",
-              left: orbitR + size / 2,
-              top: 0,
-              width: size + 16,
-              height: size + 16,
-              borderRadius: "50%",
-              border: `2px solid ${C.indigo}`,
-              transform: "translate(-50%, -50%)",
-              animation: "mt-analyze-ring 1.5s ease-out infinite",
-              pointerEvents: "none",
-            }} />
-          )}
-        </div>
-      );
+        );
+      });
     });
+
+    return elements;
   }
 
   // ── Zone 2: Galaxy View (3-column orbital) ──
@@ -1525,36 +1618,58 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
                   width: "100%",
                   height: "calc(100% - 52px)",
                   overflow: "hidden",
-                }}>
-                  {/* Center dot */}
+                }} onClick={() => setExpandedOrb(null)}>
+                  {/* Center star */}
                   <div style={{
                     position: "absolute", left: "50%", top: "50%",
-                    width: 6, height: 6, borderRadius: "50%",
-                    background: col.color, opacity: 0.4,
                     transform: "translate(-50%, -50%)",
-                  }} />
-
-                  {/* Orbit ring guides */}
-                  {[0, 1, 2, 3, 4].map(ring => (
-                    <div key={ring} style={{
-                      position: "absolute", left: "50%", top: "50%",
-                      width: (20 + ring * 22) * 2,
-                      height: (20 + ring * 22) * 2,
-                      borderRadius: "50%",
-                      border: `1px solid rgba(255,255,255,0.03)`,
-                      transform: "translate(-50%, -50%)",
-                      pointerEvents: "none",
+                    zIndex: 5, textAlign: "center", pointerEvents: "none",
+                  }}>
+                    <div style={{
+                      width: 40, height: 40, borderRadius: "50%",
+                      background: ci === 0
+                        ? "radial-gradient(circle at 35% 35%, #67e8f9, #06b6d4)"
+                        : ci === 1
+                        ? "radial-gradient(circle at 35% 35%, #fde68a, #ffd700)"
+                        : "radial-gradient(circle at 35% 35%, #86efac, #30d158)",
+                      boxShadow: `0 0 20px ${col.color}66, 0 0 40px ${col.color}33`,
+                      animation: "mt-agent-pulse 3s ease-in-out infinite",
+                      margin: "0 auto 6px",
                     }} />
-                  ))}
+                    <div style={{
+                      fontSize: 9, fontWeight: 800, color: col.color,
+                      letterSpacing: "0.1em",
+                      textShadow: `0 0 8px ${col.color}`,
+                    }}>
+                      {col.label}
+                    </div>
+                    <div style={{ fontSize: 8, color: "#6b6b80" }}>{col.tokens.length} coins</div>
+                  </div>
+
+                  {/* Orbit ring guides — 3 concentric rings */}
+                  {[0.28, 0.42, 0.56].map((pct, ring) => {
+                    const r = Math.max(40, 300 * pct * 0.5) * 2;
+                    return (
+                      <div key={ring} style={{
+                        position: "absolute", left: "50%", top: "50%",
+                        width: r,
+                        height: r,
+                        borderRadius: "50%",
+                        border: `1px solid rgba(255,255,255,0.04)`,
+                        transform: "translate(-50%, -50%)",
+                        pointerEvents: "none",
+                      }} />
+                    );
+                  })}
 
                   {/* Token orbs */}
-                  {renderOrbitalTokens(col.tokens, col.color)}
+                  {renderOrbitalTokens(col.tokens, col.color, 300)}
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Mobile: single column view controlled by mobileColTab */}
+          {/* Mobile: scrollable card list controlled by mobileColTab */}
           <div
             className="mt-mobile-col-view"
             style={{ display: "none", flex: 1, flexDirection: "column", overflow: "hidden" }}
@@ -1577,144 +1692,45 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
                     <span style={{ fontSize: 10, color: C.muted }}>{col.tokens.length} tokens</span>
                   </div>
 
-                  {/* Floating orbs container */}
+                  {/* Mobile card list */}
                   <div style={{
-                    flex: 1, position: "relative", overflow: "hidden",
-                    minHeight: 300,
+                    flex: 1, overflowY: "auto",
+                    display: "flex", flexDirection: "column", gap: 8,
+                    padding: "8px 12px 12px",
                   }}>
-                    {/* Stardust — 40 stars on mobile */}
-                    {Array.from({ length: 40 }, (_, i) => (
-                      <div key={`mstar-${i}`} style={{
-                        position: "absolute",
-                        left: `${((i * 23 + 7) * 17) % 100}%`,
-                        top: `${((i * 31 + 13) * 11) % 100}%`,
-                        width: 1 + (i % 2), height: 1 + (i % 2),
-                        borderRadius: "50%", background: "white",
-                        opacity: 0.05 + ((i * 13) % 25) / 100,
-                        pointerEvents: "none",
-                      }} />
-                    ))}
-
-                    {/* Center glow dot */}
-                    <div style={{
-                      position: "absolute", left: "50%", top: "50%",
-                      transform: "translate(-50%,-50%)",
-                      width: 6, height: 6, borderRadius: "50%",
-                      background: col.color, opacity: 0.3,
-                      boxShadow: `0 0 20px 8px ${col.color}33`,
-                      pointerEvents: "none",
-                    }} />
-
-                    {/* Orbiting token orbs */}
-                    {col.tokens.slice(0, 20).map((t, i) => {
-                      const color = orbColor(t.priceChange1h);
-                      const size = Math.max(22, Math.min(42, Math.log10(Math.max(t.marketCap || 1, 1)) / 10 * 30 + 18));
-                      const orbitR = 22 + (i % 5) * 28;
-                      const speed = Math.max(10, 45 - (t.volume1h / 30000) * 35);
-                      const offset = -(hashPos(t.address, 7) / 75) * speed;
-                      const dir = t.address.charCodeAt(0) % 2 === 0 ? "mt-spin-cw" : "mt-spin-ccw";
-                      const counterDir = dir === "mt-spin-cw" ? "mt-spin-ccw" : "mt-spin-cw";
-                      const isEntering = enteringTokens.has(t.address);
-
-                      const shootSeed = t.address.charCodeAt(2) + t.address.charCodeAt(3);
-                      const shootAngle = (shootSeed % 8) * 45;
-                      const shootDist = 300 + (shootSeed % 200);
-                      const shootX = Math.round(Math.cos(shootAngle * Math.PI / 180) * shootDist);
-                      const shootY = Math.round(Math.sin(shootAngle * Math.PI / 180) * shootDist);
-
+                    {col.tokens.map(t => {
+                      const change1h = t.priceChange1h || 0;
                       return (
-                        <div
-                          key={t.address}
-                          style={{
-                            position: "absolute", left: "50%", top: "50%",
-                            width: 0, height: 0,
-                            animationName: dir,
-                            animationDuration: `${speed}s`,
-                            animationDelay: `${offset}s`,
-                            animationTimingFunction: "linear",
-                            animationIterationCount: "infinite",
-                          }}
-                          onClick={() => setSelectedToken(t)}
-                        >
+                        <div key={t.address} style={{
+                          display: "flex", alignItems: "center", gap: 10,
+                          background: C.surface, borderRadius: 10,
+                          border: `1px solid ${C.border}`,
+                          padding: "10px 12px", cursor: "pointer",
+                        }} onClick={() => setSelectedToken(t)}>
                           <div style={{
-                            position: "absolute",
-                            left: orbitR,
-                            top: -size / 2,
-                            width: size, height: size,
-                            borderRadius: "50%",
-                            background: `radial-gradient(circle at 35% 35%, ${lightenColor(color)}, ${color})`,
-                            boxShadow: `0 0 ${size / 3}px ${color}88`,
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            cursor: "pointer",
-                            overflow: "hidden",
-                            animationName: isEntering
-                              ? "mt-shoot-in"
-                              : counterDir,
-                            animationDuration: isEntering ? "1.2s" : `${speed}s`,
-                            animationDelay: isEntering ? "0s" : `${offset}s`,
-                            animationTimingFunction: isEntering
-                              ? "cubic-bezier(0.22, 1, 0.36, 1)"
-                              : "linear",
-                            animationIterationCount: isEntering ? 1 : "infinite",
-                            animationFillMode: isEntering ? "forwards" : "none",
-                            "--shoot-x": `${shootX}px`,
-                            "--shoot-y": `${shootY}px`,
-                          } as React.CSSProperties}>
-                            <TokenLogo token={t} size={size} />
-
-                            {/* Comet trail */}
-                            {isEntering && (
-                              <div style={{
-                                position: "absolute",
-                                inset: -4,
-                                borderRadius: "50%",
-                                background: `radial-gradient(circle, ${color}88, transparent 70%)`,
-                                animation: "mt-shoot-trail 1.2s ease forwards",
-                                pointerEvents: "none",
-                              }} />
-                            )}
-
-                            {/* NEW badge */}
-                            {isEntering && (
-                              <div style={{
-                                position: "absolute", top: -8, right: -8,
-                                fontSize: 7, fontWeight: 900, color: "#fff",
-                                background: "#30d158", borderRadius: 4, padding: "2px 4px",
-                                letterSpacing: "0.05em", zIndex: 10,
-                                animation: "mt-card-in 0.3s ease",
-                                boxShadow: "0 0 8px rgba(48,209,88,0.6)",
-                              }}>NEW</div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Bottom token name list — scrollable, compact */}
-                  <div style={{
-                    maxHeight: 120, overflowY: "auto", borderTop: `1px solid ${C.border}`,
-                    flexShrink: 0,
-                  }}>
-                    {col.tokens.slice(0, 15).map(t => {
-                      const c = orbColor(t.priceChange1h);
-                      return (
-                        <div key={t.address} onClick={() => setSelectedToken(t)} style={{
-                          display: "flex", alignItems: "center", gap: 8,
-                          padding: "6px 12px", borderBottom: `1px solid ${C.border}`,
-                          cursor: "pointer",
-                        }}>
-                          <div style={{
-                            width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
-                            background: `radial-gradient(circle at 35% 35%, ${lightenColor(c)}, ${c})`,
-                            display: "flex", alignItems: "center", justifyContent: "center",
+                            width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
+                            overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center",
+                            background: `radial-gradient(circle at 35% 35%, ${lightenColor(orbColor(change1h))}, ${orbColor(change1h)})`,
                           }}>
-                            <TokenLogo token={t} size={20} />
+                            <TokenLogo token={t} size={32} />
                           </div>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: C.text, flex: 1 }}>{t.symbol}</span>
-                          <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono',monospace", color: t.priceChange1h >= 0 ? C.match : C.hot }}>
-                            {t.priceChange1h >= 0 ? "+" : ""}{t.priceChange1h.toFixed(1)}%
-                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: C.text }}>{t.symbol}</div>
+                            <div style={{ fontSize: 10, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {t.name.slice(0, 20)}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: C.text }}>
+                              {formatPrice(t.price)}
+                            </div>
+                            <div style={{
+                              fontSize: 10, fontWeight: 700,
+                              color: change1h >= 0 ? C.match : C.hot,
+                            }}>
+                              {change1h >= 0 ? "+" : ""}{change1h.toFixed(1)}%
+                            </div>
+                          </div>
                         </div>
                       );
                     })}
