@@ -177,11 +177,24 @@ function fmtK(n: number): string {
 }
 
 function fmtAge(ts: number): string {
-  if (!ts) return "";
-  const s = Math.floor((Date.now() - ts * 1000) / 1000);
-  if (s < 3600) return Math.floor(s / 60) + "m";
-  if (s < 86400) return Math.floor(s / 3600) + "h";
-  return Math.floor(s / 86400) + "d";
+  if (!ts || ts <= 0) return "";
+  // pairCreatedAt is in milliseconds
+  const ms = Date.now() - ts;
+  if (ms < 0) return "";
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return "<1m";
+  if (mins < 60) return mins + "m";
+  const hrs = Math.floor(ms / 3600000);
+  if (hrs < 24) return hrs + "h";
+  return Math.floor(ms / 86400000) + "d";
+}
+
+function cleanTokenName(name: string, symbol: string): string {
+  // Strip pair suffixes like "/ WETH", "/ ETH", "/ USDC", "/ SOL"
+  const cleaned = name.replace(/\s*\/\s*(WETH|ETH|USDC|USDT|SOL|BNB|BASE|ARB)\s*$/i, "").trim();
+  // If name looks like a contract address (0x...) or is same as symbol, return empty
+  if (cleaned.startsWith("0x") || cleaned.toLowerCase() === symbol.toLowerCase()) return "";
+  return cleaned;
 }
 
 function buyPct(txns: { buys: number; sells: number }): number {
@@ -1244,30 +1257,42 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
                   )}
                 </div>
 
-                {/* Row 2: Name */}
-                <div style={{
-                  fontSize: 10, color: "#6b6b80",
-                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 130,
-                }}>
-                  {t.name.slice(0, 18)}
-                </div>
+                {/* Row 2: Name (cleaned, skip if empty or same as symbol) */}
+                {(() => {
+                  const cleanName = cleanTokenName(t.name, t.symbol);
+                  if (!cleanName) return null;
+                  return (
+                    <div style={{
+                      fontSize: 10, color: "#6b6b80",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 130,
+                    }}>
+                      {cleanName.slice(0, 20)}
+                    </div>
+                  );
+                })()}
 
                 {/* Row 3: Age + Vol + Txns */}
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                  <span style={{
-                    fontSize: 9, fontWeight: 700,
-                    color: isJustLaunched ? "#30d158" : "#6b6b80",
-                    background: isJustLaunched ? "rgba(48,209,88,0.1)" : "rgba(255,255,255,0.05)",
-                    padding: "1px 5px", borderRadius: 4,
-                  }}>{age}</span>
-                  <span style={{ fontSize: 9, color: "#6b6b80" }}>
-                    V {formatShort(t.volume1h || 0)}
-                  </span>
-                  <span style={{ fontSize: 9 }}>
-                    <span style={{ color: "#30d158" }}>{t.txns1h.buys}B</span>
-                    <span style={{ color: "#6b6b80" }}>/</span>
-                    <span style={{ color: "#ff2d55" }}>{t.txns1h.sells}S</span>
-                  </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1 }}>
+                  {age && (
+                    <span style={{
+                      fontSize: 9, fontWeight: 700,
+                      color: isJustLaunched ? "#30d158" : "#6b6b80",
+                      background: isJustLaunched ? "rgba(48,209,88,0.1)" : "rgba(255,255,255,0.05)",
+                      padding: "1px 5px", borderRadius: 4,
+                    }}>{age}</span>
+                  )}
+                  {(t.volume1h || 0) > 0 && (
+                    <span style={{ fontSize: 9, color: "#6b6b80" }}>
+                      V {formatShort(t.volume1h)}
+                    </span>
+                  )}
+                  {(t.txns1h.buys + t.txns1h.sells) > 0 && (
+                    <span style={{ fontSize: 9 }}>
+                      <span style={{ color: "#30d158" }}>{t.txns1h.buys}B</span>
+                      <span style={{ color: "#6b6b80" }}>/</span>
+                      <span style={{ color: "#ff2d55" }}>{t.txns1h.sells}S</span>
+                    </span>
+                  )}
                 </div>
               </div>
 
