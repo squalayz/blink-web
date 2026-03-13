@@ -121,10 +121,11 @@ function formatCompact(n: number): string {
 }
 
 function formatShort(n: number): string {
-  if (n >= 1e9) return (n / 1e9).toFixed(1) + "B";
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
-  if (n >= 1e3) return (n / 1e3).toFixed(0) + "K";
-  return n.toFixed(0);
+  if (!n || n <= 0) return "\u2014";
+  if (n >= 1e9) return "$" + (n / 1e9).toFixed(1) + "B";
+  if (n >= 1e6) return "$" + (n / 1e6).toFixed(1) + "M";
+  if (n >= 1e3) return "$" + (n / 1e3).toFixed(0) + "K";
+  return "$" + n.toFixed(0);
 }
 
 function formatTime(ts: number): string {
@@ -258,7 +259,7 @@ function TokenLogo({ token, size }: { token: Token; size: number }) {
     <img
       src={imgSrc}
       alt={token.symbol}
-      style={{ width: "80%", height: "80%", borderRadius: "50%", objectFit: "cover", display: "block", pointerEvents: "none" }}
+      style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", display: "block", pointerEvents: "none" }}
       onError={() => {
         const cdnUrl = `https://dd.dexscreener.com/ds-data/tokens/${token.chainId}/${token.address.toLowerCase()}/header.png`;
         if (imgSrc !== cdnUrl) {
@@ -1211,12 +1212,12 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
             >
               {/* LEFT: Logo */}
               <div style={{
-                width: 42, height: 42, borderRadius: 10, flexShrink: 0,
+                width: 42, height: 42, borderRadius: "50%", flexShrink: 0,
                 overflow: "hidden",
                 background: `radial-gradient(circle at 35% 35%, ${lightenColor(orbColor(change1h))}, ${orbColor(change1h)})`,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                border: isJustLaunched ? "1.5px solid #30d158" : isHot ? "1.5px solid #ff2d55" : "1px solid rgba(255,255,255,0.08)",
-                boxShadow: isJustLaunched ? "0 0 10px rgba(48,209,88,0.4)" : isHot ? "0 0 10px rgba(255,45,85,0.3)" : "none",
+                border: isJustLaunched ? "2px solid #30d158" : isHot ? "2px solid #ff2d55" : "1px solid rgba(255,255,255,0.1)",
+                boxShadow: isJustLaunched ? "0 0 12px rgba(48,209,88,0.5)" : isHot ? "0 0 12px rgba(255,45,85,0.4)" : "none",
                 position: "relative",
               }}>
                 <TokenLogo token={t} size={42} />
@@ -1234,6 +1235,10 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
               <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
                 {/* Row 1: Symbol + badges */}
                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{
+                    width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+                    background: t.chainId === "solana" ? "#9945FF" : t.chainId === "base" ? "#0052FF" : t.chainId === "ethereum" ? "#627EEA" : t.chainId === "bsc" ? "#F3BA2F" : "#6b6b80",
+                  }} title={t.chainId} />
                   <span style={{
                     fontSize: 14, fontWeight: 900, color: "#e8e8f0",
                     overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 100,
@@ -1281,16 +1286,20 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
                       padding: "1px 5px", borderRadius: 4,
                     }}>{age}</span>
                   )}
-                  {(t.volume1h || 0) > 0 && (
-                    <span style={{ fontSize: 9, color: "#6b6b80" }}>
-                      V {formatShort(t.volume1h)}
-                    </span>
-                  )}
+                  {(() => {
+                    const displayVol = (t.volume1h || 0) > 100 ? t.volume1h : t.volume24h;
+                    const volLabel = (t.volume1h || 0) > 100 ? "1h" : "24h";
+                    return displayVol > 0 ? (
+                      <span style={{ fontSize: 9, color: "#6b6b80" }}>
+                        {formatShort(displayVol)} {volLabel}
+                      </span>
+                    ) : null;
+                  })()}
                   {(t.txns1h.buys + t.txns1h.sells) > 0 && (
                     <span style={{ fontSize: 9 }}>
-                      <span style={{ color: "#30d158" }}>{t.txns1h.buys}B</span>
-                      <span style={{ color: "#6b6b80" }}>/</span>
-                      <span style={{ color: "#ff2d55" }}>{t.txns1h.sells}S</span>
+                      <span style={{ color: "#30d158" }}>{t.txns1h.buys}</span>
+                      <span style={{ color: "#6b6b80" }}> / </span>
+                      <span style={{ color: "#ff2d55" }}>{t.txns1h.sells}</span>
                     </span>
                   )}
                 </div>
@@ -1323,7 +1332,7 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
               {/* FAR RIGHT: MCap + % */}
               <div style={{ flexShrink: 0, textAlign: "right", minWidth: 62 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#e8e8f0", marginBottom: 2 }}>
-                  {t.marketCap > 0 ? `$${formatShort(t.marketCap)}` : t.fdv > 0 ? `$${formatShort(t.fdv)}` : "-"}
+                  {t.marketCap > 0 ? formatShort(t.marketCap) : t.fdv > 0 ? formatShort(t.fdv) : "\u2014"}
                 </div>
                 <div style={{
                   fontSize: 13, fontWeight: 900,

@@ -27,6 +27,34 @@ interface TokenResult {
   ageMinutes: number;
 }
 
+// Cache profile icons for a few seconds to avoid hammering the API
+let profileIconCache: Record<string, string> = {};
+let profileIconCacheTs = 0;
+
+async function fetchProfileIcons(): Promise<Record<string, string>> {
+  const now = Date.now();
+  if (now - profileIconCacheTs < 30000 && Object.keys(profileIconCache).length > 0) {
+    return profileIconCache;
+  }
+  try {
+    const res = await fetch("https://api.dexscreener.com/token-profiles/latest/v1", { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      const items = Array.isArray(data) ? data : [];
+      const map: Record<string, string> = {};
+      for (const item of items) {
+        if (item.tokenAddress && item.icon) {
+          map[item.tokenAddress.toLowerCase()] = item.icon;
+        }
+      }
+      profileIconCache = map;
+      profileIconCacheTs = now;
+      return map;
+    }
+  } catch { /* ignore */ }
+  return profileIconCache;
+}
+
 const ALLOWED_CHAINS = new Set(["solana", "base", "ethereum", "bsc", "arbitrum"]);
 const CHAIN_ALIASES: Record<string, string> = { eth: "ethereum", arb: "arbitrum" };
 function normalizeChain(c: string): string { return CHAIN_ALIASES[c] || c; }
@@ -78,7 +106,7 @@ function mapDexPair(p: any): TokenResult | null {
     price: curPrice,
     priceChange1h: pc1h,
     priceChange24h: pc24h,
-    volume1h: parseFloat(p.volume?.h1 || "0"),
+    volume1h: parseFloat(p.volume?.h1 || "0") || parseFloat(p.volume?.h24 || "0") / 24,
     volume24h: parseFloat(p.volume?.h24 || "0"),
     liquidity: parseFloat(p.liquidity?.usd || "0"),
     fdv: parseFloat(p.fdv || "0"),
@@ -279,6 +307,18 @@ export async function GET(req: NextRequest) {
     });
 
     tokens = tokens.slice(0, limit);
+
+    // Enrich with DexScreener profile icons where imageUrl is missing
+    try {
+      const iconMap = await fetchProfileIcons();
+      tokens = tokens.map(t => {
+        if (!t.imageUrl) {
+          const icon = iconMap[t.address.toLowerCase()];
+          if (icon) t.imageUrl = icon;
+        }
+        return t;
+      });
+    } catch { /* icons are non-critical */ }
 
     return NextResponse.json({ tokens, ts: Date.now(), chains });
   } catch (err: any) {
