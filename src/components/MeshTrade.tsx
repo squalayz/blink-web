@@ -330,8 +330,8 @@ const KEYFRAMES = `
 @keyframes mt-card-in { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (max-width: 640px) {
   .mt-layout { flex-direction: column !important; }
-  .mt-brain { width: 100% !important; max-width: 100% !important; border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.07) !important; }
-  .mt-galaxy { min-height: 480px !important; height: 480px !important; }
+  .mt-brain { width: 100% !important; max-width: 100% !important; border-right: none !important; border-top: 1px solid rgba(255,255,255,0.07) !important; border-bottom: none !important; order: 2 !important; }
+  .mt-galaxy { min-height: 480px !important; height: 480px !important; order: 1 !important; }
   .mt-orbital-cols { display: none !important; }
   .mt-mobile-col-tabs { display: flex !important; }
   .mt-mobile-col-view { display: flex !important; flex-direction: column !important; flex: 1 !important; }
