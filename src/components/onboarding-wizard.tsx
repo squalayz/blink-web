@@ -493,13 +493,11 @@ function AgentScreen({ state, setState, onNext }: {
   const suggested = suggestAgentName(state.industry, state.userName);
 
   useEffect(() => {
-    if (!state.agentName) {
-      setState({ ...state, agentName: suggested });
-    }
+    // Always seed agentName on mount — don't let it stay empty
+    setState({ ...state, agentName: state.agentName || suggested });
+    setTimeout(() => inputRef.current?.focus(), 300);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const displayName = state.agentName || suggested;
 
   return (
     <div style={{
@@ -518,8 +516,11 @@ function AgentScreen({ state, setState, onNext }: {
       </p>
       <input
         ref={inputRef}
-        value={displayName}
-        onChange={e => setState({ ...state, agentName: e.target.value.toUpperCase() })}
+        value={state.agentName}
+        onChange={e => {
+          // Allow full clearing — never fall back to suggested while typing
+          setState({ ...state, agentName: e.target.value.toUpperCase() });
+        }}
         style={{
           fontSize: 32, fontWeight: 900, textAlign: "center",
           color: C.text, fontFamily: "inherit",
@@ -538,7 +539,7 @@ function AgentScreen({ state, setState, onNext }: {
         You can always change this later
       </p>
       <div style={{ width: "100%", maxWidth: 360 }}>
-        <CTAButton label={`This is ${displayName} →`} onClick={onNext} />
+        <CTAButton label={`This is ${state.agentName || suggested} →`} onClick={onNext} />
       </div>
     </div>
   );
