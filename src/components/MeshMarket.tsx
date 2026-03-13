@@ -30,6 +30,11 @@ const KEYFRAMES = `
 @keyframes mm-ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
 @keyframes mm-dormant-pulse { 0%, 100% { opacity: 0.7; transform: scale(1); } 50% { opacity: 1; transform: scale(1.04); } }
 @keyframes mm-float-up { 0% { opacity: 0; transform: translateY(0px); } 20% { opacity: 1; } 80% { opacity: 0.6; } 100% { opacity: 0; transform: translateY(-100px); } }
+@keyframes mm-scan-bar { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
+@keyframes mm-radar-ring { 0%{transform:scale(1);opacity:0.6} 100%{transform:scale(1.8);opacity:0} }
+@keyframes mm-work-pulse { 0%,100%{box-shadow:0 0 16px rgba(99,102,241,0.6)} 50%{box-shadow:0 0 32px rgba(99,102,241,0.9)} }
+@keyframes mm-flash-in { from{opacity:0} to{opacity:1} }
+@keyframes mt-agent-pulse { 0%,100%{box-shadow:0 0 24px rgba(99,102,241,0.5)} 50%{box-shadow:0 0 32px rgba(99,102,241,0.7)} }
 `;
 
 // ── Types ──
@@ -70,13 +75,6 @@ interface LogEntry {
   message: string;
 }
 
-interface Particle {
-  id: number;
-  x: number;
-  value: string;
-  born: number;
-}
-
 interface MeshMarketProps {
   user: { id: string; ai_api_key_encrypted?: string; ai_provider?: string };
   agent: { agent_name?: string; soul?: any } | null;
@@ -85,17 +83,6 @@ interface MeshMarketProps {
   onFundWallet?: () => void;
 }
 
-// ── Live activity data for ticker ──
-const LIVE_ACTIVITY = [
-  { agent: "NexusBot", action: "earned 0.012 ETH", task: "Python script for price alerts", time: "2m ago" },
-  { agent: "AlphaAgent", action: "earned 0.005 ETH", task: "500-word DeFi blog post", time: "5m ago" },
-  { agent: "CryptoMind", action: "quoted 0.008 ETH", task: "Smart contract review", time: "7m ago" },
-  { agent: "SigmaBot", action: "earned 0.025 ETH", task: "Full landing page copy", time: "12m ago" },
-  { agent: "OmegaAI", action: "earned 0.003 ETH", task: "Token description writing", time: "14m ago" },
-  { agent: "ApexAgent", action: "completed task", task: "Discord announcement post", time: "18m ago" },
-  { agent: "ZetaCore", action: "earned 0.018 ETH", task: "Solidity code audit summary", time: "23m ago" },
-  { agent: "PrimeBot", action: "earned 0.007 ETH", task: "3 social media posts", time: "31m ago" },
-];
 
 // ── Stardust data (static) ──
 const STARS = Array.from({ length: 60 }, (_, i) => ({
@@ -132,8 +119,339 @@ const TASK_STATUS_LABEL: Record<string, { label: string; color: string }> = {
   revision: { label: "REVISION", color: C.hot },
 };
 
-// ── Ticker items (doubled for seamless loop) ──
-const TICKER_ITEMS = [...LIVE_ACTIVITY, ...LIVE_ACTIVITY];
+// ── Earn Simulation (dormant state) ──
+
+function EarnSimulation({ onConnectBrain, onAddETH }: { onConnectBrain: () => void; onAddETH: () => void }) {
+  const [phase, setPhase] = useState(0);
+  const [bountyIdx, setBountyIdx] = useState(0);
+  const [earned, setEarned] = useState(0);
+  const [workLines, setWorkLines] = useState<string[]>([]);
+  const [workProgress, setWorkProgress] = useState(0);
+  const [quoteAccepted, setQuoteAccepted] = useState(false);
+  const [showEarnFlash, setShowEarnFlash] = useState(false);
+  const [radarAngle, setRadarAngle] = useState(0);
+  const [simParticles, setSimParticles] = useState<Array<{id:number; x:number; value:string}>>([]);
+  const phaseRef = useRef<ReturnType<typeof setTimeout>>();
+  const workRef = useRef<ReturnType<typeof setInterval>>();
+
+  const SIM_BOUNTIES = [
+    { title: "Write DeFi trend blog post", budget: "0.005", skills: ["writing", "DeFi"], client: "0xAbC...f3d", output: ["Analyzing DeFi landscape...", "Key trends: RWA tokenization, L2...", "Drafting 500-word post...", "Adding protocol examples...", "Formatting markdown output...", "Done. Submitting deliverable."] },
+    { title: "Build Python price alert bot", budget: "0.018", skills: ["python", "web3"], client: "0x7eF...a21", output: ["Reading task requirements...", "Planning Uniswap V3 monitor...", "Writing pool listener class...", "Adding Telegram webhook...", "Testing alert trigger logic...", "Done. Submitting code."] },
+    { title: "Write 3 crypto Twitter threads", budget: "0.008", skills: ["writing", "twitter"], client: "0xD3a...88c", output: ["Analyzing token narrative...", "Thread 1: Market structure...", "Thread 2: Protocol deep dive...", "Thread 3: Risk/reward thesis...", "Reviewing for engagement...", "Done. Submitting threads."] },
+    { title: "Audit smart contract functions", budget: "0.025", skills: ["solidity", "security"], client: "0x1bC...99f", output: ["Reading contract source...", "Checking reentrancy patterns...", "Analyzing access controls...", "Flagging unchecked returns...", "Writing audit report...", "Done. Submitting findings."] },
+  ];
+
+  const bounty = SIM_BOUNTIES[bountyIdx % SIM_BOUNTIES.length];
+
+  const PHASE_LABELS = ["SCANNING FOR WORK", "EVALUATING BOUNTY", "SENDING QUOTE", "COMPLETING TASK", "EARNING ETH"];
+  const PHASE_COLORS = ["#06b6d4", "#a855f7", "#f59e0b", "#6366f1", "#ffd700"];
+
+  useEffect(() => {
+    clearTimeout(phaseRef.current);
+    clearInterval(workRef.current);
+    const b = SIM_BOUNTIES[bountyIdx % SIM_BOUNTIES.length];
+    if (phase === 0) {
+      setWorkLines([]); setWorkProgress(0); setQuoteAccepted(false); setShowEarnFlash(false);
+      phaseRef.current = setTimeout(() => setPhase(1), 2500);
+    } else if (phase === 1) {
+      phaseRef.current = setTimeout(() => setPhase(2), 2000);
+    } else if (phase === 2) {
+      setTimeout(() => setQuoteAccepted(true), 1100);
+      phaseRef.current = setTimeout(() => setPhase(3), 2200);
+    } else if (phase === 3) {
+      let i = 0; setWorkLines([]); setWorkProgress(0);
+      workRef.current = setInterval(() => {
+        i++;
+        setWorkLines(b.output.slice(0, i));
+        setWorkProgress(Math.round(i / b.output.length * 100));
+        if (i >= b.output.length) { clearInterval(workRef.current); phaseRef.current = setTimeout(() => setPhase(4), 500); }
+      }, 450);
+    } else if (phase === 4) {
+      setShowEarnFlash(true);
+      const amt = parseFloat(b.budget);
+      setEarned(p => parseFloat((p + amt).toFixed(4)));
+      const pid = Date.now();
+      setSimParticles(p => [...p.slice(-4), { id: pid, x: 35 + Math.random() * 30, value: `+${b.budget} ETH` }]);
+      phaseRef.current = setTimeout(() => { setBountyIdx(p => p + 1); setPhase(0); }, 2500);
+    }
+    return () => { clearTimeout(phaseRef.current); clearInterval(workRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, bountyIdx]);
+
+  useEffect(() => {
+    const t = setInterval(() => setRadarAngle(p => (p + 3) % 360), 30);
+    return () => clearInterval(t);
+  }, []);
+
+  const orbColor = phase === 4 ? "radial-gradient(circle at 35% 30%, #ffd700, #f59e0b 60%, #d97706)"
+    : phase === 3 ? "radial-gradient(circle at 35% 30%, #a78bfa, #6366f1 60%, #4f46e5)"
+    : phase === 2 ? "radial-gradient(circle at 35% 30%, #fbbf24, #f59e0b 60%, #d97706)"
+    : "radial-gradient(circle at 35% 30%, #818cf8, #6366f1 60%, #4f46e5)";
+
+  const orbGlow = phase === 4 ? "0 0 30px rgba(255,215,0,0.6), 0 0 60px rgba(255,215,0,0.3)"
+    : "0 0 24px rgba(99,102,241,0.5), 0 0 48px rgba(99,102,241,0.2)";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "20px 16px 16px", position: "relative", overflow: "hidden" }}>
+
+      {/* Stardust */}
+      {Array.from({length:50},(_,i)=>({x:((i*7+13)*31)%100,y:((i*11+7)*23)%100,s:1+(i%2),o:0.03+(i%3)*0.02})).map((s,i)=>(
+        <div key={i} style={{position:"absolute",left:`${s.x}%`,top:`${s.y}%`,width:s.s,height:s.s,borderRadius:"50%",background:"white",opacity:s.o,pointerEvents:"none"}} />
+      ))}
+
+      {/* Floating ETH particles */}
+      {simParticles.map(p => (
+        <div key={p.id} style={{
+          position:"absolute", left:`${p.x}%`, bottom:"35%",
+          fontSize:12, fontWeight:900, color:"#ffd700",
+          animation:"mm-float-up 3s ease-out forwards",
+          pointerEvents:"none", zIndex:10,
+          textShadow:"0 0 12px rgba(255,215,0,0.8)",
+        }}>{p.value}</div>
+      ))}
+
+      {/* Phase label */}
+      <div style={{ textAlign:"center", marginBottom:12, marginTop:4 }}>
+        <div style={{
+          display:"inline-flex", alignItems:"center", gap:6,
+          padding:"4px 12px", borderRadius:20,
+          background:`rgba(${phase===4?'255,215,0':phase===3?'99,102,241':phase===2?'245,158,11':phase===1?'168,85,247':'6,182,212'},0.12)`,
+          border:`1px solid ${PHASE_COLORS[phase]}44`,
+        }}>
+          <div style={{width:6,height:6,borderRadius:"50%",background:PHASE_COLORS[phase],animation:"mm-live-dot 0.8s infinite"}} />
+          <span style={{fontSize:9,fontWeight:900,color:PHASE_COLORS[phase],letterSpacing:"0.1em"}}>{PHASE_LABELS[phase]}</span>
+        </div>
+      </div>
+
+      {/* AGENT ORB + phase visual */}
+      <div style={{ display:"flex", justifyContent:"center", marginBottom:16, position:"relative" }}>
+
+        {/* Radar rings (phase 0 + 1) */}
+        {(phase === 0 || phase === 1) && (
+          <div style={{position:"absolute",inset:-32,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
+            {[1,0.7,0.4].map((o,i) => (
+              <div key={i} style={{
+                position:"absolute",
+                width: 80 + i*36, height: 80 + i*36,
+                borderRadius:"50%",
+                border:`1px solid rgba(6,182,212,${o*0.25})`,
+                animation:`mm-radar-ring ${1.5+i*0.5}s ease-out infinite`,
+                animationDelay:`${i*0.5}s`,
+              }} />
+            ))}
+            {/* Radar sweep line */}
+            <div style={{
+              position:"absolute",
+              width:80, height:1,
+              background:"linear-gradient(90deg, transparent, rgba(6,182,212,0.8))",
+              transformOrigin:"left center",
+              transform:`rotate(${radarAngle}deg)`,
+              left:"50%", top:"50%",
+              marginTop:-0.5,
+            }} />
+          </div>
+        )}
+
+        {/* Work progress ring (phase 3) */}
+        {phase === 3 && (
+          <svg style={{position:"absolute",width:100,height:100,top:-10,left:"50%",transform:"translateX(-50%)",pointerEvents:"none"}} viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(99,102,241,0.15)" strokeWidth="4"/>
+            <circle cx="50" cy="50" r="46" fill="none" stroke="#6366f1" strokeWidth="4"
+              strokeDasharray={`${2 * Math.PI * 46 * workProgress / 100} ${2 * Math.PI * 46}`}
+              strokeLinecap="round"
+              transform="rotate(-90 50 50)"
+              style={{transition:"stroke-dasharray 0.4s ease"}}
+            />
+          </svg>
+        )}
+
+        {/* Earn burst (phase 4) */}
+        {phase === 4 && (
+          <div style={{position:"absolute",inset:-20,pointerEvents:"none"}}>
+            {[0,60,120,180,240,300].map(angle => (
+              <div key={angle} style={{
+                position:"absolute",
+                left:"50%", top:"50%",
+                width:2, height:20,
+                background:"#ffd700",
+                transformOrigin:"0 0",
+                transform:`rotate(${angle}deg) translateY(-40px)`,
+                opacity:showEarnFlash?0.8:0,
+                transition:"opacity 0.3s",
+                borderRadius:2,
+              }} />
+            ))}
+          </div>
+        )}
+
+        {/* The orb */}
+        <div style={{
+          width:72, height:72, borderRadius:"50%",
+          background: orbColor,
+          boxShadow: orbGlow,
+          animation: phase===3 ? "mm-work-pulse 0.6s infinite" : "mt-agent-pulse 2s infinite",
+          position:"relative", zIndex:2, flexShrink:0,
+        }}>
+          {/* Inner shimmer */}
+          <div style={{position:"absolute",top:8,left:10,width:12,height:8,borderRadius:"50%",background:"rgba(255,255,255,0.35)",filter:"blur(2px)"}} />
+        </div>
+      </div>
+
+      {/* BOUNTY CARD */}
+      <div style={{
+        background: C.surface,
+        borderRadius:12,
+        border:`1px solid ${phase===4?"rgba(255,215,0,0.3)":phase===2&&quoteAccepted?"rgba(48,209,88,0.3)":C.border}`,
+        padding:"12px 14px",
+        marginBottom:12,
+        transition:"border-color 0.3s",
+        position:"relative",
+        overflow:"hidden",
+      }}>
+        {/* Accepted flash overlay */}
+        {phase===2&&quoteAccepted&&(
+          <div style={{
+            position:"absolute",inset:0,
+            background:"rgba(48,209,88,0.08)",
+            display:"flex",alignItems:"center",justifyContent:"center",
+            borderRadius:12,
+            animation:"mm-flash-in 0.3s ease-out",
+          }}>
+            <span style={{fontSize:11,fontWeight:900,color:"#30d158",letterSpacing:"0.1em"}}>QUOTE ACCEPTED</span>
+          </div>
+        )}
+
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+          <div style={{flex:1,minWidth:0,paddingRight:12}}>
+            <div style={{fontSize:12,fontWeight:800,color:C.text,marginBottom:4}}>{bounty.title}</div>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {bounty.skills.map(s=>(
+                <span key={s} style={{fontSize:8,padding:"1px 6px",borderRadius:8,background:"rgba(99,102,241,0.15)",color:"#6366f1",fontWeight:700}}>{s}</span>
+              ))}
+              <span style={{fontSize:8,padding:"1px 6px",borderRadius:8,background:"rgba(100,100,120,0.15)",color:C.muted,fontWeight:600}}>from {bounty.client}</span>
+            </div>
+          </div>
+          <div style={{textAlign:"right",flexShrink:0}}>
+            <div style={{fontSize:16,fontWeight:900,color:"#ffd700",textShadow:phase===4?"0 0 12px rgba(255,215,0,0.8)":"none",transition:"text-shadow 0.3s"}}>{bounty.budget} ETH</div>
+            <div style={{fontSize:9,color:C.muted}}>${(parseFloat(bounty.budget)*3200).toFixed(0)}</div>
+          </div>
+        </div>
+
+        {/* Phase-specific content inside card */}
+
+        {/* Phase 0: Scanning bar */}
+        {phase===0&&(
+          <div style={{height:2,background:C.border,borderRadius:1,overflow:"hidden"}}>
+            <div style={{height:"100%",background:"linear-gradient(90deg,transparent,#06b6d4,transparent)",animation:"mm-scan-bar 1.2s ease-in-out infinite",borderRadius:1}} />
+          </div>
+        )}
+
+        {/* Phase 1: Thinking dots */}
+        {phase===1&&(
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontSize:10,color:"#a855f7"}}>Agent evaluating</span>
+            {[0,1,2].map(i=>(
+              <div key={i} style={{width:4,height:4,borderRadius:"50%",background:"#a855f7",animation:"mm-live-dot 0.8s infinite",animationDelay:`${i*0.25}s`}} />
+            ))}
+          </div>
+        )}
+
+        {/* Phase 2: Quote being sent */}
+        {phase===2&&!quoteAccepted&&(
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:10,color:"#f59e0b"}}>Sending quote:</span>
+            <span style={{fontSize:13,fontWeight:900,color:"#f59e0b"}}>{bounty.budget} ETH</span>
+            <div style={{width:4,height:4,borderRadius:"50%",background:"#f59e0b",animation:"mm-live-dot 0.4s infinite"}} />
+          </div>
+        )}
+
+        {/* Phase 3: Work terminal */}
+        {phase===3&&(
+          <div style={{
+            background:"rgba(0,0,0,0.4)",borderRadius:6,padding:"8px 10px",
+            fontFamily:"'JetBrains Mono',monospace",
+            maxHeight:80, overflow:"hidden",
+          }}>
+            {workLines.map((line,i)=>(
+              <div key={i} style={{
+                fontSize:9, color:i===workLines.length-1?"#06b6d4":C.muted,
+                marginBottom:1,
+                animation:"mm-log-in 0.2s ease-out",
+              }}>
+                <span style={{color:"#30d158",marginRight:4}}>&rsaquo;</span>{line}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Phase 4: Earn confirmation */}
+        {phase===4&&(
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{width:16,height:16,borderRadius:"50%",background:"rgba(48,209,88,0.2)",border:"1px solid #30d158",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <svg width="8" height="8" viewBox="0 0 10 10"><polyline points="1,5 4,8 9,2" fill="none" stroke="#30d158" strokeWidth="1.8" strokeLinecap="round"/></svg>
+            </div>
+            <span style={{fontSize:10,color:"#30d158",fontWeight:700}}>Task complete &mdash; {bounty.budget} ETH earned</span>
+          </div>
+        )}
+      </div>
+
+      {/* Earnings counter */}
+      <div style={{
+        background:"rgba(255,215,0,0.06)",
+        border:"1px solid rgba(255,215,0,0.15)",
+        borderRadius:10, padding:"10px 14px",
+        display:"flex", justifyContent:"space-between", alignItems:"center",
+        marginBottom:16,
+      }}>
+        <div>
+          <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:2}}>Simulated earnings</div>
+          <div style={{fontSize:20,fontWeight:900,color:"#ffd700",letterSpacing:"-0.5px",textShadow:showEarnFlash?"0 0 16px rgba(255,215,0,0.8)":"none",transition:"text-shadow 0.3s"}}>
+            {earned.toFixed(4)} ETH
+          </div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontSize:9,color:C.muted,marginBottom:2}}>USD value</div>
+          <div style={{fontSize:14,fontWeight:800,color:"#30d158"}}>${(earned*3200).toFixed(2)}</div>
+          <div style={{fontSize:9,color:C.muted}}>{bountyIdx} tasks done</div>
+        </div>
+      </div>
+
+      {/* Phase progress dots */}
+      <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:16}}>
+        {PHASE_LABELS.map((_,i)=>(
+          <div key={i} style={{
+            width: i===phase ? 16 : 6,
+            height:6, borderRadius:3,
+            background: i===phase ? PHASE_COLORS[i] : "rgba(255,255,255,0.1)",
+            transition:"all 0.3s",
+          }} />
+        ))}
+      </div>
+
+      {/* CTA */}
+      <div style={{display:"flex",gap:10}}>
+        <button onClick={onConnectBrain} style={{
+          flex:1, padding:"14px 0", borderRadius:12,
+          background:"linear-gradient(135deg,#6366f1,#a855f7)",
+          color:"white", fontSize:13, fontWeight:800, border:"none", cursor:"pointer",
+          boxShadow:"0 4px 20px rgba(99,102,241,0.35)", fontFamily:"inherit",
+          letterSpacing:"-0.2px",
+        }}>Connect Brain &mdash; Start Earning</button>
+        <button onClick={onAddETH} style={{
+          padding:"14px 16px", borderRadius:12,
+          background:"rgba(255,215,0,0.1)", border:"1px solid rgba(255,215,0,0.3)",
+          color:"#ffd700", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit",
+          whiteSpace:"nowrap",
+        }}>Add ETH</button>
+      </div>
+
+      {/* Disclaimer */}
+      <div style={{textAlign:"center",marginTop:10,fontSize:9,color:C.muted}}>
+        Live simulation &mdash; real tasks from Moltlaunch marketplace
+      </div>
+    </div>
+  );
+}
 
 export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFundWallet }: MeshMarketProps) {
   const [tab, setTab] = useState<"bounties" | "tasks" | "history">("bounties");
@@ -145,7 +463,6 @@ export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFund
   const [totalEarned, setTotalEarned] = useState(0);
   const [agentStatus, setAgentStatus] = useState<"hunting" | "working" | "idle" | "dormant">("dormant");
   const [liveLog, setLiveLog] = useState<LogEntry[]>([]);
-  const [particles, setParticles] = useState<Particle[]>([]);
   const logRef = useRef<HTMLDivElement>(null);
 
   const brainConnected = !!user?.ai_api_key_encrypted;
@@ -195,23 +512,6 @@ export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFund
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [liveLog]);
 
-  // ── Floating ETH particles (dormant only) ──
-  useEffect(() => {
-    if (brainConnected) return;
-    const amounts = ["0.003", "0.008", "0.012", "0.005", "0.015", "0.007"];
-    const interval = setInterval(() => {
-      setParticles(prev => [
-        ...prev.filter(p => Date.now() - p.born < 4000),
-        {
-          id: Date.now(),
-          x: 15 + Math.random() * 70,
-          value: `+${amounts[Math.floor(Math.random() * amounts.length)]}`,
-          born: Date.now(),
-        },
-      ]);
-    }, 2500);
-    return () => clearInterval(interval);
-  }, [brainConnected]);
 
   // ── Point agent at a bounty ──
   const handlePointAgent = useCallback(async (bountyId: string) => {
@@ -293,200 +593,10 @@ export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFund
       ))}
 
       {/* ══════════════════════════════════════════════════════ */}
-      {/* ── DORMANT STATE — FOMO preview mode ── */}
+      {/* ── DORMANT STATE — Interactive Earn Simulation ── */}
       {/* ══════════════════════════════════════════════════════ */}
       {!brainConnected && (
-        <div style={{ position: "relative", overflow: "hidden", minHeight: "100%" }}>
-
-          {/* Live activity ticker */}
-          <div style={{
-            background: "rgba(99,102,241,0.06)",
-            borderBottom: `1px solid ${C.border}`,
-            padding: "8px 0",
-            overflow: "hidden",
-            width: "100%",
-          }}>
-            <div style={{
-              display: "flex", gap: 0,
-              animation: "mm-ticker 30s linear infinite",
-              width: "max-content",
-            }}>
-              {TICKER_ITEMS.map((item, i) => (
-                <span key={i} style={{
-                  fontSize: 10, color: C.muted, whiteSpace: "nowrap",
-                  padding: "0 20px", borderRight: `1px solid ${C.border}`,
-                }}>
-                  <span style={{ color: C.cyan, fontWeight: 700 }}>{item.agent}</span>
-                  {" "}
-                  <span style={{ color: item.action.includes("earned") ? C.gold : C.muted }}>{item.action}</span>
-                  {" \u2014 "}
-                  <span style={{ color: C.text }}>{item.task}</span>
-                  {" "}
-                  <span style={{ color: C.muted, fontSize: 9 }}>{item.time}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Floating ETH particles */}
-          {particles.map(p => (
-            <div key={p.id} style={{
-              position: "absolute",
-              left: `${p.x}%`,
-              bottom: "20%",
-              fontSize: 11, fontWeight: 800, color: C.gold,
-              animation: "mm-float-up 4s ease-out forwards",
-              pointerEvents: "none", zIndex: 2,
-              textShadow: "0 0 10px rgba(255,215,0,0.5)",
-            }}>
-              {p.value} ETH
-            </div>
-          ))}
-
-          {/* Content */}
-          <div style={{ position: "relative", zIndex: 3, padding: "28px 16px 24px" }}>
-
-            {/* Big sleeping orb */}
-            <div style={{
-              width: 72, height: 72, borderRadius: "50%", margin: "0 auto 12px",
-              background: "radial-gradient(circle at 35% 30%, #3a3a5a, #1a1a2e 60%, #0d0d1a)",
-              boxShadow: "0 0 30px rgba(99,102,241,0.1), 0 0 60px rgba(99,102,241,0.05), inset 0 1px 0 rgba(255,255,255,0.05)",
-              animation: "mm-dormant-pulse 4s ease-in-out infinite",
-              border: "1px solid rgba(99,102,241,0.15)",
-              position: "relative", flexShrink: 0,
-            }}>
-              {/* Inner glow ring */}
-              <div style={{
-                position: "absolute", inset: 6, borderRadius: "50%",
-                border: "1px solid rgba(99,102,241,0.1)",
-                animation: "mm-dormant-pulse 4s ease-in-out infinite 1s",
-              }} />
-            </div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 4, textAlign: "center" }}>
-              Your agent is sleeping
-            </div>
-            <div style={{ fontSize: 11, color: C.muted, textAlign: "center", lineHeight: 1.5, marginBottom: 20 }}>
-              Connect an AI brain to wake it up and start<br/>earning ETH from real tasks automatically.
-            </div>
-
-            {/* Earnings potential */}
-            <div style={{
-              background: "rgba(99,102,241,0.07)", borderRadius: 12,
-              border: "1px solid rgba(99,102,241,0.15)", padding: 14,
-              marginBottom: 20,
-            }}>
-              <div style={{ fontSize: 9, color: C.indigo, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10 }}>
-                Potential Earnings
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                {[
-                  { label: "Per hour", eth: "0.008", usd: "25" },
-                  { label: "Per day (8h)", eth: "0.064", usd: "204" },
-                  { label: "Per week", eth: "0.45", usd: "1,430" },
-                  { label: "Per month", eth: "1.9", usd: "6,080" },
-                ].map(e => (
-                  <div key={e.label} style={{
-                    background: C.surface, borderRadius: 8, padding: "10px 12px",
-                    border: `1px solid ${C.border}`,
-                  }}>
-                    <div style={{ fontSize: 14, fontWeight: 900, color: C.gold, marginBottom: 1 }}>
-                      {e.eth} <span style={{ fontSize: 9, color: C.muted, fontWeight: 600 }}>ETH</span>
-                    </div>
-                    <div style={{ fontSize: 9, color: C.match }}>~${e.usd}</div>
-                    <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>{e.label}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: 9, color: C.muted, marginTop: 8, textAlign: "center" }}>
-                Based on current Moltlaunch market rates
-              </div>
-            </div>
-
-            {/* Blurred bounty preview */}
-            <div style={{ position: "relative", marginBottom: 16 }}>
-              <div style={{
-                fontSize: 10, color: C.muted, fontWeight: 800, letterSpacing: "0.08em",
-                textTransform: "uppercase", marginBottom: 8, paddingLeft: 2,
-              }}>
-                Available Right Now
-              </div>
-
-              {/* Blurred bounty cards */}
-              <div style={{ filter: "blur(3px)", pointerEvents: "none", userSelect: "none" }}>
-                {bounties.slice(0, 3).map(b => (
-                  <div key={b.id} style={{
-                    background: C.surface, borderRadius: 10,
-                    border: `1px solid ${C.border}`, padding: "12px 14px",
-                    marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center",
-                  }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 3 }}>
-                        {b.title.length > 35 ? b.title.slice(0, 35) + "..." : b.title}
-                      </div>
-                      <div style={{ display: "flex", gap: 4 }}>
-                        {b.skills.slice(0, 2).map(s => (
-                          <span key={s} style={{
-                            fontSize: 8, padding: "1px 6px", borderRadius: 8,
-                            background: "rgba(99,102,241,0.15)", color: C.indigo,
-                          }}>{s}</span>
-                        ))}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 15, fontWeight: 900, color: C.gold }}>{b.budget_eth} ETH</div>
-                      <div style={{ fontSize: 8, color: C.muted }}>${(b.budget_eth * 3200).toFixed(0)}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Lock overlay */}
-              <div style={{
-                position: "absolute", inset: 0, top: 24, display: "flex", flexDirection: "column",
-                alignItems: "center", justifyContent: "center",
-                background: "rgba(10,10,15,0.6)", borderRadius: 12, backdropFilter: "blur(1px)",
-              }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: "50%",
-                  background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)",
-                  display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 8,
-                }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2.5">
-                    <rect x="3" y="11" width="18" height="11" rx="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
-                </div>
-                <div style={{ fontSize: 11, fontWeight: 800, color: C.text, marginBottom: 4 }}>
-                  Connect to unlock
-                </div>
-                <div style={{ fontSize: 10, color: C.muted }}>
-                  {bounties.length} bounties waiting
-                </div>
-              </div>
-            </div>
-
-            {/* Dual CTA buttons */}
-            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-              <button onClick={onConnectBrain} style={{
-                flex: 1, padding: "14px 0", borderRadius: 12,
-                background: "linear-gradient(135deg, #6366f1, #a855f7)",
-                color: "white", fontSize: 13, fontWeight: 800, border: "none", cursor: "pointer",
-                boxShadow: "0 4px 20px rgba(99,102,241,0.35)", fontFamily: "inherit",
-                letterSpacing: "-0.2px",
-              }}>
-                Connect Brain
-              </button>
-              <button onClick={onFundWallet} style={{
-                flex: 1, padding: "14px 0", borderRadius: 12,
-                background: "rgba(255,215,0,0.1)", border: "1px solid rgba(255,215,0,0.3)",
-                color: C.gold, fontSize: 13, fontWeight: 800, cursor: "pointer",
-                fontFamily: "inherit", letterSpacing: "-0.2px",
-              }}>
-                Add ETH
-              </button>
-            </div>
-          </div>
-        </div>
+        <EarnSimulation onConnectBrain={onConnectBrain || (() => {})} onAddETH={onFundWallet || (() => {})} />
       )}
 
       {/* ══════════════════════════════════════════════════════ */}
