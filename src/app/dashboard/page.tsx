@@ -20,6 +20,7 @@ const SocialVerify = dynamic(() => import("@/components/social-verify"), { ssr: 
 const MeshFeed = dynamic(() => import("@/components/MeshFeed"), { ssr: false });
 const HuntTabView = dynamic(() => import("@/components/HuntTabView"), { ssr: false });
 const MeshMarket = dynamic(() => import("@/components/MeshMarket"), { ssr: false });
+const MeshTrade = dynamic(() => import("@/components/MeshTrade"), { ssr: false });
 const OnboardingWizard = dynamic(() => import("@/components/onboarding-wizard"), { ssr: false });
 import TabInfoBanner from "@/components/TabInfoBanner";
 
@@ -337,7 +338,7 @@ export default function Dashboard(){
   const[agent,setAgent]=useState<any>(null);
   const[loading,setLoading]=useState(true);
   // Support deep-linking: /dashboard?tab=wallet, ?tab=profile, etc.
-  const initialTab=(()=>{const t=searchParams?.get("tab");const map:Record<string,string>={wallet:"brew",matches:"matches",chat:"mesh",profile:"profile",stats:"buzz",agent:"agent",grow:"evolve",discover:"discover",hunt:"hunt"};return(t&&(map[t]||t))||"mesh";})();
+  const initialTab=(()=>{const t=searchParams?.get("tab");const map:Record<string,string>={wallet:"brew",matches:"matches",chat:"mesh",profile:"profile",stats:"buzz",agent:"agent",grow:"evolve",discover:"discover",hunt:"hunt",work:"work"};return(t&&(map[t]||t))||"mesh";})();
   const[view,setView]=useState(initialTab);
   const[meshSubTab,setMeshSubTab]=useState<"connections"|"matches">("connections");
   const[matches,setMatches]=useState<any[]>([]);
@@ -1340,6 +1341,21 @@ export default function Dashboard(){
           <span style={{position:"relative",zIndex:1}}>Market</span>
         </button>
 
+        {/* Work tab */}
+        <button onClick={()=>setView("work")} style={{
+          flex:1, position:"relative",
+          background:view==="work"?"linear-gradient(135deg, rgba(255,215,0,0.25), rgba(99,102,241,0.15))":"rgba(255,255,255,0.03)",
+          border:view==="work"?"1px solid rgba(255,215,0,0.5)":"1px solid rgba(255,255,255,0.06)",
+          borderRadius:22, padding:"9px 16px",
+          color:view==="work"?"#fff":C.muted, cursor:"pointer", fontSize:12, fontWeight:view==="work"?700:500,
+          fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center",
+          gap:6, whiteSpace:"nowrap", transition:"all 0.2s ease",
+          boxShadow:view==="work"?"0 0 16px rgba(255,215,0,0.3), 0 0 4px rgba(99,102,241,0.2)":"none",
+        }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{position:"relative",zIndex:1}}><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+          <span style={{position:"relative",zIndex:1}}>Work</span>
+        </button>
+
         {/* Remaining tabs */}
         {[
           {id:"agent",label:"Agent",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/></svg>},
@@ -1360,7 +1376,7 @@ export default function Dashboard(){
         ))}
       </div>
 
-      <div style={{padding:view==="hunt"?0:20,maxWidth:view==="hunt"?"none":view==="mesh"||view==="discover"||view==="feed"?1100:720,margin:"0 auto",transition:"max-width 0.3s"}}>
+      <div style={{padding:view==="hunt"||view==="work"?0:20,maxWidth:view==="hunt"||view==="work"?"none":view==="mesh"||view==="discover"||view==="feed"?1100:720,margin:"0 auto",transition:"max-width 0.3s"}}>
 
 
         {/* ═══════════════════════════════════════════════════════════
@@ -3060,8 +3076,15 @@ export default function Dashboard(){
           </div>}
         </div>)}
 
-        {/* ── Hunt / MeshScope Tab ── */}
+        {/* ── Hunt / MeshTrade Tab ── */}
         {view==="hunt"&&(
+          <div style={{paddingBottom:96}}>
+            <MeshTrade user={user} agent={agent} wallet={wallet} onConnectBrain={()=>setView("agent")} onFundWallet={()=>{setView("brew");setShowDepositCard(true);}}/>
+          </div>
+        )}
+
+        {/* ── Work / MeshMarket Tab ── */}
+        {view==="work"&&(
           <div style={{paddingBottom:96}}>
             <MeshMarket user={user} agent={agent} wallet={wallet} onConnectBrain={()=>setView("agent")} onFundWallet={()=>{setView("brew");setShowDepositCard(true);}}/>
           </div>
@@ -3124,9 +3147,10 @@ export default function Dashboard(){
 
       {/* ── Mobile Tab Bar — shown on dashboard ── */}
       <MobileTabBar
-        activeTab={view==="hunt"?"hunt":view==="mesh"||view==="matches"?"mesh":view==="feed"?"feed":view==="discover"?"discover":view==="brew"?"wallet":view==="agent"||view==="profile"||view==="buzz"||view==="evolve"?"agent":"mesh"}
+        activeTab={view==="hunt"?"hunt":view==="work"?"work":view==="mesh"||view==="matches"?"mesh":view==="feed"?"feed":view==="discover"?"discover":view==="brew"?"wallet":view==="agent"||view==="profile"||view==="buzz"||view==="evolve"?"agent":"mesh"}
         onTabChange={(tab)=>{
           if(tab==="hunt"){setView("hunt");return;}
+          if(tab==="work"){setView("work");return;}
           if(tab==="feed"){setView("feed");return;}
           if(tab==="discover"){setView("discover");if(user&&!discoverProfiles.length)loadDiscoverFeed(user.id);return;}
           if(tab==="wallet"){setView("brew");return;}

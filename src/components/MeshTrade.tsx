@@ -1,2218 +1,579 @@
 "use client";
+import { useState, useEffect, useRef, useCallback } from "react";
 
-import {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  useMemo,
-  MouseEvent as ReactMouseEvent,
-} from "react";
-
-// ═══════════════════════════════════════════════════════════
-// MeshTrade v3 — 3-Column Orbital Galaxy
-// ═══════════════════════════════════════════════════════════
-
+/* ═══ THEME ═══ */
 const C = {
-  bg: "#0a0a0f",
-  surface: "#0d0d14",
-  s2: "#1a1a24",
-  indigo: "#6366f1",
-  cyan: "#06b6d4",
-  match: "#30d158",
-  hot: "#ff2d55",
-  gold: "#ffd700",
-  text: "#e8e8f0",
-  muted: "#6b6b80",
-  dim: "#2a2a3a",
-  border: "rgba(255,255,255,0.07)",
-  lime: "#a3e635",
-  orange: "#f97316",
-  yellow: "#f59e0b",
-  baseBg: "rgba(0,82,255,0.06)",
-  baseBorder: "rgba(0,82,255,0.2)",
+  bg: "#0a0a0f", surface: "#0d0d14", s2: "#1a1a24",
+  indigo: "#6366f1", cyan: "#06b6d4", match: "#30d158",
+  hot: "#ff2d55", gold: "#ffd700", text: "#e8e8f0",
+  muted: "#6b6b80", dim: "#2a2a3a", border: "rgba(255,255,255,0.07)",
 };
+
+/* ═══ TYPES ═══ */
+type OrbState = "IDLE" | "SCANNING" | "ANALYZING" | "BUY" | "SELL" | "HOLDING";
+type BubbleMode = "SNIPE" | "TREND" | "REVIVE" | "EXIT";
+type BubblePhase = "entering" | "scanning" | "approaching" | "thinking" | "bought" | "passing" | "exiting";
 
 interface Token {
-  address: string;
-  symbol: string;
-  name: string;
-  chainId: string;
-  price: number;
-  priceChange1h: number;
-  priceChange24h: number;
-  volume1h: number;
-  volume24h: number;
-  liquidity: number;
-  fdv: number;
-  marketCap: number;
-  txns1h: { buys: number; sells: number };
-  pairCreatedAt: number;
-  imageUrl: string | null;
-  url: string;
-  score: number;
-  tags: string[];
-  pricePoints: number[];
-  isNew?: boolean;
-  ageMinutes?: number;
+  address: string; symbol: string; name: string; chainId: string;
+  price: number; priceChange1h: number; volume1h: number; volume24h: number;
+  liquidity: number; ageMinutes: number; imageUrl: string | null;
+  fdv: number; marketCap: number;
 }
 
-interface Position {
-  tokenAddress: string;
-  symbol: string;
-  entryPrice: number;
-  currentPrice: number;
-  amount: number;
-  pnl: number;
-  pnlPercent: number;
+interface Bubble {
+  id: string; token: Token; mode: BubbleMode; phase: BubblePhase;
+  score: number; thought?: string; pnl?: number; entryTime: number;
 }
 
-interface LogEntry {
-  ts: number;
-  status: "scanning" | "analyzing" | "bought" | "profit" | "loss" | "signal" | "hold" | "error" | "info";
-  message: string;
+interface Holding {
+  id: string; token: Token; ethAmount: number; entryPrice: number;
+  pnl: number; orbitAngle: number; txHash: string;
 }
 
-interface Settings {
-  aggression: number;
-  maxTrade: number;
-  stopLoss: number;
-  takeProfit: number;
-  unleashed: boolean;
+interface ThoughtLine {
+  id: string; text: string; ts: number;
 }
 
-type Mood = "HUNGRY" | "SCANNING" | "LOCKED IN" | "COOLING" | "DORMANT";
+interface TradeLog {
+  txHash: string; action: string; token: { symbol: string; address: string; price: number };
+  ethAmount: number; timestamp: number;
+}
 
 interface MeshTradeProps {
-  user: any;
-  agent: any;
-  wallet: any;
-  onConnectBrain?: () => void;
-  onFundWallet?: () => void;
+  user: any; agent: any; wallet: any;
+  onConnectBrain: () => void; onFundWallet: () => void;
 }
 
-// ── Helpers ──────────────────────────────────────────────
-
-function hashPos(addr: string, seed: number): number {
-  let h = seed;
-  for (let i = 0; i < addr.length; i++)
-    h = ((h << 5) - h) + addr.charCodeAt(i);
-  return ((h >>> 0) % 75) + 10;
-}
-
-function formatPrice(p: number): string {
-  if (p === 0) return "$0.00";
-  if (p < 0.01) return "$" + p.toFixed(6);
-  if (p < 1) return "$" + p.toFixed(4);
-  return "$" + p.toFixed(2);
-}
-
-function formatDollar(n: number): string {
-  if (Math.abs(n) >= 1_000_000) return "$" + (n / 1_000_000).toFixed(2) + "M";
-  if (Math.abs(n) >= 1_000) return "$" + (n / 1_000).toFixed(1) + "K";
-  return "$" + n.toFixed(2);
-}
-
-function formatCompact(n: number): string {
-  if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + "B";
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
-  return n.toFixed(0);
-}
-
-function formatShort(n: number): string {
-  if (!n || n <= 0) return "\u2014";
-  if (n >= 1e9) return "$" + (n / 1e9).toFixed(1) + "B";
-  if (n >= 1e6) return "$" + (n / 1e6).toFixed(1) + "M";
-  if (n >= 1e3) return "$" + (n / 1e3).toFixed(0) + "K";
-  return "$" + n.toFixed(0);
-}
-
-function formatTime(ts: number): string {
-  const d = new Date(ts);
-  return (
-    String(d.getHours()).padStart(2, "0") +
-    ":" +
-    String(d.getMinutes()).padStart(2, "0") +
-    ":" +
-    String(d.getSeconds()).padStart(2, "0")
-  );
-}
-
-function formatAge(ts: number): string {
-  const mins = (Date.now() - ts) / 60000;
-  if (mins < 60) return Math.round(mins) + "m";
-  if (mins < 1440) return (mins / 60).toFixed(1) + "h";
-  return (mins / 1440).toFixed(1) + "d";
-}
-
-function orbSize(mcap: number): number {
-  return Math.max(14, Math.min(56, Math.log10(Math.max(mcap || 1, 1)) / 10 * 42 + 14));
-}
-
-function orbColor(change1h: number): string {
-  if (change1h > 10) return C.match;
-  if (change1h > 5) return C.lime;
-  if (change1h > 0) return C.cyan;
-  if (change1h > -5) return C.yellow;
-  if (change1h > -10) return C.orange;
-  return C.hot;
-}
-
-function lightenColor(hex: string): string {
-  // Handle both hex (#abc123) and named CSS colors by falling back gracefully
-  if (!hex.startsWith("#") || hex.length < 7) return hex;
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const lr = Math.min(255, r + 80), lg = Math.min(255, g + 80), lb = Math.min(255, b + 80);
-  return `rgb(${lr},${lg},${lb})`;
-}
-
-function fmtK(n: number): string {
-  if (!n) return "$0";
-  if (n >= 1e9) return "$" + (n / 1e9).toFixed(2) + "B";
-  if (n >= 1e6) return "$" + (n / 1e6).toFixed(2) + "M";
-  if (n >= 1e3) return "$" + (n / 1e3).toFixed(1) + "K";
-  return "$" + n.toFixed(0);
-}
-
-function fmtAge(ts: number): string {
-  if (!ts || ts <= 0) return "";
-  // pairCreatedAt is in milliseconds
-  const ms = Date.now() - ts;
-  if (ms < 0) return "";
-  const mins = Math.floor(ms / 60000);
-  if (mins < 1) return "<1m";
-  if (mins < 60) return mins + "m";
-  const hrs = Math.floor(ms / 3600000);
-  if (hrs < 24) return hrs + "h";
-  return Math.floor(ms / 86400000) + "d";
-}
-
-function cleanTokenName(name: string, symbol: string): string {
-  // Strip pair suffixes like "/ WETH", "/ ETH", "/ USDC", "/ SOL"
-  const cleaned = name.replace(/\s*\/\s*(WETH|ETH|USDC|USDT|SOL|BNB|BASE|ARB)\s*$/i, "").trim();
-  // If name looks like a contract address (0x...) or is same as symbol, return empty
-  if (cleaned.startsWith("0x") || cleaned.toLowerCase() === symbol.toLowerCase()) return "";
-  return cleaned;
-}
-
-function buyPct(txns: { buys: number; sells: number }): number {
-  const total = (txns.buys || 0) + (txns.sells || 0);
-  if (total === 0) return 50;
-  return Math.round(((txns.buys || 0) / total) * 100);
-}
-
-function tokenOrbColor(t: Token): string {
-  const p = t.priceChange1h || 0;
-  if (p > 10) return C.match;
-  if (p > 5) return C.lime;
-  if (p > 0) return C.cyan;
-  if (p > -5) return C.yellow;
-  if (p > -10) return C.orange;
-  return C.hot;
-}
-
-// ── Token logo with multi-source fallback ──────────────
-const LOGO_GRADIENTS = [
-  ["#6366f1","#a855f7"],["#06b6d4","#3b82f6"],["#10b981","#06b6d4"],
-  ["#f59e0b","#ef4444"],["#ec4899","#a855f7"],["#14b8a6","#6366f1"],
-  ["#f97316","#ec4899"],["#8b5cf6","#06b6d4"],["#22c55e","#16a34a"],
-  ["#ef4444","#dc2626"],["#3b82f6","#1d4ed8"],["#a78bfa","#7c3aed"],
-];
-function tokenGradient(addr: string): [string, string] {
-  const idx = (parseInt(addr.slice(2, 6) || "0", 16) || 0) % LOGO_GRADIENTS.length;
-  return LOGO_GRADIENTS[idx] as [string, string];
-}
-
-function getTokenLogoUrl(token: { address: string; chainId: string; imageUrl: string | null }): string | null {
-  if (token.imageUrl && token.imageUrl.startsWith("http")) return token.imageUrl;
-  // DexScreener CDN — browsers follow the 301 redirect automatically
-  if (token.address && token.chainId) {
-    return `https://dd.dexscreener.com/ds-data/tokens/${token.chainId}/${token.address.toLowerCase()}/header.png`;
-  }
-  return null;
-}
-
-function TokenLogo({ token, size }: { token: Token; size: number }) {
-  const [imgSrc, setImgSrc] = useState<string | null>(() => getTokenLogoUrl(token));
-  const [failed, setFailed] = useState(false);
-
-  const [gradA, gradB] = tokenGradient(token.address || "0x000000");
-  const initials = (token.symbol || "??").slice(0, 2).toUpperCase();
-  const fontSize = Math.max(9, Math.round(size * 0.32));
-
-  // Initials fallback — unique gradient per token address
-  const InitialsFallback = (
-    <div style={{
-      width: "100%", height: "100%",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      background: `linear-gradient(135deg, ${gradA}, ${gradB})`,
-      borderRadius: "50%",
-    }}>
-      <span style={{
-        fontSize, fontWeight: 900, color: "white",
-        letterSpacing: "-0.02em", lineHeight: 1,
-        textShadow: "0 1px 3px rgba(0,0,0,0.4)",
-      }}>
-        {initials}
-      </span>
-    </div>
-  );
-
-  if (failed || !imgSrc) return InitialsFallback;
-
-  return (
-    <img
-      src={imgSrc}
-      alt={token.symbol}
-      style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", display: "block", pointerEvents: "none" }}
-      onError={() => {
-        // Try GeckoTerminal CDN as secondary fallback
-        const gtUrl = `https://assets.coingecko.com/coins/images/1/small/bitcoin.png`; // placeholder pattern
-        // Just go straight to initials — CDN has no image for brand new tokens
-        setFailed(true);
-      }}
-    />
-  );
-}
-
-const LOG_DOT_COLORS: Record<string, string> = {
-  scanning: C.cyan,
-  analyzing: C.gold,
-  bought: C.match,
-  profit: C.match,
-  loss: C.hot,
-  signal: C.indigo,
-  hold: C.cyan,
-  error: C.hot,
-  info: C.muted,
+/* ═══ HELPERS ═══ */
+const MODE_COLORS: Record<BubbleMode, string> = { SNIPE: C.hot, TREND: C.gold, REVIVE: "#a855f7", EXIT: C.cyan };
+const ORB_COLORS: Record<OrbState, string> = {
+  IDLE: C.indigo, SCANNING: C.cyan, ANALYZING: "#f59e0b",
+  BUY: C.match, SELL: C.hot, HOLDING: C.gold,
 };
 
-const MOOD_CONFIG: Record<Mood, { color: string; label: string }> = {
-  HUNGRY: { color: C.hot, label: "hunting aggressively" },
-  SCANNING: { color: C.cyan, label: "looking for signals" },
-  "LOCKED IN": { color: C.match, label: "in position" },
-  COOLING: { color: C.muted, label: "after a loss" },
-  DORMANT: { color: C.dim, label: "no brain connected" },
-};
+function initials(symbol: string): string {
+  return (symbol || "??").slice(0, 2).toUpperCase();
+}
 
-// ── Keyframes Style Tag ──────────────────────────────────
+function deterministicGradient(addr: string): string {
+  const h1 = Math.abs(addr.split("").reduce((a, c) => a + c.charCodeAt(0), 0)) % 360;
+  const h2 = (h1 + 60) % 360;
+  return `linear-gradient(135deg, hsl(${h1},70%,50%), hsl(${h2},70%,40%))`;
+}
 
-const KEYFRAMES = `
-@keyframes mt-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.08); }
+function scoreToken(t: Token, risk: number): number {
+  const volSpike = t.volume1h > 0 ? Math.min(t.volume1h / Math.max(t.volume24h / 24, 1), 10) / 10 : 0;
+  const liqHealth = Math.min(t.liquidity / 50000, 1);
+  const priceScore = Math.min(Math.max(t.priceChange1h, -50), 100) / 100;
+  const raw = (priceScore * 0.3 + volSpike * 0.4 + liqHealth * 0.3) * 100;
+  return Math.min(Math.max(raw * (0.7 + risk * 0.6), 0), 100);
 }
-@keyframes mt-drift {
-  0% { transform: translate(0, 0); }
-  25% { transform: translate(6px, -4px); }
-  50% { transform: translate(-3px, 7px); }
-  75% { transform: translate(5px, 3px); }
-  100% { transform: translate(0, 0); }
-}
-@keyframes mt-scan-line {
-  0% { opacity: 0.15; }
-  50% { opacity: 0.5; }
-  100% { opacity: 0.15; }
-}
-@keyframes mt-ticker {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-@keyframes mt-live-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-@keyframes mt-glow {
-  0%, 100% { box-shadow: 0 0 12px 3px rgba(99,102,241,0.4); }
-  50% { box-shadow: 0 0 24px 8px rgba(99,102,241,0.7); }
-}
-@keyframes mt-unleash-pulse {
-  0%, 100% { box-shadow: 0 0 8px 2px rgba(255,45,85,0.3); border-color: rgba(255,45,85,0.6); }
-  50% { box-shadow: 0 0 20px 6px rgba(255,45,85,0.6); border-color: rgba(255,45,85,1); }
-}
-@keyframes mt-modal-up {
-  0% { transform: translateY(100%); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
-}
-@keyframes mt-orb-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.9; }
-  50% { transform: scale(1.12); opacity: 1; }
-}
-@keyframes mt-dash {
-  0% { stroke-dashoffset: 0; }
-  100% { stroke-dashoffset: -20; }
-}
-@keyframes mt-spin-cw {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-@keyframes mt-spin-ccw {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(-360deg); }
-}
-@keyframes mt-agent-pulse {
-  0%, 100% { box-shadow: 0 0 20px 6px rgba(99,102,241,0.4), 0 0 40px 12px rgba(6,182,212,0.15); }
-  50% { box-shadow: 0 0 30px 10px rgba(99,102,241,0.6), 0 0 60px 20px rgba(6,182,212,0.25); }
-}
-@keyframes mt-analyze-ring {
-  0% { transform: translate(-50%,-50%) scale(0.8); opacity: 0.8; }
-  100% { transform: translate(-50%,-50%) scale(1.6); opacity: 0; }
-}
-@keyframes onb-slide-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes mt-card-in { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
-@keyframes mt-shoot-in {
-  0% {
-    transform: translate(var(--shoot-x), var(--shoot-y)) scale(0.1);
-    opacity: 0;
-    filter: blur(4px) brightness(3);
-    box-shadow: 0 0 0px 0px rgba(99,102,241,0);
-  }
-  30% {
-    opacity: 0.8;
-    filter: blur(1px) brightness(2);
-  }
-  60% {
-    transform: translate(calc(var(--shoot-x) * 0.05), calc(var(--shoot-y) * 0.05)) scale(1.15);
-    filter: blur(0px) brightness(1.5);
-    box-shadow: 0 0 20px 8px rgba(99,102,241,0.6);
-  }
-  80% {
-    transform: translate(0, 0) scale(0.9);
-    box-shadow: 0 0 10px 3px rgba(99,102,241,0.3);
-  }
-  100% {
-    transform: translate(0, 0) scale(1);
-    opacity: 1;
-    filter: blur(0px) brightness(1);
-    box-shadow: none;
-  }
-}
-@keyframes mt-shoot-trail {
-  0% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(3); }
-}
-.mt-orbital-cols {
-  display: flex !important;
-  flex-direction: row !important;
-  flex: 1 !important;
-  overflow: hidden !important;
-}
-.mt-orbital-col {
-  flex: 1 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  border-right: 1px solid rgba(255,255,255,0.07) !important;
-  overflow: hidden !important;
-}
-.mt-orbital-col:last-child {
-  border-right: none !important;
-}
-@media (max-width: 640px) {
-  .mt-layout { flex-direction: column !important; }
-  .mt-brain { width: 100% !important; max-width: 100% !important; border-right: none !important; border-top: 1px solid rgba(255,255,255,0.07) !important; border-bottom: none !important; order: 2 !important; }
-  .mt-galaxy { min-height: 480px !important; height: 480px !important; order: 1 !important; }
-  .mt-orbital-cols { display: none !important; }
-  .mt-mobile-col-tabs { display: flex !important; }
-  .mt-mobile-col-view { display: flex !important; flex-direction: column !important; flex: 1 !important; }
-  .mt-brain-collapse { max-height: 0px !important; overflow: hidden !important; padding: 0 !important; }
-  .mt-brain-collapse.mt-brain-open { max-height: 2000px !important; overflow: visible !important; padding: 20px !important; }
-}
-`;
 
-// ═══════════════════════════════════════════════════════════
-// Main Component
-// ═══════════════════════════════════════════════════════════
+function assignMode(t: Token): BubbleMode {
+  if (t.ageMinutes < 30) return "SNIPE";
+  if (t.ageMinutes > 240 && t.priceChange1h > 15) return "REVIVE";
+  return "TREND";
+}
 
+function fmt$(n: number): string {
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
+  return `$${n.toFixed(2)}`;
+}
+
+function fmtPct(n: number): string {
+  const s = n >= 0 ? "+" : "";
+  return `${s}${n.toFixed(1)}%`;
+}
+
+let _bubbleId = 0;
+function nextId(): string { return `b_${Date.now()}_${++_bubbleId}`; }
+
+/* ═══ COMPONENT ═══ */
 export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundWallet }: MeshTradeProps) {
-  // ── State ──
-  const [tokens, setTokens] = useState<Token[]>([]);
-  const [settings, setSettings] = useState<Settings>({
-    aggression: 50,
-    maxTrade: 50,
-    stopLoss: 15,
-    takeProfit: 50,
-    unleashed: false,
-  });
-  const [mood, setMood] = useState<Mood>("DORMANT");
-  const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
-  const [positions, setPositions] = useState<Position[]>([]);
-  const [sessionStats, setSessionStats] = useState({ trades: 0, pnl: 0 });
-  const [selectedToken, setSelectedToken] = useState<Token | null>(null);
-  const [hint, setHint] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [hoverCard, setHoverCard] = useState<{ token: Token; x: number; y: number } | null>(null);
-  const [watchlist, setWatchlist] = useState<string[]>([]);
-  const [agentColIdx, setAgentColIdx] = useState(0);
-  const [agentTokenAddr, setAgentTokenAddr] = useState<string | null>(null);
-  const [mobileColTab, setMobileColTab] = useState<"emerging" | "heating" | "pumping">("pumping");
-  const [brainExpanded, setBrainExpanded] = useState(false);
-  const [showBrainModal, setShowBrainModal] = useState(false);
-  const [brainProvider, setBrainProvider] = useState("openai");
-  const [brainApiKey, setBrainApiKey] = useState("");
-  const [brainShowKey, setBrainShowKey] = useState(false);
-  const [brainSaving, setBrainSaving] = useState(false);
-  const [brainTesting, setBrainTesting] = useState(false);
-  const [brainError, setBrainError] = useState("");
-  const [brainSuccess, setBrainSuccess] = useState(false);
+  const [orbState, setOrbState] = useState<OrbState>("IDLE");
+  const [bubbles, setBubbles] = useState<Bubble[]>([]);
+  const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [thoughts, setThoughts] = useState<ThoughtLine[]>([]);
+  const [tradeLogs, setTradeLogs] = useState<TradeLog[]>([]);
+  const [sessionPnl, setSessionPnl] = useState(0);
+  const [risk, setRisk] = useState(0.5);
+  const [chainFilter, setChainFilter] = useState("all");
+  const [statusText, setStatusText] = useState("Initializing...");
+  const [poolCount, setPoolCount] = useState(0);
 
-  const settingsTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const tokenIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const stateIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const triggerIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const agentMoveRef = useRef<NodeJS.Timeout | null>(null);
-  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const galaxyRef = useRef<HTMLDivElement | null>(null);
-  const logRef = useRef<HTMLDivElement | null>(null);
-  const checkedTokensRef = useRef<Set<string>>(new Set());
-  const seenTokensRef = useRef<Set<string>>(new Set());
-  const [enteringTokens, setEnteringTokens] = useState<Set<string>>(new Set());
+  const thoughtRef = useRef<HTMLDivElement>(null);
+  const tokenQueueRef = useRef<Token[]>([]);
+  const activeRef = useRef(false);
+  const pollTimerRef = useRef<any>(null);
+  const feedTimerRef = useRef<any>(null);
 
-  const brainConnected = !!user?.ai_api_key_encrypted;
-  const GAS_RESERVE = 0.002;
+  const hasBrain = !!(agent?.ai_key || agent?.openai_key || agent?.anthropic_key);
+  const hasFunds = wallet?.balance_eth > 0.001;
+  const isActive = hasBrain && hasFunds;
 
-  // ── Computed ──
-  const walletEth = wallet?.balance_eth ?? 0;
-  const walletUsd = wallet?.balance_usd ?? 0;
-  const inPositions = positions.reduce((s, p) => s + Math.abs(p.amount * p.entryPrice), 0);
-  const available = Math.max(0, walletEth - GAS_RESERVE);
-
-  // ── Computed Mood ──
-  const computeMood = useCallback(
-    (pos: Position[], toks: Token[], unleashed: boolean): Mood => {
-      if (!brainConnected || !unleashed) return "DORMANT";
-      if (pos.length > 0) {
-        const totalPnl = pos.reduce((s, p) => s + p.pnl, 0);
-        if (totalPnl < -10) return "COOLING";
-        return "LOCKED IN";
-      }
-      const highScore = toks.some((t) => t.score >= 80);
-      if (highScore) return "HUNGRY";
-      return "SCANNING";
-    },
-    [brainConnected]
-  );
-
-  // ── Token categorization (same as MeshScope) ──
-  const { pumpingTokens, emergingTokens, heatingTokens, columns } = useMemo(() => {
-    const ft = searchQuery
-      ? tokens.filter(t =>
-          t.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          t.address.toLowerCase().includes(searchQuery.toLowerCase()))
-      : tokens;
-
-    const getAge = (t: Token) => t.ageMinutes ?? (t.pairCreatedAt > 0 ? Math.floor((Date.now() - t.pairCreatedAt) / 60000) : 99999);
-    const isNewToken = (t: Token) => t.isNew ?? getAge(t) < 1440;
-
-    const pumping = ft.filter(t => t.score > 75 || t.priceChange1h > 15);
-    const pumpSet = new Set(pumping.map(t => t.address));
-    const emerging = ft.filter(t => !pumpSet.has(t.address) && (isNewToken(t) || t.score < 50));
-    const emergeSet = new Set(emerging.map(t => t.address));
-    const heating = ft.filter(t => !pumpSet.has(t.address) && !emergeSet.has(t.address));
-
-    const cols = [
-      { id: "emerging" as const, label: "EMERGING", tokens: emerging, color: "#06b6d4", desc: "New pairs < 2h" },
-      { id: "heating" as const, label: "HEATING", tokens: heating, color: "#f59e0b", desc: "Building momentum" },
-      { id: "pumping" as const, label: "PUMPING", tokens: pumping, color: "#30d158", desc: "Score 80+" },
-    ];
-
-    return { pumpingTokens: pumping, emergingTokens: emerging, heatingTokens: heating, columns: cols };
-  }, [tokens, searchQuery]);
-
-  // ── Track newly arrived tokens for shoot-in animation ──
-  useEffect(() => {
-    const allCurrentAddresses = new Set<string>();
-    const newlyArrived = new Set<string>();
-
-    columns.forEach(col => {
-      col.tokens.forEach(t => {
-        allCurrentAddresses.add(t.address);
-        if (seenTokensRef.current.size > 0 && !seenTokensRef.current.has(t.address)) {
-          newlyArrived.add(t.address);
-        }
-      });
+  /* ── Add thought line ── */
+  const addThought = useCallback((text: string) => {
+    setThoughts(prev => {
+      const next = [...prev, { id: nextId(), text, ts: Date.now() }];
+      return next.slice(-20);
     });
-
-    if (newlyArrived.size > 0) {
-      setEnteringTokens(newlyArrived);
-      setTimeout(() => {
-        setEnteringTokens(new Set());
-      }, 1200);
-    }
-
-    seenTokensRef.current = allCurrentAddresses;
-  }, [columns]);
-
-  // ── Fetch tokens ──
-  const fetchTokens = useCallback(async () => {
-    try {
-      const q = searchQuery ? `&q=${encodeURIComponent(searchQuery)}` : "";
-      const res = await fetch(`/api/hunt/tokens?chains=base${q}&limit=100`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.tokens) setTokens(data.tokens);
-      }
-    } catch {
-      /* silent */
-    }
-  }, [searchQuery]);
-
-  // ── Fetch agent state ──
-  const fetchState = useCallback(async () => {
-    try {
-      const res = await fetch("/api/meshtrade/state");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.settings) {
-          setSettings((prev) => ({ ...prev, ...data.settings }));
-        }
-        if (data.positions) setPositions(data.positions);
-        if (data.logEntries && data.logEntries.length > 0) {
-          const mapped: LogEntry[] = data.logEntries.map((e: any) => ({
-            ts: new Date(e.created_at).getTime(),
-            status: mapLogType(e.type),
-            message: e.message,
-          }));
-          setLogEntries(mapped);
-        }
-        if (data.sessionStats) setSessionStats(data.sessionStats);
-        if (data.watchlist) setWatchlist(data.watchlist);
-      }
-    } catch {
-      /* silent */
-    }
+    setTimeout(() => {
+      thoughtRef.current?.scrollTo({ top: thoughtRef.current.scrollHeight, behavior: "smooth" });
+    }, 50);
   }, []);
 
-  // ── Map DB log type to UI status ──
-  function mapLogType(type: string): LogEntry["status"] {
-    const map: Record<string, LogEntry["status"]> = {
-      scan: "scanning", signal: "signal", entry: "bought", hold: "hold",
-      exit_win: "profit", exit_loss: "loss", point: "signal", reject: "info", error: "error",
-    };
-    return map[type] || "info";
-  }
-
-  // ── Save settings (debounced) ──
-  const saveSettings = useCallback((s: Settings) => {
-    if (settingsTimerRef.current) clearTimeout(settingsTimerRef.current);
-    settingsTimerRef.current = setTimeout(async () => {
-      try {
-        await fetch("/api/meshtrade/settings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(s),
-        });
-      } catch {
-        /* silent */
-      }
-    }, 1000);
-  }, []);
-
-  // ── Update a setting ──
-  const updateSetting = useCallback(
-    (key: keyof Settings, value: number | boolean) => {
-      setSettings((prev) => {
-        const next = { ...prev, [key]: value };
-        saveSettings(next);
-        return next;
-      });
-    },
-    [saveSettings]
-  );
-
-  // ── Trigger trading cycle ──
-  const triggerTrade = useCallback(async () => {
-    if (!brainConnected || !settings.unleashed) return;
+  /* ── Execute trade (stub API) ── */
+  const executeTrade = useCallback(async (token: Token, action: "buy" | "sell", ethAmount: number) => {
     try {
-      const res = await fetch("/api/trading/trigger", { method: "POST" });
-      if (res.ok) {
-        const data = await res.json();
-        let entry: LogEntry | null = null;
-        if (data.action === "buy" || data.action === "entry") {
-          entry = { ts: Date.now(), status: "bought", message: `Bought ${data.token || "token"} -- ${data.reasoning || ""}` };
-        } else if (data.action === "sell" || data.action === "exit_win" || data.action === "exit_loss") {
-          entry = { ts: Date.now(), status: data.action === "exit_loss" ? "loss" : "profit", message: `Sold ${data.token || "token"} -- ${data.reasoning || ""}` };
-        } else if (data.action === "hold" || data.action === "skip") {
-          entry = { ts: Date.now(), status: "hold", message: data.reasoning || `Analyzed tokens -- holding for better signal` };
-        } else if (data.error) {
-          entry = { ts: Date.now(), status: "error", message: data.error };
-        }
-        if (entry) {
-          setLogEntries((prev) => [entry!, ...prev.slice(0, 49)]);
-        }
-        fetchState();
-      }
-    } catch (err: any) {
-      setLogEntries((prev) => [
-        { ts: Date.now(), status: "error", message: err.message || "Trigger failed" },
-        ...prev.slice(0, 49),
-      ]);
-    }
-  }, [brainConnected, settings.unleashed, fetchState]);
-
-  // ── Unleash toggle ──
-  const toggleUnleash = useCallback(() => {
-    if (!brainConnected) return;
-    if (settings.unleashed) {
-      if (!confirm("Stop hunting?")) return;
-    }
-    const next = !settings.unleashed;
-    updateSetting("unleashed", next);
-    if (next) {
-      setTimeout(() => triggerTrade(), 500);
-    }
-  }, [settings.unleashed, updateSetting, brainConnected, triggerTrade]);
-
-  // ── Point agent action ──
-  const pointAgent = useCallback(
-    async (action: "point" | "buy_now" | "watch") => {
-      if (!selectedToken) return;
-      try {
-        await fetch("/api/meshtrade/point", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action,
-            tokenAddress: selectedToken.address,
-            symbol: selectedToken.symbol,
-            hint: hint || undefined,
-          }),
-        });
-        const actionLabel =
-          action === "buy_now"
-            ? "BUY order sent"
-            : action === "point"
-            ? "Agent pointed"
-            : "Added to watchlist";
-        setLogEntries((prev) => [
-          {
-            ts: Date.now(),
-            status: action === "buy_now" ? "bought" : "signal",
-            message: `${actionLabel}: ${selectedToken.symbol}`,
-          },
-          ...prev.slice(0, 49),
-        ]);
-        if (action === "watch") {
-          setWatchlist((prev) => [...prev, selectedToken.address]);
-        }
-      } catch {
-        /* silent */
-      }
-      setSelectedToken(null);
-      setHint("");
-    },
-    [selectedToken, hint]
-  );
-
-  // ── Force sell ──
-  const forceSell = useCallback(async (tokenAddress: string) => {
-    try {
-      await fetch("/api/meshtrade/point", {
+      const res = await fetch("/api/meshtrade/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "force_sell", tokenAddress }),
+        body: JSON.stringify({ token: { symbol: token.symbol, address: token.address, price: token.price }, action, ethAmount, userId: user?.id }),
       });
-      setPositions((prev) => prev.filter((p) => p.tokenAddress !== tokenAddress));
-    } catch {
-      /* silent */
+      const data = await res.json();
+      if (data.success) {
+        setTradeLogs(prev => [...prev, data]);
+        return data;
+      }
+    } catch {}
+    return null;
+  }, [user?.id]);
+
+  /* ── Process a single bubble through its lifecycle ── */
+  const processBubble = useCallback((bubble: Bubble) => {
+    const { token, score, mode } = bubble;
+
+    // Phase 1: entering -> scanning
+    setTimeout(() => {
+      setBubbles(prev => prev.map(b => b.id === bubble.id ? { ...b, phase: "scanning" } : b));
+      setOrbState("SCANNING");
+      setStatusText(`Scanning ${token.symbol}...`);
+    }, 600);
+
+    if (score < 40) {
+      // PASS
+      addThought(`[${mode}] ${token.symbol} -- Score ${score.toFixed(0)}. Low signal. PASS`);
+      setTimeout(() => {
+        setBubbles(prev => prev.map(b => b.id === bubble.id ? { ...b, phase: "passing" } : b));
+        setOrbState("IDLE");
+      }, 1800);
+      setTimeout(() => {
+        setBubbles(prev => prev.filter(b => b.id !== bubble.id));
+      }, 2400);
+      return;
     }
+
+    if (score >= 40 && score < 70) {
+      // WATCH
+      setTimeout(() => {
+        setBubbles(prev => prev.map(b => b.id === bubble.id ? { ...b, phase: "approaching" } : b));
+        setOrbState("ANALYZING");
+        setStatusText(`Analyzing ${token.symbol}...`);
+        addThought(`[${mode}] ${token.symbol} -- Score ${score.toFixed(0)}. Watching...`);
+      }, 1200);
+      setTimeout(() => {
+        setBubbles(prev => prev.map(b => b.id === bubble.id ? { ...b, phase: "passing" } : b));
+        setOrbState("IDLE");
+      }, 3500);
+      setTimeout(() => {
+        setBubbles(prev => prev.filter(b => b.id !== bubble.id));
+      }, 4200);
+      return;
+    }
+
+    // BUY — score >= 70
+    const ethAmount = parseFloat((0.001 + risk * 0.01).toFixed(4));
+    setTimeout(() => {
+      setBubbles(prev => prev.map(b => b.id === bubble.id ? { ...b, phase: "approaching" } : b));
+      setOrbState("ANALYZING");
+      setStatusText(`Analyzing ${token.symbol}...`);
+    }, 1200);
+
+    setTimeout(() => {
+      const sizePct = (ethAmount * 100 / Math.max(wallet?.balance_eth || 1, 0.01)).toFixed(1);
+      setBubbles(prev => prev.map(b => b.id === bubble.id ? { ...b, phase: "thinking", thought: `Vol up ${((token.volume1h / Math.max(token.volume24h / 24, 1)) * 100).toFixed(0)}%... Sizing ${sizePct}%...` } : b));
+      addThought(`[${mode}] ${token.symbol} -- ${fmtPct(token.priceChange1h)} 1h. Vol ${fmt$(token.volume1h)}. Sizing ${sizePct}%... BUY`);
+    }, 2200);
+
+    setTimeout(async () => {
+      setOrbState("BUY");
+      setBubbles(prev => prev.map(b => b.id === bubble.id ? { ...b, phase: "bought" } : b));
+      const result = await executeTrade(token, "buy", ethAmount);
+      if (result) {
+        setHoldings(prev => [...prev, {
+          id: nextId(), token, ethAmount, entryPrice: token.price,
+          pnl: 0, orbitAngle: Math.random() * 360, txHash: result.txHash,
+        }]);
+      }
+      setTimeout(() => {
+        setBubbles(prev => prev.filter(b => b.id !== bubble.id));
+        setOrbState("HOLDING");
+        setStatusText(`Holding ${token.symbol}. Scanning...`);
+      }, 500);
+    }, 3200);
+  }, [addThought, executeTrade, risk, wallet?.balance_eth]);
+
+  /* ── Feed tokens from queue into bubble stream ── */
+  useEffect(() => {
+    if (!isActive) return;
+    activeRef.current = true;
+
+    feedTimerRef.current = setInterval(() => {
+      if (tokenQueueRef.current.length === 0) return;
+      const token = tokenQueueRef.current.shift()!;
+      const score = scoreToken(token, risk);
+      const mode = assignMode(token);
+      const bubble: Bubble = { id: nextId(), token, mode, phase: "entering", score, entryTime: Date.now() };
+      setBubbles(prev => {
+        const active = prev.filter(b => b.phase !== "passing" && b.phase !== "exiting");
+        if (active.length >= 6) return prev;
+        return [...prev, bubble];
+      });
+      processBubble(bubble);
+    }, 300 + Math.random() * 500);
+
+    return () => { activeRef.current = false; clearInterval(feedTimerRef.current); };
+  }, [isActive, risk, processBubble]);
+
+  /* ── Poll /api/hunt/tokens ── */
+  useEffect(() => {
+    if (!isActive) return;
+
+    const poll = async () => {
+      try {
+        const chainParam = chainFilter !== "all" ? `&chain=${chainFilter}` : "";
+        const res = await fetch(`/api/hunt/tokens?limit=30${chainParam}`);
+        const data = await res.json();
+        const tokens: Token[] = (data.tokens || []).map((t: any) => ({
+          address: t.address, symbol: t.symbol, name: t.name, chainId: t.chainId,
+          price: t.price, priceChange1h: t.priceChange1h, volume1h: t.volume1h,
+          volume24h: t.volume24h, liquidity: t.liquidity, ageMinutes: t.ageMinutes,
+          imageUrl: t.imageUrl, fdv: t.fdv, marketCap: t.marketCap,
+        }));
+        setPoolCount(tokens.length);
+        setStatusText(`Scanning ${tokens.length} pools...`);
+        const shuffled = tokens.sort(() => Math.random() - 0.5);
+        tokenQueueRef.current.push(...shuffled);
+      } catch {}
+    };
+
+    poll();
+    pollTimerRef.current = setInterval(poll, 10000);
+    return () => clearInterval(pollTimerRef.current);
+  }, [isActive, chainFilter]);
+
+  /* ── Simulate P&L drift on holdings ── */
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setHoldings(prev => {
+        let total = 0;
+        const updated = prev.map(h => {
+          const drift = (Math.random() - 0.45) * 2;
+          const pnl = h.pnl + drift;
+          total += pnl;
+          return { ...h, pnl, orbitAngle: h.orbitAngle + 0.5 };
+        });
+        setSessionPnl(total * 0.0001);
+        return updated;
+      });
+    }, 2000);
+    return () => clearInterval(iv);
   }, []);
 
-  // ── Mood recalculation ──
-  useEffect(() => {
-    setMood(computeMood(positions, tokens, settings.unleashed));
-  }, [positions, tokens, settings.unleashed, computeMood]);
+  /* ── Manual sell ── */
+  const sellHolding = useCallback(async (h: Holding) => {
+    setOrbState("SELL");
+    addThought(`[EXIT] ${h.token.symbol} ${h.pnl >= 0 ? "+" : ""}${h.pnl.toFixed(1)}%. Manual sell.`);
+    await executeTrade(h.token, "sell", h.ethAmount);
+    setTimeout(() => {
+      setHoldings(prev => prev.filter(x => x.id !== h.id));
+      setOrbState(holdings.length > 1 ? "HOLDING" : "SCANNING");
+    }, 400);
+  }, [addThought, executeTrade, holdings.length]);
 
-  // ── Agent movement between columns ──
-  useEffect(() => {
-    if (agentMoveRef.current) clearInterval(agentMoveRef.current);
-
-    const moveAgent = () => {
-      const allTokens = [...columns[0].tokens, ...columns[1].tokens, ...columns[2].tokens];
-      if (allTokens.length === 0) return;
-
-      if (!settings.unleashed || !brainConnected) {
-        setAgentColIdx(0);
-        setAgentTokenAddr(null);
-        return;
+  /* ── Tap bubble to prioritize ── */
+  const prioritizeBubble = useCallback((id: string) => {
+    setBubbles(prev => prev.map(b => {
+      if (b.id !== id) return b;
+      if (b.phase === "entering" || b.phase === "scanning") {
+        return { ...b, score: Math.max(b.score, 75) };
       }
+      return b;
+    }));
+    setOrbState("ANALYZING");
+  }, []);
 
-      // Find highest-scored token not checked in past 30s
-      const now = Date.now();
-      const unchecked = allTokens
-        .filter(t => !checkedTokensRef.current.has(t.address))
-        .sort((a, b) => b.score - a.score);
-
-      let target = unchecked[0] || allTokens.sort((a, b) => b.score - a.score)[0];
-      if (!target) return;
-
-      // Reset checked set periodically
-      if (checkedTokensRef.current.size > allTokens.length * 0.8) {
-        checkedTokensRef.current.clear();
-      }
-      checkedTokensRef.current.add(target.address);
-
-      // Find which column this token is in
-      for (let ci = 0; ci < columns.length; ci++) {
-        if (columns[ci].tokens.some(t => t.address === target.address)) {
-          setAgentColIdx(ci);
-          break;
-        }
-      }
-      setAgentTokenAddr(target.address);
-
-      // Log analyzing
-      setLogEntries(prev => [
-        { ts: now, status: "analyzing", message: `Analyzing ${target.symbol} (score: ${target.score})` },
-        ...prev.slice(0, 49),
-      ]);
-    };
-
-    moveAgent();
-    agentMoveRef.current = setInterval(moveAgent, 4000);
-    return () => {
-      if (agentMoveRef.current) clearInterval(agentMoveRef.current);
-    };
-  }, [columns, settings.unleashed, brainConnected]);
-
-  // ── Polling: tokens ──
+  /* ── Auto-sell losers ── */
   useEffect(() => {
-    fetchTokens();
-    tokenIntervalRef.current = setInterval(fetchTokens, 10000);
-    return () => {
-      if (tokenIntervalRef.current) clearInterval(tokenIntervalRef.current);
-    };
-  }, [fetchTokens]);
-
-  // ── Polling: agent state ──
-  useEffect(() => {
-    fetchState();
-    const ms = settings.unleashed ? 5000 : 15000;
-    stateIntervalRef.current = setInterval(fetchState, ms);
-    return () => {
-      if (stateIntervalRef.current) clearInterval(stateIntervalRef.current);
-    };
-  }, [fetchState, settings.unleashed]);
-
-  // ── Polling: trigger (every 60s when unleashed) ──
-  useEffect(() => {
-    if (triggerIntervalRef.current) clearInterval(triggerIntervalRef.current);
-    if (settings.unleashed && brainConnected) {
-      triggerIntervalRef.current = setInterval(triggerTrade, 60000);
-    }
-    return () => {
-      if (triggerIntervalRef.current) clearInterval(triggerIntervalRef.current);
-    };
-  }, [settings.unleashed, brainConnected, triggerTrade]);
-
-  // ── Ticker tokens (top 5) ──
-  const tickerTokens = useMemo(() => tokens.slice(0, 5), [tokens]);
-
-  // ── Honest log display ──
-  const displayLog = useMemo((): LogEntry[] => {
-    if (!brainConnected) {
-      return [{ ts: Date.now(), status: "info", message: "AI Brain not connected -- connect your API key in the Agent tab to activate MeshTrade" }];
-    }
-    if (logEntries.length > 0) return logEntries.slice(0, 50);
-    if (settings.unleashed) {
-      return [{ ts: Date.now(), status: "scanning", message: "Analyzing market... first scan running" }];
-    }
-    return [{ ts: Date.now(), status: "info", message: "Brain connected. Hit UNLEASH to start hunting." }];
-  }, [brainConnected, logEntries, settings.unleashed]);
-
-  // ═════════════════════════════════════════════════════════
-  async function saveBrain() {
-    if (!brainApiKey.trim()) { setBrainError("API key required"); return; }
-    setBrainSaving(true); setBrainError(""); setBrainTesting(true);
-    try {
-      const testRes = await fetch("/api/ai", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "test", provider: brainProvider, apiKey: brainApiKey.trim() }),
+    const iv = setInterval(() => {
+      setHoldings(prev => {
+        const losers = prev.filter(h => h.pnl < -15);
+        losers.forEach(h => {
+          addThought(`[EXIT] ${h.token.symbol} -${Math.abs(h.pnl).toFixed(1)}%. Auto-sell triggered.`);
+          executeTrade(h.token, "sell", h.ethAmount);
+        });
+        if (losers.length > 0) setOrbState("SELL");
+        return prev.filter(h => h.pnl >= -15);
       });
-      const testData = await testRes.json();
-      setBrainTesting(false);
-      if (!testData.success) {
-        setBrainError(testData.error || "Connection failed — check your key");
-        setBrainSaving(false); return;
-      }
-      const saveRes = await fetch("/api/ai", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "save", provider: brainProvider, apiKey: brainApiKey.trim() }),
-      });
-      const saveData = await saveRes.json();
-      if (!saveData.ok) { setBrainError(saveData.error || "Save failed"); setBrainSaving(false); return; }
-      setBrainSuccess(true);
-      setTimeout(() => { window.location.reload(); }, 1500);
-    } catch {
-      setBrainError("Network error — try again");
-      setBrainSaving(false); setBrainTesting(false);
-    }
-  }
+    }, 5000);
+    return () => clearInterval(iv);
+  }, [addThought, executeTrade]);
 
-  // SUB-RENDERS
-  // ═════════════════════════════════════════════════════════
+  const orbColor = ORB_COLORS[orbState];
+  const chains = ["all", "base", "ethereum", "solana"];
 
-  // ── Zone 1: Brain Panel ──
-  function renderBrainPanel() {
-    const moodCfg = MOOD_CONFIG[mood];
-    const agentName = agent?.agent_name || "AGENT";
-    const orbDim = !brainConnected;
-
-    return (
-      <div
-        className="mt-brain"
-        style={{
-          width: 280,
-          minWidth: 280,
-          background: C.surface,
-          borderRight: `1px solid ${C.border}`,
-          padding: 20,
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-          overflowY: "auto",
-        }}
-      >
-        {/* Mobile toggle */}
-        <div className="mt-brain-toggle" style={{ display: "none" }}>
-          <button
-            onClick={() => setBrainExpanded(!brainExpanded)}
-            style={{
-              width: "100%", padding: "10px 0", background: C.s2,
-              border: `1px solid ${C.border}`, borderRadius: 8,
-              color: C.text, fontSize: 12, fontWeight: 700, cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            {brainExpanded ? "Hide Brain Panel" : "Show Brain Panel"}
-          </button>
-        </div>
-
-        {/* Plasma Orb */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-          <div
-            style={{
-              width: 80,
-              height: 80,
-              borderRadius: "50%",
-              background: orbDim
-                ? "radial-gradient(circle at 35% 35%, #3a3a50, #2a2a3a)"
-                : "radial-gradient(circle at 35% 35%, #6366f1, #06b6d4, #4f46e5)",
-              boxShadow: orbDim
-                ? "0 0 12px 3px rgba(60,60,80,0.3)"
-                : "0 0 30px 8px rgba(99,102,241,0.5), 0 0 60px 16px rgba(6,182,212,0.2)",
-              animation: orbDim ? "none" : "mt-pulse 2.5s ease-in-out infinite",
-            }}
-          />
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 700,
-              color: C.text,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-            }}
-          >
-            {agentName}
-          </div>
-
-          {/* Mood Pill */}
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 14px",
-              borderRadius: 20,
-              background: moodCfg.color + "22",
-              border: `1px solid ${moodCfg.color}44`,
-            }}
-          >
-            <div
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                background: moodCfg.color,
-                animation: mood !== "DORMANT" ? "mt-live-dot 1.5s infinite" : "none",
-              }}
-            />
-            <span style={{ fontSize: 13, color: moodCfg.color, fontWeight: 600 }}>{mood}</span>
-            <span style={{ fontSize: 10, color: C.muted }}>{moodCfg.label}</span>
-          </div>
-        </div>
-
-        {/* CHANGE 1: Connect Brain CTA when no API key */}
-        {!brainConnected && (
-          <div style={{
-            background: "rgba(255,45,85,0.08)", border: "1px solid rgba(255,45,85,0.2)",
-            borderRadius: 12, padding: "14px 16px", marginTop: 12, textAlign: "center",
-          }}>
-            <div style={{ fontSize: 12, color: "#ff2d55", fontWeight: 700, marginBottom: 8 }}>AI Brain not connected</div>
-            <div style={{ fontSize: 11, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
-              Connect your API key to activate your agent and start trading.
-            </div>
-            <button onClick={() => setShowBrainModal(true)} style={{
-              width: "100%", padding: "10px 0",
-              background: "linear-gradient(135deg,#6366f1,#a855f7)",
-              border: "none", borderRadius: 10, color: "white",
-              fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
-            }}>Connect AI Brain</button>
-          </div>
-        )}
-
-        {/* CHANGE 2: Wallet Card */}
-        <div style={{
-          background: C.s2, borderRadius: 12, padding: "12px 14px",
-          border: `1px solid ${C.border}`, marginBottom: 12,
-        }}>
-          <div style={{
-            fontSize: 9, fontWeight: 700, color: C.cyan, textTransform: "uppercase",
-            letterSpacing: "0.08em", marginBottom: 8, display: "flex", alignItems: "center", gap: 4,
-          }}>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="11" stroke="#0052FF" strokeWidth="2" />
-              <text x="12" y="16" textAnchor="middle" fill="#0052FF" fontSize="12" fontWeight="700">B</text>
-            </svg>
-            Wallet · Base L2
-          </div>
-          <div style={{
-            fontSize: 28, fontWeight: 900, color: C.text, letterSpacing: "-0.5px",
-            fontFamily: "'JetBrains Mono',monospace", lineHeight: 1, marginBottom: 2,
-          }}>
-            {wallet?.balance_eth?.toFixed(4) ?? "0.0000"} ETH
-          </div>
-          {wallet?.balance_usd != null && (
-            <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>
-              ${wallet.balance_usd.toFixed(2)} USD
-            </div>
-          )}
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-            <span style={{ fontSize: 10, color: C.muted }}>In Positions</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, fontFamily: "'JetBrains Mono',monospace" }}>
-              ${inPositions.toFixed(2)}
-            </span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-            <span style={{ fontSize: 10, color: C.muted }}>Available</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: C.match, fontFamily: "'JetBrains Mono',monospace" }}>
-              {available.toFixed(4)} ETH
-            </span>
-          </div>
-          {walletEth < 0.002 && (
-            <div style={{
-              fontSize: 10, color: "#f59e0b", padding: "6px 8px",
-              background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)",
-              borderRadius: 6, marginBottom: 8, lineHeight: 1.4,
-            }}>
-              Low balance -- min 0.002 ETH to trade
-            </div>
-          )}
-          <button onClick={() => onFundWallet?.()} style={{
-            width: "100%", padding: "8px 0", borderRadius: 8,
-            background: `linear-gradient(135deg,${C.indigo},${C.cyan})`,
-            border: "none", color: "white", fontSize: 11, fontWeight: 700,
-            cursor: "pointer", fontFamily: "inherit",
-          }}>Fund Wallet</button>
-        </div>
-
-        {/* Sliders */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {renderSlider("AGGRESSION", 0, 100, settings.aggression, (v) =>
-            updateSetting("aggression", v)
-          )}
-          {renderSlider("MAX TRADE", 5, 500, settings.maxTrade, (v) =>
-            updateSetting("maxTrade", v), "$"
-          )}
-          {renderSlider("STOP LOSS", 5, 30, settings.stopLoss, (v) =>
-            updateSetting("stopLoss", v), "", "%"
-          )}
-          {renderSlider("TAKE PROFIT", 10, 300, settings.takeProfit, (v) =>
-            updateSetting("takeProfit", v), "", "%"
-          )}
-        </div>
-
-        {/* Unleash Toggle */}
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={toggleUnleash}
-            disabled={!brainConnected}
-            title={!brainConnected ? "Connect AI brain first" : undefined}
-            style={{
-              width: "100%",
-              padding: "14px 0",
-              borderRadius: 12,
-              border: settings.unleashed
-                ? `2px solid ${C.hot}`
-                : `2px solid ${brainConnected ? C.indigo : C.dim}`,
-              background: settings.unleashed
-                ? C.hot + "20"
-                : brainConnected ? C.indigo + "15" : C.dim + "15",
-              color: settings.unleashed ? C.hot : brainConnected ? C.indigo : C.dim,
-              fontSize: 14,
-              fontWeight: 800,
-              letterSpacing: "0.12em",
-              cursor: brainConnected ? "pointer" : "not-allowed",
-              position: "relative",
-              overflow: "hidden",
-              opacity: brainConnected ? 1 : 0.5,
-              animation: settings.unleashed
-                ? "mt-unleash-pulse 1.5s ease-in-out infinite"
-                : "none",
-            }}
-          >
-            <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-              {settings.unleashed && (
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: C.hot,
-                    animation: "mt-live-dot 0.8s infinite",
-                  }}
-                />
-              )}
-              {settings.unleashed ? "HUNTING" : "UNLEASH AGENT"}
-            </span>
-          </button>
-        </div>
-
-        {/* Session Stats */}
-        <div style={{ display: "flex", gap: 8 }}>
-          <div style={{
-            flex: 1,
-            background: C.s2,
-            borderRadius: 10,
-            padding: "12px 10px",
-            textAlign: "center",
-            border: `1px solid ${C.border}`,
-          }}>
-            <div style={{ fontSize: 20, fontWeight: 800, color: C.text, fontFamily: "'JetBrains Mono', monospace" }}>
-              {sessionStats.trades}
-            </div>
-            <div style={{ fontSize: 9, color: C.muted, fontWeight: 600, letterSpacing: "0.08em", marginTop: 2 }}>
-              TRADES
-            </div>
-          </div>
-          <div style={{
-            flex: 1,
-            background: C.s2,
-            borderRadius: 10,
-            padding: "12px 10px",
-            textAlign: "center",
-            border: `1px solid ${C.border}`,
-          }}>
-            <div style={{
-              fontSize: 20, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace",
-              color: sessionStats.pnl >= 0 ? C.match : C.hot,
-            }}>
-              {sessionStats.pnl >= 0 ? "+" : ""}{formatDollar(sessionStats.pnl)}
-            </div>
-            <div style={{ fontSize: 9, color: C.muted, fontWeight: 600, letterSpacing: "0.08em", marginTop: 2 }}>
-              PNL
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Slider helper ──
-  function renderSlider(
-    label: string,
-    min: number,
-    max: number,
-    value: number,
-    onChange: (v: number) => void,
-    prefix?: string,
-    suffix?: string
-  ) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: "0.08em" }}>
-            {label}
-          </span>
-          <span
-            style={{
-              fontSize: 12,
-              color: C.text,
-              fontFamily: "'JetBrains Mono', monospace",
-              fontWeight: 800,
-            }}
-          >
-            {prefix || ""}
-            {value}
-            {suffix || ""}
-          </span>
-        </div>
-        <input
-          type="range"
-          min={min}
-          max={max}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          style={{
-            width: "100%",
-            height: 4,
-            appearance: "none",
-            WebkitAppearance: "none",
-            background: `linear-gradient(to right, ${C.indigo} 0%, ${C.indigo} ${((value - min) / (max - min)) * 100}%, ${C.dim} ${((value - min) / (max - min)) * 100}%, ${C.dim} 100%)`,
-            borderRadius: 2,
-            outline: "none",
-            cursor: "pointer",
-            accentColor: C.indigo,
-          }}
-        />
-      </div>
-    );
-  }
-
-  // ── Render Axiom-style token row list ──
-  function renderPhotonTokenList(col: { id: string; label: string; tokens: Token[]; color: string; desc: string }, colColor: string) {
-    return (
-      <>
-        {col.tokens.map((t, idx) => {
-          const change1h = t.priceChange1h || 0;
-          const bPct = buyPct(t.txns1h);
-          const age = fmtAge(t.pairCreatedAt);
-          const isJustLaunched = (t.ageMinutes || 99999) < 60;
-          const isHot = t.score >= 75;
-          const isEntering = enteringTokens.has(t.address);
-          const posColor = change1h >= 0 ? "#30d158" : "#ff2d55";
-
-          // Sparkline
-          const pts = t.pricePoints && t.pricePoints.length > 1
-            ? t.pricePoints
-            : [1, 1 + (change1h / 200), 1 + (change1h / 100)];
-          const minPt = Math.min(...pts);
-          const maxPt = Math.max(...pts);
-          const range = maxPt - minPt || 1;
-          const sparkW = 72;
-          const sparkH = 32;
-          const sparkPoints = pts.map((v, i) => {
-            const x = (i / (pts.length - 1)) * sparkW;
-            const y = sparkH - ((v - minPt) / range) * sparkH;
-            return `${x.toFixed(1)},${y.toFixed(1)}`;
-          }).join(" ");
-
-          return (
-            <div
-              key={t.address}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "10px 12px",
-                borderBottom: "1px solid rgba(255,255,255,0.05)",
-                cursor: "pointer",
-                background: "transparent",
-                animation: isEntering ? "mt-card-in 0.5s ease" : undefined,
-                minHeight: 68,
-              }}
-              onClick={() => setSelectedToken(t)}
-            >
-              {/* LEFT: Logo */}
-              <div style={{
-                width: 42, height: 42, borderRadius: "50%", flexShrink: 0,
-                overflow: "hidden",
-                background: `radial-gradient(circle at 35% 35%, ${lightenColor(orbColor(change1h))}, ${orbColor(change1h)})`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                border: isJustLaunched ? "2px solid #30d158" : isHot ? "2px solid #ff2d55" : "1px solid rgba(255,255,255,0.1)",
-                boxShadow: isJustLaunched ? "0 0 12px rgba(48,209,88,0.5)" : isHot ? "0 0 12px rgba(255,45,85,0.4)" : "none",
-                position: "relative",
-              }}>
-                <TokenLogo token={t} size={42} />
-                {isEntering && (
-                  <div style={{
-                    position: "absolute", top: -3, right: -3,
-                    width: 8, height: 8, borderRadius: "50%",
-                    background: "#30d158",
-                    boxShadow: "0 0 6px #30d158",
-                  }} />
-                )}
-              </div>
-
-              {/* CENTER: Name + meta */}
-              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-                {/* Row 1: Symbol + badges */}
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <span style={{
-                    width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
-                    background: t.chainId === "solana" ? "#9945FF" : t.chainId === "base" ? "#0052FF" : t.chainId === "ethereum" ? "#627EEA" : t.chainId === "bsc" ? "#F3BA2F" : "#6b6b80",
-                  }} title={t.chainId} />
-                  <span style={{
-                    fontSize: 14, fontWeight: 900, color: "#e8e8f0",
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 100,
-                  }}>
-                    {t.symbol.length > 9 ? t.symbol.slice(0, 9) : t.symbol}
-                  </span>
-                  {isJustLaunched && (
-                    <span style={{
-                      fontSize: 7, fontWeight: 900, padding: "1px 4px", borderRadius: 3,
-                      background: "rgba(48,209,88,0.15)", color: "#30d158",
-                      border: "1px solid rgba(48,209,88,0.3)", flexShrink: 0,
-                      letterSpacing: "0.05em",
-                    }}>NEW</span>
-                  )}
-                  {isHot && !isJustLaunched && (
-                    <span style={{
-                      fontSize: 7, fontWeight: 900, padding: "1px 4px", borderRadius: 3,
-                      background: "rgba(255,45,85,0.15)", color: "#ff2d55",
-                      border: "1px solid rgba(255,45,85,0.3)", flexShrink: 0,
-                    }}>HOT</span>
-                  )}
-                </div>
-
-                {/* Row 2: Name (cleaned, skip if empty or same as symbol) */}
-                {(() => {
-                  const cleanName = cleanTokenName(t.name, t.symbol);
-                  if (!cleanName) return null;
-                  return (
-                    <div style={{
-                      fontSize: 10, color: "#6b6b80",
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 130,
-                    }}>
-                      {cleanName.slice(0, 20)}
-                    </div>
-                  );
-                })()}
-
-                {/* Row 3: Age + Vol + Txns */}
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1 }}>
-                  {age && (
-                    <span style={{
-                      fontSize: 9, fontWeight: 700,
-                      color: isJustLaunched ? "#30d158" : "#6b6b80",
-                      background: isJustLaunched ? "rgba(48,209,88,0.1)" : "rgba(255,255,255,0.05)",
-                      padding: "1px 5px", borderRadius: 4,
-                    }}>{age}</span>
-                  )}
-                  {(() => {
-                    const displayVol = (t.volume1h || 0) > 100 ? t.volume1h : t.volume24h;
-                    const volLabel = (t.volume1h || 0) > 100 ? "1h" : "24h";
-                    return displayVol > 0 ? (
-                      <span style={{ fontSize: 9, color: "#6b6b80" }}>
-                        {formatShort(displayVol)} {volLabel}
-                      </span>
-                    ) : null;
-                  })()}
-                  {(t.txns1h.buys + t.txns1h.sells) > 0 && (
-                    <span style={{ fontSize: 9 }}>
-                      <span style={{ color: "#30d158" }}>{t.txns1h.buys}</span>
-                      <span style={{ color: "#6b6b80" }}> / </span>
-                      <span style={{ color: "#ff2d55" }}>{t.txns1h.sells}</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* RIGHT CENTER: Sparkline */}
-              <div style={{ flexShrink: 0, width: sparkW, height: sparkH, position: "relative" }}>
-                <svg width={sparkW} height={sparkH} style={{ overflow: "visible" }}>
-                  <defs>
-                    <linearGradient id={`sg-${t.address.slice(-6)}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={posColor} stopOpacity={0.3} />
-                      <stop offset="100%" stopColor={posColor} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <polygon
-                    points={`0,${sparkH} ${sparkPoints} ${sparkW},${sparkH}`}
-                    fill={`url(#sg-${t.address.slice(-6)})`}
-                  />
-                  <polyline
-                    points={sparkPoints}
-                    fill="none"
-                    stroke={posColor}
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-
-              {/* FAR RIGHT: MCap + % */}
-              <div style={{ flexShrink: 0, textAlign: "right", minWidth: 62 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#e8e8f0", marginBottom: 2 }}>
-                  {t.marketCap > 0 ? formatShort(t.marketCap) : t.fdv > 0 ? formatShort(t.fdv) : "\u2014"}
-                </div>
-                <div style={{
-                  fontSize: 13, fontWeight: 900,
-                  color: posColor,
-                }}>
-                  {change1h >= 0 ? "+" : ""}{change1h.toFixed(1)}%
-                </div>
-                {/* Buy pressure bar */}
-                <div style={{ height: 2, borderRadius: 1, background: "rgba(255,255,255,0.08)", marginTop: 4, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${bPct}%`, background: bPct >= 50 ? "#30d158" : "#ff2d55", borderRadius: 1 }} />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </>
-    );
-  }
-
-  // ── Zone 2: Galaxy View (3-column orbital) ──
-  function renderGalaxy() {
-    return (
-      <div
-        className="mt-galaxy"
-        ref={galaxyRef}
-        style={{
-          flex: 1,
-          background: C.bg,
-          position: "relative",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        {/* Top Ticker */}
-        <div
-          style={{
-            height: 32,
-            background: C.surface,
-            borderBottom: `1px solid ${C.border}`,
-            overflow: "hidden",
-            position: "relative",
-            flexShrink: 0,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              gap: 32,
-              whiteSpace: "nowrap",
-              animation: "mt-ticker 20s linear infinite",
-              paddingTop: 7,
-            }}
-          >
-            {[...tickerTokens, ...tickerTokens].map((t, i) => (
-              <span
-                key={`tick-${i}`}
-                style={{
-                  fontSize: 11,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  display: "inline-flex",
-                  gap: 6,
-                  alignItems: "center",
-                }}
-              >
-                <span style={{ color: C.text, fontWeight: 700 }}>{t.symbol}</span>
-                <span style={{ color: C.muted }}>{formatPrice(t.price)}</span>
-                <span
-                  style={{
-                    color: t.priceChange1h >= 0 ? C.match : C.hot,
-                    fontWeight: 600,
-                  }}
-                >
-                  {t.priceChange1h >= 0 ? "+" : ""}
-                  {t.priceChange1h.toFixed(1)}%
-                </span>
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Search */}
-        <div style={{ padding: "8px 12px", flexShrink: 0 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              background: C.s2,
-              borderRadius: 8,
-              border: `1px solid ${C.border}`,
-              padding: "0 10px",
-            }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={C.muted}
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search token or paste address..."
-              style={{
-                flex: 1,
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                color: C.text,
-                fontSize: 12,
-                padding: "8px 8px",
-                fontFamily: "'JetBrains Mono', monospace",
-              }}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: C.muted,
-                  cursor: "pointer",
-                  fontSize: 14,
-                  padding: 2,
-                }}
-              >
-                x
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Mobile column tab switcher */}
-        <div className="mt-mobile-col-tabs" style={{
-          display: "none", borderBottom: "1px solid rgba(255,255,255,0.05)",
-          background: C.bg, flexShrink: 0,
-        }}>
-          {columns.map(col => {
-            const isActive = mobileColTab === col.id;
-            const tabColor = col.id === "emerging" ? "#06b6d4" : col.id === "heating" ? "#ffd700" : "#30d158";
-            return (
-              <button
-                key={col.id}
-                onClick={() => setMobileColTab(col.id)}
-                style={{
-                  flex: 1, padding: "10px 4px", border: "none", cursor: "pointer",
-                  background: "transparent", fontFamily: "inherit",
-                  borderBottom: isActive ? `2px solid ${tabColor}` : "2px solid transparent",
-                  color: isActive ? tabColor : "#6b6b80",
-                  fontSize: 10, fontWeight: 800, letterSpacing: "0.08em",
-                }}
-              >
-                {col.label} ({col.tokens.length})
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 3-column Photon token list layout */}
-        <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-          <div
-            className="mt-orbital-cols"
-            style={{
-              display: "flex",
-              flexDirection: "row",
-              height: "100%",
-            }}
-          >
-            {columns.map((col, ci) => (
-              <div
-                key={col.id}
-                className="mt-orbital-col"
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  overflow: "hidden",
-                  borderRight: ci < 2 ? `1px solid ${C.border}` : "none",
-                }}
-              >
-                {/* Column header with glow */}
-                <div style={{
-                  padding: "10px 12px",
-                  borderBottom: "1px solid rgba(255,255,255,0.05)",
-                  display: "flex", alignItems: "center", gap: 8,
-                  position: "sticky", top: 0, background: "#0a0a0f", zIndex: 10,
-                }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: col.color, boxShadow: `0 0 6px ${col.color}`, animation: "mt-live-dot 2s infinite" }} />
-                  <span style={{ fontSize: 11, fontWeight: 900, color: col.color, letterSpacing: "0.1em" }}>{col.label}</span>
-                  <span style={{ fontSize: 10, color: "#6b6b80" }}>{col.tokens.length}</span>
-                  <span style={{ marginLeft: "auto", fontSize: 8, color: "#30d158", display: "flex", alignItems: "center", gap: 3 }}>
-                    <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#30d158", display: "inline-block", animation: "mt-live-dot 1s infinite" }} />
-                    LIVE
-                  </span>
-                </div>
-
-                {/* Scrollable Photon rows */}
-                <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 0 }}>
-                  {renderPhotonTokenList(col, col.color)}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Mobile: scrollable Photon list controlled by mobileColTab */}
-          <div
-            className="mt-mobile-col-view"
-            style={{ display: "none", flex: 1, flexDirection: "column", overflow: "hidden" }}
-          >
-            {(() => {
-              const col = columns.find(c => c.id === mobileColTab) || columns[2];
-              return (
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                  {/* Column header with glow */}
-                  <div style={{
-                    padding: "10px 12px",
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
-                    display: "flex", alignItems: "center", gap: 8,
-                    position: "sticky", top: 0, background: "#0a0a0f", zIndex: 10,
-                  }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: col.color, boxShadow: `0 0 6px ${col.color}`, animation: "mt-live-dot 2s infinite" }} />
-                    <span style={{ fontSize: 11, fontWeight: 900, color: col.color, letterSpacing: "0.1em" }}>{col.label}</span>
-                    <span style={{ fontSize: 10, color: "#6b6b80" }}>{col.tokens.length}</span>
-                    <span style={{ marginLeft: "auto", fontSize: 8, color: "#30d158", display: "flex", alignItems: "center", gap: 3 }}>
-                      <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#30d158", display: "inline-block", animation: "mt-live-dot 1s infinite" }} />
-                      LIVE
-                    </span>
-                  </div>
-
-                  {/* Scrollable Photon rows */}
-                  <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 0 }}>
-                    {renderPhotonTokenList(col, col.color)}
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-
-        {/* Token count indicator */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 8,
-            left: 12,
-            fontSize: 10,
-            color: C.muted,
-            fontFamily: "'JetBrains Mono', monospace",
-            zIndex: 25,
-          }}
-        >
-          {tokens.length} tokens on Base
-        </div>
-
-      </div>
-    );
-  }
-
-  // ── Point Agent Modal ──
-  function renderModal() {
-    if (!selectedToken) return null;
-    const t = selectedToken;
-    const scoreColor = t.score >= 85 ? C.gold : t.score >= 70 ? C.match : t.score >= 50 ? C.cyan : C.muted;
-    const wouldTrade = t.score >= (100 - settings.aggression) ? "YES" : t.score >= (100 - settings.aggression) * 0.8 ? "MAYBE" : "NO";
-    const wouldTradeColor = wouldTrade === "YES" ? C.match : wouldTrade === "MAYBE" ? C.yellow : C.hot;
-    const lowLiq = t.liquidity < 10000;
-    const buyPressure = t.txns1h.buys + t.txns1h.sells > 0
-      ? (t.txns1h.buys / (t.txns1h.buys + t.txns1h.sells)) * 100
-      : 50;
-    const suggestedPosition = Math.min(settings.maxTrade, settings.maxTrade * (t.score / 100));
-    const isInWatchlist = watchlist.includes(t.address);
-    const existingPosition = positions.find(p => p.tokenAddress === t.address);
-
-    return (
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(0,0,0,0.7)",
-          zIndex: 9999,
-          display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "center",
-        }}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            setSelectedToken(null);
-            setHint("");
-          }
-        }}
-      >
-        <div
-          style={{
-            width: "100%",
-            maxWidth: 480,
-            background: C.surface,
-            borderRadius: "20px 20px 0 0",
-            padding: 24,
-            animation: "mt-modal-up 0.3s ease-out",
-            maxHeight: "85vh",
-            overflowY: "auto",
-          }}
-        >
-          {/* Close */}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
-            <button
-              onClick={() => {
-                setSelectedToken(null);
-                setHint("");
-              }}
-              style={{
-                background: "none",
-                border: "none",
-                color: C.muted,
-                fontSize: 20,
-                cursor: "pointer",
-                padding: "0 4px",
-                lineHeight: 1,
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Token Header */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-            <div style={{ width: 44, height: 44, borderRadius: "50%", overflow: "hidden", flexShrink: 0 }}>
-              <TokenLogo token={t} size={44} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 18, fontWeight: 800, color: C.text }}>{t.symbol}</span>
-                <span style={{
-                  fontSize: 10, fontWeight: 700, color: scoreColor,
-                  background: scoreColor + "22", padding: "2px 8px", borderRadius: 8,
-                }}>
-                  Score: {t.score}
-                </span>
-                <span style={{ fontSize: 10, color: C.muted }}>{formatAge(t.pairCreatedAt)} old</span>
-              </div>
-              <div style={{ fontSize: 12, color: C.muted }}>{t.name}</div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono', monospace" }}>
-                {formatPrice(t.price)}
-              </div>
-              <div style={{
-                fontSize: 12, fontWeight: 600,
-                color: t.priceChange1h >= 0 ? C.match : C.hot,
-              }}>
-                {t.priceChange1h >= 0 ? "+" : ""}{t.priceChange1h.toFixed(1)}%
-              </div>
-            </div>
-          </div>
-
-          {/* Watchlist / Position status pills */}
-          {(isInWatchlist || existingPosition) && (
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              {isInWatchlist && (
-                <span style={{
-                  fontSize: 10, fontWeight: 700, color: C.gold,
-                  background: C.gold + "22", padding: "4px 10px", borderRadius: 8,
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                }}>
-                  In Watchlist
-                  <button
-                    onClick={() => setWatchlist(prev => prev.filter(a => a !== t.address))}
-                    style={{ background: "none", border: "none", color: C.gold, cursor: "pointer", fontSize: 10, padding: 0 }}
-                  >
-                    x
-                  </button>
-                </span>
-              )}
-              {existingPosition && (
-                <span style={{
-                  fontSize: 10, fontWeight: 700,
-                  color: existingPosition.pnl >= 0 ? C.match : C.hot,
-                  background: (existingPosition.pnl >= 0 ? C.match : C.hot) + "22",
-                  padding: "4px 10px", borderRadius: 8,
-                }}>
-                  Position: {existingPosition.pnl >= 0 ? "+" : ""}{formatDollar(existingPosition.pnl)} ({existingPosition.pnlPercent.toFixed(1)}%)
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Quick Analysis */}
-          <div style={{
-            background: C.s2, borderRadius: 10, padding: 14, marginBottom: 14,
-            border: `1px solid ${C.border}`,
-          }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: "0.08em", marginBottom: 10 }}>
-              QUICK ANALYSIS
-            </div>
-
-            {/* Score bar */}
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                <span style={{ fontSize: 11, color: C.muted }}>Agent Score</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: scoreColor }}>{t.score}/100</span>
-              </div>
-              <div style={{ height: 6, background: C.dim, borderRadius: 3, overflow: "hidden" }}>
-                <div style={{ width: `${t.score}%`, height: "100%", background: scoreColor, borderRadius: 3 }} />
-              </div>
-            </div>
-
-            {/* Would agent trade */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontSize: 11, color: C.muted }}>Would agent trade this?</span>
-              <span style={{ fontSize: 12, fontWeight: 800, color: wouldTradeColor }}>{wouldTrade}</span>
-            </div>
-
-            {/* Liquidity check */}
-            {lowLiq && (
-              <div style={{
-                fontSize: 10, color: C.orange, fontWeight: 600,
-                padding: "4px 8px", background: C.orange + "15", borderRadius: 6, marginBottom: 8,
-              }}>
-                LOW LIQUIDITY ({formatCompact(t.liquidity)}) -- risky
-              </div>
-            )}
-
-            {/* Buy pressure bar */}
-            <div style={{ marginBottom: 4 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                <span style={{ fontSize: 11, color: C.muted }}>Buy Pressure</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: buyPressure > 60 ? C.match : buyPressure < 40 ? C.hot : C.muted }}>
-                  {buyPressure.toFixed(0)}%
-                </span>
-              </div>
-              <div style={{ height: 6, background: C.dim, borderRadius: 3, overflow: "hidden" }}>
-                <div style={{
-                  width: `${buyPressure}%`, height: "100%", borderRadius: 3,
-                  background: buyPressure > 60 ? C.match : buyPressure < 40 ? C.hot : C.yellow,
-                }} />
-              </div>
-            </div>
-          </div>
-
-          {/* Position size calculator */}
-          <div style={{
-            background: C.s2, borderRadius: 10, padding: 14, marginBottom: 14,
-            border: `1px solid ${C.border}`,
-          }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: "0.08em", marginBottom: 8 }}>
-              POSITION SIZE
-            </div>
-            <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>
-              Suggested: <span style={{ color: C.text, fontWeight: 700 }}>{formatDollar(suggestedPosition)}</span>
-              <span style={{ color: C.dim }}> (based on ${settings.maxTrade} max + score)</span>
-            </div>
-          </div>
-
-          {/* Stats Grid */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
-              gap: 6,
-              marginBottom: 16,
-            }}
-          >
-            {[
-              { label: "MCap", value: formatCompact(t.marketCap) },
-              { label: "Vol 1h", value: formatCompact(t.volume1h) },
-              { label: "Liquidity", value: formatCompact(t.liquidity) },
-              { label: "24h", value: `${t.priceChange24h >= 0 ? "+" : ""}${t.priceChange24h.toFixed(1)}%`, color: t.priceChange24h >= 0 ? C.match : C.hot },
-              { label: "Buys/Sells 1h", value: `${t.txns1h.buys}/${t.txns1h.sells}` },
-              { label: "Age", value: formatAge(t.pairCreatedAt) },
-            ].map((item, i) => (
-              <div
-                key={i}
-                style={{
-                  background: C.bg,
-                  borderRadius: 8,
-                  padding: "8px 10px",
-                  border: `1px solid ${C.border}`,
-                }}
-              >
-                <div style={{ fontSize: 9, color: C.muted, marginBottom: 2 }}>{item.label}</div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    fontFamily: "'JetBrains Mono', monospace",
-                    color: item.color || C.text,
-                  }}
-                >
-                  {item.value}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Hint Input */}
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 10, color: C.muted, marginBottom: 6, letterSpacing: "0.05em" }}>
-              GIVE AGENT A HINT
-            </div>
-            <input
-              value={hint}
-              onChange={(e) => setHint(e.target.value)}
-              placeholder="e.g. buy on next dip, wait for volume..."
-              style={{
-                width: "100%",
-                background: C.s2,
-                border: `1px solid ${C.border}`,
-                borderRadius: 8,
-                padding: "10px 12px",
-                color: C.text,
-                fontSize: 12,
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-
-          {/* Action Buttons */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <button
-              onClick={() => pointAgent("point")}
-              style={{
-                width: "100%",
-                padding: "14px 0",
-                borderRadius: 12,
-                border: `2px solid ${C.indigo}`,
-                background: `linear-gradient(135deg, ${C.indigo}20, ${C.indigo}10)`,
-                color: C.indigo,
-                fontSize: 14,
-                fontWeight: 800,
-                letterSpacing: "0.1em",
-                cursor: "pointer",
-              }}
-            >
-              POINT AGENT HERE
-            </button>
-            <button
-              onClick={() => pointAgent("buy_now")}
-              style={{
-                width: "100%",
-                padding: "14px 0",
-                borderRadius: 12,
-                border: `2px solid ${C.match}`,
-                background: `linear-gradient(135deg, ${C.match}20, ${C.match}10)`,
-                color: C.match,
-                fontSize: 14,
-                fontWeight: 800,
-                letterSpacing: "0.1em",
-                cursor: "pointer",
-              }}
-            >
-              BUY NOW
-            </button>
-            <button
-              onClick={() => pointAgent("watch")}
-              style={{
-                width: "100%",
-                padding: "12px 0",
-                borderRadius: 12,
-                border: `1px solid ${C.border}`,
-                background: "transparent",
-                color: C.muted,
-                fontSize: 12,
-                fontWeight: 600,
-                letterSpacing: "0.08em",
-                cursor: "pointer",
-              }}
-            >
-              {isInWatchlist ? "Already in Watchlist" : "Add to Watchlist"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ═════════════════════════════════════════════════════════
-  // MAIN RENDER
-  // ═════════════════════════════════════════════════════════
-
+  /* ═══ RENDER ═══ */
   return (
-    <>
-      <div
-        style={{
-          width: "100%",
-          height: "100vh",
-          background: C.bg,
-          color: C.text,
-          fontFamily:
-            "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
-        {/* Keyframe styles */}
-        <style dangerouslySetInnerHTML={{ __html: KEYFRAMES }} />
+    <div style={{ position: "relative", width: "100%", minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", overflow: "hidden" }}>
+      <style>{`
+        @keyframes mt-bubble-in{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
+        @keyframes mt-bubble-out{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(80px)}}
+        @keyframes mt-bubble-merge{0%{transform:scale(1);opacity:1}100%{transform:scale(0.05) translateX(-300px);opacity:0}}
+        @keyframes mt-orb-buy{0%{transform:scale(1)}40%{transform:scale(1.18)}100%{transform:scale(1)}}
+        @keyframes mt-orb-sell{0%{transform:scale(1)}40%{transform:scale(0.88)}100%{transform:scale(1)}}
+        @keyframes mt-orb-scan{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
+        @keyframes mt-orb-pulse{0%,100%{opacity:0.5}50%{opacity:1}}
+        @keyframes mt-thought-in{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+        @keyframes mt-holding-orbit{from{transform:rotate(var(--start-angle)) translateX(70px) rotate(calc(-1 * var(--start-angle)))}to{transform:rotate(calc(var(--start-angle) + 360deg)) translateX(70px) rotate(calc(-1 * (var(--start-angle) + 360deg)))}}
+      `}</style>
 
-        {/* Layout */}
-        <div
-          className="mt-layout"
-          style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "row",
-            overflow: "hidden",
-          }}
-        >
-          {renderBrainPanel()}
-          {renderGalaxy()}
-        </div>
-
-        {/* Modal */}
-        {renderModal()}
-      </div>
-
-      {/* Brain Connect Modal */}
-      {showBrainModal && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 1000,
-          background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          padding: "0 16px",
-        }} onClick={(e) => { if (e.target === e.currentTarget) { setShowBrainModal(false); setBrainError(""); setBrainApiKey(""); } }}>
-          <div style={{
-            width: "100%", maxWidth: 420,
-            background: "#0d0d14", borderRadius: 20,
-            border: "1px solid rgba(99,102,241,0.3)",
-            boxShadow: "0 0 60px rgba(99,102,241,0.15), 0 24px 48px rgba(0,0,0,0.6)",
-            padding: 28, position: "relative",
-            animation: "onb-slide-in 0.3s ease forwards",
-          }}>
-            {/* Close button */}
-            <button onClick={() => { setShowBrainModal(false); setBrainError(""); setBrainApiKey(""); }}
-              style={{ position:"absolute", top:16, right:16, background:"none", border:"none", cursor:"pointer", color:"#6b6b80", fontSize:20, lineHeight:1, padding:4 }}>
-              ×
-            </button>
-
-            {/* Orb + title */}
-            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", marginBottom:24 }}>
-              <div style={{
-                width: 64, height: 64, borderRadius: "50%", marginBottom: 16,
-                background: brainSuccess
-                  ? "radial-gradient(circle at 35% 35%, #34d399, #10b981 60%, #059669)"
-                  : "radial-gradient(circle at 35% 35%, #818cf8, #6366f1 40%, #06b6d4 80%)",
-                boxShadow: brainSuccess
-                  ? "0 0 30px rgba(52,211,153,0.5), 0 0 60px rgba(52,211,153,0.2)"
-                  : "0 0 30px rgba(99,102,241,0.5), 0 0 60px rgba(99,102,241,0.2)",
-                animation: "mt-agent-pulse 2s infinite",
-                transition: "all 0.6s ease",
-              }} />
-              <div style={{ fontSize:18, fontWeight:800, color:"#e8e8f0", letterSpacing:"-0.5px", marginBottom:4 }}>
-                {brainSuccess ? "Brain Connected!" : "Connect AI Brain"}
-              </div>
-              <div style={{ fontSize:13, color:"#6b6b80", textAlign:"center", lineHeight:1.4 }}>
-                {brainSuccess
-                  ? "Your agent is now powered up. Reloading..."
-                  : "Plug in your API key. Your agent needs it to think."}
-              </div>
-            </div>
-
-            {!brainSuccess && (<>
-              {/* Provider pills */}
-              <div style={{ marginBottom:16 }}>
-                <div style={{ fontSize:11, color:"#6b6b80", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Provider</div>
-                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                  {[
-                    { id:"openai", label:"OpenAI", color:"#10a37f" },
-                    { id:"anthropic", label:"Anthropic", color:"#d97706" },
-                    { id:"openrouter", label:"OpenRouter", color:"#6366f1" },
-                    { id:"google", label:"Google", color:"#4285f4" },
-                    { id:"groq", label:"Groq", color:"#f55036" },
-                  ].map(p => (
-                    <button key={p.id} onClick={() => setBrainProvider(p.id)}
-                      style={{
-                        padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:700, cursor:"pointer",
-                        border: brainProvider===p.id ? `1.5px solid ${p.color}` : "1px solid rgba(255,255,255,0.1)",
-                        background: brainProvider===p.id ? `${p.color}22` : "transparent",
-                        color: brainProvider===p.id ? p.color : "#6b6b80",
-                        transition:"all 0.15s",
-                        fontFamily:"inherit",
-                      }}>
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* API Key input */}
-              <div style={{ marginBottom:16 }}>
-                <div style={{ fontSize:11, color:"#6b6b80", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>API Key</div>
-                <div style={{ position:"relative" }}>
-                  <input
-                    type={brainShowKey ? "text" : "password"}
-                    value={brainApiKey}
-                    onChange={e => { setBrainApiKey(e.target.value); setBrainError(""); }}
-                    placeholder={`Paste your ${brainProvider} API key`}
-                    autoFocus
-                    style={{
-                      width:"100%", padding:"12px 44px 12px 14px", borderRadius:10, fontSize:13,
-                      background:"#1a1a24", border: brainError ? "1.5px solid #ff2d55" : "1px solid rgba(255,255,255,0.1)",
-                      color:"#e8e8f0", fontFamily:"monospace", outline:"none",
-                      boxSizing:"border-box",
-                    }}
-                  />
-                  <button onClick={() => setBrainShowKey(!brainShowKey)}
-                    style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:"#6b6b80", padding:4 }}>
-                    {brainShowKey ? (
-                      <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                    ) : (
-                      <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    )}
-                  </button>
-                </div>
-                {brainError && <div style={{ fontSize:12, color:"#ff2d55", marginTop:6 }}>{brainError}</div>}
-              </div>
-
-              {/* Security note */}
-              <div style={{ fontSize:11, color:"#6b6b80", marginBottom:20, display:"flex", alignItems:"center", gap:6 }}>
-                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#6b6b80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                Your key is AES-256 encrypted and never shared
-              </div>
-
-              {/* Save button */}
-              <button onClick={saveBrain} disabled={brainSaving || !brainApiKey.trim()}
-                style={{
-                  width:"100%", padding:"14px 0", borderRadius:12, fontSize:15, fontWeight:800,
-                  background: (brainSaving || !brainApiKey.trim()) ? "#2a2a3a" : "linear-gradient(135deg, #6366f1, #a855f7)",
-                  color: (brainSaving || !brainApiKey.trim()) ? "#6b6b80" : "white",
-                  border:"none", cursor:(brainSaving || !brainApiKey.trim()) ? "not-allowed" : "pointer",
-                  boxShadow: (!brainSaving && brainApiKey.trim()) ? "0 4px 20px rgba(99,102,241,0.4)" : "none",
-                  transition:"all 0.2s", fontFamily:"inherit", letterSpacing:"-0.3px",
-                }}>
-                {brainTesting ? "Testing connection..." : brainSaving ? "Saving..." : "Power up agent"}
-              </button>
-            </>)}
+      {/* ── Brain Gate Overlays ── */}
+      {!hasBrain && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 50, background: "rgba(10,10,15,0.92)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
+          <div style={{ width: 80, height: 80, borderRadius: "50%", background: `radial-gradient(circle at 35% 35%, ${C.indigo}40, ${C.indigo}10)`, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.5 }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.indigo} strokeWidth="2"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/></svg>
           </div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>Connect AI Brain</div>
+          <div style={{ fontSize: 13, color: C.muted, maxWidth: 280, textAlign: "center" }}>Link your AI key to unleash autonomous trading</div>
+          <button onClick={onConnectBrain} style={{ padding: "12px 32px", borderRadius: 12, background: C.indigo, color: "white", border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Connect Brain</button>
         </div>
       )}
 
-      {/* Hover Card — outside main div to avoid overflow clipping */}
-      {hoverCard && (() => {
-        const hc = hoverCard;
-        const color = tokenOrbColor(hc.token);
-        return (
-          <div
-            style={{
-              position: "fixed",
-              left: Math.min(Math.max(hc.x - 150, 10), typeof window !== "undefined" ? window.innerWidth - 310 : 700),
-              top: Math.max(hc.y - 280, 10),
-              width: 300,
-              background: "rgba(13,13,20,0.97)",
-              border: `1px solid ${color}44`,
-              borderRadius: 16,
-              padding: 16,
-              zIndex: 9999,
-              backdropFilter: "blur(20px)",
-              boxShadow: `0 8px 40px rgba(0,0,0,0.7), 0 0 24px ${color}22`,
-              pointerEvents: "none",
-              animation: "mt-card-in 0.15s ease",
-              fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-            }}
-          >
-            {/* Header row */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+      {hasBrain && !hasFunds && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 50, background: "rgba(10,10,15,0.92)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
+          <div style={{ width: 80, height: 80, borderRadius: "50%", background: `radial-gradient(circle at 35% 35%, ${C.gold}40, ${C.gold}10)`, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.5 }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>Fund Wallet to Trade</div>
+          <div style={{ fontSize: 13, color: C.muted, maxWidth: 280, textAlign: "center" }}>Deposit ETH to start autonomous trading</div>
+          <button onClick={onFundWallet} style={{ padding: "12px 32px", borderRadius: 12, background: C.gold, color: "#0a0a0f", border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Fund Wallet</button>
+        </div>
+      )}
+
+      {/* ── Top Bar: Risk Slider + Chain Filters ── */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${C.border}`, flexWrap: "wrap", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>RISK</span>
+          <input type="range" min="0" max="1" step="0.05" value={risk} onChange={e => setRisk(parseFloat(e.target.value))}
+            style={{ width: 100, accentColor: risk > 0.7 ? C.hot : risk > 0.4 ? C.gold : C.match, height: 4 }} />
+          <span style={{ fontSize: 10, color: risk > 0.7 ? C.hot : risk > 0.4 ? C.gold : C.match, fontWeight: 700 }}>
+            {risk > 0.7 ? "Aggressive" : risk > 0.4 ? "Balanced" : "Conservative"}
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 4 }}>
+          {chains.map(c => (
+            <button key={c} onClick={() => setChainFilter(c)} style={{
+              padding: "4px 10px", borderRadius: 12, fontSize: 10, fontWeight: 600,
+              background: chainFilter === c ? `${C.indigo}30` : "transparent",
+              color: chainFilter === c ? C.text : C.muted,
+              border: `1px solid ${chainFilter === c ? C.indigo + "50" : C.border}`,
+              cursor: "pointer", fontFamily: "inherit", textTransform: "uppercase",
+            }}>{c === "all" ? "All" : c === "ethereum" ? "ETH" : c.slice(0, 3).toUpperCase()}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Main Layout ── */}
+      <div className="mt-main-layout" style={{ display: "flex", flexDirection: "row", height: "calc(100vh - 52px)", overflow: "hidden" }}>
+
+        {/* ── LEFT PANEL: Orb + Thoughts ── */}
+        <div className="mt-left-panel" style={{ width: "35%", minWidth: 260, display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 16px", borderRight: `1px solid ${C.border}`, overflow: "hidden" }}>
+
+          {/* ── The Orb ── */}
+          <div style={{ position: "relative", width: 120, height: 120, marginBottom: 16, flexShrink: 0 }}>
+            {/* Outer glow ring */}
+            <div style={{
+              position: "absolute", top: "50%", left: "50%", width: 116, height: 116, borderRadius: "50%",
+              border: `2px solid ${orbColor}40`,
+              animation: orbState === "SCANNING" ? "mt-orb-scan 3s linear infinite" : "none",
+              boxShadow: `0 0 20px ${orbColor}30`,
+              transform: "translate(-50%,-50%)",
+            }} />
+            {/* Base orb */}
+            <div style={{
+              position: "absolute", top: "50%", left: "50%", width: 100, height: 100, borderRadius: "50%",
+              transform: "translate(-50%,-50%)",
+              background: `radial-gradient(circle at 35% 35%, ${orbColor}60, ${orbColor}20 60%, ${orbColor}08)`,
+              animation: orbState === "BUY" ? "mt-orb-buy 0.4s ease-out" : orbState === "SELL" ? "mt-orb-sell 0.35s ease-out" : orbState === "IDLE" ? "mt-orb-pulse 3s ease-in-out infinite" : "none",
+              boxShadow: `inset 0 -10px 20px ${orbColor}15, 0 0 40px ${orbColor}25`,
+              transition: "background 0.6s ease",
+            }}>
+              {/* Specular highlight top-left */}
               <div style={{
-                width: 40, height: 40, borderRadius: "50%",
-                background: `radial-gradient(circle at 35% 35%, ${lightenColor(color)}, ${color})`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                flexShrink: 0, overflow: "hidden",
-                boxShadow: `0 0 12px ${color}66`,
-              }}>
-                <TokenLogo token={hc.token} size={40} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 900, color: C.text, letterSpacing: "-0.3px" }}>
-                  {hc.token.symbol}
-                </div>
-                <div style={{ fontSize: 11, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {hc.token.name}
-                </div>
-              </div>
+                position: "absolute", top: 12, left: 16, width: 40, height: 28, borderRadius: "50%",
+                background: "radial-gradient(ellipse at center, rgba(255,255,255,0.3), transparent)",
+                filter: "blur(6px)",
+              }} />
+              {/* Secondary shimmer */}
               <div style={{
-                padding: "3px 8px", borderRadius: 10, fontSize: 10, fontWeight: 800,
-                background: hc.token.score >= 80 ? "rgba(48,209,88,0.15)" : hc.token.score >= 60 ? "rgba(245,158,11,0.15)" : "rgba(255,255,255,0.05)",
-                color: hc.token.score >= 80 ? C.match : hc.token.score >= 60 ? C.yellow : C.muted,
-              }}>
-                {Math.round(hc.token.score)}
+                position: "absolute", top: 20, right: 18, width: 20, height: 14, borderRadius: "50%",
+                background: "radial-gradient(ellipse at center, rgba(255,255,255,0.12), transparent)",
+                filter: "blur(4px)",
+              }} />
+              {/* Bottom rim light */}
+              <div style={{
+                position: "absolute", bottom: 10, left: "50%", width: 50, height: 10, borderRadius: "50%",
+                transform: "translateX(-50%)",
+                background: `radial-gradient(ellipse at center, ${orbColor}25, transparent)`,
+                filter: "blur(4px)",
+              }} />
+            </div>
+
+            {/* Holding pills orbit */}
+            {holdings.map((h, i) => (
+              <div key={h.id} onClick={() => sellHolding(h)}
+                style={{
+                  position: "absolute", top: "50%", left: "50%",
+                  zIndex: 10, cursor: "pointer",
+                  animation: "mt-holding-orbit 8s linear infinite",
+                  animationDelay: `${-i * (8 / Math.max(holdings.length, 1))}s`,
+                  ["--start-angle" as any]: `${(i * (360 / Math.max(holdings.length, 1)))}deg`,
+                }}>
+                <div style={{
+                  padding: "2px 8px", borderRadius: 10, fontSize: 9, fontWeight: 700,
+                  background: h.pnl >= 0 ? `${C.match}25` : `${C.hot}25`,
+                  color: h.pnl >= 0 ? C.match : C.hot,
+                  border: `1px solid ${h.pnl >= 0 ? C.match : C.hot}40`,
+                  whiteSpace: "nowrap",
+                }}>
+                  {h.token.symbol} {h.pnl >= 0 ? "+" : ""}{h.pnl.toFixed(1)}%
+                </div>
               </div>
-            </div>
+            ))}
+          </div>
 
-            {/* Price row */}
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 20, fontWeight: 900, fontFamily: "'JetBrains Mono',monospace", color: C.text }}>
-                {formatPrice(hc.token.price)}
-              </span>
-              <span style={{
-                fontSize: 13, fontWeight: 700,
-                color: hc.token.priceChange1h >= 0 ? C.match : C.hot,
-              }}>
-                {hc.token.priceChange1h >= 0 ? "+" : ""}{hc.token.priceChange1h.toFixed(2)}% 1h
-              </span>
-              <span style={{
-                fontSize: 11, fontWeight: 600,
-                color: hc.token.priceChange24h >= 0 ? C.match : C.hot,
-                opacity: 0.7,
-              }}>
-                {hc.token.priceChange24h >= 0 ? "+" : ""}{hc.token.priceChange24h.toFixed(1)}% 24h
-              </span>
-            </div>
+          {/* Agent name + status */}
+          <div style={{ textAlign: "center", marginBottom: 4 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{agent?.agent_name || "MeshTrader"}</div>
+            <div style={{ fontSize: 11, color: orbColor, fontWeight: 500, transition: "color 0.3s" }}>{statusText}</div>
+          </div>
 
-            {/* Stats grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-              {[
-                { label: "MCap", value: fmtK(hc.token.marketCap) },
-                { label: "Vol 1h", value: fmtK(hc.token.volume1h) },
-                { label: "Liquidity", value: fmtK(hc.token.liquidity) },
-                { label: "FDV", value: fmtK(hc.token.fdv) },
-              ].map(s => (
-                <div key={s.label} style={{ background: C.s2, borderRadius: 8, padding: "8px 10px" }}>
-                  <div style={{ fontSize: 9, color: C.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>{s.label}</div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: C.text, fontFamily: "'JetBrains Mono',monospace" }}>{s.value}</div>
-                </div>
-              ))}
-            </div>
+          {/* Session P&L */}
+          <div style={{
+            fontSize: 16, fontWeight: 800, marginBottom: 16,
+            color: sessionPnl >= 0 ? C.match : C.hot,
+          }}>
+            {sessionPnl >= 0 ? "+" : ""}{sessionPnl.toFixed(4)} ETH today
+          </div>
 
-            {/* Live buy/sell bar */}
-            {(() => {
-              const b = hc.token.txns1h?.buys || 0;
-              const s = hc.token.txns1h?.sells || 0;
-              const total = b + s || 1;
-              const buyPct = Math.round((b / total) * 100);
-              return (
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                    <span style={{ fontSize: 10, color: C.match, fontWeight: 700 }}>{b} buys</span>
-                    <span style={{ fontSize: 10, color: C.muted }}>1h txns</span>
-                    <span style={{ fontSize: 10, color: C.hot, fontWeight: 700 }}>{s} sells</span>
-                  </div>
-                  <div style={{ height: 6, background: C.dim, borderRadius: 3, overflow: "hidden" }}>
-                    <div style={{
-                      height: "100%", width: `${buyPct}%`,
-                      background: buyPct >= 60 ? `linear-gradient(90deg,${C.match},#22c55e)` :
-                                   buyPct >= 40 ? `linear-gradient(90deg,${C.yellow},#eab308)` :
-                                   `linear-gradient(90deg,${C.hot},#dc2626)`,
-                      borderRadius: 3, transition: "width 0.3s",
-                    }} />
-                  </div>
-                  <div style={{ fontSize: 9, color: C.muted, marginTop: 3, textAlign: "center" }}>
-                    {buyPct}% buy pressure
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Age */}
-            {hc.token.pairCreatedAt > 0 && (
-              <div style={{ marginTop: 10, fontSize: 10, color: C.muted, textAlign: "center" }}>
-                Pair age: {fmtAge(hc.token.pairCreatedAt)} -- Click to point agent
+          {/* Thought Stream */}
+          <div ref={thoughtRef} style={{
+            flex: 1, width: "100%", overflowY: "auto", overflowX: "hidden",
+            background: C.surface, borderRadius: 10, border: `1px solid ${C.border}`,
+            padding: 8, scrollbarWidth: "thin",
+          }}>
+            {thoughts.length === 0 && (
+              <div style={{ fontSize: 11, color: C.dim, textAlign: "center", padding: 20 }}>
+                {isActive ? "Waiting for signals..." : "Activate to begin"}
               </div>
             )}
+            {thoughts.map(t => (
+              <div key={t.id} style={{
+                fontSize: 11, lineHeight: 1.5, color: C.muted, fontFamily: "'SF Mono', 'Fira Code', monospace",
+                padding: "2px 0", animation: "mt-thought-in 0.2s ease-out",
+                borderBottom: `1px solid ${C.border}`,
+              }}>
+                {t.text}
+              </div>
+            ))}
           </div>
-        );
-      })()}
-    </>
+        </div>
+
+        {/* ── RIGHT PANEL: Bubble Stream ── */}
+        <div className="mt-right-panel" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: 16, scrollbarWidth: "thin" }}>
+          {bubbles.length === 0 && isActive && (
+            <div style={{ textAlign: "center", padding: "60px 20px", color: C.dim }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Scanning markets...</div>
+              <div style={{ fontSize: 12 }}>Tokens will appear as they are detected</div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {bubbles.map(b => {
+              const mc = MODE_COLORS[b.mode];
+              const isApproaching = b.phase === "approaching" || b.phase === "thinking";
+              const isBought = b.phase === "bought";
+              const isPassing = b.phase === "passing";
+
+              return (
+                <div key={b.id} onClick={() => prioritizeBubble(b.id)} style={{
+                  padding: 14, borderRadius: 14,
+                  background: C.surface,
+                  border: `1px solid ${isApproaching ? mc + "60" : isBought ? C.match + "60" : C.border}`,
+                  boxShadow: isApproaching ? `0 0 16px ${mc}20` : isBought ? `0 0 20px ${C.match}25` : "none",
+                  cursor: "pointer",
+                  animation: isBought ? "mt-bubble-merge 0.4s ease-in forwards" : isPassing ? "mt-bubble-out 0.5s ease-in forwards" : "mt-bubble-in 0.6s ease-out",
+                  opacity: b.phase === "scanning" && b.score < 40 ? 0.4 : 1,
+                  transition: "opacity 0.3s, border-color 0.3s, box-shadow 0.3s",
+                  transform: isApproaching ? "translateX(-20px)" : "none",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {/* Token logo / initials */}
+                    {b.token.imageUrl ? (
+                      <img src={b.token.imageUrl} alt="" style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover", border: `2px solid ${mc}30` }} />
+                    ) : (
+                      <div style={{
+                        width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                        background: deterministicGradient(b.token.address), fontSize: 13, fontWeight: 800, color: "white",
+                        border: `2px solid ${mc}30`,
+                      }}>{initials(b.token.symbol)}</div>
+                    )}
+
+                    {/* Token info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700 }}>{b.token.symbol}</span>
+                        <span style={{ fontSize: 11, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.token.name}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11 }}>
+                        <span style={{ color: C.text, fontWeight: 600 }}>{fmt$(b.token.price)}</span>
+                        <span style={{ color: b.token.priceChange1h >= 0 ? C.match : C.hot, fontWeight: 600 }}>{fmtPct(b.token.priceChange1h)}</span>
+                        <span style={{ color: C.muted }}>Vol {fmt$(b.token.volume1h)}</span>
+                        <span style={{ color: C.muted }}>{b.token.ageMinutes < 60 ? `${b.token.ageMinutes}m` : `${(b.token.ageMinutes / 60).toFixed(0)}h`}</span>
+                      </div>
+                    </div>
+
+                    {/* Mode badge */}
+                    <div style={{
+                      padding: "3px 8px", borderRadius: 8, fontSize: 9, fontWeight: 800,
+                      background: `${mc}20`, color: mc, border: `1px solid ${mc}40`,
+                      letterSpacing: "0.5px",
+                    }}>{b.mode}</div>
+                  </div>
+
+                  {/* Thinking text */}
+                  {b.phase === "thinking" && b.thought && (
+                    <div style={{ marginTop: 8, fontSize: 11, color: mc, fontFamily: "'SF Mono', 'Fira Code', monospace", animation: "mt-thought-in 0.2s ease-out" }}>
+                      {b.thought}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Mobile responsive ── */}
+      <style>{`
+        @media(max-width:640px){
+          .mt-main-layout{flex-direction:column!important}
+          .mt-left-panel{width:100%!important;min-width:0!important;max-height:320px!important;border-right:none!important;border-bottom:1px solid rgba(255,255,255,0.07)!important}
+          .mt-right-panel{flex:1!important;min-height:300px!important}
+        }
+      `}</style>
+    </div>
   );
 }

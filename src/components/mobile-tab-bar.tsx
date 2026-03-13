@@ -34,7 +34,7 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
   const tabs = [
     { id: "mesh", label: "Connect", icon: MeshIcon, badge: 0 },
     { id: "hunt", label: "Hunt", icon: HuntIcon, badge: hotCount, activeColor: C.hot, aura: true },
-    { id: "feed", label: "Feed", icon: FeedIcon, badge: 0, activeColor: C.cyan },
+    { id: "work", label: "Work", icon: WorkIcon, badge: 0, activeColor: "#ffd700" },
     { id: "wallet", label: "Wallet", icon: WalletIcon, badge: 0, alert: lowBalance },
     { id: "agent", label: "Agent", icon: AgentIcon, badge: 0, activeColor: C.indigo },
   ];
@@ -252,6 +252,17 @@ function AgentIcon({ active }: { active: boolean }) {
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round">
       <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.07-4.16A2.5 2.5 0 0 1 6 10V4.5A2.5 2.5 0 0 1 9.5 2Z"/>
       <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.07-4.16A2.5 2.5 0 0 0 18 10V4.5A2.5 2.5 0 0 0 14.5 2Z"/>
+    </svg>
+  );
+}
+
+function WorkIcon({ active }: { active: boolean }) {
+  const c = active ? "#ffd700" : C.muted;
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" />
+      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+      {active && <line x1="12" y1="12" x2="12" y2="16" stroke={c} strokeWidth="2" />}
     </svg>
   );
 }
