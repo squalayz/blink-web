@@ -227,8 +227,11 @@ function tokenGradient(addr: string): [string, string] {
 }
 
 function getTokenLogoUrl(token: { address: string; chainId: string; imageUrl: string | null }): string | null {
-  // Only use imageUrl if it's a real URL (not null/empty)
   if (token.imageUrl && token.imageUrl.startsWith("http")) return token.imageUrl;
+  // DexScreener CDN — browsers follow the 301 redirect automatically
+  if (token.address && token.chainId) {
+    return `https://dd.dexscreener.com/ds-data/tokens/${token.chainId}/${token.address.toLowerCase()}/header.png`;
+  }
   return null;
 }
 
@@ -240,7 +243,7 @@ function TokenLogo({ token, size }: { token: Token; size: number }) {
   const initials = (token.symbol || "??").slice(0, 2).toUpperCase();
   const fontSize = Math.max(9, Math.round(size * 0.32));
 
-  // Initials fallback — looks like a proper colored logo
+  // Initials fallback — unique gradient per token address
   const InitialsFallback = (
     <div style={{
       width: "100%", height: "100%",
@@ -265,7 +268,12 @@ function TokenLogo({ token, size }: { token: Token; size: number }) {
       src={imgSrc}
       alt={token.symbol}
       style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", display: "block", pointerEvents: "none" }}
-      onError={() => setFailed(true)}
+      onError={() => {
+        // Try GeckoTerminal CDN as secondary fallback
+        const gtUrl = `https://assets.coingecko.com/coins/images/1/small/bitcoin.png`; // placeholder pattern
+        // Just go straight to initials — CDN has no image for brand new tokens
+        setFailed(true);
+      }}
     />
   );
 }
