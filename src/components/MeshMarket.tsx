@@ -48,12 +48,15 @@ interface Bounty {
   id: string;
   title: string;
   description: string;
-  budget_eth: number;
-  skills: string[];
-  client: string;
-  posted_at: number;
-  proposals: number;
-  difficulty: "easy" | "medium" | "hard";
+  budget_eth: string;
+  budget_usd: string;
+  category: string;
+  delivery_time: string;
+  agent_name: string;
+  agent_image: string | null;
+  posted_at: string;
+  source: string;
+  gig_url: string;
 }
 
 interface Task {
@@ -672,14 +675,14 @@ function EarnSimulation({ onConnectBrain, onAddETH }: { onConnectBrain: () => vo
             textAlign: "center" as const, letterSpacing: "-0.5px",
             marginBottom: 4,
           }}>
-            Your agent earns while you sleep
+            Real gigs. Real ETH. Connect your brain to analyze them.
           </div>
           <div style={{
             fontSize: 11, color: C.muted,
             textAlign: "center" as const,
             marginBottom: 12,
           }}>
-            Real tasks. Real ETH. Zero effort.
+            483 live tasks on Moltlaunch. Your agent scouts them, you decide which to accept.
           </div>
 
           {/* 3 mini agent cards */}
@@ -774,6 +777,8 @@ export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFund
   const [totalEarned, setTotalEarned] = useState(0);
   const [agentStatus, setAgentStatus] = useState<"hunting" | "working" | "idle" | "dormant">("dormant");
   const [liveLog, setLiveLog] = useState<LogEntry[]>([]);
+  const [acceptModal, setAcceptModal] = useState<Bounty | null>(null);
+  const [totalGigs, setTotalGigs] = useState(483);
   const logRef = useRef<HTMLDivElement>(null);
 
   const brainConnected = !!user?.ai_api_key_encrypted;
@@ -785,6 +790,7 @@ export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFund
       if (!res.ok) return;
       const data = await res.json();
       setBounties(data.bounties || []);
+      if (data.total) setTotalGigs(data.total);
     } catch { /* silent */ }
   }, []);
 
@@ -836,8 +842,8 @@ export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFund
       setLiveLog(prev => [...prev, { ts: Date.now(), type, message }]);
     };
 
-    addLog("scan", `Scanning bounty: "${bounty.title}"`);
-    addLog("scan", `Budget: ${bounty.budget_eth} ETH | ${bounty.difficulty} difficulty`);
+    addLog("scan", `Scanning gig: "${bounty.title}"`);
+    addLog("scan", `Budget: ${bounty.budget_eth} ETH | ${bounty.category}`);
 
     try {
       const res = await fetch("/api/market/run", {
@@ -861,19 +867,21 @@ export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFund
         }
 
         if (data.action === "quoted") {
-          addLog("quote", `Quoted ${data.quote_eth} ETH for this bounty`);
-          addLog("submit", data.message || "Quote submitted to client");
+          addLog("quote", `Quoted ${data.quote_eth} ETH for this gig`);
+          addLog("submit", data.message || "Analysis complete — gig matches your skills");
 
           setTasks(prev => [...prev, {
             id: `task-${Date.now()}`,
             title: bounty.title,
             status: "quoted",
             budget_eth: parseFloat(data.quote_eth),
-            client: bounty.client,
+            client: bounty.agent_name,
             started_at: Date.now(),
           }]);
+
+          setAcceptModal(bounty);
         } else if (data.action === "declined") {
-          addLog("decline", data.message || "Agent declined this bounty");
+          addLog("decline", data.message || "Agent declined this gig");
         }
       } else {
         addLog("decline", data.error || "Failed to process bounty");
@@ -965,7 +973,7 @@ export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFund
             {/* Stats row */}
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
               {[
-                { label: "Open Bounties", value: bounties.length, color: C.cyan },
+                { label: "Live Gigs", value: bounties.length, color: C.cyan },
                 { label: "Active Tasks", value: tasks.length, color: C.indigo },
                 { label: "Completed", value: history.length, color: C.match },
               ].map(s => (
@@ -991,7 +999,7 @@ export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFund
                 fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
                 cursor: "pointer", fontFamily: "inherit",
               }}>
-                {t === "bounties" ? `Bounties (${bounties.length})` : t === "tasks" ? `My Tasks (${tasks.length})` : "History"}
+                {t === "bounties" ? `Gigs (${bounties.length})` : t === "tasks" ? `My Tasks (${tasks.length})` : "History"}
               </button>
             ))}
           </div>
@@ -1009,9 +1017,19 @@ export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFund
             {/* ── Bounties tab ── */}
             {!loading && tab === "bounties" && (
               <>
+                {/* Section header */}
+                <div style={{ padding: "16px 16px 4px", textAlign: "center" }}>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: C.text, marginBottom: 4 }}>
+                    Live Gigs on Moltlaunch
+                  </div>
+                  <div style={{ fontSize: 11, color: C.muted }}>
+                    {totalGigs}+ real tasks. Your agent earns real ETH completing them.
+                  </div>
+                </div>
+
                 {bounties.length === 0 ? (
                   <div style={{ padding: 40, textAlign: "center" }}>
-                    <div style={{ fontSize: 14, color: C.muted, marginBottom: 8 }}>No open bounties right now</div>
+                    <div style={{ fontSize: 14, color: C.muted, marginBottom: 8 }}>No live gigs right now</div>
                     <div style={{ fontSize: 11, color: C.dim }}>Check back soon — new work appears constantly</div>
                   </div>
                 ) : bounties.map((b, idx) => (
@@ -1023,64 +1041,112 @@ export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFund
                     padding: 14,
                     animation: `mm-card-in 0.3s ease-out ${idx * 0.05}s both`,
                   }}>
+                    {/* Agent row */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      {b.agent_image ? (
+                        <img src={b.agent_image} alt="" style={{ width: 22, height: 22, borderRadius: "50%", objectFit: "cover" }} />
+                      ) : (
+                        <div style={{
+                          width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+                          background: `hsl(${b.agent_name.charCodeAt(0) * 7 % 360}, 60%, 45%)`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 10, fontWeight: 800, color: "white",
+                        }}>
+                          {b.agent_name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>{b.agent_name}</span>
+                    </div>
+
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                       <div style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                          <div style={{ fontSize: 13, fontWeight: 800, color: C.text }}>{b.title}</div>
-                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 4 }}>{b.title}</div>
                         <div style={{
                           fontSize: 11, color: C.muted, lineHeight: 1.4,
                           overflow: "hidden", display: "-webkit-box",
-                          WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+                          WebkitLineClamp: 3, WebkitBoxOrient: "vertical",
                         }}>
                           {b.description}
                         </div>
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0 }}>
                         <div style={{ fontSize: 16, fontWeight: 900, color: C.gold }}>{b.budget_eth} ETH</div>
-                        <div style={{ fontSize: 9, color: C.muted }}>{b.proposals} proposals</div>
+                        <div style={{ fontSize: 9, color: C.muted }}>${b.budget_usd}</div>
                       </div>
                     </div>
 
-                    {/* Skills + difficulty */}
+                    {/* Badges */}
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10, alignItems: "center" }}>
-                      {b.skills.map(s => (
-                        <span key={s} style={{
+                      {b.category && (
+                        <span style={{
                           fontSize: 9, padding: "2px 7px", borderRadius: 10,
                           background: "rgba(99,102,241,0.15)", color: C.indigo,
                           border: "1px solid rgba(99,102,241,0.2)", fontWeight: 700,
-                        }}>{s}</span>
-                      ))}
-                      <span style={{
-                        fontSize: 9, padding: "2px 7px", borderRadius: 10, marginLeft: "auto",
-                        background: `${DIFF_COLOR[b.difficulty] || C.muted}20`,
-                        color: DIFF_COLOR[b.difficulty] || C.muted,
-                        border: `1px solid ${DIFF_COLOR[b.difficulty] || C.muted}40`,
-                        fontWeight: 700, textTransform: "uppercase",
-                      }}>{b.difficulty}</span>
+                        }}>{b.category}</span>
+                      )}
+                      {b.delivery_time && (
+                        <span style={{
+                          fontSize: 9, padding: "2px 7px", borderRadius: 10,
+                          background: "rgba(6,182,212,0.12)", color: C.cyan,
+                          border: "1px solid rgba(6,182,212,0.2)", fontWeight: 700,
+                        }}>{b.delivery_time}</span>
+                      )}
                     </div>
 
-                    {/* Action */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handlePointAgent(b.id); }}
-                      disabled={!!agentRunning}
-                      style={{
-                        width: "100%", padding: "10px 0", borderRadius: 8, border: "none",
-                        background: agentRunning === b.id
-                          ? "rgba(99,102,241,0.3)"
-                          : agentRunning
-                          ? C.dim
-                          : "linear-gradient(135deg, #6366f1, #a855f7)",
-                        color: agentRunning && agentRunning !== b.id ? C.muted : "white",
-                        fontSize: 12, fontWeight: 800,
-                        cursor: agentRunning ? "not-allowed" : "pointer",
-                        fontFamily: "inherit", letterSpacing: "-0.2px",
-                        transition: "all 0.2s ease",
-                      }}>
-                      {agentRunning === b.id ? "Agent working..." : "Point Agent at This"}
-                    </button>
+                    {/* Actions */}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handlePointAgent(b.id); }}
+                        disabled={!!agentRunning}
+                        style={{
+                          flex: 1, padding: "10px 0", borderRadius: 8, border: "none",
+                          background: agentRunning === b.id
+                            ? "rgba(99,102,241,0.3)"
+                            : agentRunning
+                            ? C.dim
+                            : "linear-gradient(135deg, #6366f1, #a855f7)",
+                          color: agentRunning && agentRunning !== b.id ? C.muted : "white",
+                          fontSize: 12, fontWeight: 800,
+                          cursor: agentRunning ? "not-allowed" : "pointer",
+                          fontFamily: "inherit", letterSpacing: "-0.2px",
+                          transition: "all 0.2s ease",
+                        }}>
+                        {agentRunning === b.id ? "Agent working..." : "Point Agent at This"}
+                      </button>
+                      <a
+                        href={b.gig_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          padding: "10px 14px", borderRadius: 8,
+                          background: "rgba(255,255,255,0.05)",
+                          border: `1px solid ${C.border}`,
+                          color: C.muted, fontSize: 11, fontWeight: 700,
+                          textDecoration: "none", display: "flex", alignItems: "center",
+                          cursor: "pointer", whiteSpace: "nowrap",
+                        }}>
+                        View on Moltlaunch
+                      </a>
+                    </div>
                   </div>
                 ))}
+
+                {/* Powered by Moltlaunch */}
+                {bounties.length > 0 && (
+                  <div style={{ textAlign: "center", padding: "16px 0 24px" }}>
+                    <a
+                      href="https://moltlaunch.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: 10, color: C.muted, textDecoration: "none",
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                      }}
+                    >
+                      Powered by <span style={{ color: C.indigo, fontWeight: 700 }}>Moltlaunch</span>
+                    </a>
+                  </div>
+                )}
               </>
             )}
 
@@ -1162,6 +1228,70 @@ export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFund
             )}
           </div>
         </>
+      )}
+
+      {/* ── How to Accept modal ── */}
+      {acceptModal && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 100,
+          background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 20,
+        }} onClick={() => setAcceptModal(null)}>
+          <div style={{
+            background: C.surface, borderRadius: 16,
+            border: `1px solid ${C.border}`,
+            padding: 24, maxWidth: 380, width: "100%",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 15, fontWeight: 900, color: C.text, marginBottom: 6 }}>
+              How to Accept This Gig
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 16 }}>
+              To accept this gig and earn ETH, visit moltlaunch.com to register your agent wallet and accept tasks directly. Your agent analyzed this gig and it matches your skills.
+            </div>
+            <div style={{
+              background: "rgba(99,102,241,0.08)", borderRadius: 10,
+              border: "1px solid rgba(99,102,241,0.2)",
+              padding: "10px 14px", marginBottom: 16,
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: C.text, marginBottom: 2 }}>
+                {acceptModal.title}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 900, color: C.gold }}>
+                {acceptModal.budget_eth} ETH <span style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>(${acceptModal.budget_usd})</span>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <a
+                href={acceptModal.gig_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  flex: 1, padding: "12px 0", borderRadius: 10, border: "none",
+                  background: "linear-gradient(135deg, #6366f1, #a855f7)",
+                  color: "white", fontSize: 13, fontWeight: 800,
+                  textDecoration: "none", textAlign: "center",
+                  cursor: "pointer",
+                }}
+              >
+                Accept on Moltlaunch
+              </a>
+              <button
+                onClick={() => setAcceptModal(null)}
+                style={{
+                  padding: "12px 16px", borderRadius: 10,
+                  background: "rgba(255,255,255,0.05)",
+                  border: `1px solid ${C.border}`,
+                  color: C.muted, fontSize: 12, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Live agent log ── */}
