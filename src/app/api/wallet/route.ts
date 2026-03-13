@@ -225,6 +225,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Payment failed" }, { status: 500 });
   }
 
+  // ── Complete onboarding — mark user as onboarded + save profile fields ──
+  if (action === "complete_onboarding") {
+    const { name, industry, agent_name } = body;
+    const updatePayload: Record<string, unknown> = { onboarded: true };
+    if (name) updatePayload.name = name;
+    if (industry) updatePayload.industry = industry;
+    // Note: 'goal' column does not exist in users table — omit it
+    const { error } = await supabaseAdmin.from("users").update(updatePayload).eq("id", userId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    // Also update agent name if provided
+    if (agent_name) {
+      await supabaseAdmin.from("agent_profiles").update({ agent_name }).eq("user_id", userId);
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   return NextResponse.json({ error: "Invalid action" }, { status: 400 });
 }
 
