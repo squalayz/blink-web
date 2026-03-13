@@ -326,6 +326,7 @@ const KEYFRAMES = `
   0% { transform: translate(-50%,-50%) scale(0.8); opacity: 0.8; }
   100% { transform: translate(-50%,-50%) scale(1.6); opacity: 0; }
 }
+@keyframes onb-slide-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes mt-card-in { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (max-width: 640px) {
   .mt-layout { flex-direction: column !important; }
@@ -367,6 +368,14 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
   const [agentTokenAddr, setAgentTokenAddr] = useState<string | null>(null);
   const [mobileColTab, setMobileColTab] = useState<"emerging" | "heating" | "pumping">("pumping");
   const [brainExpanded, setBrainExpanded] = useState(false);
+  const [showBrainModal, setShowBrainModal] = useState(false);
+  const [brainProvider, setBrainProvider] = useState("openai");
+  const [brainApiKey, setBrainApiKey] = useState("");
+  const [brainShowKey, setBrainShowKey] = useState(false);
+  const [brainSaving, setBrainSaving] = useState(false);
+  const [brainTesting, setBrainTesting] = useState(false);
+  const [brainError, setBrainError] = useState("");
+  const [brainSuccess, setBrainSuccess] = useState(false);
 
   const settingsTimerRef = useRef<NodeJS.Timeout | null>(null);
   const tokenIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -708,6 +717,34 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
   }, [brainConnected, logEntries, settings.unleashed]);
 
   // ═════════════════════════════════════════════════════════
+  async function saveBrain() {
+    if (!brainApiKey.trim()) { setBrainError("API key required"); return; }
+    setBrainSaving(true); setBrainError(""); setBrainTesting(true);
+    try {
+      const testRes = await fetch("/api/ai", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test", provider: brainProvider, apiKey: brainApiKey.trim() }),
+      });
+      const testData = await testRes.json();
+      setBrainTesting(false);
+      if (!testData.success) {
+        setBrainError(testData.error || "Connection failed — check your key");
+        setBrainSaving(false); return;
+      }
+      const saveRes = await fetch("/api/ai", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save", provider: brainProvider, apiKey: brainApiKey.trim() }),
+      });
+      const saveData = await saveRes.json();
+      if (!saveData.ok) { setBrainError(saveData.error || "Save failed"); setBrainSaving(false); return; }
+      setBrainSuccess(true);
+      setTimeout(() => { window.location.reload(); }, 1500);
+    } catch {
+      setBrainError("Network error — try again");
+      setBrainSaving(false); setBrainTesting(false);
+    }
+  }
+
   // SUB-RENDERS
   // ═════════════════════════════════════════════════════════
 
@@ -811,7 +848,7 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
             <div style={{ fontSize: 11, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
               Connect your API key to activate your agent and start trading.
             </div>
-            <button onClick={() => onConnectBrain?.()} style={{
+            <button onClick={() => setShowBrainModal(true)} style={{
               width: "100%", padding: "10px 0",
               background: "linear-gradient(135deg,#6366f1,#a855f7)",
               border: "none", borderRadius: 10, color: "white",
@@ -1977,6 +2014,130 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
         {/* Modal */}
         {renderModal()}
       </div>
+
+      {/* Brain Connect Modal */}
+      {showBrainModal && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 1000,
+          background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: "0 16px",
+        }} onClick={(e) => { if (e.target === e.currentTarget) { setShowBrainModal(false); setBrainError(""); setBrainApiKey(""); } }}>
+          <div style={{
+            width: "100%", maxWidth: 420,
+            background: "#0d0d14", borderRadius: 20,
+            border: "1px solid rgba(99,102,241,0.3)",
+            boxShadow: "0 0 60px rgba(99,102,241,0.15), 0 24px 48px rgba(0,0,0,0.6)",
+            padding: 28, position: "relative",
+            animation: "onb-slide-in 0.3s ease forwards",
+          }}>
+            {/* Close button */}
+            <button onClick={() => { setShowBrainModal(false); setBrainError(""); setBrainApiKey(""); }}
+              style={{ position:"absolute", top:16, right:16, background:"none", border:"none", cursor:"pointer", color:"#6b6b80", fontSize:20, lineHeight:1, padding:4 }}>
+              ×
+            </button>
+
+            {/* Orb + title */}
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", marginBottom:24 }}>
+              <div style={{
+                width: 64, height: 64, borderRadius: "50%", marginBottom: 16,
+                background: brainSuccess
+                  ? "radial-gradient(circle at 35% 35%, #34d399, #10b981 60%, #059669)"
+                  : "radial-gradient(circle at 35% 35%, #818cf8, #6366f1 40%, #06b6d4 80%)",
+                boxShadow: brainSuccess
+                  ? "0 0 30px rgba(52,211,153,0.5), 0 0 60px rgba(52,211,153,0.2)"
+                  : "0 0 30px rgba(99,102,241,0.5), 0 0 60px rgba(99,102,241,0.2)",
+                animation: "mt-agent-pulse 2s infinite",
+                transition: "all 0.6s ease",
+              }} />
+              <div style={{ fontSize:18, fontWeight:800, color:"#e8e8f0", letterSpacing:"-0.5px", marginBottom:4 }}>
+                {brainSuccess ? "Brain Connected!" : "Connect AI Brain"}
+              </div>
+              <div style={{ fontSize:13, color:"#6b6b80", textAlign:"center", lineHeight:1.4 }}>
+                {brainSuccess
+                  ? "Your agent is now powered up. Reloading..."
+                  : "Plug in your API key. Your agent needs it to think."}
+              </div>
+            </div>
+
+            {!brainSuccess && (<>
+              {/* Provider pills */}
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:11, color:"#6b6b80", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Provider</div>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  {[
+                    { id:"openai", label:"OpenAI", color:"#10a37f" },
+                    { id:"anthropic", label:"Anthropic", color:"#d97706" },
+                    { id:"openrouter", label:"OpenRouter", color:"#6366f1" },
+                    { id:"google", label:"Google", color:"#4285f4" },
+                    { id:"groq", label:"Groq", color:"#f55036" },
+                  ].map(p => (
+                    <button key={p.id} onClick={() => setBrainProvider(p.id)}
+                      style={{
+                        padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:700, cursor:"pointer",
+                        border: brainProvider===p.id ? `1.5px solid ${p.color}` : "1px solid rgba(255,255,255,0.1)",
+                        background: brainProvider===p.id ? `${p.color}22` : "transparent",
+                        color: brainProvider===p.id ? p.color : "#6b6b80",
+                        transition:"all 0.15s",
+                        fontFamily:"inherit",
+                      }}>
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* API Key input */}
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:11, color:"#6b6b80", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>API Key</div>
+                <div style={{ position:"relative" }}>
+                  <input
+                    type={brainShowKey ? "text" : "password"}
+                    value={brainApiKey}
+                    onChange={e => { setBrainApiKey(e.target.value); setBrainError(""); }}
+                    placeholder={`Paste your ${brainProvider} API key`}
+                    autoFocus
+                    style={{
+                      width:"100%", padding:"12px 44px 12px 14px", borderRadius:10, fontSize:13,
+                      background:"#1a1a24", border: brainError ? "1.5px solid #ff2d55" : "1px solid rgba(255,255,255,0.1)",
+                      color:"#e8e8f0", fontFamily:"monospace", outline:"none",
+                      boxSizing:"border-box",
+                    }}
+                  />
+                  <button onClick={() => setBrainShowKey(!brainShowKey)}
+                    style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:"#6b6b80", padding:4 }}>
+                    {brainShowKey ? (
+                      <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    ) : (
+                      <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    )}
+                  </button>
+                </div>
+                {brainError && <div style={{ fontSize:12, color:"#ff2d55", marginTop:6 }}>{brainError}</div>}
+              </div>
+
+              {/* Security note */}
+              <div style={{ fontSize:11, color:"#6b6b80", marginBottom:20, display:"flex", alignItems:"center", gap:6 }}>
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#6b6b80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                Your key is AES-256 encrypted and never shared
+              </div>
+
+              {/* Save button */}
+              <button onClick={saveBrain} disabled={brainSaving || !brainApiKey.trim()}
+                style={{
+                  width:"100%", padding:"14px 0", borderRadius:12, fontSize:15, fontWeight:800,
+                  background: (brainSaving || !brainApiKey.trim()) ? "#2a2a3a" : "linear-gradient(135deg, #6366f1, #a855f7)",
+                  color: (brainSaving || !brainApiKey.trim()) ? "#6b6b80" : "white",
+                  border:"none", cursor:(brainSaving || !brainApiKey.trim()) ? "not-allowed" : "pointer",
+                  boxShadow: (!brainSaving && brainApiKey.trim()) ? "0 4px 20px rgba(99,102,241,0.4)" : "none",
+                  transition:"all 0.2s", fontFamily:"inherit", letterSpacing:"-0.3px",
+                }}>
+                {brainTesting ? "Testing connection..." : brainSaving ? "Saving..." : "Power up agent"}
+              </button>
+            </>)}
+          </div>
+        </div>
+      )}
 
       {/* Hover Card — outside main div to avoid overflow clipping */}
       {hoverCard && (() => {
