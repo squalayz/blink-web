@@ -114,12 +114,17 @@ export default function SignInPage() {
             {/* Card */}
             <div style={{ position: "relative", overflow: "hidden", background: "linear-gradient(160deg, #0f0f1a 0%, #0d0d14 100%)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 24, padding: "40px 28px", textAlign: "center", backdropFilter: "blur(20px)" }}>
               {/* Animated orb */}
-              <div style={{ width: 80, height: 80, borderRadius: "50%", margin: "0 auto 20px", position: "relative" }}>
-                <div style={{ width: 80, height: 80, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, #a78bfa, #6366f1 50%, #1e1b4b)", boxShadow: "0 0 40px rgba(99,102,241,0.5), 0 0 80px rgba(99,102,241,0.2)", animation: "pulse 3s ease-in-out infinite" }} />
-                {/* Specular highlight */}
-                <div style={{ position: "absolute", top: 10, left: 12, width: 20, height: 14, borderRadius: "50%", background: "rgba(255,255,255,0.4)", filter: "blur(4px)", pointerEvents: "none" }} />
+              <div style={{ width: 80, height: 80, borderRadius: "50%", margin: "0 auto 24px", position: "relative" }}>
+                {/* Sphere */}
+                <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "radial-gradient(circle at 32% 28%, #c4b5fd, #6366f1 50%, #1e1b4b)", boxShadow: "0 0 40px rgba(99,102,241,0.55), 0 0 80px rgba(99,102,241,0.2)", animation: "pulse 3s ease-in-out infinite" }} />
+                {/* Specular highlight — main */}
+                <div style={{ position: "absolute", top: 9, left: 11, width: 22, height: 14, borderRadius: "50%", background: "rgba(255,255,255,0.45)", filter: "blur(4px)", pointerEvents: "none" }} />
+                {/* Specular highlight — secondary */}
+                <div style={{ position: "absolute", top: 17, left: 20, width: 10, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.2)", filter: "blur(2px)", pointerEvents: "none" }} />
+                {/* Bottom rim light */}
+                <div style={{ position: "absolute", bottom: 7, right: 9, width: 16, height: 10, borderRadius: "50%", background: "rgba(6,182,212,0.3)", filter: "blur(6px)", pointerEvents: "none" }} />
                 {/* Orbit ring */}
-                <div style={{ position: "absolute", inset: -10, borderRadius: "50%", border: "1px dashed rgba(99,102,241,0.25)", animation: "spin 12s linear infinite", pointerEvents: "none" }} />
+                <div style={{ position: "absolute", top: -12, left: -12, right: -12, bottom: -12, borderRadius: "50%", border: "1px dashed rgba(99,102,241,0.3)", animation: "spin 12s linear infinite", pointerEvents: "none" }} />
               </div>
 
               {/* Headline */}

@@ -1750,8 +1750,8 @@ function countUp(id,target,suffix,isFloat){
 }
 
 // ══ NAVBAR + MODAL + MOBILE ══
-function openModal(){document.getElementById('modalOverlay').classList.add('open');document.body.style.overflow='hidden';}
-function closeModal(){document.getElementById('modalOverlay').classList.remove('open');document.body.style.overflow='';}
+function openModal(){window.location.href='/auth/signin';}
+function closeModal(){}
 function toggleMobileMenu(){document.getElementById('mobileMenu').classList.toggle('open');}
 function closeMobileMenu(){document.getElementById('mobileMenu').classList.remove('open');}
 
@@ -1858,8 +1858,7 @@ async function checkAuthAndShowBalance(){
 // Override openModal — if authed, go to dashboard instead
 function openModal(){
   if(_isAuthed){window.location='/dashboard';return;}
-  document.getElementById('modalOverlay').classList.add('open');
-  document.body.style.overflow='hidden';
+  window.location.href='/auth/signin';
 }
 
 function initNavbar(){
