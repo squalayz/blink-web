@@ -1152,29 +1152,10 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
     );
   }
 
-  // ── Render Photon/Axiom-style token row list ──
+  // ── Render Axiom-style token row list ──
   function renderPhotonTokenList(col: { id: string; label: string; tokens: Token[]; color: string; desc: string }, colColor: string) {
     return (
       <>
-        {/* Column header row */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: 0,
-          padding: "6px 12px",
-          borderBottom: `1px solid ${C.border}`,
-          fontSize: 9, color: C.muted, fontWeight: 700,
-          textTransform: "uppercase" as const, letterSpacing: "0.08em",
-          position: "sticky", top: 0, background: C.bg, zIndex: 5,
-        }}>
-          <div style={{ width: 36, flexShrink: 0 }}></div>
-          <div style={{ flex: 1, minWidth: 0 }}>TOKEN</div>
-          <div style={{ width: 44, textAlign: "right" }}>AGE</div>
-          <div style={{ width: 72, textAlign: "right" }}>PRICE</div>
-          <div style={{ width: 52, textAlign: "right" }}>1H%</div>
-          <div style={{ width: 60, textAlign: "right" }}>VOL</div>
-          <div style={{ width: 60, textAlign: "right" }}>MCAP</div>
-          <div style={{ width: 48, textAlign: "right" }}>TXNS</div>
-        </div>
-
         {col.tokens.map((t, idx) => {
           const change1h = t.priceChange1h || 0;
           const bPct = buyPct(t.txns1h);
@@ -1182,7 +1163,22 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
           const isJustLaunched = (t.ageMinutes || 99999) < 60;
           const isHot = t.score >= 75;
           const isEntering = enteringTokens.has(t.address);
-          const rowBg = idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)";
+          const posColor = change1h >= 0 ? "#30d158" : "#ff2d55";
+
+          // Sparkline
+          const pts = t.pricePoints && t.pricePoints.length > 1
+            ? t.pricePoints
+            : [1, 1 + (change1h / 200), 1 + (change1h / 100)];
+          const minPt = Math.min(...pts);
+          const maxPt = Math.max(...pts);
+          const range = maxPt - minPt || 1;
+          const sparkW = 72;
+          const sparkH = 32;
+          const sparkPoints = pts.map((v, i) => {
+            const x = (i / (pts.length - 1)) * sparkW;
+            const y = sparkH - ((v - minPt) / range) * sparkH;
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+          }).join(" ");
 
           return (
             <div
@@ -1190,97 +1186,129 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 0,
-                padding: "8px 12px",
-                background: rowBg,
-                borderBottom: "1px solid rgba(255,255,255,0.03)",
+                gap: 10,
+                padding: "10px 12px",
+                borderBottom: "1px solid rgba(255,255,255,0.05)",
                 cursor: "pointer",
-                transition: "background 0.15s",
-                animation: isEntering ? "mt-shoot-in 0.8s ease forwards" : undefined,
+                background: "transparent",
+                animation: isEntering ? "mt-card-in 0.5s ease" : undefined,
+                minHeight: 68,
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = "rgba(99,102,241,0.08)")}
-              onMouseLeave={e => (e.currentTarget.style.background = rowBg)}
               onClick={() => setSelectedToken(t)}
             >
-              {/* Logo */}
-              <div style={{ width: 36, flexShrink: 0, position: "relative" }}>
-                <div style={{
-                  width: 28, height: 28, borderRadius: "50%",
-                  overflow: "hidden",
-                  background: `radial-gradient(circle at 35% 35%, ${lightenColor(orbColor(change1h))}, ${orbColor(change1h)})`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  border: isJustLaunched ? `1.5px solid ${C.match}` : isHot ? `1.5px solid ${C.hot}` : "1px solid rgba(255,255,255,0.1)",
-                  boxShadow: isJustLaunched ? `0 0 8px ${C.match}66` : isHot ? `0 0 8px ${C.hot}44` : "none",
-                }}>
-                  <TokenLogo token={t} size={28} />
-                </div>
+              {/* LEFT: Logo */}
+              <div style={{
+                width: 42, height: 42, borderRadius: 10, flexShrink: 0,
+                overflow: "hidden",
+                background: `radial-gradient(circle at 35% 35%, ${lightenColor(orbColor(change1h))}, ${orbColor(change1h)})`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                border: isJustLaunched ? "1.5px solid #30d158" : isHot ? "1.5px solid #ff2d55" : "1px solid rgba(255,255,255,0.08)",
+                boxShadow: isJustLaunched ? "0 0 10px rgba(48,209,88,0.4)" : isHot ? "0 0 10px rgba(255,45,85,0.3)" : "none",
+                position: "relative",
+              }}>
+                <TokenLogo token={t} size={42} />
                 {isEntering && (
                   <div style={{
-                    position: "absolute", top: -2, right: 2,
+                    position: "absolute", top: -3, right: -3,
                     width: 8, height: 8, borderRadius: "50%",
-                    background: C.match,
-                    boxShadow: `0 0 6px ${C.match}`,
-                    animation: "mt-live-dot 1s infinite",
+                    background: "#30d158",
+                    boxShadow: "0 0 6px #30d158",
                   }} />
                 )}
               </div>
 
-              {/* Name + symbol + badges */}
-              <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 800, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 90 }}>
-                    {t.symbol.length > 8 ? t.symbol.slice(0, 8) : t.symbol}
+              {/* CENTER: Name + meta */}
+              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                {/* Row 1: Symbol + badges */}
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{
+                    fontSize: 14, fontWeight: 900, color: "#e8e8f0",
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 100,
+                  }}>
+                    {t.symbol.length > 9 ? t.symbol.slice(0, 9) : t.symbol}
                   </span>
                   {isJustLaunched && (
-                    <span style={{ fontSize: 7, fontWeight: 900, padding: "1px 4px", borderRadius: 3, background: `${C.match}22`, color: C.match, border: `1px solid ${C.match}44`, flexShrink: 0 }}>NEW</span>
+                    <span style={{
+                      fontSize: 7, fontWeight: 900, padding: "1px 4px", borderRadius: 3,
+                      background: "rgba(48,209,88,0.15)", color: "#30d158",
+                      border: "1px solid rgba(48,209,88,0.3)", flexShrink: 0,
+                      letterSpacing: "0.05em",
+                    }}>NEW</span>
                   )}
                   {isHot && !isJustLaunched && (
-                    <span style={{ fontSize: 7, fontWeight: 900, padding: "1px 4px", borderRadius: 3, background: `${C.hot}22`, color: C.hot, border: `1px solid ${C.hot}44`, flexShrink: 0 }}>HOT</span>
+                    <span style={{
+                      fontSize: 7, fontWeight: 900, padding: "1px 4px", borderRadius: 3,
+                      background: "rgba(255,45,85,0.15)", color: "#ff2d55",
+                      border: "1px solid rgba(255,45,85,0.3)", flexShrink: 0,
+                    }}>HOT</span>
                   )}
                 </div>
-                <div style={{ fontSize: 9, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {t.name.slice(0, 16)}
+
+                {/* Row 2: Name */}
+                <div style={{
+                  fontSize: 10, color: "#6b6b80",
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 130,
+                }}>
+                  {t.name.slice(0, 18)}
+                </div>
+
+                {/* Row 3: Age + Vol + Txns */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                  <span style={{
+                    fontSize: 9, fontWeight: 700,
+                    color: isJustLaunched ? "#30d158" : "#6b6b80",
+                    background: isJustLaunched ? "rgba(48,209,88,0.1)" : "rgba(255,255,255,0.05)",
+                    padding: "1px 5px", borderRadius: 4,
+                  }}>{age}</span>
+                  <span style={{ fontSize: 9, color: "#6b6b80" }}>
+                    V {formatShort(t.volume1h || 0)}
+                  </span>
+                  <span style={{ fontSize: 9 }}>
+                    <span style={{ color: "#30d158" }}>{t.txns1h.buys}B</span>
+                    <span style={{ color: "#6b6b80" }}>/</span>
+                    <span style={{ color: "#ff2d55" }}>{t.txns1h.sells}S</span>
+                  </span>
                 </div>
               </div>
 
-              {/* Age */}
-              <div style={{ width: 44, textAlign: "right", fontSize: 10, color: isJustLaunched ? C.match : C.muted, fontWeight: isJustLaunched ? 800 : 400, flexShrink: 0 }}>
-                {age}
+              {/* RIGHT CENTER: Sparkline */}
+              <div style={{ flexShrink: 0, width: sparkW, height: sparkH, position: "relative" }}>
+                <svg width={sparkW} height={sparkH} style={{ overflow: "visible" }}>
+                  <defs>
+                    <linearGradient id={`sg-${t.address.slice(-6)}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={posColor} stopOpacity={0.3} />
+                      <stop offset="100%" stopColor={posColor} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <polygon
+                    points={`0,${sparkH} ${sparkPoints} ${sparkW},${sparkH}`}
+                    fill={`url(#sg-${t.address.slice(-6)})`}
+                  />
+                  <polyline
+                    points={sparkPoints}
+                    fill="none"
+                    stroke={posColor}
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
               </div>
 
-              {/* Price */}
-              <div style={{ width: 72, textAlign: "right", fontSize: 10, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono', monospace", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-                {formatPrice(t.price)}
-              </div>
-
-              {/* 1h % */}
-              <div style={{
-                width: 52, textAlign: "right", fontSize: 11, fontWeight: 800, flexShrink: 0,
-                color: change1h >= 0 ? C.match : C.hot,
-              }}>
-                {change1h >= 0 ? "+" : ""}{change1h.toFixed(1)}%
-              </div>
-
-              {/* Volume */}
-              <div style={{ width: 60, textAlign: "right", fontSize: 9, color: C.muted, flexShrink: 0 }}>
-                {formatShort(t.volume1h || 0)}
-              </div>
-
-              {/* MCap */}
-              <div style={{ width: 60, textAlign: "right", fontSize: 9, color: C.muted, flexShrink: 0 }}>
-                {t.marketCap > 0 ? formatShort(t.marketCap) : t.fdv > 0 ? formatShort(t.fdv) : "-"}
-              </div>
-
-              {/* Txns buys/sells with mini bar */}
-              <div style={{ width: 48, textAlign: "right", flexShrink: 0 }}>
-                <div style={{ fontSize: 8, color: C.muted, marginBottom: 2 }}>
-                  <span style={{ color: C.match }}>{t.txns1h.buys}</span>
-                  <span style={{ color: C.muted }}>/</span>
-                  <span style={{ color: C.hot }}>{t.txns1h.sells}</span>
+              {/* FAR RIGHT: MCap + % */}
+              <div style={{ flexShrink: 0, textAlign: "right", minWidth: 62 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#e8e8f0", marginBottom: 2 }}>
+                  {t.marketCap > 0 ? `$${formatShort(t.marketCap)}` : t.fdv > 0 ? `$${formatShort(t.fdv)}` : "-"}
+                </div>
+                <div style={{
+                  fontSize: 13, fontWeight: 900,
+                  color: posColor,
+                }}>
+                  {change1h >= 0 ? "+" : ""}{change1h.toFixed(1)}%
                 </div>
                 {/* Buy pressure bar */}
-                <div style={{ height: 3, borderRadius: 2, background: C.dim, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${bPct}%`, background: bPct > 50 ? C.match : C.hot, borderRadius: 2 }} />
+                <div style={{ height: 2, borderRadius: 1, background: "rgba(255,255,255,0.08)", marginTop: 4, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${bPct}%`, background: bPct >= 50 ? "#30d158" : "#ff2d55", borderRadius: 1 }} />
                 </div>
               </div>
             </div>
@@ -1412,24 +1440,28 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
 
         {/* Mobile column tab switcher */}
         <div className="mt-mobile-col-tabs" style={{
-          display: "none", padding: "0 12px 8px", gap: 4,
+          display: "none", borderBottom: "1px solid rgba(255,255,255,0.05)",
+          background: C.bg, flexShrink: 0,
         }}>
-          {columns.map(col => (
-            <button
-              key={col.id}
-              onClick={() => setMobileColTab(col.id)}
-              style={{
-                flex: 1, padding: "6px 0", borderRadius: 6,
-                border: mobileColTab === col.id ? `1px solid ${col.color}` : `1px solid ${C.border}`,
-                background: mobileColTab === col.id ? col.color + "20" : "transparent",
-                color: mobileColTab === col.id ? col.color : C.muted,
-                fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                letterSpacing: "0.06em",
-              }}
-            >
-              {col.label} ({col.tokens.length})
-            </button>
-          ))}
+          {columns.map(col => {
+            const isActive = mobileColTab === col.id;
+            const tabColor = col.id === "emerging" ? "#06b6d4" : col.id === "heating" ? "#ffd700" : "#30d158";
+            return (
+              <button
+                key={col.id}
+                onClick={() => setMobileColTab(col.id)}
+                style={{
+                  flex: 1, padding: "10px 4px", border: "none", cursor: "pointer",
+                  background: "transparent", fontFamily: "inherit",
+                  borderBottom: isActive ? `2px solid ${tabColor}` : "2px solid transparent",
+                  color: isActive ? tabColor : "#6b6b80",
+                  fontSize: 10, fontWeight: 800, letterSpacing: "0.08em",
+                }}
+              >
+                {col.label} ({col.tokens.length})
+              </button>
+            );
+          })}
         </div>
 
         {/* 3-column Photon token list layout */}
@@ -1456,28 +1488,18 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
               >
                 {/* Column header with glow */}
                 <div style={{
-                  padding: "12px 12px 8px",
-                  borderBottom: `1px solid ${C.border}`,
+                  padding: "10px 12px",
+                  borderBottom: "1px solid rgba(255,255,255,0.05)",
                   display: "flex", alignItems: "center", gap: 8,
-                  background: C.bg,
-                  position: "sticky", top: 0, zIndex: 10,
+                  position: "sticky", top: 0, background: "#0a0a0f", zIndex: 10,
                 }}>
-                  <div style={{
-                    width: 10, height: 10, borderRadius: "50%",
-                    background: col.color,
-                    boxShadow: `0 0 8px ${col.color}`,
-                    animation: "mt-live-dot 2s infinite",
-                  }} />
-                  <div style={{ fontSize: 11, fontWeight: 900, color: col.color, letterSpacing: "0.1em" }}>
-                    {col.label}
-                  </div>
-                  <div style={{ fontSize: 10, color: C.muted }}>
-                    {col.tokens.length}
-                  </div>
-                  <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 8, color: C.match }}>
-                    <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.match, animation: "mt-live-dot 1s infinite" }} />
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: col.color, boxShadow: `0 0 6px ${col.color}`, animation: "mt-live-dot 2s infinite" }} />
+                  <span style={{ fontSize: 11, fontWeight: 900, color: col.color, letterSpacing: "0.1em" }}>{col.label}</span>
+                  <span style={{ fontSize: 10, color: "#6b6b80" }}>{col.tokens.length}</span>
+                  <span style={{ marginLeft: "auto", fontSize: 8, color: "#30d158", display: "flex", alignItems: "center", gap: 3 }}>
+                    <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#30d158", display: "inline-block", animation: "mt-live-dot 1s infinite" }} />
                     LIVE
-                  </div>
+                  </span>
                 </div>
 
                 {/* Scrollable Photon rows */}
@@ -1499,27 +1521,18 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
                   {/* Column header with glow */}
                   <div style={{
-                    padding: "12px 12px 8px",
-                    borderBottom: `1px solid ${C.border}`,
+                    padding: "10px 12px",
+                    borderBottom: "1px solid rgba(255,255,255,0.05)",
                     display: "flex", alignItems: "center", gap: 8,
-                    background: C.bg,
+                    position: "sticky", top: 0, background: "#0a0a0f", zIndex: 10,
                   }}>
-                    <div style={{
-                      width: 10, height: 10, borderRadius: "50%",
-                      background: col.color,
-                      boxShadow: `0 0 8px ${col.color}`,
-                      animation: "mt-live-dot 2s infinite",
-                    }} />
-                    <div style={{ fontSize: 11, fontWeight: 900, color: col.color, letterSpacing: "0.1em" }}>
-                      {col.label}
-                    </div>
-                    <div style={{ fontSize: 10, color: C.muted }}>
-                      {col.tokens.length}
-                    </div>
-                    <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 8, color: C.match }}>
-                      <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.match, animation: "mt-live-dot 1s infinite" }} />
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: col.color, boxShadow: `0 0 6px ${col.color}`, animation: "mt-live-dot 2s infinite" }} />
+                    <span style={{ fontSize: 11, fontWeight: 900, color: col.color, letterSpacing: "0.1em" }}>{col.label}</span>
+                    <span style={{ fontSize: 10, color: "#6b6b80" }}>{col.tokens.length}</span>
+                    <span style={{ marginLeft: "auto", fontSize: 8, color: "#30d158", display: "flex", alignItems: "center", gap: 3 }}>
+                      <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#30d158", display: "inline-block", animation: "mt-live-dot 1s infinite" }} />
                       LIVE
-                    </div>
+                    </span>
                   </div>
 
                   {/* Scrollable Photon rows */}
