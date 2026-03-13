@@ -20,6 +20,7 @@ const SocialVerify = dynamic(() => import("@/components/social-verify"), { ssr: 
 const MeshFeed = dynamic(() => import("@/components/MeshFeed"), { ssr: false });
 const HuntTabView = dynamic(() => import("@/components/HuntTabView"), { ssr: false });
 const MeshTrade = dynamic(() => import("@/components/MeshTrade"), { ssr: false });
+const OnboardingWizard = dynamic(() => import("@/components/onboarding-wizard"), { ssr: false });
 import TabInfoBanner from "@/components/TabInfoBanner";
 
 const supabase = createClient(
@@ -669,10 +670,7 @@ export default function Dashboard(){
   },[view,orbTheme]);
 
   const[form,setForm]=useState({name:"",bio:"",industry:"",building:"",looking_for:"",location:"",website:"",x_handle:"",linkedin:"",avatar_url:"",agent_style:"professional",agent_instructions:""});
-  const[obStep,setObStep]=useState(1);
   const[showWalletDrop,setShowWalletDrop]=useState(false);
-  const obSteps=[{n:1,l:"Identity"},{n:2,l:"Brain"},{n:3,l:"Launch"}];
-  const obCanNext=obStep===1?!!(form.name):true;
 
   /* ── Auth + Load ── */
   useEffect(()=>{checkAuth();},[]);
@@ -1096,254 +1094,18 @@ export default function Dashboard(){
   );
 
   /* ══════════════════════════════════════════
-     ONBOARDING — 3-step wizard
+     ONBOARDING — new 7-screen immersive flow
      ══════════════════════════════════════════ */
 
   if(onboarding)return(
-    <div style={{minHeight:"100vh",background:"#0a0a0f",position:"relative",overflow:"hidden"}}>
-      <style>{`
-        nav.mm-global-nav{display:none!important}
-        @keyframes mmob-drift{0%{transform:translate(0,0) scale(1)}100%{transform:translate(25px,-20px) scale(1.05)}}
-        @keyframes mmob-drift2{0%{transform:translate(0,0) scale(1)}100%{transform:translate(-25px,20px) scale(1.05)}}
-        @keyframes mmob-slide-up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes mmob-shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
-      `}</style>
-
-      {/* Animated glow blobs */}
-      <div style={{position:"fixed",top:"-10%",right:"-5%",width:500,height:500,borderRadius:"50%",background:"radial-gradient(circle, rgba(99,102,241,0.07), transparent 70%)",filter:"blur(80px)",animation:"mmob-drift 14s ease-in-out infinite alternate",pointerEvents:"none",zIndex:0}}/>
-      <div style={{position:"fixed",bottom:"-10%",left:"-5%",width:500,height:500,borderRadius:"50%",background:"radial-gradient(circle, rgba(6,182,212,0.07), transparent 70%)",filter:"blur(80px)",animation:"mmob-drift2 14s ease-in-out infinite alternate",pointerEvents:"none",zIndex:0}}/>
-
-      <div style={{position:"relative",zIndex:1,maxWidth:520,margin:"0 auto",padding:"40px 20px"}}>
-        {/* Header */}
-        <div style={{textAlign:"center",marginBottom:28}}>
-          <MMLogo size={44}/>
-          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.15em",color:"#6b6b80",marginTop:8}}>Enter the Mesh</div>
-        </div>
-
-        {/* Step tab pills */}
-        <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:32,flexWrap:"wrap"}}>
-          {obSteps.map(s=>{
-            const isActive=s.n===obStep;
-            const isCompleted=s.n<obStep;
-            const isInactive=s.n>obStep;
-            return(
-              <button key={s.n} onClick={()=>{if(s.n<obStep)setObStep(s.n);}} style={{
-                display:"inline-flex",alignItems:"center",gap:8,padding:"10px 20px",borderRadius:50,fontSize:13,fontWeight:600,cursor:s.n<obStep?"pointer":"default",transition:"all 0.3s",fontFamily:"inherit",
-                background:isActive?"rgba(99,102,241,0.15)":isCompleted?"rgba(48,209,88,0.1)":"transparent",
-                borderWidth:1,borderStyle:"solid",
-                borderColor:isActive?"rgba(99,102,241,0.5)":isCompleted?"rgba(48,209,88,0.4)":"rgba(255,255,255,0.07)",
-                color:isActive?"#6366f1":isCompleted?"#30d158":"#6b6b80",
-              }}>
-                {isCompleted?(
-                  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                ):s.n===1?(
-                  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx={12} cy={8} r={4}/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
-                ):s.n===2?(
-                  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x={4} y={4} width={16} height={16} rx={2}/><line x1={9} y1={9} x2={9.01} y2={9}/><line x1={15} y1={9} x2={15.01} y2={9}/><line x1={9} y1={15} x2={9.01} y2={15}/><line x1={15} y1={15} x2={15.01} y2={15}/></svg>
-                ):(
-                  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 3 0 3 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-3 0-3"/></svg>
-                )}
-                {s.l}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Form card */}
-        <div style={{background:"rgba(13,13,20,0.85)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:24,padding:"36px 32px",width:"100%"}}>
-          <div key={obStep} style={{animation:"mmob-slide-up 0.35s ease",display:"flex",flexDirection:"column",gap:16}}>
-
-          {/* ═══ STEP 1: Identity (merged Profile + Industry & Goals) ═══ */}
-          {obStep===1&&(<>
-            <div style={{textAlign:"center"}}>
-              <label style={{cursor:"pointer",display:"inline-block"}}>
-                <input type="file" accept="image/*" onChange={uploadPhoto} style={{display:"none"}}/>
-                {form.avatar_url?<img src={form.avatar_url} style={{width:88,height:88,borderRadius:"50%",objectFit:"cover",border:`3px solid #6366f1`}}/>:
-                <div style={{width:88,height:88,borderRadius:"50%",background:"linear-gradient(135deg,rgba(99,102,241,0.08),rgba(6,182,212,0.06))",border:"2px dashed rgba(99,102,241,0.35)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}><Camera size={24} color="#6366f1"/><span style={{fontSize:8,color:"#6b6b80",fontWeight:600}}>OPTIONAL</span></div>}
-                <div style={{fontSize:11,color:form.avatar_url?"#30d158":"#6366f1",marginTop:6,fontWeight:600}}>{form.avatar_url?"Looking good":"Tap to upload"}</div>
-              </label>
-            </div>
-
-            <div>
-              <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:"#6b6b80",marginBottom:8,display:"block"}}>Username *</label>
-              <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Choose a unique username" style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"13px 16px",color:"#e8e8f0",fontSize:14,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color 0.2s, box-shadow 0.2s"}}/>
-            </div>
-
-            <div>
-              <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:"#6b6b80",marginBottom:8,display:"block"}}>One-liner Bio</label>
-              <textarea value={form.bio} onChange={e=>setForm(f=>({...f,bio:e.target.value}))} placeholder="e.g., Building the future of AI matchmaking" rows={2} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"13px 16px",color:"#e8e8f0",fontSize:14,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color 0.2s, box-shadow 0.2s",resize:"vertical"}}/>
-            </div>
-
-            <div>
-              <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:"#6b6b80",marginBottom:8,display:"block"}}>Industry</label>
-              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                {INDUSTRIES.map(ind=>{
-                  const sel=form.industry===ind;
-                  const clr="#6366f1";
-                  return <button key={ind} onClick={()=>setForm(f=>({...f,industry:ind}))} style={{padding:"8px 14px",borderRadius:50,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",textTransform:"capitalize",background:sel?`${clr}22`:"transparent",border:`1px solid ${sel?clr:"rgba(255,255,255,0.07)"}`,color:sel?clr:"#6b6b80"}}>{ind}</button>;
-                })}
-              </div>
-            </div>
-
-            <div>
-              <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:"#6b6b80",marginBottom:8,display:"block"}}>What I'm Building</label>
-              <textarea value={form.building} onChange={e=>setForm(f=>({...f,building:e.target.value}))} placeholder="Describe your project, startup, or business..." rows={2} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"13px 16px",color:"#e8e8f0",fontSize:14,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color 0.2s, box-shadow 0.2s",resize:"vertical"}}/>
-            </div>
-
-            <div>
-              <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:"#6b6b80",marginBottom:8,display:"block"}}>Who I'm Looking For</label>
-              <textarea value={form.looking_for} onChange={e=>setForm(f=>({...f,looking_for:e.target.value}))} placeholder="Co-founders, engineers, investors, partnerships, mentors..." rows={2} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"13px 16px",color:"#e8e8f0",fontSize:14,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color 0.2s, box-shadow 0.2s",resize:"vertical"}}/>
-            </div>
-
-            <div style={{display:"flex",gap:12}}>
-              <div style={{flex:1}}>
-                <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:"#6b6b80",marginBottom:8,display:"block"}}>Location</label>
-                <input value={form.location} onChange={e=>setForm(f=>({...f,location:e.target.value}))} placeholder="City, Country" style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"13px 16px",color:"#e8e8f0",fontSize:14,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color 0.2s, box-shadow 0.2s"}}/>
-              </div>
-              <div style={{flex:1}}>
-                <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:"#6b6b80",marginBottom:8,display:"block"}}>Website</label>
-                <input value={form.website} onChange={e=>setForm(f=>({...f,website:e.target.value}))} placeholder="https://..." style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"13px 16px",color:"#e8e8f0",fontSize:14,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color 0.2s, box-shadow 0.2s"}}/>
-              </div>
-            </div>
-
-            <div style={{display:"flex",gap:12}}>
-              <div style={{flex:1}}>
-                <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:"#6b6b80",marginBottom:8,display:"block"}}>X / Twitter</label>
-                <input value={form.x_handle} onChange={e=>setForm(f=>({...f,x_handle:e.target.value}))} placeholder="@handle" style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"13px 16px",color:"#e8e8f0",fontSize:14,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color 0.2s, box-shadow 0.2s"}}/>
-              </div>
-              <div style={{flex:1}}>
-                <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:"#6b6b80",marginBottom:8,display:"block"}}>LinkedIn</label>
-                <input value={form.linkedin} onChange={e=>setForm(f=>({...f,linkedin:e.target.value}))} placeholder="linkedin.com/in/..." style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"13px 16px",color:"#e8e8f0",fontSize:14,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color 0.2s, box-shadow 0.2s"}}/>
-              </div>
-            </div>
-          </>)}
-
-          {/* ═══ STEP 2: Brain (same as old step 3) ═══ */}
-          {obStep===2&&(<>
-            <div style={{background:"rgba(13,13,20,0.6)",borderRadius:14,padding:20,border:"1px solid rgba(99,102,241,0.27)"}}>
-              <div style={{fontSize:11,color:"#6366f1",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
-                <Cpu size={12}/>Connect Your AI Brain
-              </div>
-              <div style={{fontSize:12,color:"#6b6b80",marginBottom:16,lineHeight:1.6}}>Your agent needs an AI to think. Connect your own API key — you pay your provider directly. MishMesh takes zero cut.</div>
-
-              <div style={{marginBottom:12}}>
-                <div style={{fontSize:11,color:"#6b6b80",marginBottom:6}}>Provider</div>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                  {[
-                    {id:"openai",name:"OpenAI",cost:"~$0.30"},
-                    {id:"anthropic",name:"Anthropic",cost:"~$3.00"},
-                    {id:"google",name:"Google",cost:"~$0.15"},
-                    {id:"xai",name:"xAI (Grok)",cost:"~$0.30"},
-                    {id:"groq",name:"Groq",cost:"~$0.12"},
-                    {id:"openrouter",name:"OpenRouter",cost:"~$0.30"},
-                  ].map((p)=>(
-                    <button key={p.id} onClick={()=>{const defaults:any={"openai":"gpt-4o-mini","anthropic":"claude-sonnet-4-20250514","google":"gemini-2.0-flash","xai":"grok-3-mini","groq":"llama-3.1-70b-versatile","openrouter":"openai/gpt-4o-mini","custom":"default"};setAiForm(f=>({...f,provider:p.id,model:defaults[p.id]||"gpt-4o-mini"}));setAiTestResult(null);}}
-                      style={{padding:"10px 16px",borderRadius:10,border:`1px solid ${aiForm.provider===p.id?"#6366f1":"rgba(255,255,255,0.07)"}`,background:aiForm.provider===p.id?"rgba(99,102,241,0.08)":"#1a1a24",cursor:"pointer",fontSize:12,fontWeight:aiForm.provider===p.id?700:400,color:aiForm.provider===p.id?"#6366f1":"#6b6b80",transition:"all 0.2s",fontFamily:"inherit"}}>
-                      {p.name}<span style={{fontSize:9,display:"block",color:"#2a2a3a",marginTop:2}}>{p.cost}/match</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{marginBottom:12}}>
-                <label style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:"#6b6b80",marginBottom:8,display:"block"}}>API Key</label>
-                <input type="password" value={aiForm.apiKey} onChange={e=>setAiForm(f=>({...f,apiKey:e.target.value}))} placeholder={aiForm.provider==="openai"?"sk-proj-...":aiForm.provider==="anthropic"?"sk-ant-...":"Your API key"}
-                  style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"13px 16px",color:"#e8e8f0",fontSize:13,fontFamily:"monospace",outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color 0.2s, box-shadow 0.2s"}}/>
-              </div>
-
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={testAiConnection} disabled={!aiForm.apiKey||aiTesting}
-                  style={{flex:1,padding:"10px 16px",borderRadius:8,border:"1px solid rgba(255,255,255,0.07)",background:"#1a1a24",cursor:aiForm.apiKey?"pointer":"not-allowed",color:aiForm.apiKey?"#e8e8f0":"#2a2a3a",fontSize:12,fontWeight:600,opacity:aiTesting?0.5:1,fontFamily:"inherit"}}>
-                  {aiTesting?"Testing...":"Test Connection"}
-                </button>
-                {aiForm.apiKey&&aiTestResult?.success&&(
-                  <button onClick={saveAiSettings} style={{flex:1,padding:"10px 16px",borderRadius:8,border:"none",background:"#6366f1",cursor:"pointer",color:"white",fontSize:12,fontWeight:600,fontFamily:"inherit"}}>
-                    Save & Activate
-                  </button>
-                )}
-              </div>
-              {aiTestResult&&(
-                <div style={{marginTop:10,padding:10,borderRadius:8,background:aiTestResult.success?"rgba(48,209,88,0.08)":"rgba(255,45,85,0.08)",border:`1px solid ${aiTestResult.success?"rgba(48,209,88,0.2)":"rgba(255,45,85,0.2)"}`,fontSize:11,color:aiTestResult.success?"#30d158":"#ff2d55"}}>
-                  {aiTestResult.success?`Connected! Response: "${aiTestResult.message}"`:`${aiTestResult.message}`}
-                </div>
-              )}
-              <div style={{fontSize:10,color:"#2a2a3a",marginTop:10,display:"flex",alignItems:"center",gap:4}}><Shield size={10}/>Stored encrypted. Your agent uses your key directly.</div>
-            </div>
-            <div style={{textAlign:"center",fontSize:12,color:"#2a2a3a",padding:"8px 0"}}>
-              No API key? No worries — you can add one later in your profile.
-            </div>
-          </>)}
-
-          {/* ═══ STEP 3: Launch — agent identity card ═══ */}
-          {obStep===3&&(<>
-            {/* Agent identity card with gradient border */}
-            <div style={{padding:2,borderRadius:20,background:"linear-gradient(135deg,#6366f1,#06b6d4)"}}>
-              <div style={{background:"#0d0d14",borderRadius:18,padding:"28px 24px",display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
-                {/* Avatar or initials */}
-                {form.avatar_url?(
-                  <img src={form.avatar_url} style={{width:72,height:72,borderRadius:"50%",objectFit:"cover",border:"2px solid rgba(99,102,241,0.4)"}}/>
-                ):(
-                  <div style={{width:72,height:72,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#06b6d4)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,fontWeight:800,color:"white"}}>{(form.name||"?")[0].toUpperCase()}</div>
-                )}
-                {/* Display name */}
-                <div style={{fontSize:20,fontWeight:800,color:"#e8e8f0"}}>{form.name||"Your Agent"}</div>
-                {/* Industry badge */}
-                {form.industry&&(
-                  <span style={{padding:"5px 14px",borderRadius:50,background:"rgba(99,102,241,0.12)",border:"1px solid rgba(99,102,241,0.3)",color:"#6366f1",fontSize:12,fontWeight:600}}>{form.industry}</span>
-                )}
-                {/* Bio */}
-                {form.bio&&<div style={{fontSize:13,color:"#6b6b80",textAlign:"center",lineHeight:1.5,maxWidth:360}}>{form.bio}</div>}
-                {/* Building excerpt */}
-                {form.building&&(
-                  <div style={{fontSize:12,color:"#e8e8f0",textAlign:"center",lineHeight:1.5}}>
-                    <span style={{color:"#6b6b80"}}>Building: </span>{form.building.length>80?form.building.slice(0,80)+"...":form.building}
-                  </div>
-                )}
-                {/* Brain status */}
-                <div style={{fontSize:12,fontWeight:600,color:aiTestResult?.success?"#30d158":"#6b6b80",display:"flex",alignItems:"center",gap:6}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:aiTestResult?.success?"#30d158":"#6b6b80"}}/>
-                  {aiTestResult?.success?`${aiForm.provider.charAt(0).toUpperCase()+aiForm.provider.slice(1)} connected`:"No brain connected — add later"}
-                </div>
-              </div>
-            </div>
-
-            {/* What happens next */}
-            <div style={{display:"flex",flexDirection:"column",gap:14,marginTop:8}}>
-              {[
-                {color:"#6366f1",text:"Your agent enters the mesh and starts finding matches"},
-                {color:"#06b6d4",text:"You'll get notified when a compatible agent is found"},
-                {color:"#30d158",text:"Trade, connect, and grow — all through MishMesh"},
-              ].map((item,i)=>(
-                <div key={i} style={{display:"flex",alignItems:"flex-start",gap:12}}>
-                  <div style={{width:10,height:10,borderRadius:"50%",background:item.color,marginTop:3,flexShrink:0}}/>
-                  <div style={{fontSize:13,color:"#e8e8f0",lineHeight:1.5}}>{item.text}</div>
-                </div>
-              ))}
-            </div>
-          </>)}
-
-          {/* Navigation buttons */}
-          <div style={{display:"flex",gap:10,marginTop:8}}>
-            {obStep>1&&(
-              <button onClick={()=>setObStep(s=>s-1)} style={{flex:1,padding:14,borderRadius:12,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"#e8e8f0",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
-                Back
-              </button>
-            )}
-            {obStep<3?(
-              <button onClick={()=>setObStep(s=>s+1)} disabled={!obCanNext} style={{flex:2,padding:14,borderRadius:12,border:"none",background:"linear-gradient(135deg,#6366f1,#a855f7)",color:"white",fontSize:15,fontWeight:700,cursor:obCanNext?"pointer":"not-allowed",fontFamily:"inherit",opacity:obCanNext?1:0.5,transition:"opacity 0.2s"}}>
-                {obStep===2&&!aiForm.apiKey?"Skip for now":"Continue"}
-              </button>
-            ):(
-              <button onClick={saveProfile} disabled={!form.name} style={{flex:2,padding:14,borderRadius:12,border:"none",background:"linear-gradient(135deg,#30d158,#06b6d4)",color:"white",fontSize:15,fontWeight:700,cursor:form.name?"pointer":"not-allowed",fontFamily:"inherit",opacity:form.name?1:0.5,transition:"opacity 0.2s"}}>
-                Launch My Agent
-              </button>
-            )}
-          </div>
-
-          </div>
-        </div>
-      </div>
-    </div>
+    <OnboardingWizard
+      userId={user?.id || ""}
+      walletAddress={wallet?.wallet_address || user?.wallet_address || ""}
+      onComplete={async () => {
+        setOnboarding(false);
+        window.location.reload();
+      }}
+    />
   );
 
   /* ══════════════════════════════════════════
