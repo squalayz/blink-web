@@ -471,9 +471,9 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
 
   return (
     <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 100,
+      position: 'relative',
+      width: '100%',
+      minHeight: '100%',
       background: COLORS.bg,
       overflow: 'hidden',
       display: 'flex',
