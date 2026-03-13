@@ -684,12 +684,12 @@ function WalletScreen({ state, walletAddress, onComplete }: {
     setSaving(true);
     setError("");
     try {
-      // Save profile
-      await fetch("/api/wallet", {
+      // Save profile + mark onboarded: true
+      const profileRes = await fetch("/api/wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "onboard",
+          action: "complete_onboarding",
           name: state.userName,
           industry: state.industry,
           goal: state.goal,
@@ -697,18 +697,10 @@ function WalletScreen({ state, walletAddress, onComplete }: {
         }),
       });
 
-      await fetch("/api/match", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "update_profile",
-          name: state.userName,
-          industry: state.industry,
-          goal: state.goal,
-          agent_name: state.agentName,
-          onboarded: true,
-        }),
-      });
+      if (!profileRes.ok) {
+        const d = await profileRes.json();
+        throw new Error(d.error || "Failed to save profile");
+      }
 
       // Save AI key if provided
       if (state.aiApiKey && !state.skippedBrain) {
