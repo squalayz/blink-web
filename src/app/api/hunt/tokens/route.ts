@@ -1,10 +1,7 @@
-// ══════════════════════════════════════════════════════════════
-// MishMesh Hunt — Token Discovery API
-// Fetches trending tokens per-chain from DexScreener public API
-// No API key required
-// ══════════════════════════════════════════════════════════════
-
 import { NextRequest, NextResponse } from "next/server";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 interface TokenResult {
   address: string;
@@ -26,58 +23,53 @@ interface TokenResult {
   score: number;
   tags: string[];
   pricePoints: number[];
+  isNew: boolean;
+  ageMinutes: number;
 }
 
 const ALLOWED_CHAINS = new Set(["solana", "base", "ethereum", "bsc", "arbitrum"]);
+const CHAIN_ALIASES: Record<string, string> = { eth: "ethereum", arb: "arbitrum" };
+function normalizeChain(c: string): string { return CHAIN_ALIASES[c] || c; }
 
-// DexScreener chain ID aliases
-const CHAIN_ALIASES: Record<string, string> = {
-  eth: "ethereum",
-  arb: "arbitrum",
-};
-
-function normalizeChain(c: string): string {
-  return CHAIN_ALIASES[c] || c;
+function buildPricePoints(current: number, pc1h: number, pc6h: number, pc24h: number): number[] {
+  if (current <= 0) return [0,0,0,0,0,0,0];
+  const p24h = current / (1 + pc24h / 100);
+  const p6h = current / (1 + pc6h / 100);
+  const p1h = current / (1 + pc1h / 100);
+  return [p24h, p24h+(p6h-p24h)*0.33, p24h+(p6h-p24h)*0.67, p6h, p6h+(p1h-p6h)*0.5, p1h, current];
 }
 
-// DexScreener network slug for the trending/new pools endpoint
-const CHAIN_NETWORK: Record<string, string> = {
-  base: "base",
-  solana: "solana",
-  ethereum: "ethereum",
-  bsc: "bsc",
-  arbitrum: "arbitrum",
-};
-
-function scoreToken(token: TokenResult, maxVol: number, maxTxns: number): number {
-  const volScore = maxVol > 0 ? Math.min(token.volume1h / maxVol, 1) * 100 : 0;
-  const liqCapped = Math.min(token.liquidity, 1_000_000);
-  const liqScore = liqCapped > 0 ? (Math.log10(liqCapped) / 6) * 100 : 0;
-  const pcScore = Math.min(Math.max(token.priceChange1h, 0) / 50, 1) * 100;
-  const txTotal = token.txns1h.buys + token.txns1h.sells;
-  const txScore = maxTxns > 0 ? Math.min(txTotal / maxTxns, 1) * 100 : 0;
-  return Math.round(volScore * 0.3 + liqScore * 0.2 + pcScore * 0.25 + txScore * 0.25);
+function scoreToken(t: TokenResult, maxVol: number, maxTxns: number): number {
+  const volScore = maxVol > 0 ? Math.min(t.volume1h / maxVol, 1) * 30 : 0;
+  const liqCapped = Math.min(t.liquidity, 1_000_000);
+  const liqScore = liqCapped > 0 ? (Math.log10(liqCapped) / 6) * 20 : 0;
+  const pcScore = Math.min(Math.max(t.priceChange1h, 0) / 50, 1) * 25;
+  const txTotal = t.txns1h.buys + t.txns1h.sells;
+  const txScore = maxTxns > 0 ? Math.min(txTotal / maxTxns, 1) * 25 : 0;
+  return Math.round(volScore + liqScore + pcScore + txScore);
 }
 
-function autoTag(token: TokenResult): string[] {
+function autoTag(t: TokenResult): string[] {
   const tags: string[] = [];
-  const age = Date.now() - (token.pairCreatedAt || 0);
-  const volLiqRatio = token.liquidity > 0 ? token.volume1h / token.liquidity : 0;
-  if (token.score >= 85) tags.push("Alpha Drop");
-  if (token.score >= 75 && token.priceChange1h > 10) tags.push("Breakout Ready");
-  if (age < 24 * 60 * 60 * 1000 && token.pairCreatedAt > 0) tags.push("New Runner");
-  if (token.score >= 70 && volLiqRatio > 2) tags.push("Whale Flow");
-  if (token.score < 40) tags.push("Cooling Off");
+  const volLiqRatio = t.liquidity > 0 ? t.volume1h / t.liquidity : 0;
+  if (t.ageMinutes < 60) tags.push("JUST LAUNCHED");
+  else if (t.ageMinutes < 360) tags.push("NEW");
+  if (t.score >= 80) tags.push("HOT");
+  if (t.priceChange1h > 20) tags.push("PUMPING");
+  if (volLiqRatio > 3) tags.push("WHALE");
+  if (t.txns1h.buys > t.txns1h.sells * 1.5) tags.push("BUYING PRESSURE");
   return tags;
 }
 
-function mapPair(p: any): TokenResult | null {
+function mapDexPair(p: any): TokenResult | null {
   if (!p?.baseToken?.address || !p?.chainId) return null;
   const txns = p.txns?.h1 || { buys: 0, sells: 0 };
   const pc1h = parseFloat(p.priceChange?.h1 || "0");
   const pc6h = parseFloat(p.priceChange?.h6 || "0");
   const pc24h = parseFloat(p.priceChange?.h24 || "0");
   const curPrice = parseFloat(p.priceUsd || "0");
+  const pairCreatedAt = p.pairCreatedAt || 0;
+  const ageMinutes = pairCreatedAt > 0 ? Math.floor((Date.now() - pairCreatedAt) / 60000) : 99999;
   return {
     address: p.baseToken.address,
     symbol: p.baseToken?.symbol || "???",
@@ -89,86 +81,137 @@ function mapPair(p: any): TokenResult | null {
     volume1h: parseFloat(p.volume?.h1 || "0"),
     volume24h: parseFloat(p.volume?.h24 || "0"),
     liquidity: parseFloat(p.liquidity?.usd || "0"),
-    fdv: parseFloat(p.fdv || p.info?.fdv || "0"),
+    fdv: parseFloat(p.fdv || "0"),
     marketCap: parseFloat(p.marketCap || "0"),
     txns1h: { buys: txns.buys || 0, sells: txns.sells || 0 },
-    pairCreatedAt: p.pairCreatedAt || 0,
+    pairCreatedAt,
     imageUrl: p.info?.imageUrl || p.info?.header || p.baseToken?.logoURI || null,
     url: p.url || `https://dexscreener.com/${p.chainId}/${p.pairAddress}`,
     score: 0,
     tags: [],
     pricePoints: buildPricePoints(curPrice, pc1h, pc6h, pc24h),
+    isNew: ageMinutes < 1440,
+    ageMinutes,
   };
 }
 
-// Fetch trending pairs for a specific chain using GeckoTerminal trending pools
-async function fetchTrendingForChain(chain: string, perChain: number): Promise<any[]> {
+async function fetchNewPairs(chain: string, limit: number): Promise<any[]> {
   const results: any[] = [];
 
   try {
-    // Strategy 1: DexScreener search for top volume pairs on this chain
-    const searchRes = await fetch(
-      `https://api.dexscreener.com/latest/dex/search?q=${chain}`,
-      { next: { revalidate: 30 } }
+    const res = await fetch(
+      `https://api.geckoterminal.com/api/v2/networks/${chain}/new_pools?page=1`,
+      { cache: "no-store" }
     );
-    if (searchRes.ok) {
-      const data = await searchRes.json();
+    if (res.ok) {
+      const data = await res.json();
+      const pools = data?.data || [];
+      for (const pool of pools.slice(0, limit)) {
+        const attrs = pool.attributes || {};
+        const baseSymbol = attrs.name?.split(" / ")[0] || "???";
+        const relId = pool.relationships?.base_token?.data?.id || "";
+        const addr = relId.includes("_") ? relId.split("_").slice(1).join("_") : relId;
+        if (!addr) continue;
+        const createdAt = attrs.pool_created_at ? new Date(attrs.pool_created_at).getTime() : 0;
+        results.push({
+          baseToken: { address: addr, symbol: baseSymbol, name: attrs.name?.split(" / ")[0] || "" },
+          chainId: chain,
+          priceUsd: attrs.base_token_price_usd || "0",
+          priceChange: {
+            h1: attrs.price_change_percentage?.h1 || "0",
+            h6: attrs.price_change_percentage?.h6 || "0",
+            h24: attrs.price_change_percentage?.h24 || "0",
+          },
+          volume: {
+            h1: String(Number(attrs.volume_usd?.h1 || 0)),
+            h24: attrs.volume_usd?.h24 || "0",
+          },
+          liquidity: { usd: attrs.reserve_in_usd || "0" },
+          txns: {
+            h1: {
+              buys: Number(attrs.transactions?.h1?.buys || attrs.transactions?.h24?.buys || 0),
+              sells: Number(attrs.transactions?.h1?.sells || attrs.transactions?.h24?.sells || 0),
+            },
+          },
+          pairCreatedAt: createdAt,
+          info: { imageUrl: null },
+          url: `https://dexscreener.com/${chain}/${addr}`,
+        });
+      }
+    }
+  } catch { /* continue */ }
+
+  return results;
+}
+
+async function fetchGainers(chain: string, limit: number): Promise<any[]> {
+  const results: any[] = [];
+
+  try {
+    const res = await fetch(
+      `https://api.dexscreener.com/latest/dex/search?q=${chain}`,
+      { cache: "no-store" }
+    );
+    if (res.ok) {
+      const data = await res.json();
       const pairs = (data?.pairs || [])
-        .filter((p: any) => p.chainId === chain)
-        .sort((a: any, b: any) => parseFloat(b.volume?.h24 || "0") - parseFloat(a.volume?.h24 || "0"))
-        .slice(0, perChain);
+        .filter((p: any) => p.chainId === chain && parseFloat(p.liquidity?.usd || "0") > 5000)
+        .sort((a: any, b: any) => parseFloat(b.priceChange?.h1 || "0") - parseFloat(a.priceChange?.h1 || "0"))
+        .slice(0, limit);
       results.push(...pairs);
     }
   } catch { /* continue */ }
 
-  // Strategy 2: GeckoTerminal trending pools for this chain (always returns chain-specific results)
-  if (results.length < perChain) {
-    try {
-      const network = CHAIN_NETWORK[chain] || chain;
-      const gtRes = await fetch(
-        `https://api.geckoterminal.com/api/v2/networks/${network}/trending_pools?page=1`,
-        { next: { revalidate: 30 } }
-      );
-      if (gtRes.ok) {
-        const gtData = await gtRes.json();
-        const pools = gtData?.data || [];
-        for (const pool of pools.slice(0, perChain)) {
-          const attrs = pool.attributes || {};
-          const baseToken = attrs.base_token_price_usd ? {
-            address: pool.relationships?.base_token?.data?.id?.split("_")[1] || pool.id,
-            symbol: attrs.name?.split(" / ")[0] || "???",
-            name: attrs.name?.split(" / ")[0] || "",
-          } : null;
-          if (!baseToken) continue;
+  try {
+    const res = await fetch("https://api.dexscreener.com/token-boosts/top/v1", { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      const boosted = (Array.isArray(data) ? data : [])
+        .filter((t: any) => t.chainId === chain)
+        .slice(0, 10)
+        .map((t: any) => t.tokenAddress);
 
-          results.push({
-            baseToken,
-            chainId: chain,
-            priceUsd: attrs.base_token_price_usd,
-            priceChange: {
-              h1: attrs.price_change_percentage?.h1 || "0",
-              h6: attrs.price_change_percentage?.h6 || "0",
-              h24: attrs.price_change_percentage?.h24 || "0",
-            },
-            volume: {
-              h1: String((attrs.volume_usd?.h24 || 0) / 24), // estimate 1h from 24h
-              h24: attrs.volume_usd?.h24 || "0",
-            },
-            liquidity: { usd: attrs.reserve_in_usd || "0" },
-            txns: {
-              h1: {
-                buys: Math.floor((attrs.transactions?.h1?.buys || attrs.transactions?.h24?.buys || 0)),
-                sells: Math.floor((attrs.transactions?.h1?.sells || attrs.transactions?.h24?.sells || 0)),
-              },
-            },
-            pairCreatedAt: attrs.pool_created_at ? new Date(attrs.pool_created_at).getTime() : 0,
-            info: { imageUrl: null },
-            url: `https://dexscreener.com/${chain}/${pool.relationships?.base_token?.data?.id?.split("_")[1] || ""}`,
-          });
+      if (boosted.length > 0) {
+        const pairRes = await fetch(
+          `https://api.dexscreener.com/tokens/v1/${chain}/${boosted.join(",")}`,
+          { cache: "no-store" }
+        );
+        if (pairRes.ok) {
+          const pairData = await pairRes.json();
+          const pairs = Array.isArray(pairData) ? pairData : (pairData?.pairs || []);
+          results.push(...pairs.filter((p: any) => p.chainId === chain));
         }
       }
-    } catch { /* continue */ }
-  }
+    }
+  } catch { /* continue */ }
+
+  try {
+    const res = await fetch(
+      `https://api.geckoterminal.com/api/v2/networks/${chain}/trending_pools?page=1`,
+      { cache: "no-store" }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      for (const pool of (data?.data || []).slice(0, 15)) {
+        const attrs = pool.attributes || {};
+        const relId = pool.relationships?.base_token?.data?.id || "";
+        const addr = relId.includes("_") ? relId.split("_").slice(1).join("_") : relId;
+        if (!addr) continue;
+        results.push({
+          baseToken: { address: addr, symbol: attrs.name?.split(" / ")[0] || "???", name: attrs.name?.split(" / ")[0] || "" },
+          chainId: chain,
+          priceUsd: attrs.base_token_price_usd || "0",
+          priceChange: { h1: attrs.price_change_percentage?.h1 || "0", h6: attrs.price_change_percentage?.h6 || "0", h24: attrs.price_change_percentage?.h24 || "0" },
+          volume: { h1: String(Number(attrs.volume_usd?.h1 || 0)), h24: attrs.volume_usd?.h24 || "0" },
+          liquidity: { usd: attrs.reserve_in_usd || "0" },
+          txns: { h1: { buys: Number(attrs.transactions?.h1?.buys || 0), sells: Number(attrs.transactions?.h1?.sells || 0) } },
+          pairCreatedAt: attrs.pool_created_at ? new Date(attrs.pool_created_at).getTime() : 0,
+          info: { imageUrl: null },
+          url: `https://dexscreener.com/${chain}/${addr}`,
+        });
+      }
+    }
+  } catch { /* continue */ }
 
   return results;
 }
@@ -177,118 +220,69 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const chainsParam = searchParams.get("chains") || "base,solana,ethereum,bsc,arbitrum";
-    const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
+    const limit = Math.min(parseInt(searchParams.get("limit") || "60"), 120);
     const query = searchParams.get("q") || "";
     const chains = chainsParam.split(",").map(normalizeChain).filter(c => ALLOWED_CHAINS.has(c));
 
     let rawPairs: any[] = [];
 
     if (query) {
-      // ── Search mode: query across all chains ──
       const res = await fetch(
         `https://api.dexscreener.com/latest/dex/search?q=${encodeURIComponent(query)}`,
-        { next: { revalidate: 15 } }
+        { cache: "no-store" }
       );
       if (res.ok) {
         const data = await res.json();
         rawPairs = (data?.pairs || []).filter((p: any) => chains.includes(p.chainId));
       }
     } else {
-      // ── Trending mode: fetch EACH chain independently in parallel ──
-      // This guarantees Base tokens always show up when Base is selected
-      const perChain = Math.ceil(limit / chains.length) + 5; // a few extra for dedup buffer
+      const perChain = Math.ceil(limit / chains.length) + 10;
 
-      const chainFetches = chains.map(async (chain) => {
-        const pairs: any[] = [];
-
-        // Primary: DexScreener boosted tokens filtered to this chain
-        try {
-          const boostRes = await fetch("https://api.dexscreener.com/token-boosts/top/v1", {
-            next: { revalidate: 30 },
-          });
-          if (boostRes.ok) {
-            const boostData = await boostRes.json();
-            const boostedForChain = (Array.isArray(boostData) ? boostData : [])
-              .filter((t: any) => t.chainId === chain)
-              .slice(0, 15)
-              .map((t: any) => t.tokenAddress);
-
-            if (boostedForChain.length > 0) {
-              const addrStr = boostedForChain.join(",");
-              const pairRes = await fetch(
-                `https://api.dexscreener.com/tokens/v1/${chain}/${addrStr}`,
-                { next: { revalidate: 30 } }
-              );
-              if (pairRes.ok) {
-                const pairData = await pairRes.json();
-                const pairsArr = Array.isArray(pairData) ? pairData : pairData?.pairs || [];
-                pairs.push(...pairsArr.filter((p: any) => p.chainId === chain));
-              }
-            }
-          }
-        } catch { /* continue to fallback */ }
-
-        // Fallback: if we didn't get enough pairs, use GeckoTerminal trending for this chain
-        if (pairs.length < 3) {
-          const fallback = await fetchTrendingForChain(chain, perChain);
-          pairs.push(...fallback.filter((p: any) => p.chainId === chain));
-        }
-
-        return pairs;
+      const fetches = chains.map(async (chain) => {
+        const [newPairs, gainers] = await Promise.all([
+          fetchNewPairs(chain, perChain),
+          fetchGainers(chain, perChain),
+        ]);
+        return [...newPairs, ...gainers];
       });
 
-      const allResults = await Promise.all(chainFetches);
-      rawPairs = allResults.flat();
+      const all = await Promise.all(fetches);
+      rawPairs = all.flat();
     }
 
-    // Deduplicate by chain+address, enforce requested chains
     const seen = new Set<string>();
-    const filtered = rawPairs
-      .filter((p: any) => {
-        if (!p?.baseToken?.address) return false;
-        if (!chains.includes(p.chainId)) return false;
-        const key = `${p.chainId}-${p.baseToken.address}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .slice(0, limit);
+    const filtered = rawPairs.filter((p: any) => {
+      if (!p?.baseToken?.address) return false;
+      if (!chains.includes(p.chainId)) return false;
+      const liq = parseFloat(p.liquidity?.usd || p.reserve_in_usd || "0");
+      const price = parseFloat(p.priceUsd || "0");
+      if (liq < 500 && price <= 0) return false;
+      const key = `${p.chainId}-${p.baseToken.address}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 
-    // Map, score, tag
     let tokens: TokenResult[] = filtered
-      .map(mapPair)
-      .filter((t): t is TokenResult => t !== null);
+      .map(mapDexPair)
+      .filter((t): t is TokenResult => t !== null)
+      .filter(t => t.price > 0 || t.liquidity > 0);
 
     const maxVol = Math.max(...tokens.map(t => t.volume1h), 1);
     const maxTxns = Math.max(...tokens.map(t => t.txns1h.buys + t.txns1h.sells), 1);
+    tokens = tokens.map(t => { t.score = scoreToken(t, maxVol, maxTxns); t.tags = autoTag(t); return t; });
 
-    tokens = tokens.map(t => {
-      t.score = scoreToken(t, maxVol, maxTxns);
-      t.tags = autoTag(t);
-      return t;
+    tokens.sort((a, b) => {
+      const aBonus = a.ageMinutes < 360 ? 20 : 0;
+      const bBonus = b.ageMinutes < 360 ? 20 : 0;
+      return (b.score + bBonus) - (a.score + aBonus);
     });
 
-    tokens.sort((a, b) => b.score - a.score);
+    tokens = tokens.slice(0, limit);
 
     return NextResponse.json({ tokens, ts: Date.now(), chains });
   } catch (err: any) {
     console.error("Hunt API error:", err);
     return NextResponse.json({ error: "Failed to fetch tokens", tokens: [] }, { status: 500 });
   }
-}
-
-function buildPricePoints(current: number, pc1h: number, pc6h: number, pc24h: number): number[] {
-  if (current <= 0) return [0, 0, 0, 0, 0, 0, 0];
-  const p24h = current / (1 + pc24h / 100);
-  const p6h = current / (1 + pc6h / 100);
-  const p1h = current / (1 + pc1h / 100);
-  return [
-    p24h,
-    p24h + (p6h - p24h) * 0.33,
-    p24h + (p6h - p24h) * 0.67,
-    p6h,
-    p6h + (p1h - p6h) * 0.5,
-    p1h,
-    current,
-  ];
 }

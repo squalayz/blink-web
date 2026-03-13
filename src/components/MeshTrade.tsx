@@ -53,6 +53,8 @@ interface Token {
   score: number;
   tags: string[];
   pricePoints: number[];
+  isNew?: boolean;
+  ageMinutes?: number;
 }
 
 interface Position {
@@ -462,12 +464,12 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
           t.address.toLowerCase().includes(searchQuery.toLowerCase()))
       : tokens;
 
-    const pumping = [...ft].sort((a, b) => b.score - a.score).slice(0, Math.ceil(ft.length / 3));
+    const getAge = (t: Token) => t.ageMinutes ?? (t.pairCreatedAt > 0 ? Math.floor((Date.now() - t.pairCreatedAt) / 60000) : 99999);
+    const isNewToken = (t: Token) => t.isNew ?? getAge(t) < 1440;
+
+    const pumping = ft.filter(t => t.score > 75 || t.priceChange1h > 15);
     const pumpSet = new Set(pumping.map(t => t.address));
-    const emerging = [...ft]
-      .filter(t => !pumpSet.has(t.address))
-      .sort((a, b) => b.pairCreatedAt - a.pairCreatedAt)
-      .slice(0, Math.ceil(ft.length / 3));
+    const emerging = ft.filter(t => !pumpSet.has(t.address) && (isNewToken(t) || t.score < 50));
     const emergeSet = new Set(emerging.map(t => t.address));
     const heating = ft.filter(t => !pumpSet.has(t.address) && !emergeSet.has(t.address));
 
