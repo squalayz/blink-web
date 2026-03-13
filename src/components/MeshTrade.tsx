@@ -184,6 +184,12 @@ function fmtAge(ts: number): string {
   return Math.floor(s / 86400) + "d";
 }
 
+function buyPct(txns: { buys: number; sells: number }): number {
+  const total = (txns.buys || 0) + (txns.sells || 0);
+  if (total === 0) return 50;
+  return Math.round(((txns.buys || 0) / total) * 100);
+}
+
 function tokenOrbColor(t: Token): string {
   const p = t.priceChange1h || 0;
   if (p > 10) return C.match;
@@ -368,6 +374,22 @@ const KEYFRAMES = `
   0% { opacity: 1; transform: scale(1); }
   100% { opacity: 0; transform: scale(3); }
 }
+.mt-orbital-cols {
+  display: flex !important;
+  flex-direction: row !important;
+  flex: 1 !important;
+  overflow: hidden !important;
+}
+.mt-orbital-col {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border-right: 1px solid rgba(255,255,255,0.07) !important;
+  overflow: hidden !important;
+}
+.mt-orbital-col:last-child {
+  border-right: none !important;
+}
 @media (max-width: 640px) {
   .mt-layout { flex-direction: column !important; }
   .mt-brain { width: 100% !important; max-width: 100% !important; border-right: none !important; border-top: 1px solid rgba(255,255,255,0.07) !important; border-bottom: none !important; order: 2 !important; }
@@ -377,7 +399,6 @@ const KEYFRAMES = `
   .mt-mobile-col-view { display: flex !important; flex-direction: column !important; flex: 1 !important; }
   .mt-brain-collapse { max-height: 0px !important; overflow: hidden !important; padding: 0 !important; }
   .mt-brain-collapse.mt-brain-open { max-height: 2000px !important; overflow: visible !important; padding: 20px !important; }
-  .mt-agent-float { display: none !important; }
 }
 `;
 
@@ -428,7 +449,6 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
   const checkedTokensRef = useRef<Set<string>>(new Set());
   const seenTokensRef = useRef<Set<string>>(new Set());
   const [enteringTokens, setEnteringTokens] = useState<Set<string>>(new Set());
-  const [expandedOrb, setExpandedOrb] = useState<string | null>(null);
 
   const brainConnected = !!user?.ai_api_key_encrypted;
   const GAS_RESERVE = 0.002;
@@ -1132,249 +1152,146 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
     );
   }
 
-  // ── Render orbital column tokens (3-ring system) ──
-  function renderOrbitalTokens(colTokens: Token[], colColor: string, colHeight: number) {
-    const positionAddrs = new Set(positions.map((p) => p.tokenAddress));
+  // ── Render Photon/Axiom-style token row list ──
+  function renderPhotonTokenList(col: { id: string; label: string; tokens: Token[]; color: string; desc: string }, colColor: string) {
+    return (
+      <>
+        {/* Column header row */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 0,
+          padding: "6px 12px",
+          borderBottom: `1px solid ${C.border}`,
+          fontSize: 9, color: C.muted, fontWeight: 700,
+          textTransform: "uppercase" as const, letterSpacing: "0.08em",
+          position: "sticky", top: 0, background: C.bg, zIndex: 5,
+        }}>
+          <div style={{ width: 36, flexShrink: 0 }}></div>
+          <div style={{ flex: 1, minWidth: 0 }}>TOKEN</div>
+          <div style={{ width: 44, textAlign: "right" }}>AGE</div>
+          <div style={{ width: 72, textAlign: "right" }}>PRICE</div>
+          <div style={{ width: 52, textAlign: "right" }}>1H%</div>
+          <div style={{ width: 60, textAlign: "right" }}>VOL</div>
+          <div style={{ width: 60, textAlign: "right" }}>MCAP</div>
+          <div style={{ width: 48, textAlign: "right" }}>TXNS</div>
+        </div>
 
-    // Sort by absolute 1h change descending (most volatile = inner ring)
-    const sorted = [...colTokens].sort((a, b) =>
-      Math.abs(b.priceChange1h || 0) - Math.abs(a.priceChange1h || 0)
-    );
-    const ring1 = sorted.slice(0, 4);
-    const ring2 = sorted.slice(4, 10);
-    const ring3 = sorted.slice(10, 18);
+        {col.tokens.map((t, idx) => {
+          const change1h = t.priceChange1h || 0;
+          const bPct = buyPct(t.txns1h);
+          const age = fmtAge(t.pairCreatedAt);
+          const isJustLaunched = (t.ageMinutes || 99999) < 60;
+          const isHot = t.score >= 75;
+          const isEntering = enteringTokens.has(t.address);
+          const rowBg = idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)";
 
-    const rings = [
-      { tokens: ring1, radiusPct: 0.28, orbSize: 36, baseDuration: 20 },
-      { tokens: ring2, radiusPct: 0.42, orbSize: 32, baseDuration: 35 },
-      { tokens: ring3, radiusPct: 0.56, orbSize: 28, baseDuration: 50 },
-    ];
-
-    const elements: React.ReactNode[] = [];
-
-    rings.forEach((ring, ringIdx) => {
-      const ringRadius = Math.max(40, colHeight * ring.radiusPct * 0.5);
-
-      ring.tokens.forEach((t, i) => {
-        const color = orbColor(t.priceChange1h);
-        const angle = (i / Math.max(ring.tokens.length, 1)) * 360;
-        const vol = t.volume1h || 0;
-        const orbitDuration = ring.baseDuration / (1 + Math.log10(Math.max(1, vol / 10000)));
-        const isPosition = positionAddrs.has(t.address);
-        const isAnalyzing = agentTokenAddr === t.address;
-        const isEntering = enteringTokens.has(t.address);
-        const change1h = t.priceChange1h || 0;
-        const change24h = t.priceChange24h || 0;
-        const buyPressure = t.txns1h.buys + t.txns1h.sells > 0
-          ? (t.txns1h.buys / (t.txns1h.buys + t.txns1h.sells)) * 100
-          : 50;
-
-        const shootSeed = t.address.charCodeAt(2) + t.address.charCodeAt(3);
-        const shootAngle = (shootSeed % 8) * 45;
-        const shootDist = 300 + (shootSeed % 200);
-        const shootX = Math.round(Math.cos(shootAngle * Math.PI / 180) * shootDist);
-        const shootY = Math.round(Math.sin(shootAngle * Math.PI / 180) * shootDist);
-
-        elements.push(
-          <div
-            key={t.address}
-            style={{
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              width: 0,
-              height: 0,
-              animation: `mt-spin-cw ${orbitDuration}s linear infinite`,
-              zIndex: expandedOrb === t.address ? 100 : 10,
-            }}
-          >
-            {/* Positioned at radius along current angle */}
+          return (
             <div
+              key={t.address}
               style={{
-                position: "absolute",
-                left: 0,
-                top: 0,
-                transform: `rotate(${angle}deg) translateX(${ringRadius}px)`,
+                display: "flex",
+                alignItems: "center",
+                gap: 0,
+                padding: "8px 12px",
+                background: rowBg,
+                borderBottom: "1px solid rgba(255,255,255,0.03)",
+                cursor: "pointer",
+                transition: "background 0.15s",
+                animation: isEntering ? "mt-shoot-in 0.8s ease forwards" : undefined,
               }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(99,102,241,0.08)")}
+              onMouseLeave={e => (e.currentTarget.style.background = rowBg)}
+              onClick={() => setSelectedToken(t)}
             >
-              {/* Counter-rotate to stay upright */}
-              <div
-                style={{
-                  transform: "translate(-50%, -50%)",
-                  animation: `mt-spin-ccw ${orbitDuration}s linear infinite`,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  ...(isEntering ? {
-                    "--shoot-x": `${shootX}px`,
-                    "--shoot-y": `${shootY}px`,
-                  } as React.CSSProperties : {}),
-                }}
-              >
-                {/* The orb circle */}
-                <div
-                  style={{
-                    width: ring.orbSize,
-                    height: ring.orbSize,
-                    borderRadius: "50%",
-                    background: `radial-gradient(circle at 35% 35%, ${lightenColor(color)}, ${color})`,
-                    boxShadow: isPosition
-                      ? `0 0 16px 4px ${C.match}55`
-                      : `0 0 ${ring.orbSize / 3}px ${color}88`,
-                    border: isPosition ? `2px solid ${C.match}` : `1px solid ${color}44`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    transition: "transform 0.2s",
-                    position: "relative",
-                    overflow: "hidden",
-                    animation: isEntering ? "mt-shoot-in 1.2s cubic-bezier(0.22,1,0.36,1) forwards" : undefined,
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setExpandedOrb(expandedOrb === t.address ? null : t.address);
-                    setHoverCard(null);
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.transform = "scale(1.2)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.transform = "scale(1)";
-                  }}
-                >
-                  <TokenLogo token={t} size={ring.orbSize} />
-                  {/* Comet trail */}
-                  {isEntering && (
-                    <div style={{
-                      position: "absolute", inset: -4, borderRadius: "50%",
-                      background: `radial-gradient(circle, ${color}88, transparent 70%)`,
-                      animation: "mt-shoot-trail 1.2s ease forwards",
-                      pointerEvents: "none",
-                    }} />
-                  )}
-                  {/* NEW badge */}
-                  {isEntering && (
-                    <div style={{
-                      position: "absolute", top: -6, right: -6,
-                      fontSize: 6, fontWeight: 900, color: "#fff",
-                      background: "#30d158", borderRadius: 4, padding: "1px 3px",
-                      lineHeight: 1.4, zIndex: 12,
-                      boxShadow: "0 0 8px rgba(48,209,88,0.6)",
-                      animation: "mt-card-in 0.3s ease",
-                    }}>NEW</div>
-                  )}
-                </div>
-
-                {/* Always-visible label below orb */}
+              {/* Logo */}
+              <div style={{ width: 36, flexShrink: 0, position: "relative" }}>
                 <div style={{
-                  marginTop: 4,
-                  textAlign: "center",
-                  pointerEvents: "none",
+                  width: 28, height: 28, borderRadius: "50%",
+                  overflow: "hidden",
+                  background: `radial-gradient(circle at 35% 35%, ${lightenColor(orbColor(change1h))}, ${orbColor(change1h)})`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  border: isJustLaunched ? `1.5px solid ${C.match}` : isHot ? `1.5px solid ${C.hot}` : "1px solid rgba(255,255,255,0.1)",
+                  boxShadow: isJustLaunched ? `0 0 8px ${C.match}66` : isHot ? `0 0 8px ${C.hot}44` : "none",
                 }}>
-                  <div style={{
-                    fontSize: 9, fontWeight: 800, color: "#e8e8f0",
-                    letterSpacing: "0.05em", lineHeight: 1.2,
-                    textShadow: "0 1px 4px rgba(0,0,0,0.8)",
-                  }}>
-                    {t.symbol.length > 6 ? t.symbol.slice(0, 6) : t.symbol}
-                  </div>
-                  <div style={{
-                    fontSize: 9, fontWeight: 700, lineHeight: 1.2,
-                    color: change1h >= 0 ? "#30d158" : "#ff2d55",
-                    textShadow: "0 1px 4px rgba(0,0,0,0.8)",
-                  }}>
-                    {change1h >= 0 ? "+" : ""}{change1h.toFixed(1)}%
-                  </div>
+                  <TokenLogo token={t} size={28} />
                 </div>
-
-                {/* Expanded info card */}
-                {expandedOrb === t.address && (
+                {isEntering && (
                   <div style={{
-                    marginTop: 6,
-                    background: "rgba(13,13,20,0.95)",
-                    border: "1px solid rgba(99,102,241,0.4)",
-                    borderRadius: 10,
-                    padding: "8px 10px",
-                    minWidth: 130,
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.6), 0 0 20px rgba(99,102,241,0.15)",
-                    animation: "mt-card-in 0.2s ease",
-                    pointerEvents: "auto",
-                    zIndex: 100,
-                  }} onClick={(e) => e.stopPropagation()}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "#e8e8f0", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {t.name.slice(0, 18)}
-                    </div>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: "#e8e8f0", marginBottom: 6 }}>
-                      ${parseFloat(String(t.price || "0")).toFixed(parseFloat(String(t.price || "0")) < 0.001 ? 8 : 4)}
-                    </div>
-                    <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-                      <span style={{ fontSize: 9, color: change1h >= 0 ? "#30d158" : "#ff2d55" }}>
-                        1h {change1h >= 0 ? "+" : ""}{change1h.toFixed(1)}%
-                      </span>
-                      <span style={{ fontSize: 9, color: change24h >= 0 ? "#30d158" : "#ff2d55" }}>
-                        24h {change24h >= 0 ? "+" : ""}{change24h.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 9, color: "#6b6b80", marginBottom: 6 }}>
-                      MCap ${formatShort(t.marketCap)} · Vol ${formatShort(t.volume24h)}
-                    </div>
-                    {/* Buy pressure bar */}
-                    <div style={{ height: 4, borderRadius: 2, background: "#1a1a24", marginBottom: 8, overflow: "hidden" }}>
-                      <div style={{
-                        height: "100%",
-                        width: `${Math.min(100, Math.max(0, buyPressure))}%`,
-                        background: buyPressure > 50 ? "#30d158" : "#ff2d55",
-                        borderRadius: 2,
-                      }} />
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setExpandedOrb(null);
-                        setSelectedToken(t);
-                      }}
-                      style={{
-                        width: "100%", padding: "5px 0", borderRadius: 6,
-                        border: "none",
-                        background: "linear-gradient(135deg, #6366f1, #a855f7)",
-                        color: "white", fontSize: 9, fontWeight: 800,
-                        cursor: "pointer", fontFamily: "inherit",
-                      }}
-                    >
-                      ANALYZE
-                    </button>
-                  </div>
-                )}
-
-                {/* Analyze ring */}
-                {isAnalyzing && (
-                  <div style={{
-                    position: "absolute",
-                    left: "50%", top: ring.orbSize / 2,
-                    width: ring.orbSize + 16,
-                    height: ring.orbSize + 16,
-                    borderRadius: "50%",
-                    border: `2px solid ${C.indigo}`,
-                    transform: "translate(-50%, -50%)",
-                    animation: "mt-analyze-ring 1.5s ease-out infinite",
-                    pointerEvents: "none",
+                    position: "absolute", top: -2, right: 2,
+                    width: 8, height: 8, borderRadius: "50%",
+                    background: C.match,
+                    boxShadow: `0 0 6px ${C.match}`,
+                    animation: "mt-live-dot 1s infinite",
                   }} />
                 )}
               </div>
-            </div>
-          </div>
-        );
-      });
-    });
 
-    return elements;
+              {/* Name + symbol + badges */}
+              <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 90 }}>
+                    {t.symbol.length > 8 ? t.symbol.slice(0, 8) : t.symbol}
+                  </span>
+                  {isJustLaunched && (
+                    <span style={{ fontSize: 7, fontWeight: 900, padding: "1px 4px", borderRadius: 3, background: `${C.match}22`, color: C.match, border: `1px solid ${C.match}44`, flexShrink: 0 }}>NEW</span>
+                  )}
+                  {isHot && !isJustLaunched && (
+                    <span style={{ fontSize: 7, fontWeight: 900, padding: "1px 4px", borderRadius: 3, background: `${C.hot}22`, color: C.hot, border: `1px solid ${C.hot}44`, flexShrink: 0 }}>HOT</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 9, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {t.name.slice(0, 16)}
+                </div>
+              </div>
+
+              {/* Age */}
+              <div style={{ width: 44, textAlign: "right", fontSize: 10, color: isJustLaunched ? C.match : C.muted, fontWeight: isJustLaunched ? 800 : 400, flexShrink: 0 }}>
+                {age}
+              </div>
+
+              {/* Price */}
+              <div style={{ width: 72, textAlign: "right", fontSize: 10, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono', monospace", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                {formatPrice(t.price)}
+              </div>
+
+              {/* 1h % */}
+              <div style={{
+                width: 52, textAlign: "right", fontSize: 11, fontWeight: 800, flexShrink: 0,
+                color: change1h >= 0 ? C.match : C.hot,
+              }}>
+                {change1h >= 0 ? "+" : ""}{change1h.toFixed(1)}%
+              </div>
+
+              {/* Volume */}
+              <div style={{ width: 60, textAlign: "right", fontSize: 9, color: C.muted, flexShrink: 0 }}>
+                {formatShort(t.volume1h || 0)}
+              </div>
+
+              {/* MCap */}
+              <div style={{ width: 60, textAlign: "right", fontSize: 9, color: C.muted, flexShrink: 0 }}>
+                {t.marketCap > 0 ? formatShort(t.marketCap) : t.fdv > 0 ? formatShort(t.fdv) : "-"}
+              </div>
+
+              {/* Txns buys/sells with mini bar */}
+              <div style={{ width: 48, textAlign: "right", flexShrink: 0 }}>
+                <div style={{ fontSize: 8, color: C.muted, marginBottom: 2 }}>
+                  <span style={{ color: C.match }}>{t.txns1h.buys}</span>
+                  <span style={{ color: C.muted }}>/</span>
+                  <span style={{ color: C.hot }}>{t.txns1h.sells}</span>
+                </div>
+                {/* Buy pressure bar */}
+                <div style={{ height: 3, borderRadius: 2, background: C.dim, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${bPct}%`, background: bPct > 50 ? C.match : C.hot, borderRadius: 2 }} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </>
+    );
   }
 
   // ── Zone 2: Galaxy View (3-column orbital) ──
   function renderGalaxy() {
-    const colCenters = [16.67, 50, 83.33]; // % positions for agent
-
     return (
       <div
         className="mt-galaxy"
@@ -1515,62 +1432,8 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
           ))}
         </div>
 
-        {/* 3-column orbital layout */}
-        <div style={{ flex: 1, position: "relative" }}>
-          {/* Stardust background */}
-          <div style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
-            {/* Small stars */}
-            {Array.from({ length: 120 }, (_, i) => {
-              const x = ((i * 7 + 13) * 31) % 100;
-              const y = ((i * 11 + 7) * 23) % 100;
-              const sz = 1 + (i % 2);
-              const op = 0.05 + (((i * 17) % 30) / 100);
-              return (
-                <div key={`star-${i}`} style={{
-                  position: "absolute",
-                  left: `${x}%`, top: `${y}%`,
-                  width: sz, height: sz, borderRadius: "50%",
-                  background: "white", opacity: op,
-                }} />
-              );
-            })}
-            {/* Bright stars */}
-            {Array.from({ length: 20 }, (_, i) => {
-              const x = ((i * 37 + 19) * 53) % 100;
-              const y = ((i * 43 + 29) * 41) % 100;
-              const sz = 2 + (i % 2);
-              const op = 0.4 + (((i * 13) % 20) / 100);
-              return (
-                <div key={`bstar-${i}`} style={{
-                  position: "absolute",
-                  left: `${x}%`, top: `${y}%`,
-                  width: sz, height: sz, borderRadius: "50%",
-                  background: "white", opacity: op,
-                  boxShadow: "0 0 3px 1px rgba(255,255,255,0.3)",
-                }} />
-              );
-            })}
-            {/* Nebula blobs */}
-            {[
-              { x: 10, y: 20, sz: 180, color: C.indigo },
-              { x: 70, y: 15, sz: 140, color: C.cyan },
-              { x: 40, y: 60, sz: 200, color: "#a855f7" },
-              { x: 85, y: 70, sz: 160, color: C.hot },
-              { x: 20, y: 80, sz: 120, color: C.indigo },
-              { x: 55, y: 30, sz: 150, color: C.cyan },
-              { x: 90, y: 45, sz: 130, color: "#a855f7" },
-              { x: 30, y: 45, sz: 170, color: C.hot },
-            ].map((nb, i) => (
-              <div key={`neb-${i}`} style={{
-                position: "absolute",
-                left: `${nb.x}%`, top: `${nb.y}%`,
-                width: nb.sz, height: nb.sz, borderRadius: "50%",
-                background: `radial-gradient(circle, ${nb.color}10, transparent 70%)`,
-                opacity: 0.03 + (i % 4) * 0.01,
-                transform: "translate(-50%, -50%)",
-              }} />
-            ))}
-          </div>
+        {/* 3-column Photon token list layout */}
+        <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
           <div
             className="mt-orbital-cols"
             style={{
@@ -1585,93 +1448,47 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
                 className="mt-orbital-col"
                 style={{
                   flex: 1,
-                  position: "relative",
+                  display: "flex",
+                  flexDirection: "column",
                   overflow: "hidden",
                   borderRight: ci < 2 ? `1px solid ${C.border}` : "none",
                 }}
               >
-                {/* Column Header */}
+                {/* Column header with glow */}
                 <div style={{
-                  padding: "10px 12px 8px",
+                  padding: "12px 12px 8px",
                   borderBottom: `1px solid ${C.border}`,
-                  flexShrink: 0,
+                  display: "flex", alignItems: "center", gap: 8,
+                  background: C.bg,
+                  position: "sticky", top: 0, zIndex: 10,
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                    <div style={{
-                      width: 3, height: 16, borderRadius: 2, background: col.color,
-                    }} />
-                    <span style={{
-                      fontSize: 11, fontWeight: 800, color: col.color,
-                      letterSpacing: "0.1em",
-                    }}>{col.label}</span>
-                    <span style={{
-                      fontSize: 10, color: C.muted, fontWeight: 600,
-                      fontFamily: "'JetBrains Mono',monospace",
-                    }}>
-                      {col.tokens.length}
-                    </span>
+                  <div style={{
+                    width: 10, height: 10, borderRadius: "50%",
+                    background: col.color,
+                    boxShadow: `0 0 8px ${col.color}`,
+                    animation: "mt-live-dot 2s infinite",
+                  }} />
+                  <div style={{ fontSize: 11, fontWeight: 900, color: col.color, letterSpacing: "0.1em" }}>
+                    {col.label}
                   </div>
-                  <div style={{ fontSize: 9, color: C.muted, paddingLeft: 9 }}>{col.desc}</div>
+                  <div style={{ fontSize: 10, color: C.muted }}>
+                    {col.tokens.length}
+                  </div>
+                  <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 8, color: C.match }}>
+                    <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.match, animation: "mt-live-dot 1s infinite" }} />
+                    LIVE
+                  </div>
                 </div>
 
-                {/* Orbital Body */}
-                <div style={{
-                  position: "relative",
-                  width: "100%",
-                  height: "calc(100% - 52px)",
-                  overflow: "hidden",
-                }} onClick={() => setExpandedOrb(null)}>
-                  {/* Center star */}
-                  <div style={{
-                    position: "absolute", left: "50%", top: "50%",
-                    transform: "translate(-50%, -50%)",
-                    zIndex: 5, textAlign: "center", pointerEvents: "none",
-                  }}>
-                    <div style={{
-                      width: 40, height: 40, borderRadius: "50%",
-                      background: ci === 0
-                        ? "radial-gradient(circle at 35% 35%, #67e8f9, #06b6d4)"
-                        : ci === 1
-                        ? "radial-gradient(circle at 35% 35%, #fde68a, #ffd700)"
-                        : "radial-gradient(circle at 35% 35%, #86efac, #30d158)",
-                      boxShadow: `0 0 20px ${col.color}66, 0 0 40px ${col.color}33`,
-                      animation: "mt-agent-pulse 3s ease-in-out infinite",
-                      margin: "0 auto 6px",
-                    }} />
-                    <div style={{
-                      fontSize: 9, fontWeight: 800, color: col.color,
-                      letterSpacing: "0.1em",
-                      textShadow: `0 0 8px ${col.color}`,
-                    }}>
-                      {col.label}
-                    </div>
-                    <div style={{ fontSize: 8, color: "#6b6b80" }}>{col.tokens.length} coins</div>
-                  </div>
-
-                  {/* Orbit ring guides — 3 concentric rings */}
-                  {[0.28, 0.42, 0.56].map((pct, ring) => {
-                    const r = Math.max(40, 300 * pct * 0.5) * 2;
-                    return (
-                      <div key={ring} style={{
-                        position: "absolute", left: "50%", top: "50%",
-                        width: r,
-                        height: r,
-                        borderRadius: "50%",
-                        border: `1px solid rgba(255,255,255,0.04)`,
-                        transform: "translate(-50%, -50%)",
-                        pointerEvents: "none",
-                      }} />
-                    );
-                  })}
-
-                  {/* Token orbs */}
-                  {renderOrbitalTokens(col.tokens, col.color, 300)}
+                {/* Scrollable Photon rows */}
+                <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 0 }}>
+                  {renderPhotonTokenList(col, col.color)}
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Mobile: scrollable card list controlled by mobileColTab */}
+          {/* Mobile: scrollable Photon list controlled by mobileColTab */}
           <div
             className="mt-mobile-col-view"
             style={{ display: "none", flex: 1, flexDirection: "column", overflow: "hidden" }}
@@ -1680,107 +1497,38 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
               const col = columns.find(c => c.id === mobileColTab) || columns[2];
               return (
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                  {/* Column Header */}
+                  {/* Column header with glow */}
                   <div style={{
-                    padding: "8px 12px 6px", borderBottom: `1px solid ${col.color}33`,
-                    background: `linear-gradient(180deg, ${col.color}08, transparent)`,
-                    flexShrink: 0,
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "12px 12px 8px",
+                    borderBottom: `1px solid ${C.border}`,
+                    display: "flex", alignItems: "center", gap: 8,
+                    background: C.bg,
                   }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <div style={{ width: 3, height: 14, borderRadius: 2, background: col.color }} />
-                      <span style={{ fontSize: 11, fontWeight: 900, color: col.color, letterSpacing: "0.06em" }}>{col.label}</span>
+                    <div style={{
+                      width: 10, height: 10, borderRadius: "50%",
+                      background: col.color,
+                      boxShadow: `0 0 8px ${col.color}`,
+                      animation: "mt-live-dot 2s infinite",
+                    }} />
+                    <div style={{ fontSize: 11, fontWeight: 900, color: col.color, letterSpacing: "0.1em" }}>
+                      {col.label}
                     </div>
-                    <span style={{ fontSize: 10, color: C.muted }}>{col.tokens.length} tokens</span>
+                    <div style={{ fontSize: 10, color: C.muted }}>
+                      {col.tokens.length}
+                    </div>
+                    <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 8, color: C.match }}>
+                      <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.match, animation: "mt-live-dot 1s infinite" }} />
+                      LIVE
+                    </div>
                   </div>
 
-                  {/* Mobile card list */}
-                  <div style={{
-                    flex: 1, overflowY: "auto",
-                    display: "flex", flexDirection: "column", gap: 8,
-                    padding: "8px 12px 12px",
-                  }}>
-                    {col.tokens.map(t => {
-                      const change1h = t.priceChange1h || 0;
-                      return (
-                        <div key={t.address} style={{
-                          display: "flex", alignItems: "center", gap: 10,
-                          background: C.surface, borderRadius: 10,
-                          border: `1px solid ${C.border}`,
-                          padding: "10px 12px", cursor: "pointer",
-                        }} onClick={() => setSelectedToken(t)}>
-                          <div style={{
-                            width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-                            overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center",
-                            background: `radial-gradient(circle at 35% 35%, ${lightenColor(orbColor(change1h))}, ${orbColor(change1h)})`,
-                          }}>
-                            <TokenLogo token={t} size={32} />
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 12, fontWeight: 800, color: C.text }}>{t.symbol}</div>
-                            <div style={{ fontSize: 10, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {t.name.slice(0, 20)}
-                            </div>
-                          </div>
-                          <div style={{ textAlign: "right" }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: C.text }}>
-                              {formatPrice(t.price)}
-                            </div>
-                            <div style={{
-                              fontSize: 10, fontWeight: 700,
-                              color: change1h >= 0 ? C.match : C.hot,
-                            }}>
-                              {change1h >= 0 ? "+" : ""}{change1h.toFixed(1)}%
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  {/* Scrollable Photon rows */}
+                  <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 0 }}>
+                    {renderPhotonTokenList(col, col.color)}
                   </div>
                 </div>
               );
             })()}
-          </div>
-
-          {/* CHANGE 4: Agent orb floating over columns */}
-          <div className="mt-agent-float" style={{
-            position: "absolute",
-            left: `${colCenters[agentColIdx]}%`,
-            top: "50%",
-            transform: "translate(-50%, -50%)",
-            zIndex: 30,
-            pointerEvents: "none",
-            transition: "left 1.2s cubic-bezier(0.34,1.56,0.64,1), top 0.8s ease",
-          }}>
-            <div style={{
-              width: 56,
-              height: 56,
-              borderRadius: "50%",
-              background: !brainConnected
-                ? "radial-gradient(circle at 35% 35%, #3a3a50, #2a2a3a)"
-                : "radial-gradient(circle at 35% 35%, #6366f1, #06b6d4, #4f46e5)",
-              boxShadow: !brainConnected
-                ? "0 0 12px 3px rgba(60,60,80,0.3)"
-                : undefined,
-              animation: brainConnected ? "mt-agent-pulse 2s ease-in-out infinite" : "none",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}>
-              <span style={{
-                fontSize: 8, color: "#fff", fontWeight: 800,
-                letterSpacing: "0.05em", textTransform: "uppercase", opacity: 0.9,
-              }}>AGENT</span>
-            </div>
-            <div style={{
-              fontSize: 8, fontWeight: 700,
-              color: brainConnected ? C.indigo : C.dim,
-              letterSpacing: "0.08em",
-              textAlign: "center",
-              marginTop: 4,
-            }}>
-              {settings.unleashed ? "HUNTING" : "IDLE"}
-            </div>
           </div>
         </div>
 
