@@ -33,7 +33,7 @@ export default function MobileTabBar({ activeTab, onTabChange, unreadMatches = 0
 
   const tabs = [
     { id: "mesh", label: "Connect", icon: MeshIcon, badge: 0 },
-    { id: "hunt", label: "Hunt", icon: HuntIcon, badge: hotCount, activeColor: C.hot, aura: true },
+    { id: "hunt", label: "Trading", icon: HuntIcon, badge: hotCount, activeColor: C.hot, aura: true },
     { id: "work", label: "Work", icon: WorkIcon, badge: 0, activeColor: "#ffd700" },
     { id: "wallet", label: "Wallet", icon: WalletIcon, badge: 0, alert: lowBalance },
     { id: "agent", label: "Agent", icon: AgentIcon, badge: 0, activeColor: C.indigo },

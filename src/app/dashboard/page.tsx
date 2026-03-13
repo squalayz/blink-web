@@ -21,6 +21,7 @@ const MeshFeed = dynamic(() => import("@/components/MeshFeed"), { ssr: false });
 const HuntTabView = dynamic(() => import("@/components/HuntTabView"), { ssr: false });
 const MeshMarket = dynamic(() => import("@/components/MeshMarket"), { ssr: false });
 const MeshTrade = dynamic(() => import("@/components/MeshTrade"), { ssr: false });
+const MeshTradeDemo = dynamic(() => import("@/components/MeshTradeDemo"), { ssr: false });
 const OnboardingWizard = dynamic(() => import("@/components/onboarding-wizard"), { ssr: false });
 import TabInfoBanner from "@/components/TabInfoBanner";
 
@@ -3078,9 +3079,11 @@ export default function Dashboard(){
 
         {/* ── Hunt / MeshTrade Tab ── */}
         {view==="hunt"&&(
-          <div style={{paddingBottom:96}}>
-            <MeshTrade user={user} agent={agent} wallet={wallet} onConnectBrain={()=>setView("agent")} onFundWallet={()=>{setView("brew");setShowDepositCard(true);}}/>
-          </div>
+          !agent?.ai_provider
+            ? <MeshTradeDemo onGetStarted={()=>setView("agent")} />
+            : <div style={{paddingBottom:96}}>
+                <MeshTrade user={user} agent={agent} wallet={wallet} onConnectBrain={()=>setView("agent")} onFundWallet={()=>{setView("brew");setShowDepositCard(true);}}/>
+              </div>
         )}
 
         {/* ── Work / MeshMarket Tab ── */}
