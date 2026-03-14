@@ -3096,7 +3096,7 @@ export default function Dashboard(){
 
         {/* ── Hunt / MeshTrade Tab ── */}
         {view==="hunt"&&(
-          !agent?.ai_provider
+          !(agent?.ai_provider || user?.ai_api_key_encrypted)
             ? <MeshTradeDemo onGetStarted={()=>setView("agent")} />
             : <div style={{paddingBottom:96}}>
                 <MeshTrade user={user} agent={agent} wallet={wallet} onConnectBrain={()=>setView("agent")} onFundWallet={()=>{setView("brew");setShowDepositCard(true);}}/>
