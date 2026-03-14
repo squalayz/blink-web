@@ -1606,20 +1606,37 @@ export default function Dashboard(){
     </div>
     {!!user?.ai_api_key_encrypted?(
       <div>
-        <div style={{fontSize:12,color:C.muted,marginBottom:12,lineHeight:1.5}}>Your agent is running on your own AI. It learns from every conversation and gets smarter every night.</div>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {[
-            {icon:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.cold} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>,label:"Smarter matching",desc:"Analyzes 50+ signals"},
-            {icon:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.match} strokeWidth="2" strokeLinecap="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,label:"Auto trading",desc:"Runs strategies 24/7"},
-            {icon:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2" strokeLinecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>,label:"Research loop",desc:"Self-improves overnight"},
-            {icon:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.purple} strokeWidth="2" strokeLinecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,label:"Personality",desc:"Learns your style"},
-          ].map(f=>(
-            <div key={f.label} style={{flex:"1 1 120px",background:C.s2,borderRadius:8,padding:"8px 10px",border:`1px solid ${C.border}`,display:"flex",flexDirection:"column" as const,gap:4}}>
-              {f.icon}
-              <div style={{fontSize:11,fontWeight:700,color:C.text}}>{f.label}</div>
-              <div style={{fontSize:9,color:C.dim}}>{f.desc}</div>
-            </div>
-          ))}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+          <div style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",background:C.match+"18",border:"1px solid "+C.match+"44",borderRadius:6}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:C.match}}/>
+            <span style={{fontSize:11,fontWeight:700,color:C.match}}>Connected</span>
+            <span style={{fontSize:10,color:C.muted,marginLeft:2}}>{aiCurrent?.provider?((aiCurrent.provider as string).charAt(0).toUpperCase()+(aiCurrent.provider as string).slice(1)):"AI"}</span>
+          </div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column" as const,gap:8}}>
+          <select
+            value={aiForm.provider}
+            onChange={(e)=>{const defaults:any={"openai":"gpt-4o-mini","anthropic":"claude-sonnet-4-20250514","google":"gemini-2.0-flash","xai":"grok-3-mini","groq":"llama-3.1-70b-versatile","openrouter":"openai/gpt-4o-mini"};setAiForm(f=>({...f,provider:e.target.value,model:defaults[e.target.value]||"gpt-4o-mini"}));}}
+            style={{width:"100%",background:C.s2,border:"1px solid "+C.border,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:12,fontFamily:"inherit",fontWeight:600,appearance:"auto" as any}}
+          >
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="google">Google</option>
+            <option value="xai">xAI</option>
+            <option value="groq">Groq</option>
+          </select>
+          <input
+            type="password"
+            placeholder="New API key..."
+            value={aiForm.apiKey}
+            onChange={(e)=>setAiForm(f=>({...f,apiKey:e.target.value}))}
+            style={{width:"100%",background:C.s2,border:"1px solid "+C.border,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:12,fontFamily:"inherit",fontWeight:600,boxSizing:"border-box"}}
+          />
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={async()=>{if(!aiForm.apiKey.trim())return;await fetch("/api/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save",...aiForm})});setAiForm(f=>({...f,apiKey:""}));await loadAiSettings();}} style={{flex:1,padding:"10px 16px",background:C.cold+"15",border:"1px solid "+C.cold+"33",borderRadius:8,color:C.cold,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Update Key</button>
+            <button onClick={disconnectAi} style={{padding:"10px 16px",background:C.hot+"12",border:"1px solid "+C.hot+"33",borderRadius:8,color:C.hot,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Disconnect</button>
+          </div>
         </div>
       </div>
     ):(

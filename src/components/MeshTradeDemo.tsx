@@ -22,8 +22,8 @@ const COLORS = {
   border: 'rgba(255,255,255,0.07)',
 };
 
-const SLIDE_DURATION = 3500;
-const TOTAL_SLIDES = 4;
+const SLIDE_DURATION = 5000;
+const TOTAL_SLIDES = 5;
 
 const TOKENS = [
   { symbol: 'APEX', initials: 'AP', color: '#ff6b6b', price: '$0.0034', change: '+124%', badge: 'SNIPE', badgeColor: '#ff2d55' },
@@ -45,24 +45,44 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
   const [activeSlide, setActiveSlide] = useState(0);
   const [slideProgress, setSlideProgress] = useState(0);
 
-  // Slide 1 states
+  // Slide 0 states
   const [orbAwake, setOrbAwake] = useState(false);
 
-  // Slide 2 states
+  // Slide 1 states
   const [visibleBubbles, setVisibleBubbles] = useState(0);
 
-  // Slide 3 states
+  // Slide 2 states
   const [thoughtIndex, setThoughtIndex] = useState(-1);
   const [bubbleMerging, setBubbleMerging] = useState(false);
   const [orbFlash, setOrbFlash] = useState(false);
 
-  // Slide 4 states
+  // Slide 3 states
   const [profitEjected, setProfitEjected] = useState(false);
   const [ethFloating, setEthFloating] = useState(false);
 
+  // Particles for drifting upward effect
+  const particles = useMemo(() => {
+    const result: { x: number; startY: number; size: number; delay: number; duration: number; opacity: number }[] = [];
+    let seed = 99;
+    const rand = () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+    for (let i = 0; i < 20; i++) {
+      result.push({
+        x: rand() * 100,
+        startY: rand() * 100,
+        size: 1.5 + rand() * 2,
+        delay: rand() * 8,
+        duration: 6 + rand() * 6,
+        opacity: 0.15 + rand() * 0.2,
+      });
+    }
+    return result;
+  }, []);
+
   const stars = useMemo(() => {
     const result: { x: number; y: number; size: number; delay: number; duration: number }[] = [];
-    // Deterministic pseudo-random using simple LCG
     let seed = 42;
     const rand = () => {
       seed = (seed * 1664525 + 1013904223) % 4294967296;
@@ -151,10 +171,10 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
 
   const renderSlide0 = () => (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 24 }}>
-      {/* Plasma orb */}
+      {/* Plasma orb - bigger 100px */}
       <div style={{
-        width: 120,
-        height: 120,
+        width: 100,
+        height: 100,
         borderRadius: '50%',
         position: 'relative',
         transition: 'all 2.5s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -169,6 +189,9 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
             ? `radial-gradient(circle at 40% 35%, ${COLORS.indigo}, #1e1b4b 70%, #0f0e1a)`
             : `radial-gradient(circle at 40% 35%, #1a1a2e, #0f0e1a 70%)`,
           transition: 'background 2s ease',
+          boxShadow: orbAwake
+            ? `0 0 30px ${COLORS.indigo}88, 0 0 60px ${COLORS.indigo}44, 0 0 100px ${COLORS.cyan}22, inset 0 0 30px ${COLORS.indigo}44`
+            : 'none',
         }} />
         {/* Specular highlight */}
         <div style={{
@@ -230,6 +253,7 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
         background: `radial-gradient(circle at 40% 35%, ${COLORS.indigo}, #1e1b4b 70%)`,
         filter: `drop-shadow(0 0 12px ${COLORS.indigo}88)`,
         animation: 'mtd-orb-mini-pulse 0.7s ease-in-out infinite alternate',
+        boxShadow: `0 0 20px ${COLORS.indigo}66, 0 0 40px ${COLORS.indigo}33`,
       }} />
       {/* Token bubbles */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 300, paddingLeft: 20, paddingRight: 20 }}>
@@ -289,7 +313,7 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
 
   const renderSlide2 = () => (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 16, position: 'relative' }}>
-      {/* Orb (right side) */}
+      {/* Orb (right side) - bigger with layered glow */}
       <div style={{
         position: 'absolute',
         right: 30,
@@ -303,6 +327,9 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
         filter: orbFlash
           ? `drop-shadow(0 0 24px ${COLORS.match})`
           : `drop-shadow(0 0 12px ${COLORS.indigo}88)`,
+        boxShadow: orbFlash
+          ? `0 0 20px ${COLORS.match}66, 0 0 40px ${COLORS.match}33, 0 0 60px ${COLORS.match}22`
+          : `0 0 20px ${COLORS.indigo}44, 0 0 40px ${COLORS.indigo}22`,
         transition: 'all 0.3s ease',
       }} />
       {/* Highlighted bubble card */}
@@ -363,14 +390,14 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
 
   const renderSlide3 = () => (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 20, position: 'relative' }}>
-      {/* Orb center */}
-      <div style={{ position: 'relative', width: 80, height: 80 }}>
+      {/* Orb center - bigger 100px with layered glow */}
+      <div style={{ position: 'relative', width: 100, height: 100 }}>
         <div style={{
-          width: 80,
-          height: 80,
+          width: 100,
+          height: 100,
           borderRadius: '50%',
           background: `radial-gradient(circle at 40% 35%, ${COLORS.indigo}, #1e1b4b 70%)`,
-          filter: `drop-shadow(0 0 20px ${COLORS.indigo}88)`,
+          boxShadow: `0 0 30px ${COLORS.indigo}88, 0 0 60px ${COLORS.indigo}44, 0 0 100px ${COLORS.indigo}22`,
         }} />
         {/* Orbiting profit pill */}
         <div style={{
@@ -444,6 +471,59 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
     </div>
   );
 
+  const renderSlide4 = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 24, position: 'relative' }}>
+      {/* Large breathing orb with orbiting dots */}
+      <div style={{ position: 'relative', width: 140, height: 140 }}>
+        {/* Main orb */}
+        <div style={{
+          width: 100,
+          height: 100,
+          borderRadius: '50%',
+          position: 'absolute',
+          top: 20,
+          left: 20,
+          background: `radial-gradient(circle at 40% 35%, ${COLORS.indigo}, ${COLORS.cyan}44 60%, #1e1b4b 85%)`,
+          boxShadow: `0 0 40px ${COLORS.indigo}88, 0 0 80px ${COLORS.indigo}44, 0 0 120px ${COLORS.cyan}22, inset 0 0 40px ${COLORS.indigo}44`,
+          animation: 'mtd-breathe 3s ease-in-out infinite',
+        }} />
+        {/* Specular on breathing orb */}
+        <div style={{
+          position: 'absolute',
+          top: 30,
+          left: 38,
+          width: 35,
+          height: 25,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(255,255,255,0.35) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }} />
+        {/* Orbiting dots */}
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              width: 6,
+              height: 6,
+              marginLeft: -3,
+              marginTop: -3,
+              borderRadius: '50%',
+              background: i % 2 === 0 ? COLORS.cyan : COLORS.indigo,
+              boxShadow: `0 0 8px ${i % 2 === 0 ? COLORS.cyan : COLORS.indigo}88`,
+              animation: `mtd-orbit-dot ${4 + i * 0.5}s linear infinite`,
+              animationDelay: `${i * -0.67}s`,
+              transformOrigin: '3px 3px',
+              opacity: 0.8,
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+
   const SLIDES = [
     {
       headline: 'Your agent wakes up',
@@ -465,15 +545,18 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
       description: 'Every winning trade sends ETH directly to your wallet. No platform holds your funds. Ever.',
       render: renderSlide3,
     },
+    {
+      headline: 'Your agent never sleeps',
+      description: 'While you live your life, it scans 847 tokens every cycle, finds the signal in the noise, and acts -- all on your behalf.',
+      render: renderSlide4,
+    },
   ];
-
-  const current = SLIDES[activeSlide];
 
   return (
     <div style={{
       position: 'relative',
       width: '100%',
-      minHeight: '100%',
+      height: '100%',
       background: COLORS.bg,
       overflow: 'hidden',
       display: 'flex',
@@ -513,11 +596,51 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
           0% { box-shadow: 0 0 20px ${COLORS.indigo}44; }
           100% { box-shadow: 0 0 40px ${COLORS.indigo}88, 0 0 60px ${COLORS.indigo}33; }
         }
-        @keyframes mtd-slide-in {
-          from { opacity: 0; transform: translateX(30px); }
-          to { opacity: 1; transform: translateX(0); }
+        @keyframes mtd-slide-entrance {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes mtd-particle-float {
+          0% { transform: translateY(0); opacity: var(--p-opacity); }
+          100% { transform: translateY(-110vh); opacity: 0; }
+        }
+        @keyframes mtd-breathe {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 40px ${COLORS.indigo}88, 0 0 80px ${COLORS.indigo}44, 0 0 120px ${COLORS.cyan}22, inset 0 0 40px ${COLORS.indigo}44; }
+          50% { transform: scale(1.08); box-shadow: 0 0 60px ${COLORS.indigo}aa, 0 0 100px ${COLORS.indigo}66, 0 0 150px ${COLORS.cyan}33, inset 0 0 50px ${COLORS.indigo}66; }
+        }
+        @keyframes mtd-orbit-dot {
+          0% { transform: translate(60px, 0px); }
+          25% { transform: translate(0px, 60px); }
+          50% { transform: translate(-60px, 0px); }
+          75% { transform: translate(0px, -60px); }
+          100% { transform: translate(60px, 0px); }
+        }
+        @keyframes mtd-shimmer {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
         }
       `}</style>
+
+      {/* Particle/star dots drifting upward */}
+      {particles.map((p, i) => (
+        <div
+          key={`particle-${i}`}
+          style={{
+            position: 'absolute',
+            left: `${p.x}%`,
+            bottom: `-${p.size}px`,
+            width: p.size,
+            height: p.size,
+            borderRadius: '50%',
+            background: '#fff',
+            opacity: p.opacity,
+            animation: `mtd-particle-float ${p.duration}s linear ${p.delay}s infinite`,
+            pointerEvents: 'none',
+            zIndex: 0,
+            ['--p-opacity' as string]: p.opacity,
+          }}
+        />
+      ))}
 
       {/* Star field */}
       {stars.map((star, i) => (
@@ -533,6 +656,7 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
             background: '#fff',
             animation: `mtd-star-twinkle ${star.duration}s ease-in-out ${star.delay}s infinite`,
             pointerEvents: 'none',
+            zIndex: 0,
           }}
         />
       ))}
@@ -564,59 +688,104 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
         </button>
       )}
 
-      {/* Visual area */}
+      {/* Slide area: all slides rendered, crossfade via opacity */}
       <div style={{
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
         minHeight: 0,
         paddingTop: 56,
+        position: 'relative',
+        zIndex: 1,
+        paddingBottom: 160,
       }}>
-        <div
-          key={activeSlide}
-          style={{
-            flex: 1,
-            minHeight: 0,
-            animation: 'mtd-slide-in 0.5s ease-out',
-          }}
-        >
-          {current.render()}
-        </div>
+        {SLIDES.map((slide, idx) => (
+          <div
+            key={idx}
+            style={{
+              position: idx === 0 ? 'relative' : 'absolute',
+              top: idx === 0 ? undefined : 56,
+              left: 0,
+              right: 0,
+              bottom: idx === 0 ? undefined : 160,
+              flex: idx === 0 ? 1 : undefined,
+              minHeight: 0,
+              opacity: idx === activeSlide ? 1 : 0,
+              transition: 'opacity 0.4s ease',
+              pointerEvents: idx === activeSlide ? 'auto' : 'none',
+              zIndex: idx === activeSlide ? 2 : 1,
+            }}
+          >
+            <div style={{
+              height: '100%',
+              animation: idx === activeSlide ? 'mtd-slide-entrance 0.5s ease-out' : 'none',
+            }}>
+              {slide.render()}
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Text + controls area */}
+      {/* Fixed bottom area: text, dots, CTA */}
       <div style={{
-        padding: '0 24px 32px',
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 20,
-        flexShrink: 0,
+        background: `linear-gradient(to top, ${COLORS.bg} 60%, ${COLORS.bg}ee 80%, transparent)`,
+        paddingTop: 24,
+        paddingBottom: 32,
+        paddingLeft: 24,
+        paddingRight: 24,
+        gap: 16,
       }}>
-        {/* Headline + description */}
-        <div
-          key={`text-${activeSlide}`}
-          style={{ textAlign: 'center', animation: 'mtd-slide-in 0.5s ease-out' }}
-        >
-          <h2 style={{
-            fontSize: 24,
-            fontWeight: 800,
-            margin: 0,
-            marginBottom: 8,
-            letterSpacing: '-0.02em',
-            lineHeight: 1.2,
-          }}>
-            {current.headline}
-          </h2>
-          <p style={{
-            fontSize: 15,
-            color: COLORS.muted,
-            margin: 0,
-            lineHeight: 1.5,
-            maxWidth: 320,
-          }}>
-            {current.description}
-          </p>
+        {/* Headline + description with crossfade */}
+        <div style={{ position: 'relative', width: '100%', minHeight: 80, textAlign: 'center' }}>
+          {SLIDES.map((slide, idx) => (
+            <div
+              key={`text-${idx}`}
+              style={{
+                position: idx === 0 ? 'relative' : 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                opacity: idx === activeSlide ? 1 : 0,
+                transition: 'opacity 0.4s ease',
+                pointerEvents: idx === activeSlide ? 'auto' : 'none',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}
+            >
+              <div style={{
+                animation: idx === activeSlide ? 'mtd-slide-entrance 0.5s ease-out' : 'none',
+              }}>
+                <h2 style={{
+                  fontSize: 24,
+                  fontWeight: 800,
+                  margin: 0,
+                  marginBottom: 8,
+                  letterSpacing: '-0.02em',
+                  lineHeight: 1.2,
+                }}>
+                  {slide.headline}
+                </h2>
+                <p style={{
+                  fontSize: 15,
+                  color: COLORS.muted,
+                  margin: 0,
+                  lineHeight: 1.5,
+                  maxWidth: 320,
+                }}>
+                  {slide.description}
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Progress dots */}
@@ -639,25 +808,39 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
           ))}
         </div>
 
-        {/* CTA Button */}
+        {/* CTA Button - fixed, full width, gradient, shimmer */}
         <button
           onClick={onGetStarted}
           style={{
             width: '100%',
             maxWidth: 340,
-            padding: '16px 24px',
+            height: 56,
             borderRadius: 16,
             border: 'none',
-            background: `linear-gradient(135deg, ${COLORS.indigo}, #4f46e5)`,
+            background: `linear-gradient(135deg, #6366f1, #a855f7)`,
             color: '#fff',
-            fontSize: 17,
-            fontWeight: 700,
+            fontSize: 15,
+            fontWeight: 900,
             cursor: 'pointer',
-            animation: 'mtd-cta-pulse 1.5s infinite alternate',
             letterSpacing: '-0.01em',
+            position: 'relative',
+            overflow: 'hidden',
+            boxShadow: `0 0 24px ${COLORS.indigo}66, 0 0 48px ${COLORS.indigo}33, 0 4px 16px rgba(0,0,0,0.4)`,
+            animation: 'mtd-cta-pulse 1.5s infinite alternate',
+            flexShrink: 0,
           }}
         >
-          Connect Brain to Start
+          {/* Shimmer overlay */}
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.15) 50%, transparent 60%)',
+            backgroundSize: '200% 100%',
+            animation: 'mtd-shimmer 3s ease-in-out infinite',
+            pointerEvents: 'none',
+            borderRadius: 16,
+          }} />
+          <span style={{ position: 'relative', zIndex: 1 }}>Connect Brain to Start Trading</span>
         </button>
 
         {/* Skip link */}
@@ -671,6 +854,7 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
               fontSize: 14,
               cursor: 'pointer',
               padding: '4px 8px',
+              flexShrink: 0,
             }}
           >
             Skip for now
