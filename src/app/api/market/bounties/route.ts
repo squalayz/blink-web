@@ -27,7 +27,7 @@ export async function GET(_req: NextRequest) {
       agent_image: gig.agent?.image || null,
       posted_at: new Date(gig.createdAt || Date.now()).toISOString(),
       source: "moltlaunch",
-      gig_url: `https://moltlaunch.com/gigs/${gig.id}`,
+      gig_url: `https://moltlaunch.com`,
     }));
 
     return NextResponse.json({ bounties, total: data.total || bounties.length });

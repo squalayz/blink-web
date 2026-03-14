@@ -777,6 +777,8 @@ export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFund
   const [totalEarned, setTotalEarned] = useState(0);
   const [agentStatus, setAgentStatus] = useState<"hunting" | "working" | "idle" | "dormant">("dormant");
   const [liveLog, setLiveLog] = useState<LogEntry[]>([]);
+  const [agentModalOpen, setAgentModalOpen] = useState(false);
+  const [agentModalTitle, setAgentModalTitle] = useState("");
   const [acceptModal, setAcceptModal] = useState<Bounty | null>(null);
   const [totalGigs, setTotalGigs] = useState(483);
   const logRef = useRef<HTMLDivElement>(null);
@@ -837,6 +839,8 @@ export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFund
 
     setAgentRunning(bountyId);
     setLiveLog([]);
+    setAgentModalTitle(bounty.title);
+    setAgentModalOpen(true);
 
     const addLog = (type: LogEntry["type"], message: string) => {
       setLiveLog(prev => [...prev, { ts: Date.now(), type, message }]);
@@ -1294,28 +1298,63 @@ export default function MeshMarket({ user, agent, wallet, onConnectBrain, onFund
         </div>
       )}
 
-      {/* ── Live agent log ── */}
-      {agentRunning && (
-        <div ref={logRef} style={{
-          position: "fixed", bottom: 60, left: 0, right: 0,
-          background: "rgba(10,10,15,0.97)",
-          borderTop: "1px solid rgba(99,102,241,0.3)",
-          padding: "10px 16px", maxHeight: 140, overflowY: "auto", zIndex: 50,
+      {/* ── Agent Log Modal ── */}
+      {agentModalOpen && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 9999,
+          background: "rgba(0,0,0,0.75)",
+          display: "flex", alignItems: "center", justifyContent: "center",
         }}>
-          <div style={{ fontSize: 10, color: C.indigo, fontWeight: 800, marginBottom: 6 }}>
-            AGENT LOG
-          </div>
-          {liveLog.slice(-8).map((entry, i) => (
-            <div key={i} style={{
-              fontSize: 10,
-              color: entry.type === "earn" ? C.gold : entry.type === "work" ? C.cyan : entry.type === "decline" ? C.hot : C.muted,
-              marginBottom: 2,
-              fontFamily: "'JetBrains Mono', monospace",
-              animation: "mm-log-in 0.2s ease-out",
-            }}>
-              [{new Date(entry.ts).toLocaleTimeString()}] {entry.message}
+          <div style={{
+            width: "90%", maxWidth: 480,
+            background: C.surface,
+            borderRadius: 16,
+            border: `1px solid ${C.border}`,
+            padding: "20px 20px 16px",
+            maxHeight: "70vh",
+            display: "flex", flexDirection: "column",
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 4 }}>
+              {agentModalTitle}
             </div>
-          ))}
+            <div style={{ fontSize: 10, color: C.indigo, fontWeight: 800, marginBottom: 10 }}>
+              {agentRunning ? "AGENT WORKING..." : "AGENT LOG"}
+            </div>
+            <div ref={logRef} style={{
+              flex: 1, overflowY: "auto", minHeight: 80, maxHeight: "50vh",
+            }}>
+              {liveLog.map((entry, i) => (
+                <div key={i} style={{
+                  fontSize: 11,
+                  color: entry.type === "earn" ? C.gold : entry.type === "work" ? C.cyan : entry.type === "decline" ? C.hot : entry.type === "quote" ? C.match : entry.type === "submit" ? C.indigo : C.muted,
+                  marginBottom: 3,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  animation: "mm-log-in 0.2s ease-out",
+                }}>
+                  [{new Date(entry.ts).toLocaleTimeString()}] {entry.message}
+                </div>
+              ))}
+            </div>
+            {!agentRunning && (
+              <button
+                onClick={() => setAgentModalOpen(false)}
+                style={{
+                  marginTop: 14,
+                  padding: "10px 0",
+                  background: C.indigo,
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  width: "100%",
+                }}
+              >
+                Close
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
