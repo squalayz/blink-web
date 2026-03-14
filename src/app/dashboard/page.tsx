@@ -341,6 +341,7 @@ export default function Dashboard(){
   // Support deep-linking: /dashboard?tab=wallet, ?tab=profile, etc.
   const initialTab=(()=>{const t=searchParams?.get("tab");const map:Record<string,string>={wallet:"brew",matches:"matches",chat:"mesh",profile:"profile",stats:"buzz",agent:"agent",grow:"evolve",discover:"discover",hunt:"hunt",work:"work"};return(t&&(map[t]||t))||"mesh";})();
   const[view,setView]=useState(initialTab);
+  const[tradingEntered,setTradingEntered]=useState(false);
   const[meshSubTab,setMeshSubTab]=useState<"connections"|"matches">("connections");
   const[matches,setMatches]=useState<any[]>([]);
   const[notifications,setNotifications]=useState<any[]>([]);
@@ -1308,7 +1309,7 @@ export default function Dashboard(){
         ))}
 
         {/* MeshScope tab — right next to Connect, always glowing */}
-        <button onClick={()=>setView("hunt")} style={{
+        <button onClick={()=>{setView("hunt");setTradingEntered(false);}} style={{
           flex:1, position:"relative",
           background:view==="hunt"?"linear-gradient(135deg, rgba(0,82,255,0.25), rgba(255,45,85,0.15))":"linear-gradient(135deg, rgba(0,82,255,0.12), rgba(255,45,85,0.08))",
           border:view==="hunt"?"1px solid rgba(0,82,255,0.5)":"1px solid rgba(0,82,255,0.35)",
@@ -2033,7 +2034,7 @@ export default function Dashboard(){
               <div style={{fontSize:26,fontWeight:900,background:`linear-gradient(135deg,${C.cold},${C.cyan})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginTop:2}}>{feedStats?.reputation||50}</div>
               <div style={{fontSize:8,color:C.dim}}>visible to others</div>
             </div>
-            <div onClick={()=>setView("hunt")} style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center",cursor:"pointer"}}>
+            <div onClick={()=>{setView("hunt");setTradingEntered(false);}} style={{flex:1,background:C.surface,borderRadius:12,padding:"12px 10px",border:`1px solid ${C.border}`,textAlign:"center",cursor:"pointer"}}>
               <div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em"}}>Co-Hunt</div>
               {feedStats?.hunt_score?(<div style={{fontSize:26,fontWeight:900,color:C.hot,marginTop:2}}>{feedStats.hunt_score}</div>):(<div style={{fontSize:11,color:C.hot,fontWeight:600,marginTop:6}}>Hunt Now →</div>)}
             </div>
@@ -3096,8 +3097,17 @@ export default function Dashboard(){
 
         {/* ── Hunt / MeshTrade Tab ── */}
         {view==="hunt"&&(
-          !(agent?.ai_provider || user?.ai_api_key_encrypted)
-            ? <MeshTradeDemo onGetStarted={()=>setView("agent")} />
+          !tradingEntered
+            ? <MeshTradeDemo
+                hasBrain={!!(agent?.ai_provider || user?.ai_api_key_encrypted)}
+                onGetStarted={()=>{
+                  if(agent?.ai_provider || user?.ai_api_key_encrypted){
+                    setTradingEntered(true);
+                  } else {
+                    setView("agent");
+                  }
+                }}
+              />
             : <div style={{paddingBottom:96}}>
                 <MeshTrade user={user} agent={agent} wallet={wallet} onConnectBrain={()=>setView("agent")} onFundWallet={()=>{setView("brew");setShowDepositCard(true);}}/>
               </div>
@@ -3169,7 +3179,7 @@ export default function Dashboard(){
       <MobileTabBar
         activeTab={view==="hunt"?"hunt":view==="work"?"work":view==="mesh"||view==="matches"?"mesh":view==="feed"?"feed":view==="discover"?"discover":view==="brew"?"wallet":view==="agent"||view==="profile"||view==="buzz"||view==="evolve"?"agent":"mesh"}
         onTabChange={(tab)=>{
-          if(tab==="hunt"){setView("hunt");return;}
+          if(tab==="hunt"){setView("hunt");setTradingEntered(false);return;}
           if(tab==="work"){setView("work");return;}
           if(tab==="feed"){setView("feed");return;}
           if(tab==="discover"){setView("discover");if(user&&!discoverProfiles.length)loadDiscoverFeed(user.id);return;}

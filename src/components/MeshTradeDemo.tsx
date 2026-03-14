@@ -5,6 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 interface MeshTradeDemoProps {
   onGetStarted: () => void;
   onClose?: () => void;
+  hasBrain?: boolean;
 }
 
 const COLORS = {
@@ -46,7 +47,7 @@ function seededRandom(seed: number) {
   };
 }
 
-export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoProps) {
+export default function MeshTradeDemo({ onGetStarted, onClose, hasBrain = false }: MeshTradeDemoProps) {
   const [activeSlide, setActiveSlide] = useState(0);
   const [prevSlide, setPrevSlide] = useState(-1);
   const [transitioning, setTransitioning] = useState(false);
@@ -905,7 +906,7 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
             height: 60,
             borderRadius: 20,
             border: 'none',
-            background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+            background: hasBrain ? 'linear-gradient(135deg, #06b6d4, #6366f1)' : 'linear-gradient(135deg, #6366f1, #a855f7)',
             color: '#fff',
             fontSize: 16,
             fontWeight: 900,
@@ -926,7 +927,7 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
             pointerEvents: 'none',
             borderRadius: 20,
           }} />
-          <span style={{ position: 'relative', zIndex: 1 }}>Connect Brain to Start Trading</span>
+          <span style={{ position: 'relative', zIndex: 1 }}>{hasBrain ? 'Enter Trading Console' : 'Connect Brain to Start Trading'}</span>
         </button>
 
         {/* Skip link */}
