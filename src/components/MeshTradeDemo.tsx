@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 interface MeshTradeDemoProps {
   onGetStarted: () => void;
@@ -10,11 +10,9 @@ interface MeshTradeDemoProps {
 const COLORS = {
   bg: '#0a0a0f',
   surface: '#0d0d14',
-  s2: '#1a1a24',
   indigo: '#6366f1',
   cyan: '#06b6d4',
   match: '#30d158',
-  hot: '#ff2d55',
   gold: '#ffd700',
   text: '#e8e8f0',
   muted: '#6b6b80',
@@ -22,630 +20,271 @@ const COLORS = {
   border: 'rgba(255,255,255,0.07)',
 };
 
-const SLIDE_DURATION = 5000;
+const SLIDE_DURATION = 6000;
 const TOTAL_SLIDES = 5;
 
 const TOKENS = [
   { symbol: 'APEX', initials: 'AP', color: '#ff6b6b', price: '$0.0034', change: '+124%', badge: 'SNIPE', badgeColor: '#ff2d55' },
   { symbol: 'NOVA', initials: 'NV', color: '#4ecdc4', price: '$0.0891', change: '+67%', badge: 'TREND', badgeColor: '#ffd700' },
   { symbol: 'ZETA', initials: 'ZT', color: '#a855f7', price: '$0.00041', change: '+340%', badge: 'SNIPE', badgeColor: '#ff2d55' },
-  { symbol: 'MESH', initials: 'MS', color: '#6366f1', price: '$0.156', change: '+42%', badge: 'TREND', badgeColor: '#ffd700' },
-  { symbol: 'BLITZ', initials: 'BZ', color: '#f59e0b', price: '$0.0012', change: '+89%', badge: 'SNIPE', badgeColor: '#ff2d55' },
 ];
 
-const THOUGHT_WORDS = [
-  { text: 'Vol spike 340%...', color: COLORS.text },
-  { text: 'Mesh signal: 4 agents...', color: COLORS.cyan },
-  { text: 'Rug score: 12/100...', color: COLORS.text },
-  { text: 'Sizing: 1.2%...', color: COLORS.muted },
-  { text: 'BUY', color: COLORS.match, bold: true },
+const THOUGHT_LINES = [
+  { text: 'scanning... ZETA/ETH', color: `${COLORS.cyan}99`, size: 16 },
+  { text: 'volume spike: +340% in 90s', color: '#ffffff', size: 16 },
+  { text: 'whale concentration: LOW', color: COLORS.match, size: 16 },
+  { text: 'mesh signal: 4 agents watching', color: COLORS.indigo, size: 16 },
+  { text: 'rug score: 12/100', color: COLORS.match, size: 16 },
+  { text: 'BUY', color: COLORS.gold, size: 48, bold: true },
 ];
+
+function seededRandom(seed: number) {
+  let s = seed;
+  return () => {
+    s = (s * 1664525 + 1013904223) % 4294967296;
+    return s / 4294967296;
+  };
+}
 
 export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoProps) {
   const [activeSlide, setActiveSlide] = useState(0);
-  const [slideProgress, setSlideProgress] = useState(0);
+  const [prevSlide, setPrevSlide] = useState(-1);
+  const [transitioning, setTransitioning] = useState(false);
 
-  // Slide 0 states
-  const [orbAwake, setOrbAwake] = useState(false);
+  // Slide 0
+  const [orbSize, setOrbSize] = useState(10);
+  const [orbGlow, setOrbGlow] = useState(false);
+  const [ringsVisible, setRingsVisible] = useState(0);
+  const [headlineVisible, setHeadlineVisible] = useState(false);
+  const [starsOn, setStarsOn] = useState(false);
 
-  // Slide 1 states
-  const [visibleBubbles, setVisibleBubbles] = useState(0);
+  // Slide 1
+  const [visibleCards, setVisibleCards] = useState(0);
 
-  // Slide 2 states
+  // Slide 2
   const [thoughtIndex, setThoughtIndex] = useState(-1);
-  const [bubbleMerging, setBubbleMerging] = useState(false);
-  const [orbFlash, setOrbFlash] = useState(false);
+  const [buyFlash, setBuyFlash] = useState(false);
+  const [orbFlashGreen, setOrbFlashGreen] = useState(false);
 
-  // Slide 3 states
-  const [profitEjected, setProfitEjected] = useState(false);
-  const [ethFloating, setEthFloating] = useState(false);
+  // Slide 3
+  const [coinDropped, setCoinDropped] = useState(false);
+  const [rippleActive, setRippleActive] = useState(false);
+  const [profitCount, setProfitCount] = useState(0);
+  const [statsVisible, setStatsVisible] = useState(false);
+  const profitRef = useRef<number | null>(null);
 
-  // Particles for drifting upward effect
-  const particles = useMemo(() => {
-    const result: { x: number; startY: number; size: number; delay: number; duration: number; opacity: number }[] = [];
-    let seed = 99;
-    const rand = () => {
-      seed = (seed * 1664525 + 1013904223) % 4294967296;
-      return seed / 4294967296;
-    };
-    for (let i = 0; i < 20; i++) {
-      result.push({
-        x: rand() * 100,
-        startY: rand() * 100,
-        size: 1.5 + rand() * 2,
-        delay: rand() * 8,
-        duration: 6 + rand() * 6,
-        opacity: 0.15 + rand() * 0.2,
-      });
-    }
-    return result;
-  }, []);
+  // Slide 4 — no special state, CSS animations only
 
+  // Stars and particles (deterministic)
   const stars = useMemo(() => {
-    const result: { x: number; y: number; size: number; delay: number; duration: number }[] = [];
-    let seed = 42;
-    const rand = () => {
-      seed = (seed * 1664525 + 1013904223) % 4294967296;
-      return seed / 4294967296;
-    };
-    for (let i = 0; i < 45; i++) {
-      result.push({
-        x: rand() * 100,
-        y: rand() * 100,
-        size: 1 + rand() * 1.5,
-        delay: rand() * 4,
-        duration: 2 + rand() * 2,
-      });
-    }
-    return result;
+    const rand = seededRandom(42);
+    return Array.from({ length: 60 }, () => ({
+      x: rand() * 100,
+      y: rand() * 100,
+      size: 1 + rand() * 1.5,
+      delay: rand() * 4,
+      duration: 2 + rand() * 2,
+    }));
   }, []);
 
-  // Auto-advance slides
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveSlide((prev) => (prev + 1) % TOTAL_SLIDES);
-    }, SLIDE_DURATION);
-    return () => clearInterval(interval);
+  const particles = useMemo(() => {
+    const rand = seededRandom(99);
+    return Array.from({ length: 15 }, () => ({
+      x: rand() * 100,
+      size: 1 + rand() * 1.5,
+      delay: rand() * 10,
+      duration: 8 + rand() * 8,
+      opacity: 0.1 + rand() * 0.15,
+    }));
   }, []);
 
-  // Progress bar within each slide
-  useEffect(() => {
-    setSlideProgress(0);
-    const start = Date.now();
-    const tick = () => {
-      const elapsed = Date.now() - start;
-      const pct = Math.min(elapsed / SLIDE_DURATION, 1);
-      setSlideProgress(pct);
-      if (pct < 1) requestAnimationFrame(tick);
-    };
-    const raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+  // Slide transition
+  const goToSlide = useCallback((idx: number) => {
+    if (idx === activeSlide) return;
+    setPrevSlide(activeSlide);
+    setTransitioning(true);
+    setTimeout(() => {
+      setActiveSlide(idx);
+      setTransitioning(false);
+      setPrevSlide(-1);
+    }, 400);
   }, [activeSlide]);
 
-  // Reset all animation states on slide change
+  // Auto-advance
   useEffect(() => {
-    setOrbAwake(false);
-    setVisibleBubbles(0);
+    const interval = setInterval(() => {
+      goToSlide(activeSlide === TOTAL_SLIDES - 1 ? 0 : activeSlide + 1);
+    }, SLIDE_DURATION);
+    return () => clearInterval(interval);
+  }, [activeSlide, goToSlide]);
+
+  // Reset + animate per slide
+  useEffect(() => {
+    // Reset all
+    setOrbSize(10);
+    setOrbGlow(false);
+    setRingsVisible(0);
+    setHeadlineVisible(false);
+    setStarsOn(false);
+    setVisibleCards(0);
     setThoughtIndex(-1);
-    setBubbleMerging(false);
-    setOrbFlash(false);
-    setProfitEjected(false);
-    setEthFloating(false);
+    setBuyFlash(false);
+    setOrbFlashGreen(false);
+    setCoinDropped(false);
+    setRippleActive(false);
+    setProfitCount(0);
+    setStatsVisible(false);
+    if (profitRef.current) cancelAnimationFrame(profitRef.current);
+
+    const timers: ReturnType<typeof setTimeout>[] = [];
 
     if (activeSlide === 0) {
-      const t = setTimeout(() => setOrbAwake(true), 300);
-      return () => clearTimeout(t);
+      timers.push(setTimeout(() => setStarsOn(true), 200));
+      timers.push(setTimeout(() => { setOrbSize(180); setOrbGlow(true); }, 300));
+      timers.push(setTimeout(() => setRingsVisible(1), 800));
+      timers.push(setTimeout(() => setRingsVisible(2), 1200));
+      timers.push(setTimeout(() => setRingsVisible(3), 1600));
+      timers.push(setTimeout(() => setHeadlineVisible(true), 2300));
     }
 
     if (activeSlide === 1) {
-      const timers: ReturnType<typeof setTimeout>[] = [];
       for (let i = 0; i < TOKENS.length; i++) {
-        timers.push(setTimeout(() => setVisibleBubbles(i + 1), 400 + i * 350));
+        timers.push(setTimeout(() => setVisibleCards(i + 1), 600 + i * 700));
       }
-      return () => timers.forEach(clearTimeout);
     }
 
     if (activeSlide === 2) {
-      const timers: ReturnType<typeof setTimeout>[] = [];
-      for (let i = 0; i < THOUGHT_WORDS.length; i++) {
-        timers.push(setTimeout(() => setThoughtIndex(i), 400 + i * 450));
+      for (let i = 0; i < THOUGHT_LINES.length; i++) {
+        timers.push(setTimeout(() => {
+          setThoughtIndex(i);
+          if (i === THOUGHT_LINES.length - 1) {
+            setBuyFlash(true);
+            setOrbFlashGreen(true);
+            setTimeout(() => setBuyFlash(false), 600);
+          }
+        }, 500 + i * 600));
       }
-      timers.push(setTimeout(() => setBubbleMerging(true), 400 + THOUGHT_WORDS.length * 450 + 200));
-      timers.push(setTimeout(() => setOrbFlash(true), 400 + THOUGHT_WORDS.length * 450 + 550));
-      timers.push(setTimeout(() => setOrbFlash(false), 400 + THOUGHT_WORDS.length * 450 + 900));
-      return () => timers.forEach(clearTimeout);
     }
 
     if (activeSlide === 3) {
-      const t1 = setTimeout(() => setProfitEjected(true), 1200);
-      const t2 = setTimeout(() => setEthFloating(true), 1600);
-      return () => { clearTimeout(t1); clearTimeout(t2); };
+      timers.push(setTimeout(() => setCoinDropped(true), 400));
+      timers.push(setTimeout(() => setRippleActive(true), 900));
+      timers.push(setTimeout(() => {
+        const start = Date.now();
+        const dur = 1500;
+        const target = 0.0023;
+        const tick = () => {
+          const elapsed = Date.now() - start;
+          const pct = Math.min(elapsed / dur, 1);
+          setProfitCount(pct * target);
+          if (pct < 1) profitRef.current = requestAnimationFrame(tick);
+        };
+        profitRef.current = requestAnimationFrame(tick);
+      }, 1200));
+      timers.push(setTimeout(() => setStatsVisible(true), 2800));
     }
+
+    return () => {
+      timers.forEach(clearTimeout);
+      if (profitRef.current) cancelAnimationFrame(profitRef.current);
+    };
   }, [activeSlide]);
 
-  const goToSlide = useCallback((idx: number) => {
-    setActiveSlide(idx);
-  }, []);
-
-  // --- SLIDE VISUALS ---
-
-  const renderSlide0 = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 24 }}>
-      {/* Plasma orb - bigger 100px */}
-      <div style={{
-        width: 100,
-        height: 100,
-        borderRadius: '50%',
-        position: 'relative',
-        transition: 'all 2.5s cubic-bezier(0.16, 1, 0.3, 1)',
-        filter: orbAwake ? `drop-shadow(0 0 30px ${COLORS.indigo}) drop-shadow(0 0 60px ${COLORS.cyan}44)` : 'none',
-      }}>
-        {/* Base gradient */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          borderRadius: '50%',
-          background: orbAwake
-            ? `radial-gradient(circle at 40% 35%, ${COLORS.indigo}, #1e1b4b 70%, #0f0e1a)`
-            : `radial-gradient(circle at 40% 35%, #1a1a2e, #0f0e1a 70%)`,
-          transition: 'background 2s ease',
-          boxShadow: orbAwake
-            ? `0 0 30px ${COLORS.indigo}88, 0 0 60px ${COLORS.indigo}44, 0 0 100px ${COLORS.cyan}22, inset 0 0 30px ${COLORS.indigo}44`
-            : 'none',
-        }} />
-        {/* Specular highlight */}
-        <div style={{
-          position: 'absolute',
-          top: '15%',
-          left: '20%',
-          width: '35%',
-          height: '25%',
-          borderRadius: '50%',
-          background: orbAwake
-            ? 'radial-gradient(circle, rgba(255,255,255,0.5) 0%, transparent 70%)'
-            : 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)',
-          transition: 'background 2s ease',
-        }} />
-        {/* Cyan shimmer */}
-        <div style={{
-          position: 'absolute',
-          inset: -4,
-          borderRadius: '50%',
-          background: orbAwake
-            ? `conic-gradient(from 0deg, transparent, ${COLORS.cyan}44, transparent, ${COLORS.cyan}22, transparent)`
-            : 'none',
-          animation: orbAwake ? 'mtd-ring-rotate 3s linear infinite' : 'none',
-        }} />
-        {/* Outer glow ring */}
-        <div style={{
-          position: 'absolute',
-          inset: -8,
-          borderRadius: '50%',
-          border: orbAwake ? `2px solid ${COLORS.cyan}66` : '2px solid transparent',
-          boxShadow: orbAwake ? `0 0 20px ${COLORS.cyan}33, inset 0 0 20px ${COLORS.cyan}11` : 'none',
-          animation: orbAwake ? 'mtd-ring-rotate 4s linear infinite reverse' : 'none',
-          transition: 'border 2s ease, box-shadow 2s ease',
-        }} />
-        {/* Pulse animation when awake */}
-        <div style={{
-          position: 'absolute',
-          inset: -16,
-          borderRadius: '50%',
-          border: `1px solid ${COLORS.indigo}33`,
-          opacity: orbAwake ? 1 : 0,
-          animation: orbAwake ? 'mtd-orb-pulse 2s ease-in-out infinite' : 'none',
-          transition: 'opacity 1s ease',
-        }} />
-      </div>
-    </div>
-  );
-
-  const renderSlide1 = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', position: 'relative', overflow: 'hidden' }}>
-      {/* Mini orb top-left */}
-      <div style={{
-        position: 'absolute',
-        top: 12,
-        left: 16,
-        width: 48,
-        height: 48,
-        borderRadius: '50%',
-        background: `radial-gradient(circle at 40% 35%, ${COLORS.indigo}, #1e1b4b 70%)`,
-        filter: `drop-shadow(0 0 12px ${COLORS.indigo}88)`,
-        animation: 'mtd-orb-mini-pulse 0.7s ease-in-out infinite alternate',
-        boxShadow: `0 0 20px ${COLORS.indigo}66, 0 0 40px ${COLORS.indigo}33`,
-      }} />
-      {/* Token bubbles */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 300, paddingLeft: 20, paddingRight: 20 }}>
-        {TOKENS.map((token, i) => (
-          <div
-            key={token.symbol}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '10px 14px',
-              background: COLORS.surface,
-              borderRadius: 14,
-              border: `1px solid ${COLORS.border}`,
-              opacity: i < visibleBubbles ? 1 : 0,
-              transform: i < visibleBubbles ? 'translateX(0)' : 'translateX(110%)',
-              transition: `transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease`,
-            }}
-          >
-            <div style={{
-              width: 34,
-              height: 34,
-              borderRadius: '50%',
-              background: token.color,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 12,
-              fontWeight: 700,
-              color: '#fff',
-              flexShrink: 0,
-            }}>
-              {token.initials}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 700, fontSize: 14, color: COLORS.text }}>{token.symbol}</span>
-                <span style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  padding: '2px 7px',
-                  borderRadius: 6,
-                  background: `${token.badgeColor}22`,
-                  color: token.badgeColor,
-                }}>{token.badge}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                <span style={{ fontSize: 12, color: COLORS.muted }}>{token.price}</span>
-                <span style={{ fontSize: 12, color: COLORS.match, fontWeight: 600 }}>{token.change}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderSlide2 = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 16, position: 'relative' }}>
-      {/* Orb (right side) - bigger with layered glow */}
-      <div style={{
-        position: 'absolute',
-        right: 30,
-        top: '15%',
-        width: 56,
-        height: 56,
-        borderRadius: '50%',
-        background: orbFlash
-          ? `radial-gradient(circle at 40% 35%, ${COLORS.match}, ${COLORS.match}88 70%)`
-          : `radial-gradient(circle at 40% 35%, ${COLORS.indigo}, #1e1b4b 70%)`,
-        filter: orbFlash
-          ? `drop-shadow(0 0 24px ${COLORS.match})`
-          : `drop-shadow(0 0 12px ${COLORS.indigo}88)`,
-        boxShadow: orbFlash
-          ? `0 0 20px ${COLORS.match}66, 0 0 40px ${COLORS.match}33, 0 0 60px ${COLORS.match}22`
-          : `0 0 20px ${COLORS.indigo}44, 0 0 40px ${COLORS.indigo}22`,
-        transition: 'all 0.3s ease',
-      }} />
-      {/* Highlighted bubble card */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '12px 16px',
-        background: COLORS.surface,
-        borderRadius: 14,
-        border: `1px solid ${COLORS.cyan}55`,
-        boxShadow: `0 0 20px ${COLORS.cyan}22`,
-        width: 260,
-        transform: bubbleMerging ? 'translateX(80px) scale(0.3)' : 'translateX(0) scale(1)',
-        opacity: bubbleMerging ? 0 : 1,
-        transition: 'transform 0.5s cubic-bezier(0.5, 0, 0.5, 1), opacity 0.4s ease',
-      }}>
-        <div style={{
-          width: 38,
-          height: 38,
-          borderRadius: '50%',
-          background: '#a855f7',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 13,
-          fontWeight: 700,
-          color: '#fff',
-          flexShrink: 0,
-        }}>ZT</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, color: COLORS.text }}>ZETA</div>
-          <div style={{ fontSize: 12, color: COLORS.muted }}>$0.00041 <span style={{ color: COLORS.match, fontWeight: 600 }}>+340%</span></div>
-        </div>
-      </div>
-      {/* Thought stream */}
-      <div style={{ width: 280, minHeight: 100, padding: '8px 0' }}>
-        {THOUGHT_WORDS.map((word, i) => (
-          <div
-            key={i}
-            style={{
-              fontSize: word.bold ? 18 : 13,
-              fontWeight: word.bold ? 800 : 400,
-              color: word.color,
-              fontFamily: 'monospace',
-              lineHeight: 1.7,
-              opacity: i <= thoughtIndex ? 1 : 0,
-              transform: i <= thoughtIndex ? 'translateY(0)' : 'translateY(8px)',
-              transition: 'opacity 0.3s ease, transform 0.3s ease',
-            }}
-          >
-            {word.text}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderSlide3 = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 20, position: 'relative' }}>
-      {/* Orb center - bigger 100px with layered glow */}
-      <div style={{ position: 'relative', width: 100, height: 100 }}>
-        <div style={{
-          width: 100,
-          height: 100,
-          borderRadius: '50%',
-          background: `radial-gradient(circle at 40% 35%, ${COLORS.indigo}, #1e1b4b 70%)`,
-          boxShadow: `0 0 30px ${COLORS.indigo}88, 0 0 60px ${COLORS.indigo}44, 0 0 100px ${COLORS.indigo}22`,
-        }} />
-        {/* Orbiting profit pill */}
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          animation: profitEjected ? 'mtd-pill-eject 0.8s ease-out forwards' : 'mtd-pill-orbit 3s linear infinite',
-          transformOrigin: '0 0',
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 12px',
-            background: `${COLORS.match}22`,
-            border: `1px solid ${COLORS.match}55`,
-            borderRadius: 20,
-            whiteSpace: 'nowrap',
-            marginLeft: -50,
-            marginTop: -14,
-          }}>
-            <div style={{
-              width: 18,
-              height: 18,
-              borderRadius: '50%',
-              background: '#a855f7',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 8,
-              fontWeight: 700,
-              color: '#fff',
-            }}>ZT</div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.match }}>+18.4%</span>
-          </div>
-        </div>
-      </div>
-      {/* Floating ETH number */}
-      <div style={{
-        fontSize: 22,
-        fontWeight: 800,
-        color: COLORS.gold,
-        opacity: ethFloating ? 0 : 1,
-        transform: ethFloating ? 'translateY(-40px)' : 'translateY(0)',
-        transition: 'opacity 1.2s ease, transform 1.2s ease',
-        visibility: profitEjected ? 'visible' : 'hidden',
-      }}>
-        +0.0023 ETH
-      </div>
-      {/* Mini P&L strip */}
-      <div style={{
-        display: 'flex',
-        gap: 16,
-        padding: '10px 20px',
-        background: COLORS.surface,
-        borderRadius: 12,
-        border: `1px solid ${COLORS.border}`,
-        opacity: profitEjected ? 1 : 0,
-        transition: 'opacity 0.6s ease 0.3s',
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 10, color: COLORS.muted, marginBottom: 2 }}>Session</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.match }}>+0.0041 ETH</div>
-        </div>
-        <div style={{ width: 1, background: COLORS.dim }} />
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 10, color: COLORS.muted, marginBottom: 2 }}>Today</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.match }}>+0.0089 ETH</div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderSlide4 = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 24, position: 'relative' }}>
-      {/* Large breathing orb with orbiting dots */}
-      <div style={{ position: 'relative', width: 140, height: 140 }}>
-        {/* Main orb */}
-        <div style={{
-          width: 100,
-          height: 100,
-          borderRadius: '50%',
-          position: 'absolute',
-          top: 20,
-          left: 20,
-          background: `radial-gradient(circle at 40% 35%, ${COLORS.indigo}, ${COLORS.cyan}44 60%, #1e1b4b 85%)`,
-          boxShadow: `0 0 40px ${COLORS.indigo}88, 0 0 80px ${COLORS.indigo}44, 0 0 120px ${COLORS.cyan}22, inset 0 0 40px ${COLORS.indigo}44`,
-          animation: 'mtd-breathe 3s ease-in-out infinite',
-        }} />
-        {/* Specular on breathing orb */}
-        <div style={{
-          position: 'absolute',
-          top: 30,
-          left: 38,
-          width: 35,
-          height: 25,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(255,255,255,0.35) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }} />
-        {/* Orbiting dots */}
-        {[0, 1, 2, 3, 4, 5].map((i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              width: 6,
-              height: 6,
-              marginLeft: -3,
-              marginTop: -3,
-              borderRadius: '50%',
-              background: i % 2 === 0 ? COLORS.cyan : COLORS.indigo,
-              boxShadow: `0 0 8px ${i % 2 === 0 ? COLORS.cyan : COLORS.indigo}88`,
-              animation: `mtd-orbit-dot ${4 + i * 0.5}s linear infinite`,
-              animationDelay: `${i * -0.67}s`,
-              transformOrigin: '3px 3px',
-              opacity: 0.8,
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
+  const currentOpacity = transitioning ? 0 : 1;
 
   const SLIDES = [
-    {
-      headline: 'Your agent wakes up',
-      description: 'Connect your AI brain and wallet. Your agent activates and starts scanning every token on Base.',
-      render: renderSlide0,
-    },
-    {
-      headline: '847 tokens scanned per cycle',
-      description: 'Every 10 seconds your agent sweeps Base for new launches, momentum plays, and revival patterns.',
-      render: renderSlide1,
-    },
-    {
-      headline: 'The agent decides in seconds',
-      description: 'It analyzes volume, wallet concentration, mesh signals from other agents, and risk score before every move.',
-      render: renderSlide2,
-    },
-    {
-      headline: 'Profits hit your Base wallet',
-      description: 'Every winning trade sends ETH directly to your wallet. No platform holds your funds. Ever.',
-      render: renderSlide3,
-    },
-    {
-      headline: 'Your agent never sleeps',
-      description: 'While you live your life, it scans 847 tokens every cycle, finds the signal in the noise, and acts -- all on your behalf.',
-      render: renderSlide4,
-    },
+    { headline: 'Your agent awakens', sub: 'Connect your brain. Watch it come to life.' },
+    { headline: '847 tokens scanned per cycle', sub: 'Every 10 seconds. Every launch. Every spike.' },
+    { headline: 'The agent decides in seconds', sub: 'No emotion. No hesitation. Pure signal.' },
+    { headline: 'Profits hit your Base wallet', sub: 'Directly to you. No platform holds your funds. Ever.' },
+    { headline: 'Your agent never sleeps', sub: 'While you live your life, it works -- every second, every cycle.' },
+  ];
+
+  const currentSlideData = SLIDES[transitioning ? prevSlide : activeSlide] || SLIDES[activeSlide];
+
+  // Clock labels for slide 4
+  const clockLabels = [
+    { angle: 0, text: '3:41 AM' },
+    { angle: 45, text: 'scanning...' },
+    { angle: 90, text: 'signal found' },
+    { angle: 135, text: 'executing...' },
+    { angle: 180, text: '7:12 AM' },
+    { angle: 225, text: 'scanning...' },
+    { angle: 270, text: 'new launch' },
+    { angle: 315, text: 'profit taken' },
   ];
 
   return (
     <div style={{
-      position: 'relative',
+      position: 'fixed',
+      top: 0,
+      left: 0,
       width: '100%',
       height: '100%',
       background: COLORS.bg,
       overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       color: COLORS.text,
+      zIndex: 9999,
     }}>
       <style>{`
         @keyframes mtd-star-twinkle {
-          0%, 100% { opacity: 0.15; }
-          50% { opacity: 0.8; }
+          0%, 100% { opacity: 0.1; }
+          50% { opacity: 0.7; }
         }
-        @keyframes mtd-ring-rotate {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes mtd-orb-pulse {
-          0%, 100% { transform: scale(1); opacity: 0.5; }
-          50% { transform: scale(1.15); opacity: 0; }
-        }
-        @keyframes mtd-orb-mini-pulse {
-          0% { filter: drop-shadow(0 0 8px ${COLORS.indigo}66); }
-          100% { filter: drop-shadow(0 0 18px ${COLORS.indigo}cc); }
-        }
-        @keyframes mtd-pill-orbit {
-          0% { transform: translate(50px, 0px) rotate(0deg); }
-          25% { transform: translate(0px, 50px) rotate(90deg); }
-          50% { transform: translate(-50px, 0px) rotate(180deg); }
-          75% { transform: translate(0px, -50px) rotate(270deg); }
-          100% { transform: translate(50px, 0px) rotate(360deg); }
-        }
-        @keyframes mtd-pill-eject {
-          0% { transform: translate(50px, 0px); opacity: 1; }
-          100% { transform: translate(140px, -60px) scale(0.6); opacity: 0; }
-        }
-        @keyframes mtd-cta-pulse {
-          0% { box-shadow: 0 0 20px ${COLORS.indigo}44; }
-          100% { box-shadow: 0 0 40px ${COLORS.indigo}88, 0 0 60px ${COLORS.indigo}33; }
-        }
-        @keyframes mtd-slide-entrance {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
+        @keyframes mtd-star-awaken {
+          0% { opacity: 0; }
+          100% { opacity: 0.7; }
         }
         @keyframes mtd-particle-float {
-          0% { transform: translateY(0); opacity: var(--p-opacity); }
-          100% { transform: translateY(-110vh); opacity: 0; }
+          0% { transform: translateY(0); }
+          100% { transform: translateY(-110vh); }
         }
-        @keyframes mtd-breathe {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 40px ${COLORS.indigo}88, 0 0 80px ${COLORS.indigo}44, 0 0 120px ${COLORS.cyan}22, inset 0 0 40px ${COLORS.indigo}44; }
-          50% { transform: scale(1.08); box-shadow: 0 0 60px ${COLORS.indigo}aa, 0 0 100px ${COLORS.indigo}66, 0 0 150px ${COLORS.cyan}33, inset 0 0 50px ${COLORS.indigo}66; }
-        }
-        @keyframes mtd-orbit-dot {
-          0% { transform: translate(60px, 0px); }
-          25% { transform: translate(0px, 60px); }
-          50% { transform: translate(-60px, 0px); }
-          75% { transform: translate(0px, -60px); }
-          100% { transform: translate(60px, 0px); }
+        @keyframes mtd-ring-expand {
+          0% { transform: scale(0.5); opacity: 0.8; }
+          100% { transform: scale(2.5); opacity: 0; }
         }
         @keyframes mtd-shimmer {
           0% { background-position: -200% center; }
           100% { background-position: 200% center; }
         }
+        @keyframes mtd-cta-glow {
+          0% { box-shadow: 0 0 20px ${COLORS.indigo}44, 0 4px 16px rgba(0,0,0,0.4); }
+          100% { box-shadow: 0 0 40px ${COLORS.indigo}88, 0 0 60px ${COLORS.indigo}33, 0 4px 16px rgba(0,0,0,0.4); }
+        }
+        @keyframes mtd-breathe {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.06); }
+        }
+        @keyframes mtd-orbit-dot {
+          0% { transform: rotate(0deg) translateX(var(--orbit-r)) rotate(0deg); }
+          100% { transform: rotate(360deg) translateX(var(--orbit-r)) rotate(-360deg); }
+        }
+        @keyframes mtd-coin-drop {
+          0% { transform: translateY(-40vh); opacity: 0; }
+          60% { transform: translateY(0); opacity: 1; }
+          75% { transform: translateY(-20px); }
+          100% { transform: translateY(0); }
+        }
+        @keyframes mtd-ripple {
+          0% { transform: scale(0.3); opacity: 0.7; }
+          100% { transform: scale(3); opacity: 0; }
+        }
+        @keyframes mtd-buy-flash {
+          0% { opacity: 0.8; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(2); }
+          100% { opacity: 0; transform: scale(3); }
+        }
+        @keyframes mtd-ring-rotate {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
       `}</style>
 
-      {/* Particle/star dots drifting upward */}
-      {particles.map((p, i) => (
-        <div
-          key={`particle-${i}`}
-          style={{
-            position: 'absolute',
-            left: `${p.x}%`,
-            bottom: `-${p.size}px`,
-            width: p.size,
-            height: p.size,
-            borderRadius: '50%',
-            background: '#fff',
-            opacity: p.opacity,
-            animation: `mtd-particle-float ${p.duration}s linear ${p.delay}s infinite`,
-            pointerEvents: 'none',
-            zIndex: 0,
-            ['--p-opacity' as string]: p.opacity,
-          }}
-        />
-      ))}
-
-      {/* Star field */}
+      {/* Star field - 60 stars */}
       {stars.map((star, i) => (
         <div
-          key={i}
+          key={`star-${i}`}
           style={{
             position: 'absolute',
             left: `${star.x}%`,
@@ -654,7 +293,30 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
             height: star.size,
             borderRadius: '50%',
             background: '#fff',
-            animation: `mtd-star-twinkle ${star.duration}s ease-in-out ${star.delay}s infinite`,
+            opacity: activeSlide === 0 && !starsOn ? 0 : undefined,
+            animation: activeSlide === 0
+              ? (starsOn ? `mtd-star-awaken 1.5s ease-out ${star.delay * 0.3}s forwards, mtd-star-twinkle ${star.duration}s ease-in-out ${star.delay}s infinite` : 'none')
+              : `mtd-star-twinkle ${star.duration}s ease-in-out ${star.delay}s infinite`,
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        />
+      ))}
+
+      {/* Particles drifting up */}
+      {particles.map((p, i) => (
+        <div
+          key={`particle-${i}`}
+          style={{
+            position: 'absolute',
+            left: `${p.x}%`,
+            bottom: 0,
+            width: p.size,
+            height: p.size,
+            borderRadius: '50%',
+            background: '#fff',
+            opacity: p.opacity,
+            animation: `mtd-particle-float ${p.duration}s linear ${p.delay}s infinite`,
             pointerEvents: 'none',
             zIndex: 0,
           }}
@@ -669,7 +331,7 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
             position: 'absolute',
             top: 16,
             right: 16,
-            zIndex: 110,
+            zIndex: 200,
             width: 36,
             height: 36,
             borderRadius: '50%',
@@ -688,85 +350,511 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
         </button>
       )}
 
-      {/* Slide area: all slides rendered, crossfade via opacity */}
+      {/* ========== ANIMATION ZONE: top 55% ========== */}
       <div style={{
-        flex: 1,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '55%',
         display: 'flex',
-        flexDirection: 'column',
-        minHeight: 0,
-        paddingTop: 56,
-        position: 'relative',
+        alignItems: 'center',
+        justifyContent: 'center',
         zIndex: 1,
-        paddingBottom: 160,
+        opacity: currentOpacity,
+        transition: 'opacity 0.4s ease-out',
       }}>
-        {SLIDES.map((slide, idx) => (
-          <div
-            key={idx}
-            style={{
-              position: idx === 0 ? 'relative' : 'absolute',
-              top: idx === 0 ? undefined : 56,
-              left: 0,
-              right: 0,
-              bottom: idx === 0 ? undefined : 160,
-              flex: idx === 0 ? 1 : undefined,
-              minHeight: 0,
-              opacity: idx === activeSlide ? 1 : 0,
-              transition: 'opacity 0.4s ease',
-              pointerEvents: idx === activeSlide ? 'auto' : 'none',
-              zIndex: idx === activeSlide ? 2 : 1,
-            }}
-          >
+
+        {/* SLIDE 0: Orb awakens */}
+        {activeSlide === 0 && (
+          <div style={{
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+          }}>
+            {/* Concentric rings */}
+            {[0, 1, 2].map((i) => (
+              <div
+                key={`ring-${i}`}
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  width: 180,
+                  height: 180,
+                  marginLeft: -90,
+                  marginTop: -90,
+                  borderRadius: '50%',
+                  border: `1px solid ${COLORS.indigo}66`,
+                  opacity: ringsVisible > i ? 1 : 0,
+                  animation: ringsVisible > i ? `mtd-ring-expand 2.5s ease-out ${i * 0.3}s infinite` : 'none',
+                  pointerEvents: 'none',
+                }}
+              />
+            ))}
+            {/* Main orb */}
             <div style={{
-              height: '100%',
-              animation: idx === activeSlide ? 'mtd-slide-entrance 0.5s ease-out' : 'none',
+              width: orbSize,
+              height: orbSize,
+              borderRadius: '50%',
+              background: orbGlow
+                ? `radial-gradient(circle at 40% 35%, ${COLORS.indigo}, #1e1b4b 70%, #0f0e1a)`
+                : `radial-gradient(circle at 50% 50%, #333, #1a1a2e)`,
+              transition: 'width 2s cubic-bezier(0.16, 1, 0.3, 1), height 2s cubic-bezier(0.16, 1, 0.3, 1), background 1.5s ease, box-shadow 1.5s ease, filter 1.5s ease',
+              boxShadow: orbGlow
+                ? `0 0 40px ${COLORS.indigo}88, 0 0 80px ${COLORS.indigo}44, 0 0 120px ${COLORS.cyan}22, inset 0 0 30px ${COLORS.indigo}44`
+                : 'none',
+              filter: orbGlow
+                ? `drop-shadow(0 0 30px ${COLORS.indigo}) drop-shadow(0 0 60px ${COLORS.cyan}44)`
+                : 'none',
+              position: 'relative',
+              zIndex: 2,
             }}>
-              {slide.render()}
+              {/* Specular highlight */}
+              <div style={{
+                position: 'absolute',
+                top: '15%',
+                left: '20%',
+                width: '35%',
+                height: '25%',
+                borderRadius: '50%',
+                background: orbGlow
+                  ? 'radial-gradient(circle, rgba(255,255,255,0.45) 0%, transparent 70%)'
+                  : 'radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)',
+                transition: 'background 1.5s ease',
+              }} />
+              {/* Conic shimmer ring */}
+              <div style={{
+                position: 'absolute',
+                inset: -6,
+                borderRadius: '50%',
+                background: orbGlow
+                  ? `conic-gradient(from 0deg, transparent, ${COLORS.cyan}44, transparent, ${COLORS.cyan}22, transparent)`
+                  : 'none',
+                animation: orbGlow ? 'mtd-ring-rotate 3s linear infinite' : 'none',
+              }} />
             </div>
           </div>
-        ))}
+        )}
+
+        {/* SLIDE 1: Signal Detected — orb top-left + token cards from right */}
+        {activeSlide === 1 && (
+          <div style={{
+            position: 'relative',
+            width: '100%',
+            height: '100%',
+            overflow: 'hidden',
+          }}>
+            {/* Mini orb top-left */}
+            <div style={{
+              position: 'absolute',
+              top: 40,
+              left: 30,
+              width: 80,
+              height: 80,
+              borderRadius: '50%',
+              background: `radial-gradient(circle at 40% 35%, ${COLORS.indigo}, #1e1b4b 70%)`,
+              boxShadow: `0 0 30px ${COLORS.indigo}88, 0 0 60px ${COLORS.indigo}44`,
+              animation: 'mtd-breathe 2s ease-in-out infinite',
+            }}>
+              <div style={{
+                position: 'absolute',
+                top: '15%',
+                left: '22%',
+                width: '30%',
+                height: '22%',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(255,255,255,0.35) 0%, transparent 70%)',
+              }} />
+            </div>
+
+            {/* Token cards */}
+            <div style={{
+              position: 'absolute',
+              top: '15%',
+              right: 20,
+              left: 20,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              alignItems: 'flex-end',
+            }}>
+              {TOKENS.map((token, i) => {
+                const isLast = i === TOKENS.length - 1;
+                return (
+                  <div
+                    key={token.symbol}
+                    style={{
+                      width: '90%',
+                      maxWidth: 400,
+                      padding: '16px 20px',
+                      background: COLORS.surface,
+                      borderRadius: 16,
+                      border: `1px solid ${isLast && visibleCards > i ? `${COLORS.cyan}66` : COLORS.border}`,
+                      boxShadow: isLast && visibleCards > i ? `0 0 20px ${COLORS.cyan}22` : 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 14,
+                      opacity: i < visibleCards ? 1 : 0,
+                      transform: i < visibleCards ? 'translateX(0)' : 'translateX(120%)',
+                      transition: 'transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease',
+                    }}
+                  >
+                    <div style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: '50%',
+                      background: token.color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: '#fff',
+                      flexShrink: 0,
+                    }}>
+                      {token.initials}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 700, fontSize: 16, color: COLORS.text }}>{token.symbol}</span>
+                        <span style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: '3px 10px',
+                          borderRadius: 8,
+                          background: `${token.badgeColor}22`,
+                          color: token.badgeColor,
+                        }}>{token.badge}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                        <span style={{ fontSize: 14, color: COLORS.muted }}>{token.price}</span>
+                        <span style={{ fontSize: 14, color: COLORS.match, fontWeight: 700 }}>{token.change}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* SLIDE 2: The Decision — terminal thought stream */}
+        {activeSlide === 2 && (
+          <div style={{
+            position: 'relative',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            {/* Orb top-right */}
+            <div style={{
+              position: 'absolute',
+              top: 40,
+              right: 30,
+              width: 60,
+              height: 60,
+              borderRadius: '50%',
+              background: orbFlashGreen
+                ? `radial-gradient(circle at 40% 35%, ${COLORS.match}, ${COLORS.match}88 70%)`
+                : `radial-gradient(circle at 40% 35%, ${COLORS.indigo}, #1e1b4b 70%)`,
+              boxShadow: orbFlashGreen
+                ? `0 0 30px ${COLORS.match}88, 0 0 60px ${COLORS.match}44`
+                : `0 0 20px ${COLORS.indigo}66, 0 0 40px ${COLORS.indigo}33`,
+              transition: 'all 0.3s ease',
+            }} />
+
+            {/* BUY flash background burst */}
+            {buyFlash && (
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                width: 200,
+                height: 200,
+                marginLeft: -100,
+                marginTop: -100,
+                borderRadius: '50%',
+                background: `radial-gradient(circle, ${COLORS.gold}44, transparent 70%)`,
+                animation: 'mtd-buy-flash 0.6s ease-out forwards',
+                pointerEvents: 'none',
+              }} />
+            )}
+
+            {/* Terminal thought lines */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+              padding: '0 30px',
+              maxWidth: 420,
+              width: '100%',
+            }}>
+              {THOUGHT_LINES.map((line, i) => (
+                <div
+                  key={i}
+                  style={{
+                    fontFamily: '"SF Mono", "Fira Code", "Consolas", monospace',
+                    fontSize: line.size,
+                    fontWeight: (line as { bold?: boolean }).bold ? 900 : 400,
+                    color: line.color,
+                    opacity: i <= thoughtIndex ? 1 : 0,
+                    transform: i <= thoughtIndex ? 'translateY(0)' : 'translateY(12px)',
+                    transition: 'opacity 0.4s ease, transform 0.4s ease',
+                    textShadow: (line as { bold?: boolean }).bold && i <= thoughtIndex
+                      ? `0 0 30px ${COLORS.gold}88, 0 0 60px ${COLORS.gold}44`
+                      : 'none',
+                    letterSpacing: (line as { bold?: boolean }).bold ? '0.05em' : undefined,
+                  }}
+                >
+                  {i <= thoughtIndex && i < THOUGHT_LINES.length - 1 && (
+                    <span style={{ color: COLORS.dim, marginRight: 8 }}>{'>'}</span>
+                  )}
+                  {line.text}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* SLIDE 3: Profit Lands */}
+        {activeSlide === 3 && (
+          <div style={{
+            position: 'relative',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 24,
+          }}>
+            {/* ETH coin */}
+            <div style={{
+              position: 'relative',
+              width: 100,
+              height: 100,
+            }}>
+              <div style={{
+                width: 100,
+                height: 100,
+                borderRadius: '50%',
+                background: `radial-gradient(circle at 40% 35%, ${COLORS.gold}, #b8860b 70%)`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 40,
+                fontWeight: 900,
+                color: '#0a0a0f',
+                boxShadow: `0 0 30px ${COLORS.gold}66, 0 0 60px ${COLORS.gold}33`,
+                animation: coinDropped ? 'mtd-coin-drop 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' : 'none',
+                opacity: coinDropped ? undefined : 0,
+                fontFamily: 'serif',
+              }}>
+                {'\u039E'}
+              </div>
+              {/* Ripple rings on landing */}
+              {rippleActive && [0, 1, 2].map((i) => (
+                <div
+                  key={`ripple-${i}`}
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    width: 100,
+                    height: 100,
+                    marginLeft: -50,
+                    marginTop: -50,
+                    borderRadius: '50%',
+                    border: `1px solid ${COLORS.gold}55`,
+                    animation: `mtd-ripple 1.5s ease-out ${i * 0.2}s forwards`,
+                    pointerEvents: 'none',
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Profit count-up */}
+            <div style={{
+              fontSize: 36,
+              fontWeight: 900,
+              color: COLORS.gold,
+              fontFamily: '"SF Mono", "Fira Code", monospace',
+              letterSpacing: '0.02em',
+              opacity: coinDropped ? 1 : 0,
+              transition: 'opacity 0.5s ease 0.8s',
+              textShadow: `0 0 20px ${COLORS.gold}44`,
+            }}>
+              +{profitCount.toFixed(4)} ETH
+            </div>
+
+            {/* Stat pills */}
+            <div style={{
+              display: 'flex',
+              gap: 12,
+              opacity: statsVisible ? 1 : 0,
+              transform: statsVisible ? 'translateY(0)' : 'translateY(10px)',
+              transition: 'opacity 0.5s ease, transform 0.5s ease',
+            }}>
+              {[
+                { label: 'Session', value: '+0.0041 ETH' },
+                { label: 'Today', value: '+0.0089 ETH' },
+              ].map((stat) => (
+                <div key={stat.label} style={{
+                  padding: '10px 20px',
+                  background: COLORS.surface,
+                  borderRadius: 14,
+                  border: `1px solid ${COLORS.border}`,
+                  textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 3 }}>{stat.label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.match }}>{stat.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* SLIDE 4: Never Sleeps — large orb + orbiting dots + clock labels */}
+        {activeSlide === 4 && (
+          <div style={{
+            position: 'relative',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            {/* Central orb */}
+            <div style={{
+              width: 160,
+              height: 160,
+              borderRadius: '50%',
+              background: `radial-gradient(circle at 40% 35%, ${COLORS.indigo}, ${COLORS.cyan}33 60%, #1e1b4b 85%)`,
+              boxShadow: `0 0 50px ${COLORS.indigo}88, 0 0 100px ${COLORS.indigo}44, 0 0 150px ${COLORS.cyan}22, inset 0 0 40px ${COLORS.indigo}44`,
+              animation: 'mtd-breathe 3s ease-in-out infinite',
+              position: 'relative',
+            }}>
+              {/* Specular */}
+              <div style={{
+                position: 'absolute',
+                top: '12%',
+                left: '18%',
+                width: '35%',
+                height: '25%',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(255,255,255,0.35) 0%, transparent 70%)',
+              }} />
+            </div>
+
+            {/* 8 orbiting dots */}
+            {Array.from({ length: 8 }).map((_, i) => {
+              const speed = 5 + i * 0.7;
+              const radius = 120 + (i % 3) * 20;
+              return (
+                <div
+                  key={`orbit-${i}`}
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    width: 6 + (i % 3),
+                    height: 6 + (i % 3),
+                    marginLeft: -(3 + (i % 3) * 0.5),
+                    marginTop: -(3 + (i % 3) * 0.5),
+                    borderRadius: '50%',
+                    background: i % 2 === 0 ? COLORS.cyan : COLORS.indigo,
+                    boxShadow: `0 0 8px ${i % 2 === 0 ? COLORS.cyan : COLORS.indigo}88`,
+                    opacity: 0.75,
+                    ['--orbit-r' as string]: `${radius}px`,
+                    animation: `mtd-orbit-dot ${speed}s linear infinite`,
+                    animationDelay: `${-i * 0.8}s`,
+                  }}
+                />
+              );
+            })}
+
+            {/* Clock position labels */}
+            {clockLabels.map((label, i) => {
+              const rad = (label.angle - 90) * Math.PI / 180;
+              const dist = 180;
+              const x = Math.cos(rad) * dist;
+              const y = Math.sin(rad) * dist;
+              return (
+                <div
+                  key={`clock-${i}`}
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: `translate(${x}px, ${y}px) translate(-50%, -50%)`,
+                    fontSize: 11,
+                    color: `${COLORS.muted}88`,
+                    fontFamily: '"SF Mono", "Fira Code", monospace',
+                    whiteSpace: 'nowrap',
+                    pointerEvents: 'none',
+                    opacity: 0.6,
+                  }}
+                >
+                  {label.text}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Fixed bottom area: text, dots, CTA */}
+      {/* ========== BOTTOM CONTROLS — pinned ========== */}
       <div style={{
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        zIndex: 10,
+        zIndex: 100,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        background: `linear-gradient(to top, ${COLORS.bg} 60%, ${COLORS.bg}ee 80%, transparent)`,
-        paddingTop: 24,
-        paddingBottom: 32,
+        background: `linear-gradient(to top, ${COLORS.bg} 50%, ${COLORS.bg}ee 75%, transparent)`,
+        paddingTop: 40,
+        paddingBottom: 36,
         paddingLeft: 24,
         paddingRight: 24,
         gap: 16,
       }}>
-        {/* Headline + description with crossfade */}
-        <div style={{ position: 'relative', width: '100%', minHeight: 80, textAlign: 'center' }}>
-          {SLIDES.map((slide, idx) => (
-            <div
-              key={`text-${idx}`}
-              style={{
-                position: idx === 0 ? 'relative' : 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                opacity: idx === activeSlide ? 1 : 0,
-                transition: 'opacity 0.4s ease',
-                pointerEvents: idx === activeSlide ? 'auto' : 'none',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-              }}
-            >
-              <div style={{
-                animation: idx === activeSlide ? 'mtd-slide-entrance 0.5s ease-out' : 'none',
-              }}>
+        {/* Headline + sub with crossfade */}
+        <div style={{
+          position: 'relative',
+          width: '100%',
+          minHeight: 80,
+          textAlign: 'center',
+        }}>
+          {SLIDES.map((slide, idx) => {
+            const isActive = idx === activeSlide && !transitioning;
+            const isLeaving = transitioning && idx === prevSlide;
+            return (
+              <div
+                key={`text-${idx}`}
+                style={{
+                  position: idx === 0 ? 'relative' : 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  opacity: isActive ? 1 : (isLeaving ? 0 : 0),
+                  transition: 'opacity 0.4s ease-out',
+                  pointerEvents: isActive ? 'auto' : 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                }}
+              >
                 <h2 style={{
-                  fontSize: 24,
-                  fontWeight: 800,
+                  fontSize: 28,
+                  fontWeight: 900,
                   margin: 0,
                   marginBottom: 8,
                   letterSpacing: '-0.02em',
@@ -779,13 +867,13 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
                   color: COLORS.muted,
                   margin: 0,
                   lineHeight: 1.5,
-                  maxWidth: 320,
+                  maxWidth: 340,
                 }}>
-                  {slide.description}
+                  {slide.sub}
                 </p>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Progress dots */}
@@ -795,7 +883,7 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
               key={i}
               onClick={() => goToSlide(i)}
               style={{
-                width: i === activeSlide ? 24 : 8,
+                width: i === activeSlide ? 28 : 8,
                 height: 8,
                 borderRadius: 4,
                 background: i === activeSlide ? COLORS.indigo : COLORS.dim,
@@ -808,29 +896,27 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
           ))}
         </div>
 
-        {/* CTA Button - fixed, full width, gradient, shimmer */}
+        {/* CTA Button */}
         <button
           onClick={onGetStarted}
           style={{
             width: '100%',
-            maxWidth: 340,
-            height: 56,
-            borderRadius: 16,
+            maxWidth: 380,
+            height: 60,
+            borderRadius: 20,
             border: 'none',
-            background: `linear-gradient(135deg, #6366f1, #a855f7)`,
+            background: 'linear-gradient(135deg, #6366f1, #a855f7)',
             color: '#fff',
-            fontSize: 15,
+            fontSize: 16,
             fontWeight: 900,
             cursor: 'pointer',
             letterSpacing: '-0.01em',
             position: 'relative',
             overflow: 'hidden',
-            boxShadow: `0 0 24px ${COLORS.indigo}66, 0 0 48px ${COLORS.indigo}33, 0 4px 16px rgba(0,0,0,0.4)`,
-            animation: 'mtd-cta-pulse 1.5s infinite alternate',
+            animation: 'mtd-cta-glow 1.5s infinite alternate',
             flexShrink: 0,
           }}
         >
-          {/* Shimmer overlay */}
           <div style={{
             position: 'absolute',
             inset: 0,
@@ -838,7 +924,7 @@ export default function MeshTradeDemo({ onGetStarted, onClose }: MeshTradeDemoPr
             backgroundSize: '200% 100%',
             animation: 'mtd-shimmer 3s ease-in-out infinite',
             pointerEvents: 'none',
-            borderRadius: 16,
+            borderRadius: 20,
           }} />
           <span style={{ position: 'relative', zIndex: 1 }}>Connect Brain to Start Trading</span>
         </button>
