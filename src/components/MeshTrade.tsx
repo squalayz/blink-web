@@ -109,7 +109,7 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
   const pollTimerRef = useRef<any>(null);
   const feedTimerRef = useRef<any>(null);
 
-  const hasBrain = !!(agent?.ai_key || agent?.openai_key || agent?.anthropic_key);
+  const hasBrain = !!(agent?.ai_provider || agent?.ai_key || agent?.openai_key || agent?.anthropic_key || user?.ai_api_key_encrypted);
   const hasFunds = wallet?.balance_eth > 0.001;
   const isActive = hasBrain && hasFunds;
 
