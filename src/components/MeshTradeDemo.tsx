@@ -195,7 +195,7 @@ export default function MeshTradeDemo({ onGetStarted, onClose, hasBrain = false 
 
   const SLIDES = [
     { headline: 'Your agent awakens', sub: 'Connect your brain. Watch it come to life.' },
-    { headline: '847 tokens scanned per cycle', sub: 'Every 10 seconds. Every launch. Every spike.' },
+    { headline: '800+ tokens scanned per cycle', sub: 'Every 10 seconds. Every launch. Every spike.' },
     { headline: 'The agent decides in seconds', sub: 'No emotion. No hesitation. Pure signal.' },
     { headline: 'Profits hit your Base wallet', sub: 'Directly to you. No platform holds your funds. Ever.' },
     { headline: 'Your agent never sleeps', sub: 'While you live your life, it works -- every second, every cycle.' },
