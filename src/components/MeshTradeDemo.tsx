@@ -217,16 +217,13 @@ export default function MeshTradeDemo({ onGetStarted, onClose, hasBrain = false 
 
   return (
     <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
+      position: 'relative',
       width: '100%',
-      height: '100%',
+      height: 'calc(100vh - 70px)',
       background: COLORS.bg,
       overflow: 'hidden',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       color: COLORS.text,
-      zIndex: 9999,
     }}>
       <style>{`
         @keyframes mtd-star-twinkle {
@@ -822,7 +819,7 @@ export default function MeshTradeDemo({ onGetStarted, onClose, hasBrain = false 
         alignItems: 'center',
         background: `linear-gradient(to top, ${COLORS.bg} 50%, ${COLORS.bg}ee 75%, transparent)`,
         paddingTop: 40,
-        paddingBottom: 36,
+        paddingBottom: 20,
         paddingLeft: 24,
         paddingRight: 24,
         gap: 16,
