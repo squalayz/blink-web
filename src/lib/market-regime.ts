@@ -3,6 +3,8 @@
 // Detects bull/bear/chop/volatile and adjusts strategy params
 // ══════════════════════════════════════════════════════════════
 
+import { getCoinMarketData, getTrendingCoins } from "@/lib/coingecko-cli";
+
 export type MarketRegime = 'bull_trending' | 'bear_trending' | 'sideways_chop' | 'high_volatility' | 'low_volatility';
 
 export interface RegimeResult {
@@ -24,24 +26,11 @@ export async function detectMarketRegime(): Promise<RegimeResult> {
   let eth1h = 0, eth4h = 0, eth24h = 0;
 
   try {
-    // Use CoinGecko for ETH price changes
-    const res = await fetch(
-      "https://api.coingecko.com/api/v3/coins/ethereum/market_chart?vs_currency=usd&days=1&interval=hourly",
-      { signal: AbortSignal.timeout(5000) }
-    );
-    if (res.ok) {
-      const data = await res.json();
-      const prices = data.prices as [number, number][];
-      if (prices && prices.length > 2) {
-        const now = prices[prices.length - 1][1];
-        const h1 = prices.length > 1 ? prices[prices.length - 2][1] : now;
-        const h4 = prices.length > 4 ? prices[prices.length - 5][1] : now;
-        const h24 = prices[0][1];
-        eth1h = ((now - h1) / h1) * 100;
-        eth4h = ((now - h4) / h4) * 100;
-        eth24h = ((now - h24) / h24) * 100;
-      }
-    }
+    const ethData = await getCoinMarketData("ethereum");
+    eth1h = ethData.priceChange1h;
+    eth24h = ethData.priceChange24h;
+    // Approximate 4h from 1h and 24h
+    eth4h = eth1h * 0.6 + eth24h * 0.4;
   } catch {
     // Fallback: no regime data, assume normal
   }
@@ -120,4 +109,13 @@ export function adjustForRegime(
   }
 
   return a;
+}
+
+export async function getTrendingThemes(): Promise<string[]> {
+  try {
+    const trending = await getTrendingCoins();
+    return trending.map(c => c.name || c.symbol);
+  } catch {
+    return [];
+  }
 }

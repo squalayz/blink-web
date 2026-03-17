@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getTrendingCoins } from "@/lib/coingecko-cli";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -296,9 +297,26 @@ export async function GET(req: NextRequest) {
       .filter((t): t is TokenResult => t !== null)
       .filter(t => t.price > 0 || t.liquidity > 0);
 
+    // Fetch trending CoinGecko coins once per request
+    let trendingSymbols: string[] = [];
+    try {
+      const trending = await getTrendingCoins();
+      trendingSymbols = trending.map(c => c.symbol.toLowerCase());
+    } catch { /* trending data is non-critical */ }
+
+    const trendingSet = new Set(trendingSymbols);
+
     const maxVol = Math.max(...tokens.map(t => t.volume1h), 1);
     const maxTxns = Math.max(...tokens.map(t => t.txns1h.buys + t.txns1h.sells), 1);
-    tokens = tokens.map(t => { t.score = scoreToken(t, maxVol, maxTxns); t.tags = autoTag(t); return t; });
+    tokens = tokens.map(t => {
+      t.score = scoreToken(t, maxVol, maxTxns);
+      // Boost score for tokens matching trending CoinGecko symbols
+      if (trendingSet.has(t.symbol.toLowerCase())) {
+        t.score = Math.min(100, t.score + 15);
+      }
+      t.tags = autoTag(t);
+      return t;
+    });
 
     tokens.sort((a, b) => {
       const aBonus = a.ageMinutes < 360 ? 20 : 0;
@@ -320,7 +338,7 @@ export async function GET(req: NextRequest) {
       });
     } catch { /* icons are non-critical */ }
 
-    return NextResponse.json({ tokens, ts: Date.now(), chains });
+    return NextResponse.json({ tokens, ts: Date.now(), chains, trendingSymbols });
   } catch (err: any) {
     console.error("Hunt API error:", err);
     return NextResponse.json({ error: "Failed to fetch tokens", tokens: [] }, { status: 500 });
