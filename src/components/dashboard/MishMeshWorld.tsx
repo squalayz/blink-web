@@ -85,7 +85,8 @@ const BUBBLES: Record<AgentState, string[]> = {
 const KEYFRAMES = `
 @keyframes world-radar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes world-pulse-soft { 0%,100% { box-shadow: 0 0 8px currentColor; } 50% { box-shadow: 0 0 20px currentColor; } }
-@keyframes world-float { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-4px); } }
+@keyframes world-float { 0%,100% { transform: translateX(-50%) translateY(0px); } 50% { transform: translateX(-50%) translateY(-6px); } }
+@keyframes world-bubble-float { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-3px); } }
 @keyframes world-agent-me { 0%,100% { box-shadow: 0 0 16px #6366f1, 0 0 32px rgba(99,102,241,0.5); } 50% { box-shadow: 0 0 28px #6366f1, 0 0 56px rgba(99,102,241,0.7); } }
 @keyframes world-blink { 0%,100% { opacity:0.3; } 50% { opacity:1; } }
 @keyframes world-thread { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
@@ -262,14 +263,32 @@ export default function MishMeshWorld({ user }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  /* ── Agent movement — every 5s ── */
+  /* ── Agent movement — staggered continuous drift ── */
   useEffect(() => {
     if (!agents.length) return;
-    const iv = setInterval(() => {
-      setAgents(prev => prev.map(a => wanderAgent(a)));
-    }, 9000);
-    return () => clearInterval(iv);
-  }, [agents.length, wanderAgent]);
+
+    // Fire immediately so agents start moving on load
+    setAgents(prev => prev.map(a => wanderAgent(a)));
+
+    // Each agent moves on its own independent random schedule (3s–9s)
+    // so they never all jump at once — always someone floating
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const scheduleNext = (agentId: string, delay: number) => {
+      const t = setTimeout(() => {
+        setAgents(prev => prev.map(a => a.id === agentId ? wanderAgent(a) : a));
+        scheduleNext(agentId, 3000 + Math.random() * 6000);
+      }, delay);
+      timers.push(t);
+    };
+
+    agents.forEach(a => {
+      // Stagger initial moves so they don't all go at once
+      scheduleNext(a.id, Math.random() * 2000);
+    });
+
+    return () => timers.forEach(t => clearTimeout(t));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agents.length]);
 
   /* ── Speech bubbles — every 10s for others, 20s for user ── */
   useEffect(() => {
@@ -541,18 +560,24 @@ export default function MishMeshWorld({ user }: Props) {
             : (agent.isMe ? 52 : 40);
           const color = getStateColor(agent.state);
 
+          // Stable per-agent float params derived from id (no re-renders)
+          const floatDur = 3 + (agent.id.charCodeAt(0) % 4);
+          const floatDelay = -(agent.id.charCodeAt(1) % floatDur);
+
           return (
             <div key={agent.id} style={{
               position: "absolute",
               left: agent.x + "%",
               top: agent.y + "%",
-              transform: "translate(-50%, -50%)",
               transition: "left 7s cubic-bezier(0.45, 0, 0.55, 1), top 7s cubic-bezier(0.45, 0, 0.55, 1)",
               zIndex: agent.isMe ? 20 : 10,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
               pointerEvents: "none",
+              animation: `world-float ${floatDur}s ease-in-out ${floatDelay}s infinite`,
+              // float animates translateY; position transition handles left/top separately
+              transform: "translateX(-50%)",
             }}>
               {/* Speech bubble */}
               {agent.speechBubble && (
@@ -565,7 +590,7 @@ export default function MishMeshWorld({ user }: Props) {
                   color: "#e8e8f0",
                   whiteSpace: "nowrap",
                   marginBottom: 6,
-                  animation: "world-float 2s ease-in-out infinite",
+                  animation: "world-bubble-float 2s ease-in-out infinite",
                   backdropFilter: "blur(8px)",
                 }}>
                   {agent.speechBubble}
