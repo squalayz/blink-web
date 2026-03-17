@@ -105,6 +105,19 @@ function Toast({ text, visible }: { text: string; visible: boolean }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   PROFILE PICTURE HELPER
+   ═══════════════════════════════════════════════════════════════ */
+
+function getProfilePicture(profile: any): string | null {
+  if (profile.agent_avatar_url) return profile.agent_avatar_url;
+  if (profile.user?.avatar_url) return profile.user.avatar_url;
+  if (profile.user?.wallet_address) {
+    return `https://api.dicebear.com/7.x/identicon/svg?seed=${profile.user.wallet_address}&backgroundColor=0a0a0f&scale=80`;
+  }
+  return null;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    SWIPE DISCOVERY
    ═══════════════════════════════════════════════════════════════ */
 
@@ -228,7 +241,34 @@ function SwipeDiscovery({ profiles, onLike, onPass, showToast }: {
           <div style={{ padding: 22, display: "flex", flexDirection: "column", height: "100%" }}>
             {/* Avatar + Score */}
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
-              <Avatar name={current.agent_name || current.user?.name || "?"} size={68} url={current.agent_avatar_url} />
+              <div style={{
+                position: "relative",
+                width: 72,
+                height: 72,
+                borderRadius: "50%",
+                padding: 2,
+                background: score >= 80
+                  ? "linear-gradient(135deg, #06b6d4, #6366f1)"
+                  : score >= 60
+                  ? "linear-gradient(135deg, #6366f1, #a855f7)"
+                  : "linear-gradient(135deg, #2a2a3a, #3a3a4a)",
+                boxShadow: score >= 80
+                  ? "0 0 20px rgba(6,182,212,0.4), 0 0 40px rgba(99,102,241,0.2)"
+                  : score >= 60
+                  ? "0 0 16px rgba(99,102,241,0.3)"
+                  : "none",
+                flexShrink: 0,
+              }}>
+                <div style={{
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: "50%",
+                  overflow: "hidden",
+                  background: "#0a0a0f",
+                }}>
+                  <Avatar name={current.agent_name || current.user?.name || "?"} size={68} url={getProfilePicture(current)} />
+                </div>
+              </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
                   <div style={{ fontSize: 19, fontWeight: 700 }}>{current.user?.name || current.agent_name || "Anonymous"}</div>
@@ -798,7 +838,7 @@ export default function TheMesh({user}:{user:any}){
   },[user?.id]);
 
   async function loadMatches(uid:string){const{data}=await supabase.from("matches").select("*,user_a_profile:users!matches_user_a_fkey(*),user_b_profile:users!matches_user_b_fkey(*)").or(`user_a.eq.${uid},user_b.eq.${uid}`).order("created_at",{ascending:false}); setMatches(data||[]);}
-  async function loadDiscovery(uid:string){const{data}=await supabase.from("agent_profiles").select("*,user:users(name,industry,location,is_public)").neq("user_id",uid).order("match_count",{ascending:false}).limit(20); setDiscovery(data||[]);}
+  async function loadDiscovery(uid:string){const{data}=await supabase.from("agent_profiles").select("*,user:users(name,industry,location,is_public,avatar_url,wallet_address)").neq("user_id",uid).not("agent_name","is",null).order("match_count",{ascending:false}).limit(20); setDiscovery((data||[]).filter((p:any)=>p.user?.is_public!==false&&p.user!==null));}
 
   /* ── Realtime Chat ── */
   useEffect(()=>{
@@ -1177,13 +1217,71 @@ export default function TheMesh({user}:{user:any}){
       <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Your agent networks autonomously. Matches arrive automatically.</div>
 
       {/* ── Swipe Discovery (TOP) ── */}
-      {discovery.length>0&&(
+      {discovery.length>0&&user?.ai_api_key_encrypted&&(
         <SwipeDiscovery
           profiles={discovery}
           onLike={handleSwipeLike}
           onPass={handleSwipePass}
           showToast={showToast}
         />
+      )}
+
+      {discovery.length>0&&!user?.ai_api_key_encrypted&&(
+        <div style={{
+          marginBottom: 20,
+          background: "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(6,182,212,0.05))",
+          borderRadius: 20,
+          border: "1px solid rgba(99,102,241,0.2)",
+          padding: 24,
+          textAlign: "center",
+        }}>
+          <div style={{
+            display: "flex",
+            justifyContent: "center",
+            marginBottom: 16,
+            position: "relative",
+          }}>
+            {discovery.slice(0, 3).map((profile: any, i: number) => (
+              <div key={i} style={{
+                width: 56,
+                height: 56,
+                borderRadius: "50%",
+                overflow: "hidden",
+                marginLeft: i === 0 ? 0 : -16,
+                border: "2px solid rgba(99,102,241,0.3)",
+                filter: "blur(6px)",
+                background: "#1a1a24",
+                position: "relative",
+                zIndex: 3 - i,
+              }}>
+                <Avatar name={profile.agent_name || profile.user?.name || "?"} size={56} url={getProfilePicture(profile)} />
+              </div>
+            ))}
+            <div style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              background: "rgba(99,102,241,0.9)",
+              borderRadius: "50%",
+              width: 32,
+              height: 32,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 10,
+              backdropFilter: "blur(4px)",
+            }}>
+              <Lock size={16} color="white" />
+            </div>
+          </div>
+          <div style={{fontSize: 15, fontWeight: 700, marginBottom: 6, color: "#fff"}}>
+            {discovery.length} people are already here
+          </div>
+          <div style={{fontSize: 13, color: "rgba(107,107,128,0.8)", marginBottom: 16, lineHeight: 1.5}}>
+            Connect your API brain to unlock profiles and start matching
+          </div>
+        </div>
       )}
 
       {/* ── Mesh Graph ── */}
@@ -1426,7 +1524,33 @@ export default function TheMesh({user}:{user:any}){
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             {discovery.map(ag=>(<div key={ag.id} style={{background:C.surface,borderRadius:14,padding:18,border:`1px solid ${C.border}`}}>
               <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
-                <Avatar name={ag.agent_name||ag.user?.name||"?"} size={44} url={ag.agent_avatar_url}/>
+                <div style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: "50%",
+                  padding: 2,
+                  background: (ag.match_count||0) > 5
+                    ? "linear-gradient(135deg, #06b6d4, #6366f1)"
+                    : (ag.match_count||0) > 2
+                    ? "linear-gradient(135deg, #6366f1, #a855f7)"
+                    : "linear-gradient(135deg, #2a2a3a, #3a3a4a)",
+                  boxShadow: (ag.match_count||0) > 5
+                    ? "0 0 12px rgba(6,182,212,0.3), 0 0 24px rgba(99,102,241,0.15)"
+                    : (ag.match_count||0) > 2
+                    ? "0 0 10px rgba(99,102,241,0.2)"
+                    : "none",
+                  flexShrink: 0,
+                }}>
+                  <div style={{
+                    width: "100%",
+                    height: "100%",
+                    borderRadius: "50%",
+                    overflow: "hidden",
+                    background: "#0a0a0f",
+                  }}>
+                    <Avatar name={ag.agent_name||ag.user?.name||"?"} size={44} url={getProfilePicture(ag)} />
+                  </div>
+                </div>
                 <div style={{flex:1}}>
                   <div style={{fontWeight:600,fontSize:14}}>{ag.agent_name}</div>
                   <div style={{fontSize:11,color:C.muted}}>{ag.user?.industry}{ag.user?.location?` · ${ag.user.location}`:""}</div>
