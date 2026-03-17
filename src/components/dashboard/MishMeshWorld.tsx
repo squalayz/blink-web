@@ -59,8 +59,8 @@ function getZoneTarget(state: AgentState): { cx: number; cy: number } {
 
 function randomPosition(state: AgentState): { x: number; y: number } {
   const center = getZoneTarget(state);
-  const x = Math.max(5, Math.min(90, center.cx + (Math.random() - 0.5) * 30));
-  const y = Math.max(5, Math.min(85, center.cy + (Math.random() - 0.5) * 25));
+  const x = Math.max(6, Math.min(88, center.cx + (Math.random() - 0.5) * 18));
+  const y = Math.max(6, Math.min(82, center.cy + (Math.random() - 0.5) * 15));
   return { x, y };
 }
 
@@ -85,7 +85,7 @@ const BUBBLES: Record<AgentState, string[]> = {
 const KEYFRAMES = `
 @keyframes world-radar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes world-pulse-soft { 0%,100% { box-shadow: 0 0 8px currentColor; } 50% { box-shadow: 0 0 20px currentColor; } }
-@keyframes world-float { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-5px); } }
+@keyframes world-float { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-4px); } }
 @keyframes world-agent-me { 0%,100% { box-shadow: 0 0 16px #6366f1, 0 0 32px rgba(99,102,241,0.5); } 50% { box-shadow: 0 0 28px #6366f1, 0 0 56px rgba(99,102,241,0.7); } }
 @keyframes world-blink { 0%,100% { opacity:0.3; } 50% { opacity:1; } }
 @keyframes world-thread { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
@@ -105,8 +105,8 @@ export default function MishMeshWorld({ user }: Props) {
 
   const wanderAgent = useCallback((agent: WorldAgent): WorldAgent => {
     const center = getZoneTarget(agent.state);
-    const x = Math.max(5, Math.min(90, center.cx + (Math.random() - 0.5) * 30));
-    const y = Math.max(5, Math.min(85, center.cy + (Math.random() - 0.5) * 25));
+    const x = Math.max(6, Math.min(88, center.cx + (Math.random() - 0.5) * 18));
+    const y = Math.max(6, Math.min(82, center.cy + (Math.random() - 0.5) * 15));
     return { ...agent, x, y };
   }, []);
 
@@ -267,7 +267,7 @@ export default function MishMeshWorld({ user }: Props) {
     if (!agents.length) return;
     const iv = setInterval(() => {
       setAgents(prev => prev.map(a => wanderAgent(a)));
-    }, 5000);
+    }, 9000);
     return () => clearInterval(iv);
   }, [agents.length, wanderAgent]);
 
@@ -547,7 +547,7 @@ export default function MishMeshWorld({ user }: Props) {
               left: agent.x + "%",
               top: agent.y + "%",
               transform: "translate(-50%, -50%)",
-              transition: "left 3s ease-in-out, top 3s ease-in-out",
+              transition: "left 7s cubic-bezier(0.45, 0, 0.55, 1), top 7s cubic-bezier(0.45, 0, 0.55, 1)",
               zIndex: agent.isMe ? 20 : 10,
               display: "flex",
               flexDirection: "column",
@@ -583,8 +583,8 @@ export default function MishMeshWorld({ user }: Props) {
                 background: "#0d0d14",
                 position: "relative",
                 animation: agent.isMe
-                  ? "world-agent-me 2.5s ease-in-out infinite"
-                  : "world-pulse-soft 3s ease-in-out infinite",
+                  ? "world-agent-me 3s ease-in-out infinite"
+                  : "world-pulse-soft 4s ease-in-out infinite",
                 flexShrink: 0,
               }}>
                 {agent.avatarUrl ? (
