@@ -20,6 +20,7 @@ const SocialVerify = dynamic(() => import("@/components/social-verify"), { ssr: 
 const MeshFeed = dynamic(() => import("@/components/MeshFeed"), { ssr: false });
 const HuntTabView = dynamic(() => import("@/components/HuntTabView"), { ssr: false });
 const MeshMarket = dynamic(() => import("@/components/MeshMarket"), { ssr: false });
+const MishMeshWorld = dynamic(() => import("@/components/dashboard/MishMeshWorld"), { ssr: false });
 const MeshTrade = dynamic(() => import("@/components/MeshTrade"), { ssr: false });
 const MeshTradeDemo = dynamic(() => import("@/components/MeshTradeDemo"), { ssr: false });
 const OnboardingWizard = dynamic(() => import("@/components/onboarding-wizard"), { ssr: false });
@@ -1343,7 +1344,7 @@ export default function Dashboard(){
           <span style={{position:"relative",zIndex:1}}>Trading</span>
         </button>
 
-        {/* Work tab */}
+        {/* World tab */}
         <button onClick={()=>setView("work")} style={{
           flex:1, position:"relative",
           background:view==="work"?"linear-gradient(135deg, rgba(255,215,0,0.25), rgba(99,102,241,0.15))":"rgba(255,255,255,0.03)",
@@ -1354,8 +1355,8 @@ export default function Dashboard(){
           gap:6, whiteSpace:"nowrap", transition:"all 0.2s ease",
           boxShadow:view==="work"?"0 0 16px rgba(255,215,0,0.3), 0 0 4px rgba(99,102,241,0.2)":"none",
         }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{position:"relative",zIndex:1}}><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
-          <span style={{position:"relative",zIndex:1}}>Work</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{position:"relative",zIndex:1}}><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" opacity="0.5"/><path d="M2 12h20" opacity="0.4"/></svg>
+          <span style={{position:"relative",zIndex:1}}>World</span>
         </button>
 
         {/* Remaining tabs */}
@@ -3113,12 +3114,8 @@ export default function Dashboard(){
               </div>
         )}
 
-        {/* ── Work / MeshMarket Tab ── */}
-        {view==="work"&&(
-          <div style={{paddingBottom:96}}>
-            <MeshMarket user={user} agent={agent} wallet={wallet} onConnectBrain={()=>setView("agent")} onFundWallet={()=>{setView("brew");setShowDepositCard(true);}}/>
-          </div>
-        )}
+        {/* ── World Tab ── */}
+        {view==="work"&&<MishMeshWorld user={user} />}
       </div>
 
       {/* ═══ RISK DISCLAIMER MODAL ═══ */}
