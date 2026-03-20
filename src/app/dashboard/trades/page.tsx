@@ -10,341 +10,322 @@ const C = {
 };
 const ETH_USD = 2000;
 
-function fmt(n: number, dec = 4) { return n >= 0 ? `+${n.toFixed(dec)}` : n.toFixed(dec); }
-function fmtUsd(eth: number) { const u = Math.abs(eth * ETH_USD); return u >= 1000 ? `$${(u/1000).toFixed(1)}k` : `$${u.toFixed(0)}`; }
-
-function age(ts: string) {
+function fmtPnl(n: number, dec = 4) {
+  if (isNaN(n)) return "0.0000";
+  return (n >= 0 ? "+" : "") + n.toFixed(dec);
+}
+function fmtUsd(eth: number) {
+  const u = Math.abs(eth * ETH_USD);
+  return u >= 1000 ? "$" + (u / 1000).toFixed(1) + "k" : "$" + u.toFixed(0);
+}
+function ageStr(ts: string) {
   const ms = Date.now() - new Date(ts).getTime();
   const m = Math.floor(ms / 60000);
-  if (m < 60) return `${m}m`;
+  if (m < 60) return m + "m ago";
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ${m % 60}m`;
-  return `${Math.floor(h / 24)}d ${h % 24}h`;
+  if (h < 24) return h + "h " + (m % 60) + "m ago";
+  return Math.floor(h / 24) + "d ago";
 }
-
-function duration(from: string, to: string) {
+function durStr(from: string, to: string) {
   const ms = new Date(to).getTime() - new Date(from).getTime();
   const m = Math.floor(ms / 60000);
-  if (m < 60) return `${m}m`;
-  return `${Math.floor(m / 60)}h ${m % 60}m`;
+  if (m < 60) return m + "m";
+  return Math.floor(m / 60) + "h " + (m % 60) + "m";
+}
+function shortHash(h: string) {
+  return h ? h.slice(0, 8) + "..." + h.slice(-4) : "";
 }
 
-function Skeleton({ w = "100%", h = 16 }: { w?: string | number; h?: number }) {
-  return <div style={{ width: w, height: h, borderRadius: 6, background: "rgba(255,255,255,0.04)", animation: "tcc-shimmer 1.5s ease-in-out infinite" }} />;
-}
-
-function StatCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
+function Skeleton({ h = 16, w = "100%" }: { h?: number; w?: string }) {
   return (
-    <div style={{ background: C.surface, border: `1px solid ${color}33`, borderRadius: 14, padding: "16px 20px", flex: 1, minWidth: 0, boxShadow: `0 0 20px ${color}11` }}>
-      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: C.muted, marginBottom: 8 }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 900, color, letterSpacing: "-0.03em", lineHeight: 1 }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{sub}</div>}
-    </div>
+    <div style={{ width: w, height: h, borderRadius: 8, background: "rgba(255,255,255,0.05)", animation: "tcc-pulse 1.5s ease-in-out infinite" }} />
   );
-}
-
-function EquityChart({ series }: { series: { date: string; cumulative: number }[] }) {
-  const W = 800, H = 140, PAD = { l: 48, r: 16, t: 16, b: 32 };
-  if (!series.length) {
-    return (
-      <div style={{ background: C.surface, borderRadius: 16, border: `1px solid ${C.border}`, padding: 40, textAlign: "center" as const, color: C.muted, fontSize: 13 }}>
-        No trade history yet — your agent will chart its performance here once it starts trading.
-      </div>
-    );
-  }
-  const vals = series.map(s => s.cumulative);
-  const min = Math.min(...vals, 0), max = Math.max(...vals, 0.001);
-  const range = max - min || 0.001;
-  const iW = W - PAD.l - PAD.r, iH = H - PAD.t - PAD.b;
-  const px = (i: number) => PAD.l + (i / (series.length - 1)) * iW;
-  const py = (v: number) => PAD.t + (1 - (v - min) / range) * iH;
-  const pts = series.map((s, i) => `${px(i)},${py(s.cumulative)}`).join(" L ");
-  const area = `M ${pts} L ${px(series.length - 1)},${py(0)} L ${px(0)},${py(0)} Z`;
-  const line = `M ${pts}`;
-  const profitable = vals[vals.length - 1] >= 0;
-  const lineColor = profitable ? C.match : C.hot;
-  // Y axis labels
-  const yTicks = [min, (min + max) / 2, max].map(v => ({ v, y: py(v) }));
-  // X axis labels (show up to 5)
-  const step = Math.max(1, Math.floor(series.length / 5));
-  const xTicks = series.filter((_, i) => i % step === 0 || i === series.length - 1).slice(0, 5);
-
-  return (
-    <div style={{ background: C.surface, borderRadius: 16, border: `1px solid ${C.border}`, padding: "16px 0 8px", overflow: "hidden" }}>
-      <div style={{ padding: "0 20px 8px", fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: C.muted }}>Equity Curve (ETH)</div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", display: "block" }} preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="eq-line" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor={C.indigo} />
-            <stop offset="100%" stopColor={C.cyan} />
-          </linearGradient>
-          <linearGradient id="eq-fill" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor={lineColor} stopOpacity="0.18" />
-            <stop offset="100%" stopColor={lineColor} stopOpacity="0.01" />
-          </linearGradient>
-        </defs>
-        {/* zero line */}
-        <line x1={PAD.l} y1={py(0)} x2={W - PAD.r} y2={py(0)} stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4,4" />
-        {/* area fill */}
-        <path d={area} fill="url(#eq-fill)" />
-        {/* line */}
-        <path d={line} fill="none" stroke="url(#eq-line)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        {/* Y ticks */}
-        {yTicks.map((t, i) => (
-          <text key={i} x={PAD.l - 4} y={t.y + 4} textAnchor="end" fontSize="9" fill={C.muted}>{t.v >= 0 ? "+" : ""}{t.v.toFixed(3)}</text>
-        ))}
-        {/* X ticks */}
-        {xTicks.map((s, i) => {
-          const idx = series.indexOf(s);
-          return <text key={i} x={px(idx)} y={H - 4} textAnchor="middle" fontSize="9" fill={C.muted}>{s.date.slice(5)}</text>;
-        })}
-      </svg>
-    </div>
-  );
-}
-
-function GradeBadge({ grade }: { grade: string }) {
-  const colors: Record<string, string> = { A: C.match, B: C.cyan, C: C.gold, D: "#f97316", F: C.hot };
-  const c = colors[grade] || C.muted;
-  return <span style={{ display: "inline-block", padding: "2px 7px", borderRadius: 5, background: `${c}22`, border: `1px solid ${c}55`, color: c, fontSize: 10, fontWeight: 800 }}>{grade}</span>;
 }
 
 interface Trade {
-  id: string; action: string; token_symbol: string; token_address: string;
-  amount_eth: number; price_at_trade: number; fee_eth: number; pnl_eth: number;
-  reasoning: string; tx_hash: string; created_at: string; closed_at: string | null; peak_price: number;
+  id: string;
+  action: string;
+  token_symbol: string;
+  token_address: string;
+  amount_eth: number;
+  price_at_trade: number;
+  fee_eth: number;
+  pnl_eth: number;
+  reasoning: string;
+  tx_hash: string;
+  created_at: string;
+  closed_at: string | null;
+  peak_price: number;
 }
-interface LogEntry {
-  action: string; token_symbol: string; amount: number; price: number; pnl: number;
-  grade: string; tx_hash: string; reasoning: string; confidence: number; timestamp: string;
-}
-interface PerfData {
-  total_trades: number; winning_trades: number; total_pnl: number;
-  best_trade_pnl: number; worst_trade_pnl: number; current_grade: string;
+
+interface Stats {
+  total_trades: number;
+  wins: number;
+  losses: number;
+  win_rate: number;
+  total_pnl: number;
+  today_pnl: number;
+  open_count: number;
 }
 
 export default function TradesPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [trades, setTrades] = useState<Trade[]>([]);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [perf, setPerf] = useState<PerfData | null>(null);
-  const [winRate, setWinRate] = useState(0);
-  const [pnlSeries, setPnlSeries] = useState<{ date: string; cumulative: number }[]>([]);
+  const [openPositions, setOpenPositions] = useState<Trade[]>([]);
+  const [pnlSeries, setPnlSeries] = useState<{ date: string; pnl: number; cumulative: number }[]>([]);
+  const [stats, setStats] = useState<Stats>({ total_trades: 0, wins: 0, losses: 0, win_rate: 0, total_pnl: 0, today_pnl: 0, open_count: 0 });
   const [sortCol, setSortCol] = useState<"date" | "pnl">("date");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [error, setError] = useState("");
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [walletRes, perfRes, logsRes] = await Promise.all([
-        fetch("/api/wallet"),
-        fetch("/api/performance"),
-        fetch("/api/trades?limit=100"),
-      ]);
-      const [walletData, perfData, logsData] = await Promise.all([
-        walletRes.json(), perfRes.json(), logsRes.json(),
-      ]);
-      if (walletData.trades) setTrades(walletData.trades.filter((t: Trade) => t.action !== "skip" || true));
-      if (perfData.performance) setPerf(perfData.performance);
-      if (perfData.win_rate !== undefined) setWinRate(perfData.win_rate);
-      if (perfData.pnl_series) setPnlSeries(perfData.pnl_series);
-      if (logsData.trades) setLogs(logsData.trades);
-    } catch (e) { console.error(e); }
+      const res = await fetch("/api/trading/history?limit=200");
+      if (res.status === 401) { router.push("/auth/signin"); return; }
+      const data = await res.json();
+      if (data.error) { setError(data.error); return; }
+      setTrades(data.trades || []);
+      setOpenPositions(data.open_positions || []);
+      setPnlSeries(data.pnl_series || []);
+      setStats(data.stats || { total_trades: 0, wins: 0, losses: 0, win_rate: 0, total_pnl: 0, today_pnl: 0, open_count: 0 });
+    } catch (e: any) {
+      setError(e.message);
+    }
     setLoading(false);
-  }, []);
+  }, [router]);
 
   useEffect(() => {
-    // Auth check
-    fetch("/api/auth/siwe/session").then(r => r.json()).then(d => {
-      if (!d?.user) { router.push("/auth/signin"); return; }
-      load();
-    }).catch(() => router.push("/auth/signin"));
-  }, [load, router]);
-
-  useEffect(() => {
+    load();
     intervalRef.current = setInterval(load, 30000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [load]);
 
-  const openPositions = trades.filter(t => t.action === "buy" && !t.closed_at);
-  const allActivity = trades.filter(t => t.action !== "skip").sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  const closedTrades = trades.filter(t => t.closed_at).sort((a, b) => {
-    if (sortCol === "pnl") return sortDir === "desc" ? (b.pnl_eth - a.pnl_eth) : (a.pnl_eth - b.pnl_eth);
-    return sortDir === "desc"
-      ? new Date(b.closed_at!).getTime() - new Date(a.closed_at!).getTime()
-      : new Date(a.closed_at!).getTime() - new Date(b.closed_at!).getTime();
-  });
+  const allActivity = [...trades].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-  const totalPnl = perf?.total_pnl ?? 0;
-  const todayPnl = trades.filter(t => t.closed_at && new Date(t.closed_at).toDateString() === new Date().toDateString()).reduce((s, t) => s + (t.pnl_eth || 0), 0);
+  const closedTrades = trades
+    .filter(t => t.closed_at)
+    .sort((a, b) => {
+      if (sortCol === "pnl") return sortDir === "desc" ? (b.pnl_eth - a.pnl_eth) : (a.pnl_eth - b.pnl_eth);
+      return sortDir === "desc"
+        ? new Date(b.closed_at!).getTime() - new Date(a.closed_at!).getTime()
+        : new Date(a.closed_at!).getTime() - new Date(b.closed_at!).getTime();
+    });
+
+  // Equity chart
+  const chartW = 800, chartH = 140;
+  const PL = 48, PR = 16, PT = 16, PB = 32;
+  const iW = chartW - PL - PR, iH = chartH - PT - PB;
+  const vals = pnlSeries.map(s => s.cumulative);
+  const minV = Math.min(...vals, 0), maxV = Math.max(...vals, 0.001);
+  const range = maxV - minV || 0.001;
+  const px = (i: number) => PL + (i / Math.max(pnlSeries.length - 1, 1)) * iW;
+  const py = (v: number) => PT + (1 - (v - minV) / range) * iH;
+  const lineD = pnlSeries.length > 1
+    ? "M " + pnlSeries.map((s, i) => px(i).toFixed(1) + "," + py(s.cumulative).toFixed(1)).join(" L ")
+    : "";
+  const areaD = pnlSeries.length > 1
+    ? lineD + " L " + px(pnlSeries.length - 1).toFixed(1) + "," + py(0).toFixed(1) + " L " + px(0).toFixed(1) + "," + py(0).toFixed(1) + " Z"
+    : "";
+  const profitable = vals.length > 0 && vals[vals.length - 1] >= 0;
+
+  const pnlColor = (n: number) => n > 0 ? C.match : n < 0 ? C.hot : C.muted;
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'JetBrains Mono', 'SF Mono', monospace", paddingBottom: 60 }}>
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'JetBrains Mono', 'SF Mono', monospace", paddingBottom: 80 }}>
       <style>{`
-        @keyframes tcc-shimmer { 0%,100%{opacity:0.4} 50%{opacity:0.8} }
-        @keyframes tcc-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(1.5)} }
-        @keyframes tcc-slide { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes tcc-pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+        @keyframes tcc-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(1.6)} }
+        @keyframes tcc-slide { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        a { text-decoration: none; }
       `}</style>
 
-      {/* ── Header ── */}
-      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: `${C.surface}cc`, backdropFilter: "blur(12px)", position: "sticky" as const, top: 0, zIndex: 50 }}>
+      {/* Header */}
+      <div style={{ padding: "14px 20px", borderBottom: "1px solid " + C.border, display: "flex", alignItems: "center", justifyContent: "space-between", background: C.surface + "ee", backdropFilter: "blur(12px)", position: "sticky" as const, top: 0, zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={() => router.push("/dashboard")} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", padding: "4px 8px", fontSize: 12, fontFamily: "inherit" }}>
+          <button onClick={() => router.push("/dashboard")} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", padding: "4px 8px", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
           </button>
           <span style={{ fontWeight: 800, fontSize: 14, letterSpacing: "-0.02em" }}>Trade Command Center</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.match, animation: "tcc-pulse 2s infinite" }} />
-          <span style={{ fontSize: 10, color: C.match, fontWeight: 700 }}>LIVE</span>
+          <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.match, animation: "tcc-dot 2s infinite" }} />
+          <span style={{ fontSize: 10, color: C.match, fontWeight: 700, letterSpacing: "0.08em" }}>LIVE</span>
+          <button onClick={load} style={{ background: "none", border: "1px solid " + C.border, borderRadius: 6, color: C.muted, cursor: "pointer", padding: "3px 8px", fontSize: 10, fontFamily: "inherit", marginLeft: 8 }}>Refresh</button>
         </div>
       </div>
 
+      {error && <div style={{ margin: "12px 20px", padding: "10px 14px", background: C.hot + "15", border: "1px solid " + C.hot + "44", borderRadius: 10, fontSize: 12, color: C.hot }}>{error}</div>}
+
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "20px 16px" }}>
 
-        {/* ── Stat Cards ── */}
+        {/* Stat Cards */}
         <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" as const }}>
-          {loading ? [1,2,3,4].map(i => <div key={i} style={{ flex: 1, minWidth: 140 }}><Skeleton h={80} /></div>) : <>
-            <StatCard label="Total P&L" value={`${fmt(totalPnl, 4)} ETH`} sub={`${totalPnl >= 0 ? "+" : ""}${fmtUsd(totalPnl)}`} color={totalPnl >= 0 ? C.match : C.hot} />
-            <StatCard label="Win Rate" value={`${winRate}%`} sub={`${perf?.winning_trades ?? 0}W / ${(perf?.total_trades ?? 0) - (perf?.winning_trades ?? 0)}L`} color={C.indigo} />
-            <StatCard label="Open Positions" value={`${openPositions.length}`} sub={openPositions.length > 0 ? "agents deployed" : "watching for signals"} color={C.cyan} />
-            <StatCard label="Today's P&L" value={`${fmt(todayPnl, 4)} ETH`} sub={fmtUsd(todayPnl)} color={todayPnl >= 0 ? C.match : C.hot} />
-          </>}
+          {[
+            { label: "Total P&L", val: loading ? null : fmtPnl(stats.total_pnl) + " ETH", sub: loading ? null : fmtUsd(stats.total_pnl), color: pnlColor(stats.total_pnl) },
+            { label: "Win Rate", val: loading ? null : stats.win_rate + "%", sub: loading ? null : stats.wins + "W / " + stats.losses + "L", color: C.indigo },
+            { label: "Open Positions", val: loading ? null : String(stats.open_count), sub: stats.open_count > 0 ? "actively trading" : "watching for signals", color: C.cyan },
+            { label: "Today's P&L", val: loading ? null : fmtPnl(stats.today_pnl) + " ETH", sub: loading ? null : fmtUsd(stats.today_pnl), color: pnlColor(stats.today_pnl) },
+          ].map((card, i) => (
+            <div key={i} style={{ flex: "1 1 140px", background: C.surface, border: "1px solid " + card.color + "33", borderRadius: 14, padding: "16px 18px", boxShadow: "0 0 20px " + card.color + "0a" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: C.muted, marginBottom: 8 }}>{card.label}</div>
+              {loading ? <Skeleton h={28} /> : <div style={{ fontSize: 20, fontWeight: 900, color: card.color, letterSpacing: "-0.03em" }}>{card.val}</div>}
+              {!loading && card.sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{card.sub}</div>}
+            </div>
+          ))}
         </div>
 
-        {/* ── Equity Curve ── */}
-        <div style={{ marginBottom: 20 }}>
-          {loading ? <Skeleton h={180} /> : <EquityChart series={pnlSeries} />}
+        {/* Equity Curve */}
+        <div style={{ marginBottom: 20, background: C.surface, borderRadius: 16, border: "1px solid " + C.border, overflow: "hidden" }}>
+          <div style={{ padding: "14px 20px 4px", fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: C.muted }}>
+            Equity Curve (Cumulative P&L in ETH)
+          </div>
+          {loading ? (
+            <div style={{ padding: "20px 20px 16px" }}><Skeleton h={120} /></div>
+          ) : pnlSeries.length < 2 ? (
+            <div style={{ padding: "40px 20px", textAlign: "center" as const, color: C.muted, fontSize: 12 }}>
+              Chart will appear once your agent closes its first trades
+            </div>
+          ) : (
+            <svg viewBox={"0 0 " + chartW + " " + chartH} style={{ width: "100%", display: "block" }} preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="eq-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor={C.indigo} />
+                  <stop offset="100%" stopColor={C.cyan} />
+                </linearGradient>
+                <linearGradient id="eq-fill" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor={profitable ? C.match : C.hot} stopOpacity="0.15" />
+                  <stop offset="100%" stopColor={profitable ? C.match : C.hot} stopOpacity="0.01" />
+                </linearGradient>
+              </defs>
+              <line x1={PL} y1={py(0)} x2={chartW - PR} y2={py(0)} stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4,4" />
+              {areaD && <path d={areaD} fill="url(#eq-fill)" />}
+              {lineD && <path d={lineD} fill="none" stroke="url(#eq-grad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
+              {[minV, (minV + maxV) / 2, maxV].map((v, i) => (
+                <text key={i} x={PL - 4} y={py(v) + 4} textAnchor="end" fontSize="9" fill={C.muted}>{v >= 0 ? "+" : ""}{v.toFixed(3)}</text>
+              ))}
+              {pnlSeries.filter((_, i) => i % Math.max(1, Math.floor(pnlSeries.length / 6)) === 0).map((s, i, arr) => {
+                const idx = pnlSeries.indexOf(s);
+                return <text key={i} x={px(idx)} y={chartH - 4} textAnchor="middle" fontSize="9" fill={C.muted}>{s.date.slice(5)}</text>;
+              })}
+            </svg>
+          )}
         </div>
 
-        {/* ── Two Column ── */}
-        <div style={{ display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap" as const }}>
+        {/* Two Columns */}
+        <div style={{ display: "flex", gap: 16, marginBottom: 20, alignItems: "flex-start", flexWrap: "wrap" as const }}>
 
-          {/* LEFT: Open Positions */}
-          <div style={{ flex: "1 1 300px", minWidth: 0 }}>
+          {/* Open Positions */}
+          <div style={{ flex: "1 1 280px", minWidth: 0 }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: C.muted, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.match, animation: "tcc-pulse 1.5s infinite" }} />
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.match, animation: "tcc-dot 1.5s infinite" }} />
               Open Positions ({openPositions.length})
             </div>
-            {loading ? [1,2].map(i => <div key={i} style={{ marginBottom: 10 }}><Skeleton h={100} /></div>) :
+            {loading ? [1, 2].map(i => <div key={i} style={{ marginBottom: 10 }}><Skeleton h={110} /></div>) :
               openPositions.length === 0 ? (
-                <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: "28px 20px", textAlign: "center" as const, color: C.muted, fontSize: 12 }}>
-                  No open positions — agent is scanning for signals
+                <div style={{ background: C.surface, borderRadius: 14, border: "1px solid " + C.border, padding: "28px 20px", textAlign: "center" as const, color: C.muted, fontSize: 12 }}>
+                  No open positions<br />
+                  <span style={{ fontSize: 10, marginTop: 4, display: "block" }}>Agent is scanning for entry signals</span>
                 </div>
-              ) : openPositions.map(p => {
-                const pnlColor = (p.pnl_eth || 0) >= 0 ? C.match : C.hot;
-                return (
-                  <div key={p.id} style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.match}33`, padding: "14px 16px", marginBottom: 10, animation: "tcc-slide 0.3s ease", boxShadow: `0 0 16px ${C.match}08` }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-                      <div>
-                        <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: "-0.02em" }}>{p.token_symbol}</div>
-                        <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Entry: ${p.price_at_trade?.toFixed(6) || "—"}</div>
-                      </div>
-                      <div style={{ textAlign: "right" as const }}>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: pnlColor }}>{fmt(p.pnl_eth || 0, 4)} ETH</div>
-                        <div style={{ fontSize: 10, color: C.muted }}>{age(p.created_at)} ago</div>
-                      </div>
+              ) : openPositions.map(p => (
+                <div key={p.id} style={{ background: C.surface, borderRadius: 14, border: "1px solid " + C.match + "33", padding: "14px 16px", marginBottom: 10, animation: "tcc-slide 0.3s ease", boxShadow: "0 0 20px " + C.match + "08" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.02em" }}>{p.token_symbol}</div>
+                      <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Entry ${p.price_at_trade > 0 ? p.price_at_trade.toFixed(6) : "—"}</div>
                     </div>
-                    <div style={{ display: "flex", gap: 8, fontSize: 10, color: C.muted }}>
-                      <span>Size: <span style={{ color: C.text }}>{(p.amount_eth || 0).toFixed(4)} ETH</span></span>
-                      <span>|</span>
-                      <span>Fee: <span style={{ color: C.text }}>{(p.fee_eth || 0).toFixed(4)} ETH</span></span>
+                    <div style={{ textAlign: "right" as const }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: pnlColor(p.pnl_eth || 0) }}>{fmtPnl(p.pnl_eth || 0, 4)} ETH</div>
+                      <div style={{ fontSize: 10, color: C.muted }}>{ageStr(p.created_at)}</div>
                     </div>
-                    {p.tx_hash && (
-                      <a href={`https://basescan.org/tx/${p.tx_hash}`} target="_blank" rel="noopener noreferrer"
-                        style={{ display: "inline-block", marginTop: 8, fontSize: 10, color: C.indigo, textDecoration: "none" }}>
-                        {p.tx_hash.slice(0, 10)}...{p.tx_hash.slice(-6)} on Basescan
-                      </a>
-                    )}
                   </div>
-                );
-              })
+                  <div style={{ display: "flex", gap: 12, fontSize: 10, color: C.muted, marginBottom: 8 }}>
+                    <span>Size <span style={{ color: C.text }}>{(p.amount_eth || 0).toFixed(4)} ETH</span></span>
+                    <span>Fee <span style={{ color: C.text }}>{(p.fee_eth || 0).toFixed(4)} ETH</span></span>
+                  </div>
+                  {p.reasoning && <div style={{ fontSize: 10, color: C.muted, lineHeight: 1.4, marginBottom: 6 }}>{p.reasoning.slice(0, 100)}{p.reasoning.length > 100 ? "..." : ""}</div>}
+                  {p.tx_hash && (
+                    <a href={"https://basescan.org/tx/" + p.tx_hash} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: C.indigo }}>
+                      {shortHash(p.tx_hash)} on Basescan
+                    </a>
+                  )}
+                </div>
+              ))
             }
           </div>
 
-          {/* RIGHT: Activity Log */}
-          <div style={{ flex: "1 1 300px", minWidth: 0 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: C.muted, marginBottom: 10 }}>Agent Activity Log</div>
-            <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden", maxHeight: 460 }}>
-              <div style={{ overflowY: "auto" as const, maxHeight: 460 }}>
-                {loading ? [1,2,3,4,5].map(i => <div key={i} style={{ padding: "12px 14px", borderBottom: `1px solid ${C.border}` }}><Skeleton h={40} /></div>) :
-                  allActivity.length === 0 ? (
-                    <div style={{ padding: 32, textAlign: "center" as const, color: C.muted, fontSize: 12 }}>No activity yet</div>
-                  ) : allActivity.map(t => {
-                    const isBuy = t.action === "buy";
-                    const isSell = t.action === "sell";
-                    const borderColor = isBuy ? C.match : isSell ? C.cyan : C.dim;
-                    const logEntry = logs.find(l => l.token_symbol === t.token_symbol && Math.abs(new Date(l.timestamp).getTime() - new Date(t.created_at).getTime()) < 120000);
-                    return (
-                      <div key={t.id} style={{ padding: "11px 14px", borderBottom: `1px solid ${C.border}`, borderLeft: `3px solid ${borderColor}`, animation: "tcc-slide 0.2s ease" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontSize: 10, fontWeight: 800, color: borderColor, textTransform: "uppercase" as const }}>{t.action}</span>
-                            <span style={{ fontSize: 12, fontWeight: 700 }}>{t.token_symbol}</span>
-                            {isBuy && <span style={{ fontSize: 10, color: C.muted }}>{(t.amount_eth || 0).toFixed(4)} ETH</span>}
-                            {isSell && <span style={{ fontSize: 11, fontWeight: 700, color: (t.pnl_eth || 0) >= 0 ? C.match : C.hot }}>{fmt(t.pnl_eth || 0, 4)} ETH</span>}
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            {logEntry?.grade && <GradeBadge grade={logEntry.grade} />}
-                            <span style={{ fontSize: 9, color: C.muted }}>{age(t.created_at)}</span>
-                          </div>
+          {/* Activity Log */}
+          <div style={{ flex: "1 1 280px", minWidth: 0 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: C.muted, marginBottom: 10 }}>
+              Agent Activity Log ({allActivity.length})
+            </div>
+            <div style={{ background: C.surface, borderRadius: 14, border: "1px solid " + C.border, overflow: "hidden" }}>
+              <div style={{ overflowY: "auto" as const, maxHeight: 480 }}>
+                {loading ? [1, 2, 3, 4].map(i => (
+                  <div key={i} style={{ padding: "12px 14px", borderBottom: "1px solid " + C.border }}><Skeleton h={36} /></div>
+                )) : allActivity.length === 0 ? (
+                  <div style={{ padding: 32, textAlign: "center" as const, color: C.muted, fontSize: 12 }}>No activity yet — agent is scanning</div>
+                ) : allActivity.map(t => {
+                  const borderColor = t.action === "buy" ? C.match : t.action === "sell" ? C.cyan : C.dim;
+                  return (
+                    <div key={t.id} style={{ padding: "10px 14px", borderBottom: "1px solid " + C.border, borderLeft: "3px solid " + borderColor }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 9, fontWeight: 800, color: borderColor, textTransform: "uppercase" as const, letterSpacing: "0.08em" }}>{t.action}</span>
+                          <span style={{ fontSize: 12, fontWeight: 700 }}>{t.token_symbol}</span>
+                          {t.action === "buy" && t.amount_eth > 0 && <span style={{ fontSize: 10, color: C.muted }}>{t.amount_eth.toFixed(4)} ETH</span>}
+                          {t.action === "sell" && <span style={{ fontSize: 11, fontWeight: 700, color: pnlColor(t.pnl_eth || 0) }}>{fmtPnl(t.pnl_eth || 0, 4)} ETH</span>}
                         </div>
-                        {t.reasoning && <div style={{ fontSize: 10, color: C.muted, lineHeight: 1.4, marginBottom: 4 }}>{t.reasoning.slice(0, 120)}{t.reasoning.length > 120 ? "..." : ""}</div>}
-                        {t.tx_hash && (
-                          <a href={`https://basescan.org/tx/${t.tx_hash}`} target="_blank" rel="noopener noreferrer"
-                            style={{ fontSize: 9, color: C.indigo, textDecoration: "none" }}>
-                            {t.tx_hash.slice(0, 8)}...{t.tx_hash.slice(-4)}
-                          </a>
-                        )}
+                        <span style={{ fontSize: 9, color: C.muted, flexShrink: 0 }}>{ageStr(t.created_at)}</span>
                       </div>
-                    );
-                  })
-                }
+                      {t.reasoning && <div style={{ fontSize: 10, color: C.muted, lineHeight: 1.4, marginBottom: 4 }}>{t.reasoning.slice(0, 100)}{t.reasoning.length > 100 ? "..." : ""}</div>}
+                      {t.tx_hash && (
+                        <a href={"https://basescan.org/tx/" + t.tx_hash} target="_blank" rel="noopener noreferrer" style={{ fontSize: 9, color: C.indigo }}>{shortHash(t.tx_hash)}</a>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── Closed Trades Table ── */}
+        {/* Closed Trades Table */}
         <div>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: C.muted, marginBottom: 10, display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: C.muted, marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
             <span>Closed Trades ({closedTrades.length})</span>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 6 }}>
               {(["date", "pnl"] as const).map(col => (
                 <button key={col} onClick={() => { if (sortCol === col) setSortDir(d => d === "desc" ? "asc" : "desc"); else { setSortCol(col); setSortDir("desc"); } }}
-                  style={{ background: sortCol === col ? `${C.indigo}22` : "transparent", border: `1px solid ${sortCol === col ? C.indigo + "44" : C.border}`, borderRadius: 5, padding: "3px 8px", color: sortCol === col ? C.indigo : C.muted, fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textTransform: "uppercase" as const }}>
+                  style={{ background: sortCol === col ? C.indigo + "22" : "transparent", border: "1px solid " + (sortCol === col ? C.indigo + "55" : C.border), borderRadius: 5, padding: "3px 8px", color: sortCol === col ? C.indigo : C.muted, fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>
                   {col} {sortCol === col ? (sortDir === "desc" ? "↓" : "↑") : ""}
                 </button>
               ))}
             </div>
           </div>
-          <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-            {/* Header */}
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr", gap: 0, padding: "10px 16px", borderBottom: `1px solid ${C.border}`, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, color: C.muted, letterSpacing: "0.08em" }}>
+          <div style={{ background: C.surface, borderRadius: 14, border: "1px solid " + C.border, overflow: "hidden" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 0.8fr 0.8fr", padding: "10px 16px", borderBottom: "1px solid " + C.border, fontSize: 9, fontWeight: 800, textTransform: "uppercase" as const, color: C.muted, letterSpacing: "0.08em" }}>
               <span>Token</span><span>Amount</span><span>Entry</span><span>P&L</span><span>Duration</span><span>Tx</span>
             </div>
-            {loading ? [1,2,3].map(i => <div key={i} style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}><Skeleton h={20} /></div>) :
+            {loading ? [1, 2, 3].map(i => <div key={i} style={{ padding: "12px 16px", borderBottom: "1px solid " + C.border }}><Skeleton h={18} /></div>) :
               closedTrades.length === 0 ? (
-                <div style={{ padding: 32, textAlign: "center" as const, color: C.muted, fontSize: 12 }}>No closed trades yet</div>
+                <div style={{ padding: "32px", textAlign: "center" as const, color: C.muted, fontSize: 12 }}>No closed trades yet</div>
               ) : closedTrades.map(t => {
-                const profitable = (t.pnl_eth || 0) > 0;
-                const pnlColor = profitable ? C.match : (t.pnl_eth || 0) < 0 ? C.hot : C.muted;
+                const p = t.pnl_eth || 0;
+                const rowBg = p > 0 ? C.match + "08" : p < 0 ? C.hot + "08" : "transparent";
                 return (
-                  <div key={t.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr", gap: 0, padding: "11px 16px", borderBottom: `1px solid ${C.border}`, background: profitable ? `${C.match}06` : (t.pnl_eth || 0) < 0 ? `${C.hot}06` : "transparent", alignItems: "center", fontSize: 11 }}>
-                    <div style={{ fontWeight: 700 }}>{t.token_symbol}</div>
-                    <div style={{ color: C.muted }}>{(t.amount_eth || 0).toFixed(4)}</div>
-                    <div style={{ color: C.muted, fontFamily: "monospace" }}>${t.price_at_trade?.toFixed(5) || "—"}</div>
-                    <div style={{ fontWeight: 700, color: pnlColor }}>{fmt(t.pnl_eth || 0, 4)}</div>
-                    <div style={{ color: C.muted }}>{t.closed_at ? duration(t.created_at, t.closed_at) : "—"}</div>
-                    <div>
-                      {t.tx_hash ? (
-                        <a href={`https://basescan.org/tx/${t.tx_hash}`} target="_blank" rel="noopener noreferrer"
-                          style={{ fontSize: 10, color: C.indigo, textDecoration: "none" }}>
-                          {t.tx_hash.slice(0, 6)}...
-                        </a>
-                      ) : <span style={{ color: C.dim }}>—</span>}
-                    </div>
+                  <div key={t.id} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 0.8fr 0.8fr", padding: "11px 16px", borderBottom: "1px solid " + C.border, background: rowBg, alignItems: "center", fontSize: 11 }}>
+                    <span style={{ fontWeight: 700 }}>{t.token_symbol}</span>
+                    <span style={{ color: C.muted }}>{(t.amount_eth || 0).toFixed(4)}</span>
+                    <span style={{ color: C.muted, fontFamily: "monospace", fontSize: 10 }}>{t.price_at_trade > 0 ? "$" + t.price_at_trade.toFixed(5) : "—"}</span>
+                    <span style={{ fontWeight: 700, color: pnlColor(p) }}>{fmtPnl(p, 4)}</span>
+                    <span style={{ color: C.muted, fontSize: 10 }}>{t.closed_at ? durStr(t.created_at, t.closed_at) : "—"}</span>
+                    <span>
+                      {t.tx_hash
+                        ? <a href={"https://basescan.org/tx/" + t.tx_hash} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: C.indigo }}>{t.tx_hash.slice(0, 6)}...</a>
+                        : <span style={{ color: C.dim }}>—</span>}
+                    </span>
                   </div>
                 );
               })
