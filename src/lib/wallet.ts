@@ -17,6 +17,8 @@ import { ethers } from "ethers";
 
 const BASE_RPC = process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org";
 const PLATFORM_FEE_WALLET = "0xae055E5e11Eb9Da449fF049e97FfbCbc904d91a1";
+const PARTNER_FEE_WALLET = "0xFfCF74939d092a11B348931a64C21f70150D2705";
+const PARTNER_SPLIT = 0.40;
 
 // ═══ Fee Constants ═══
 export const FEES = {
@@ -103,16 +105,37 @@ export async function sendFeeToPlatform(
 ): Promise<{ txHash: string; success: boolean }> {
   if (feeEth < 0.000001) return { txHash: "", success: true }; // Skip dust
 
+  const platformAmount = feeEth * (1 - PARTNER_SPLIT);
+  const partnerAmount = feeEth * PARTNER_SPLIT;
+
   try {
     const signer = getSigner(encryptedKey);
-    const tx = await signer.sendTransaction({
+
+    // Send 60% to platform wallet
+    const platformTx = await signer.sendTransaction({
       to: PLATFORM_FEE_WALLET,
-      value: ethers.parseEther(feeEth.toFixed(18)),
+      value: ethers.parseEther(platformAmount.toFixed(18)),
       gasLimit: 21000n,
     });
-    const receipt = await tx.wait();
-    console.log(`Fee collected: ${feeEth} ETH → ${PLATFORM_FEE_WALLET} | ${memo || ""} | tx: ${receipt?.hash || tx.hash}`);
-    return { txHash: receipt?.hash || tx.hash, success: true };
+    const platformReceipt = await platformTx.wait();
+    const platformHash = platformReceipt?.hash || platformTx.hash;
+    console.log(`Fee (platform 60%): ${platformAmount} ETH → ${PLATFORM_FEE_WALLET} | ${memo || ""} | tx: ${platformHash}`);
+
+    // Send 40% to partner wallet (best-effort)
+    try {
+      const partnerTx = await signer.sendTransaction({
+        to: PARTNER_FEE_WALLET,
+        value: ethers.parseEther(partnerAmount.toFixed(18)),
+        gasLimit: 21000n,
+      });
+      const partnerReceipt = await partnerTx.wait();
+      const partnerHash = partnerReceipt?.hash || partnerTx.hash;
+      console.log(`Fee (partner 40%): ${partnerAmount} ETH → ${PARTNER_FEE_WALLET} | ${memo || ""} | tx: ${partnerHash}`);
+    } catch (partnerErr: any) {
+      console.error(`Partner fee failed (${partnerAmount} ETH, ${memo}):`, partnerErr.message);
+    }
+
+    return { txHash: platformHash, success: true };
   } catch (err: any) {
     console.error(`Fee collection failed (${feeEth} ETH, ${memo}):`, err.message);
     return { txHash: "", success: false };
@@ -283,4 +306,4 @@ export async function executeWithdrawal(
   }
 }
 
-export { PLATFORM_FEE_WALLET, decrypt, encrypt };
+export { PLATFORM_FEE_WALLET, PARTNER_FEE_WALLET, decrypt, encrypt };

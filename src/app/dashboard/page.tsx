@@ -43,18 +43,18 @@ const C = {
 /* ═══ SMALL COMPONENTS ═══ */
 
 function MMLogo({size=44}:{size?:number}){
-  const h=size*0.5;
+  const h=Math.round(size*(70/120));
   return(
-    <svg width={size} height={h} viewBox="0 0 120 60" style={{display:"inline-block",verticalAlign:"middle"}}>
+    <svg width={size} height={h} viewBox="0 0 120 70" style={{display:"inline-block",verticalAlign:"middle"}}>
       <defs>
         <linearGradient id="lgL" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#7C3AED"/><stop offset="100%" stopColor="#6366F1"/></linearGradient>
         <linearGradient id="lgR" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#06B6D4"/><stop offset="100%" stopColor="#22D3EE"/></linearGradient>
         <linearGradient id="lgM" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#6366F1"/><stop offset="100%" stopColor="#06B6D4"/></linearGradient>
       </defs>
-      <circle cx="35" cy="30" r="24" fill="none" stroke="url(#lgL)" strokeWidth="5"/>
-      <circle cx="65" cy="30" r="24" fill="none" stroke="url(#lgR)" strokeWidth="5"/>
-      <path d="M50 10.4 A24 24 0 0 1 50 49.6 A24 24 0 0 1 50 10.4" fill="url(#lgM)" opacity="0.3"/>
-      <circle cx="28" cy="30" r="5" fill="url(#lgL)"/><circle cx="72" cy="30" r="5" fill="url(#lgR)"/>
+      <circle cx="35" cy="35" r="24" fill="none" stroke="url(#lgL)" strokeWidth="5"/>
+      <circle cx="65" cy="35" r="24" fill="none" stroke="url(#lgR)" strokeWidth="5"/>
+      <path d="M50 15.4 A24 24 0 0 1 50 54.6 A24 24 0 0 1 50 15.4" fill="url(#lgM)" opacity="0.3"/>
+      <circle cx="28" cy="35" r="5" fill="url(#lgL)"/><circle cx="72" cy="35" r="5" fill="url(#lgR)"/>
     </svg>
   );
 }
