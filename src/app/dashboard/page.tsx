@@ -715,6 +715,7 @@ export default function Dashboard(){
     setStreak(sk);
 
     await Promise.all([loadMatches(uid),loadDiscovery(uid),loadNotifications(uid),loadBadges(uid),loadLeaderboard(),loadChallenges(uid),loadReport(uid),loadWallet()]);
+    loadAiSettings();
     setLoading(false);
 
     // Real-time wallet balance polling (10s) — instant deposit detection
@@ -949,11 +950,15 @@ export default function Dashboard(){
     await fetch("/api/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save",...aiForm})});
     await loadAiSettings();
     setAiTestResult(null);
+    // refresh user so ai_api_key_encrypted is populated in state
+    const{data:freshUser}=await supabase.from("users").select("*").eq("id",user.id).single();
+    if(freshUser) setUser((u:any)=>({...u,...freshUser}));
   }
 
   async function disconnectAi(){
     await fetch("/api/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"disconnect"})});
     setAiCurrent(null); setAiForm({provider:"openai",apiKey:"",model:"gpt-4o-mini",endpoint:""});
+    setUser((u:any)=>({...u,ai_api_key_encrypted:null}));
   }
 
   async function updateNotifSettings(updates:any){
@@ -1367,7 +1372,7 @@ export default function Dashboard(){
           {id:"buzz",label:"Stats",icon:<TrendingUp size={13}/>},
           {id:"evolve",label:"Grow",icon:<Sparkles size={13}/>},
         ].map(t=>(
-          <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="discover"){if(user&&!discoverProfiles.length)loadDiscoverFeed(user.id);}if(t.id==="brew"){if(!wallet)loadWallet();if(!nfts.length)loadNfts();if(!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();}}if(t.id==="buzz")loadBuzzData();if(t.id==="evolve"&&!referralStats)loadReferralStats();}} style={{
+          <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="discover"){if(user&&!discoverProfiles.length)loadDiscoverFeed(user.id);}if(t.id==="brew"){if(!wallet)loadWallet();if(!nfts.length)loadNfts();if(!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();}}if(t.id==="agent"){loadAiSettings();}if(t.id==="buzz")loadBuzzData();if(t.id==="evolve"&&!referralStats)loadReferralStats();}} style={{
             flex:1,
             background:view===t.id?"linear-gradient(135deg, rgba(99,102,241,0.25), rgba(6,182,212,0.15))":"rgba(255,255,255,0.03)",
             border:view===t.id?`1px solid rgba(99,102,241,0.5)`:`1px solid rgba(255,255,255,0.06)`,
