@@ -818,17 +818,17 @@ export default function MeshTradeDemo({ onGetStarted, onClose, hasBrain = false 
         flexDirection: 'column',
         alignItems: 'center',
         background: `linear-gradient(to top, ${COLORS.bg} 50%, ${COLORS.bg}ee 75%, transparent)`,
-        paddingTop: 40,
+        paddingTop: 16,
         paddingBottom: 20,
         paddingLeft: 24,
         paddingRight: 24,
-        gap: 16,
+        gap: 10,
       }}>
         {/* Headline + sub with crossfade */}
         <div style={{
           position: 'relative',
           width: '100%',
-          minHeight: 80,
+          minHeight: 60,
           textAlign: 'center',
         }}>
           {SLIDES.map((slide, idx) => {
@@ -851,7 +851,7 @@ export default function MeshTradeDemo({ onGetStarted, onClose, hasBrain = false 
                 }}
               >
                 <h2 style={{
-                  fontSize: 28,
+                  fontSize: 22,
                   fontWeight: 900,
                   margin: 0,
                   marginBottom: 8,
@@ -861,7 +861,7 @@ export default function MeshTradeDemo({ onGetStarted, onClose, hasBrain = false 
                   {slide.headline}
                 </h2>
                 <p style={{
-                  fontSize: 15,
+                  fontSize: 13,
                   color: COLORS.muted,
                   margin: 0,
                   lineHeight: 1.5,
