@@ -1644,10 +1644,39 @@ export default function Dashboard(){
     ):(
       <div>
         <div style={{fontSize:12,color:C.muted,marginBottom:12,lineHeight:1.5}}>Connect your own AI API key. Your agent uses YOUR credits — we charge nothing. Once connected, it starts matching, trading, and learning automatically.</div>
-        <button onClick={()=>setView("agent")} style={{width:"100%",padding:"12px",background:`linear-gradient(135deg,${C.cold},${C.cyan})`,border:"none",borderRadius:10,color:"white",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          Connect AI Brain
-        </button>
+        <div style={{display:"flex",flexDirection:"column" as const,gap:8}}>
+          <select
+            value={aiForm.provider}
+            onChange={(e)=>{const defaults:any={"openai":"gpt-4o-mini","anthropic":"claude-sonnet-4-20250514","google":"gemini-2.0-flash","xai":"grok-3-mini","groq":"llama-3.1-70b-versatile","openrouter":"openai/gpt-4o-mini"};setAiForm(f=>({...f,provider:e.target.value,model:defaults[e.target.value]||"gpt-4o-mini"}));}}
+            style={{width:"100%",background:C.s2,border:"1px solid "+C.border,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:12,fontFamily:"inherit",fontWeight:600,appearance:"auto" as any}}
+          >
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="google">Google</option>
+            <option value="xai">xAI</option>
+            <option value="groq">Groq</option>
+          </select>
+          <input
+            type="password"
+            placeholder={`${(aiForm.provider||"openai").charAt(0).toUpperCase()+(aiForm.provider||"openai").slice(1)} API key...`}
+            value={aiForm.apiKey}
+            onChange={(e)=>setAiForm(f=>({...f,apiKey:e.target.value}))}
+            style={{width:"100%",background:C.s2,border:"1px solid "+C.border,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:12,fontFamily:"inherit",fontWeight:600,boxSizing:"border-box"}}
+          />
+          <input
+            type="text"
+            placeholder="Model"
+            value={aiForm.model}
+            onChange={(e)=>setAiForm(f=>({...f,model:e.target.value}))}
+            style={{width:"100%",background:C.s2,border:"1px solid "+C.border,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:12,fontFamily:"inherit",fontWeight:600,boxSizing:"border-box"}}
+          />
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={testAiConnection} disabled={!aiForm.apiKey||aiTesting} style={{flex:1,padding:"10px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:C.s2,cursor:aiForm.apiKey&&!aiTesting?"pointer":"not-allowed",color:aiForm.apiKey?C.text:C.muted,fontSize:12,fontWeight:700,fontFamily:"inherit",opacity:aiTesting?0.5:1}}>{aiTesting?"Testing...":"Test Connection"}</button>
+            <button onClick={saveAiSettings} disabled={!aiForm.apiKey||!aiTestResult?.success} style={{flex:1,padding:"10px 16px",borderRadius:8,border:"none",background:aiTestResult?.success?`linear-gradient(135deg,${C.cold},${C.cyan})`:C.s2,cursor:aiTestResult?.success?"pointer":"not-allowed",color:aiTestResult?.success?"white":C.muted,fontSize:12,fontWeight:700,fontFamily:"inherit"}}>Save & Activate</button>
+          </div>
+          {aiTestResult&&(<div style={{marginTop:4,padding:8,borderRadius:8,background:aiTestResult.success?`${C.match}15`:`${C.hot}15`,border:`1px solid ${aiTestResult.success?C.match:C.hot}33`,fontSize:11,color:aiTestResult.success?C.match:C.hot}}>{aiTestResult.success?`Connected! "${aiTestResult.message}"`:`${aiTestResult.message}`}</div>)}
+        </div>
       </div>
     )}
   </div>
