@@ -124,22 +124,30 @@ export default function MeshTrade({ user, agent, wallet, onConnectBrain, onFundW
     }, 50);
   }, []);
 
-  /* ── Execute trade (stub API) ── */
+  /* ── Execute trade (real Uniswap V3 API) ── */
   const executeTrade = useCallback(async (token: Token, action: "buy" | "sell", ethAmount: number) => {
     try {
-      const res = await fetch("/api/meshtrade/execute", {
+      const res = await fetch("/api/trading/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: { symbol: token.symbol, address: token.address, price: token.price }, action, ethAmount, userId: user?.id }),
+        body: JSON.stringify({ action, tokenAddress: token.address, tokenSymbol: token.symbol, amountEth: ethAmount, slippagePct: 2 }),
       });
       const data = await res.json();
-      if (data.success) {
-        setTradeLogs(prev => [...prev, data]);
+      if (data.ok) {
+        setTradeLogs(prev => [...prev, {
+          txHash: data.txHash, action: data.action,
+          token: { symbol: data.tokenSymbol, address: data.tokenAddress, price: token.price },
+          ethAmount: data.netAmountEth, timestamp: Date.now(),
+        }]);
         return data;
+      } else if (data.error) {
+        addThought(`[ERROR] ${token.symbol}: ${data.error}`);
       }
-    } catch {}
+    } catch (err: any) {
+      addThought(`[ERROR] ${token.symbol}: ${err.message || "Trade failed"}`);
+    }
     return null;
-  }, [user?.id]);
+  }, [addThought]);
 
   /* ── Process a single bubble through its lifecycle ── */
   const processBubble = useCallback((bubble: Bubble) => {
