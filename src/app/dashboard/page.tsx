@@ -1371,9 +1371,8 @@ export default function Dashboard(){
           {id:"feed",label:"Feed",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49" opacity="0.6"/><path d="M7.76 16.24a6 6 0 0 1 0-8.49" opacity="0.6"/></svg>},
           {id:"buzz",label:"Stats",icon:<TrendingUp size={13}/>},
           {id:"evolve",label:"Grow",icon:<Sparkles size={13}/>},
-          {id:"trades",label:"Trades",icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>},
         ].map(t=>(
-          <button key={t.id} onClick={()=>{if(t.id==="trades"){window.location.href="/dashboard/trades";return;}setView(t.id);if(t.id==="discover"){if(user&&!discoverProfiles.length)loadDiscoverFeed(user.id);}if(t.id==="brew"){if(!wallet)loadWallet();if(!nfts.length)loadNfts();if(!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();}}if(t.id==="agent"){loadAiSettings();}if(t.id==="buzz")loadBuzzData();if(t.id==="evolve"&&!referralStats)loadReferralStats();}} style={{
+          <button key={t.id} onClick={()=>{setView(t.id);if(t.id==="discover"){if(user&&!discoverProfiles.length)loadDiscoverFeed(user.id);}if(t.id==="brew"){if(!wallet)loadWallet();if(!nfts.length)loadNfts();if(!notifSettings){loadNotifSettings();loadAiSettings();loadDevApiKeys();}}if(t.id==="agent"){loadAiSettings();}if(t.id==="buzz")loadBuzzData();if(t.id==="evolve"&&!referralStats)loadReferralStats();}} style={{
             flex:1,
             background:view===t.id?"linear-gradient(135deg, rgba(99,102,241,0.25), rgba(6,182,212,0.15))":"rgba(255,255,255,0.03)",
             border:view===t.id?`1px solid rgba(99,102,241,0.5)`:`1px solid rgba(255,255,255,0.06)`,
