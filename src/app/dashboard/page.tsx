@@ -1249,7 +1249,7 @@ export default function Dashboard(){
         <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>window.location.href="/landing.html"}>
           <MMLogo size={32}/><span style={{fontWeight:700,fontSize:15}}>MishMesh</span>
           {(()=>{const aiOn=!!user?.ai_api_key_encrypted;return(
-            <div onClick={(e)=>{e.stopPropagation();setView("settings");}} title={aiOn?"AI Brain Connected":"Connect AI Brain"} style={{
+            <div onClick={(e)=>{e.stopPropagation();setView("agent");}} title={aiOn?"AI Brain Connected":"Connect AI Brain"} style={{
               width:28,height:28,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",position:"relative",transition:"all 0.3s",
               background:aiOn?"linear-gradient(135deg,rgba(99,102,241,0.15),rgba(6,182,212,0.15))":"rgba(255,255,255,0.04)",
               border:aiOn?"1.5px solid rgba(99,102,241,0.4)":"1.5px solid rgba(255,255,255,0.1)",
