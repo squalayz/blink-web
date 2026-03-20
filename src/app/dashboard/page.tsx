@@ -54,7 +54,7 @@ function MMLogo({size=44}:{size?:number}){
       <circle cx="35" cy="35" r="24" fill="none" stroke="url(#lgL)" strokeWidth="5"/>
       <circle cx="65" cy="35" r="24" fill="none" stroke="url(#lgR)" strokeWidth="5"/>
       <path d="M50 15.4 A24 24 0 0 1 50 54.6 A24 24 0 0 1 50 15.4" fill="url(#lgM)" opacity="0.3"/>
-      <circle cx="28" cy="35" r="5" fill="url(#lgL)"/><circle cx="72" cy="35" r="5" fill="url(#lgR)"/>
+      <circle cx="35" cy="14" r="4" fill="url(#lgL)"/><circle cx="65" cy="14" r="4" fill="url(#lgR)"/>
     </svg>
   );
 }
