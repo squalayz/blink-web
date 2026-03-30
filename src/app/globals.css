@@ -1,40 +1,13 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #0A0A0F; color: #F9FAFB; font-family: "Inter", sans-serif; height: 100%; }
 
-:root {
-  --base: #0a0a0f;
-  --surface: #111118;
-  --surface2: #1a1a24;
-  --indigo: #6366f1;
-  --cyan: #06b6d4;
-  --purple: #a855f7;
-  --pink: #ec4899;
-  --text: #f0f0f5;
-  --muted: #6b6b80;
-  --dim: #3a3a4a;
-}
-
-* { box-sizing: border-box; }
-
-body {
-  background: var(--base);
-  color: var(--text);
-  font-family: 'Outfit', system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  overflow-x: hidden;
-}
-
-/* Focus rings for a11y */
 :focus-visible {
-  outline: 2px solid var(--indigo);
+  outline: 2px solid #9945FF;
   outline-offset: 2px;
   border-radius: 4px;
 }
 
-/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -43,22 +16,11 @@ body {
   }
 }
 
-/* Selection */
 ::selection {
-  background: var(--indigo);
+  background: #9945FF;
   color: white;
 }
 
-/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--base); }
-::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 3px; }
-
-/* Animations */
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
+::-webkit-scrollbar-track { background: #0A0A0F; }
+::-webkit-scrollbar-thumb { background: #1F2028; border-radius: 3px; }

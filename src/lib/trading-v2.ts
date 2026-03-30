@@ -551,6 +551,15 @@ async function emergencyGasRecovery(userId: string, walletAddress: string, encry
         closed_at: new Date().toISOString(), pnl_eth: ethReceived - pos.amount_eth,
         reasoning: `🚨 EMERGENCY GAS RECOVERY — balance was ${balance.toFixed(6)} ETH, needed ${GAS_RESERVE_ETH} to operate`,
       }).eq("id", pos.id);
+      await supabaseAdmin.from("trade_logs").insert({
+        user_id: userId, action: "sell",
+        token_symbol: pos.token_symbol, token_address: pos.token_address,
+        amount: ethReceived, price: 0,
+        pnl: ethReceived - pos.amount_eth,
+        reasoning: `Emergency gas recovery`,
+        gas_cost: 0.001,
+        closed_at: new Date().toISOString(),
+      });
       await supabaseAdmin.from("notifications").insert({
         user_id: userId, type: "emergency_sell",
         message: `🚨 Emergency sell: ${pos.token_symbol} — Balance too low for gas (${balance.toFixed(4)} ETH). Recovered ${ethReceived.toFixed(4)} ETH.`,
@@ -673,6 +682,14 @@ export async function runSLTPEngine() {
             token_symbol: pos.token_symbol, action: "sell", amount_eth: ethReceived,
             pnl_eth: sellPct >= 100 ? ethReceived - pos.amount_eth : undefined,
             reasoning: `🤖 V3 SLTP: ${sellDecision.reason}`,
+          });
+          await supabaseAdmin.from("trade_logs").insert({
+            user_id: pos.user_id, action: "sell",
+            token_symbol: pos.token_symbol, token_address: pos.token_address,
+            amount: ethReceived, price: 0,
+            pnl: sellPct >= 100 ? ethReceived - pos.amount_eth : undefined,
+            reasoning: `V3 SLTP: ${sellDecision.reason}`,
+            gas_cost: 0.001,
           });
         }
       }
@@ -816,6 +833,14 @@ export async function runSingleUserTrading(userId: string): Promise<{ action: st
                 pnl_eth: sellPct >= 100 ? ethReceived - pos.amount_eth : undefined,
                 tx_hash: result.txHash, reasoning: `🤖 V3: ${sellDecision.reason}`,
               });
+              await supabaseAdmin.from("trade_logs").insert({
+                user_id: userId, action: "sell",
+                token_symbol: pos.token_symbol, token_address: pos.token_address,
+                amount: ethReceived, price: 0,
+                pnl: sellPct >= 100 ? ethReceived - pos.amount_eth : undefined,
+                tx_hash: result.txHash, reasoning: `V3: ${sellDecision.reason}`,
+                gas_cost: 0.001,
+              });
               if (sellPct >= 100) {
                 return { action: "sell", token: pos.token_symbol, reasoning: `V3 auto-sold: ${sellDecision.reason}. Got ${ethReceived.toFixed(4)} ETH` };
               }
@@ -939,6 +964,13 @@ export async function runSingleUserTrading(userId: string): Promise<{ action: st
         tx_hash: result.txHash, fee_eth: fee,
         reasoning: `[${decision.confidence}%] ${decision.reasoning} | Route: ${quote.feeTier/10000}% pool`,
       });
+      await supabaseAdmin.from("trade_logs").insert({
+        user_id: userId, action: "buy",
+        token_symbol: decision.token || "?", token_address: decision.tokenAddress,
+        amount: tradeAmount, price: tokenInfo?.price || 0,
+        tx_hash: result.txHash, reasoning: decision.reasoning,
+        confidence: decision.confidence, gas_cost: 0.001,
+      });
       await supabaseAdmin.from("notifications").insert({
         user_id: userId, type: "agent_trade",
         message: `🟢 Buy ${decision.token}: ${tradeAmount.toFixed(4)} ETH | ${decision.confidence}% confidence | ${decision.reasoning}`,
@@ -987,6 +1019,17 @@ export async function runSingleUserTrading(userId: string): Promise<{ action: st
         closed_at: new Date().toISOString(), pnl_eth: ethReceived - pos.amount_eth,
         reasoning: `[${decision.confidence}%] ${decision.reasoning}`,
       }).eq("id", pos.id);
+      await supabaseAdmin.from("trade_logs").insert({
+        user_id: userId, action: "sell",
+        token_symbol: pos.token_symbol, token_address: pos.token_address,
+        amount: ethReceived, price: 0,
+        pnl: ethReceived - pos.amount_eth,
+        tx_hash: result.txHash || "",
+        reasoning: decision.reasoning || "",
+        confidence: decision.confidence || 80,
+        gas_cost: 0.001,
+        closed_at: new Date().toISOString(),
+      });
       await supabaseAdmin.from("notifications").insert({
         user_id: userId, type: "agent_trade",
         message: `🔴 Sell ${pos.token_symbol}: ${ethReceived.toFixed(4)} ETH | P&L: ${(ethReceived - pos.amount_eth).toFixed(4)} ETH`,
@@ -1205,6 +1248,13 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
             tx_hash: result.txHash, fee_eth: fee,
             reasoning: `[${decision.confidence}%] ${decision.reasoning} | Route: ${quote.feeTier/10000}% pool`,
           });
+          await supabaseAdmin.from("trade_logs").insert({
+            user_id: agent.user_id, action: "buy",
+            token_symbol: decision.token || "?", token_address: decision.tokenAddress,
+            amount: tradeAmount, price: tokenInfo?.price || 0,
+            tx_hash: result.txHash, reasoning: decision.reasoning,
+            confidence: decision.confidence, gas_cost: 0.001,
+          });
 
           await supabaseAdmin.from("notifications").insert({
             user_id: agent.user_id, type: "agent_trade",
@@ -1266,6 +1316,18 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
             reasoning: `[${decision.confidence}%] ${decision.reasoning}`,
           }).eq("id", pos.id);
 
+          await supabaseAdmin.from("trade_logs").insert({
+            user_id: agent.user_id, action: "sell",
+            token_symbol: pos.token_symbol, token_address: pos.token_address,
+            amount: ethReceived, price: 0,
+            pnl: ethReceived - pos.amount_eth,
+            tx_hash: result.txHash || "",
+            reasoning: decision.reasoning || "",
+            confidence: decision.confidence || 80,
+            gas_cost: 0.001,
+            closed_at: new Date().toISOString(),
+          });
+
           await supabaseAdmin.from("notifications").insert({
             user_id: agent.user_id, type: "agent_trade",
             message: `🔴 Sell ${pos.token_symbol}: ${ethReceived.toFixed(4)} ETH | P&L: ${(ethReceived - pos.amount_eth).toFixed(4)} ETH | ${decision.reasoning}`,
@@ -1273,7 +1335,7 @@ export async function runAutonomousTradingV2(modeFilter?: string[]) {
         }
       }
     } catch (err) {
-      const errMsg = err?.message || String(err);
+      const errMsg = (err as any)?.message || String(err);
       await dlog(`[V2] CRASH for ${agent.user_id.slice(0,8)}: ${errMsg.slice(0,300)}`);
       console.error(`[V2] Trading error for ${agent.user_id}:`, err);
     }
