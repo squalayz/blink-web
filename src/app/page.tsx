@@ -1,27 +1,54 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { useState, useEffect, useRef } from "react";
+import { motion, useInView } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 /* ------------------------------------------------------------------ */
-/*  Colors                                                            */
+/*  Colors                                                             */
 /* ------------------------------------------------------------------ */
 const C = {
-  bg: "#0A0A0F",
-  surface: "#111118",
-  card: "#1C1C28",
-  primary: "#9945FF",
-  accent: "#14F195",
+  bg: "#0a0a0f",
+  surface: "#0d0d14",
+  card: "#1a1a24",
+  primary: "#6366f1",
+  accent: "#06b6d4",
   gold: "#F59E0B",
-  text: "#F9FAFB",
-  textMuted: "#9CA3AF",
+  text: "#f9fafb",
+  muted: "#9ca3af",
   border: "#1F2028",
 };
 
 /* ------------------------------------------------------------------ */
-/*  MMLogo                                                            */
+/*  Global keyframes (injected once)                                   */
+/* ------------------------------------------------------------------ */
+const globalCSS = `
+@keyframes auroraLeft{0%{transform:translateX(0)}50%{transform:translateX(-8%)}100%{transform:translateX(0)}}
+@keyframes auroraRight{0%{transform:translateX(0)}50%{transform:translateX(8%)}100%{transform:translateX(0)}}
+@keyframes starTwinkle{0%,100%{opacity:0.15}50%{opacity:0.7}}
+@keyframes particleUp{0%{transform:translateY(0);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateY(-110vh);opacity:0}}
+@keyframes marqueeL{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+@keyframes marqueeR{0%{transform:translateX(-50%)}100%{transform:translateX(0)}}
+@keyframes orbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-16px)}}
+@keyframes orbGlow{0%,100%{transform:scale(1);opacity:0.5}50%{transform:scale(1.15);opacity:0.7}}
+@keyframes midRing{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+@keyframes innerRing{0%{transform:rotate(0deg)}100%{transform:rotate(-360deg)}}
+@keyframes orbPing{0%{transform:scale(1);opacity:0.6}100%{transform:scale(2.5);opacity:0}}
+@keyframes orbitDot{0%{transform:rotate(0deg) translateX(var(--orbit-r))}100%{transform:rotate(360deg) translateX(var(--orbit-r))}}
+@keyframes scrollBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(8px)}}
+@keyframes taskFloat{0%,100%{transform:rotate(2deg) translateY(0)}50%{transform:rotate(2deg) translateY(-12px)}}
+@keyframes clipReveal{0%{clip-path:inset(0 100% 0 0)}100%{clip-path:inset(0 0% 0 0)}}
+@keyframes pulsingDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.8)}}
+@keyframes shakeBtn{0%,100%{transform:translateX(0)}10%,30%,50%,70%,90%{transform:translateX(-3px)}20%,40%,60%,80%{transform:translateX(3px)}}
+html{scroll-behavior:smooth}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:${C.bg};color:${C.text};font-family:system-ui,-apple-system,sans-serif;overflow-x:hidden}
+`;
+
+/* ------------------------------------------------------------------ */
+/*  MMLogo                                                             */
 /* ------------------------------------------------------------------ */
 function MMLogo({ size = 44 }: { size?: number }) {
   const h = Math.round(size * (70 / 120));
@@ -29,25 +56,21 @@ function MMLogo({ size = 44 }: { size?: number }) {
     <svg width={size} height={h} viewBox="0 0 120 70">
       <defs>
         <linearGradient id="lgL" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#9945FF" />
-          <stop offset="100%" stopColor="#7C3AED" />
+          <stop offset="0%" stopColor="#6366f1" />
+          <stop offset="100%" stopColor="#4f46e5" />
         </linearGradient>
         <linearGradient id="lgR" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#14F195" />
-          <stop offset="100%" stopColor="#10B981" />
+          <stop offset="0%" stopColor="#06b6d4" />
+          <stop offset="100%" stopColor="#0891b2" />
         </linearGradient>
         <linearGradient id="lgM" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#9945FF" />
-          <stop offset="100%" stopColor="#14F195" />
+          <stop offset="0%" stopColor="#6366f1" />
+          <stop offset="100%" stopColor="#06b6d4" />
         </linearGradient>
       </defs>
       <circle cx="35" cy="35" r="24" fill="none" stroke="url(#lgL)" strokeWidth="5" />
       <circle cx="65" cy="35" r="24" fill="none" stroke="url(#lgR)" strokeWidth="5" />
-      <path
-        d="M50 15.4 A24 24 0 0 1 50 54.6 A24 24 0 0 1 50 15.4"
-        fill="url(#lgM)"
-        opacity="0.3"
-      />
+      <path d="M50 15.4 A24 24 0 0 1 50 54.6 A24 24 0 0 1 50 15.4" fill="url(#lgM)" opacity="0.3" />
       <circle cx="35" cy="14" r="4" fill="url(#lgL)" />
       <circle cx="65" cy="14" r="4" fill="url(#lgR)" />
     </svg>
@@ -55,49 +78,33 @@ function MMLogo({ size = 44 }: { size?: number }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Floating particles for the hero background                        */
+/*  Stars                                                              */
 /* ------------------------------------------------------------------ */
-function Particles() {
-  const [particles] = useState(() =>
-    Array.from({ length: 18 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      size: 2 + Math.random() * 4,
-      delay: Math.random() * 6,
-      duration: 6 + Math.random() * 8,
-      opacity: 0.15 + Math.random() * 0.35,
-    }))
-  );
-
+function Stars() {
+  const stars = Array.from({ length: 80 }, (_, i) => ({
+    id: i,
+    x: (i * 13.7 + i * i * 0.3) % 100,
+    y: (i * 11.3 + i * i * 0.7) % 100,
+    size: 1 + (i % 3),
+    delay: (i * 0.4) % 8,
+    dur: 3 + (i % 5),
+  }));
   return (
     <>
-      {particles.map((p) => (
-        <motion.div
-          key={p.id}
+      {stars.map((s) => (
+        <div
+          key={s.id}
           style={{
             position: "absolute",
-            left: `${p.x}%`,
-            bottom: "-5%",
-            width: p.size,
-            height: p.size,
+            left: `${s.x}%`,
+            top: `${s.y}%`,
+            width: s.size,
+            height: s.size,
             borderRadius: "50%",
-            background:
-              p.id % 3 === 0
-                ? C.primary
-                : p.id % 3 === 1
-                  ? C.accent
-                  : C.gold,
+            background: "#fff",
+            opacity: 0.2,
+            animation: `starTwinkle ${s.dur}s ${s.delay}s ease-in-out infinite`,
             pointerEvents: "none",
-          }}
-          animate={{
-            y: [0, -(typeof window !== "undefined" ? window.innerHeight * 1.2 : 1000)],
-            opacity: [0, p.opacity, 0],
-          }}
-          transition={{
-            duration: p.duration,
-            delay: p.delay,
-            repeat: Infinity,
-            ease: "linear",
           }}
         />
       ))}
@@ -106,253 +113,510 @@ function Particles() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Marquee ticker                                                    */
+/*  Particles (30 floating up)                                         */
 /* ------------------------------------------------------------------ */
-function Ticker() {
-  const items = [
-    { text: "Alex cracked an orb in Tokyo -- earned ", val: "0.5 SOL" },
-    { text: "Maria dropped 50 orbs across Miami", val: "" },
-    { text: "James cracked a Legendary orb in London -- earned ", val: "2.1 SOL" },
-    { text: "Sofia dropped a golden orb in Berlin", val: "" },
-    { text: "Liam cracked an orb in Sydney -- earned ", val: "500 BONK" },
-    { text: "Nina dropped 20 orbs across Paris", val: "" },
+function Particles() {
+  const particles = Array.from({ length: 30 }, (_, i) => ({
+    id: i,
+    x: (i * 3.47) % 100,
+    size: 2 + (i % 3),
+    delay: (i * 0.6) % 10,
+    dur: 8 + (i % 8),
+    color: [C.primary, C.accent, C.gold][i % 3],
+  }));
+  return (
+    <>
+      {particles.map((p) => (
+        <div
+          key={p.id}
+          style={{
+            position: "absolute",
+            left: `${p.x}%`,
+            bottom: "-2%",
+            width: p.size,
+            height: p.size,
+            borderRadius: "50%",
+            background: p.color,
+            opacity: 0,
+            animation: `particleUp ${p.dur}s ${p.delay}s linear infinite`,
+            pointerEvents: "none",
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Hero Orb (CSS only)                                                */
+/* ------------------------------------------------------------------ */
+function HeroOrb() {
+  const orbDots = [
+    { r: 180, dur: 6, color: C.primary, size: 8 },
+    { r: 180, dur: 8, color: C.accent, size: 6 },
+    { r: 160, dur: 10, color: C.gold, size: 7 },
+    { r: 160, dur: 7, color: "#06B6D4", size: 5 },
+    { r: 140, dur: 9, color: "#EC4899", size: 6 },
+    { r: 140, dur: 11, color: "#F97316", size: 5 },
   ];
 
-  const row = items.map((item, i) => (
-    <span
-      key={i}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        whiteSpace: "nowrap",
-        padding: "0 32px",
-        fontSize: 14,
-        color: C.textMuted,
-      }}
-    >
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: C.accent,
-          flexShrink: 0,
-        }}
-      />
-      {item.text}
-      {item.val && (
-        <span style={{ color: C.accent, fontWeight: 700 }}>{item.val}</span>
-      )}
-    </span>
-  ));
-
   return (
-    <div
-      style={{
-        overflow: "hidden",
-        width: "100%",
-        padding: "20px 0",
-        position: "relative",
-      }}
-    >
+    <div style={{ position: "relative", width: 320, height: 320, flexShrink: 0 }}>
+      {/* Outer glow */}
       <div
         style={{
-          display: "flex",
-          width: "max-content",
-          animation: "marquee 40s linear infinite",
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          width: "160%",
+          height: "160%",
+          transform: "translate(-50%,-50%)",
+          borderRadius: "50%",
+          background: `radial-gradient(circle, ${C.primary}33 0%, transparent 70%)`,
+          animation: "orbGlow 3s ease-in-out infinite",
+          pointerEvents: "none",
         }}
-      >
-        {row}
-        {row}
-      </div>
-      <style>{`
-        @keyframes marquee {
-          0%   { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-      `}</style>
+      />
+
+      {/* Mid ring */}
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          width: "130%",
+          height: "130%",
+          transform: "translate(-50%,-50%)",
+          borderRadius: "50%",
+          border: `2px solid rgba(99,102,241,0.3)`,
+          animation: "midRing 12s linear infinite",
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* Inner ring */}
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          width: "115%",
+          height: "115%",
+          transform: "translate(-50%,-50%)",
+          borderRadius: "50%",
+          border: `1px solid rgba(6,182,212,0.4)`,
+          animation: "innerRing 8s linear infinite",
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* The orb itself */}
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          width: 160,
+          height: 160,
+          transform: "translate(-50%,-50%)",
+          borderRadius: "50%",
+          background: "radial-gradient(circle at 35% 35%, #a5b4fc, #6366f1 40%, #4338ca 70%, #1e1b4b)",
+          boxShadow: `0 0 60px 20px rgba(99,102,241,0.3)`,
+          animation: "orbFloat 4s ease-in-out infinite",
+        }}
+      />
+
+      {/* Orbiting dots */}
+      {orbDots.map((d, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            width: d.size,
+            height: d.size,
+            marginLeft: -d.size / 2,
+            marginTop: -d.size / 2,
+            borderRadius: "50%",
+            background: d.color,
+            boxShadow: `0 0 8px ${d.color}`,
+            ["--orbit-r" as string]: `${d.r}px`,
+            animation: `orbitDot ${d.dur}s ${i * 0.5}s linear infinite`,
+            pointerEvents: "none",
+          }}
+        />
+      ))}
+
+      {/* Ping rings */}
+      {[0, 0.83, 1.67].map((delay, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            width: 160,
+            height: 160,
+            marginLeft: -80,
+            marginTop: -80,
+            borderRadius: "50%",
+            border: `1px solid ${C.primary}`,
+            opacity: 0,
+            animation: `orbPing 1.2s ${delay}s ease-out infinite`,
+            pointerEvents: "none",
+          }}
+        />
+      ))}
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  Section wrapper                                                   */
+/*  App Store Buttons                                                  */
 /* ------------------------------------------------------------------ */
-function Section({
-  children,
-  style,
-  id,
-}: {
-  children: React.ReactNode;
-  style?: React.CSSProperties;
-  id?: string;
-}) {
-  return (
-    <section
-      id={id}
-      style={{
-        width: "100%",
-        maxWidth: 1200,
-        margin: "0 auto",
-        padding: "100px 24px",
-        ...style,
-      }}
-    >
-      {children}
-    </section>
-  );
-}
+function AppStoreButtons() {
+  const [shaking, setShaking] = useState<string | null>(null);
+  const [tooltip, setTooltip] = useState<string | null>(null);
 
-/* ------------------------------------------------------------------ */
-/*  Heading helper                                                    */
-/* ------------------------------------------------------------------ */
-function SectionHeading({
-  children,
-  sub,
-}: {
-  children: React.ReactNode;
-  sub?: string;
-}) {
+  const handleClick = (store: string) => {
+    setShaking(store);
+    setTooltip(store);
+    setTimeout(() => setShaking(null), 500);
+    setTimeout(() => setTooltip(null), 2000);
+  };
+
+  const btnBase: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 14,
+    padding: "16px 32px",
+    borderRadius: 14,
+    cursor: "pointer",
+    textDecoration: "none",
+    border: "none",
+    position: "relative",
+    transition: "transform 0.2s, box-shadow 0.2s",
+  };
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 30 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.6 }}
-      style={{ textAlign: "center", marginBottom: 56 }}
-    >
-      <h2
-        style={{
-          fontSize: "clamp(28px, 5vw, 48px)",
-          fontWeight: 800,
-          color: C.text,
-          lineHeight: 1.2,
-        }}
-      >
-        {children}
-      </h2>
-      {sub && (
-        <p
+    <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+      {/* Apple */}
+      <div style={{ position: "relative" }}>
+        <button
+          onClick={() => handleClick("apple")}
           style={{
-            marginTop: 16,
-            color: C.textMuted,
-            fontSize: 18,
-            maxWidth: 600,
-            marginLeft: "auto",
-            marginRight: "auto",
-            lineHeight: 1.6,
+            ...btnBase,
+            background: "#fff",
+            animation: shaking === "apple" ? "shakeBtn 0.5s ease" : "none",
           }}
         >
-          {sub}
-        </p>
-      )}
-    </motion.div>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="#000">
+            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+          </svg>
+          <div>
+            <div style={{ fontSize: 11, color: "#666", lineHeight: 1, textAlign: "left" as const }}>Download on the</div>
+            <div style={{ fontSize: 19, fontWeight: 700, color: "#000", lineHeight: 1.3, textAlign: "left" as const }}>App Store</div>
+          </div>
+        </button>
+        <div style={{ textAlign: "center", marginTop: 6, fontSize: 11, color: C.muted, fontWeight: 600 }}>Coming Soon</div>
+        {tooltip === "apple" && (
+          <div style={{ position: "absolute", top: -36, left: "50%", transform: "translateX(-50%)", background: C.card, color: C.text, fontSize: 12, fontWeight: 600, padding: "6px 14px", borderRadius: 8, whiteSpace: "nowrap", border: `1px solid ${C.border}` }}>
+            Coming soon!
+          </div>
+        )}
+      </div>
+
+      {/* Google */}
+      <div style={{ position: "relative" }}>
+        <button
+          onClick={() => handleClick("google")}
+          style={{
+            ...btnBase,
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            animation: shaking === "google" ? "shakeBtn 0.5s ease" : "none",
+          }}
+        >
+          <svg width="28" height="28" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.018 13.298l-11.5 6.636c-.59.34-1.326-.085-1.326-.765V4.83c0-.68.737-1.105 1.326-.764l11.5 6.636c.59.34.59 1.19 0 1.53z" />
+            <path fill="#34A853" d="M5.262 19.488L14.5 14l-3.598-3.598L5.262 19.488z" />
+            <path fill="#FBBC04" d="M2.004 21.522c.148.56.674.96 1.283.75l6.515-3.76L5.262 14l-3.258 7.522z" />
+            <path fill="#EA4335" d="M2.004 2.478C1.856 3.038 1.856 3.66 2.004 4.22L10.902 10 5.262 4.512 2.004 2.478z" />
+          </svg>
+          <div>
+            <div style={{ fontSize: 11, color: C.muted, lineHeight: 1, textAlign: "left" as const }}>Get it on</div>
+            <div style={{ fontSize: 19, fontWeight: 700, color: C.text, lineHeight: 1.3, textAlign: "left" as const }}>Google Play</div>
+          </div>
+        </button>
+        <div style={{ textAlign: "center", marginTop: 6, fontSize: 11, color: C.muted, fontWeight: 600 }}>Coming Soon</div>
+        {tooltip === "google" && (
+          <div style={{ position: "absolute", top: -36, left: "50%", transform: "translateX(-50%)", background: C.card, color: C.text, fontSize: 12, fontWeight: 600, padding: "6px 14px", borderRadius: 8, whiteSpace: "nowrap", border: `1px solid ${C.border}` }}>
+            Coming soon!
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  MAIN PAGE                                                         */
+/*  Waitlist Form                                                      */
 /* ------------------------------------------------------------------ */
-export default function Home() {
-  const router = useRouter();
-  const [checking, setChecking] = useState(true);
-  const [mounted, setMounted] = useState(false);
+function WaitlistForm() {
+  const [email, setEmail] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/auth/siwe/session")
-      .then((r) => r.json())
-      .then((session) => {
-        if (session?.user) {
-          router.push("/dashboard");
-        } else {
-          setChecking(false);
-        }
-      })
-      .catch(() => setChecking(false));
-  }, [router]);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+    setSubmitting(true);
+    try {
+      await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      setSubmitted(true);
+    } catch {
+      setSubmitted(true);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-  useEffect(() => {
-    if (!checking) setMounted(true);
-  }, [checking]);
-
-  /* -- Loading splash --------------------------------------------- */
-  if (checking) {
+  if (submitted) {
     return (
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: C.bg,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 9999,
-        }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <MMLogo size={80} />
-          <div
-            style={{
-              fontWeight: 800,
-              fontSize: 28,
-              marginTop: 16,
-              background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
-            MishMesh
-          </div>
-        </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+        <span style={{ color: C.accent, fontWeight: 700, fontSize: 16 }}>
+          You are on the list. We will notify you at launch.
+        </span>
       </div>
     );
   }
 
-  /* -- HOW IT WORKS cards ----------------------------------------- */
-  const steps = [
-    {
-      num: "01",
-      title: "Drop",
-      body: "Load an orb with SOL, SPL tokens, or an NFT. Write a message. Set a claim fee. Drop it anywhere on Earth.",
-    },
-    {
-      num: "02",
-      title: "Hunt",
-      body: "Open the map. See glowing orbs nearby. Get within 100 meters. The orb pulses gold.",
-    },
-    {
-      num: "03",
-      title: "Crack",
-      body: "Tap to crack it open. Pay the claim fee. Earn the crypto inside. The world is your treasure map.",
-    },
-  ];
+  return (
+    <form onSubmit={handleSubmit} style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <input
+        type="email"
+        required
+        placeholder="Enter your email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        style={{
+          flex: "1 1 240px",
+          maxWidth: 320,
+          padding: "14px 18px",
+          borderRadius: 10,
+          border: `1px solid ${C.border}`,
+          background: C.card,
+          color: C.text,
+          fontSize: 15,
+          outline: "none",
+        }}
+      />
+      <button
+        type="submit"
+        disabled={submitting}
+        style={{
+          padding: "14px 28px",
+          borderRadius: 10,
+          background: C.primary,
+          color: "#fff",
+          fontWeight: 700,
+          fontSize: 15,
+          border: "none",
+          cursor: submitting ? "not-allowed" : "pointer",
+          opacity: submitting ? 0.7 : 1,
+          boxShadow: "0 0 20px rgba(99,102,241,0.3)",
+        }}
+      >
+        {submitting ? "Joining..." : "Notify Me"}
+      </button>
+    </form>
+  );
+}
 
-  /* -- CURRENCIES -------------------------------------------------- */
-  const currencies = [
-    {
-      name: "Solana",
-      symbol: "SOL",
-      desc: "Lightning-fast transactions with near-zero fees. The backbone of MishMesh drops.",
-    },
-    {
-      name: "SPL Tokens",
-      symbol: "SPL",
-      desc: "Any token on Solana. Drop USDC, BONK, JUP, or any SPL token into orbs worldwide.",
-    },
-    {
-      name: "NFTs",
-      symbol: "NFT",
-      desc: "Metaplex NFTs on Solana. Hide collectibles, art, and membership passes for hunters to find.",
-    },
-  ];
+/* ------------------------------------------------------------------ */
+/*  Animated counter                                                   */
+/* ------------------------------------------------------------------ */
+function AnimatedCounter({ target, prefix = "", suffix = "" }: { target: number; prefix?: string; suffix?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const isInView = useInView(ref, { once: true });
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!isInView) return;
+    let start = 0;
+    const duration = 1500;
+    const step = (timestamp: number) => {
+      if (!start) start = timestamp;
+      const progress = Math.min((timestamp - start) / duration, 1);
+      setCount(Math.floor(progress * target));
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [isInView, target]);
 
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", overflowX: "hidden" }}>
-      {/* ============================================================ */}
-      {/*  NAVBAR                                                      */}
-      {/* ============================================================ */}
-      <nav
+    <span ref={ref}>
+      {prefix}
+      {count}
+      {suffix}
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Mini orb for orb types section                                     */
+/* ------------------------------------------------------------------ */
+function OrbTypeOrb({ color, glow, size = 120 }: { color: string; glow: boolean; size?: number }) {
+  return (
+    <div style={{ position: "relative", width: size, height: size, margin: "0 auto 20px" }}>
+      {glow && (
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            width: "180%",
+            height: "180%",
+            transform: "translate(-50%,-50%)",
+            borderRadius: "50%",
+            background: `radial-gradient(circle, ${color}44 0%, transparent 70%)`,
+            animation: "orbGlow 2.5s ease-in-out infinite",
+          }}
+        />
+      )}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          borderRadius: "50%",
+          background: `radial-gradient(circle at 35% 35%, ${color}ee, ${color} 50%, ${color}77 100%)`,
+          boxShadow: glow ? `0 0 30px 10px ${color}44` : `0 0 15px 5px ${color}22`,
+          animation: "orbFloat 4s ease-in-out infinite",
+        }}
+      />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Live Ticker                                                        */
+/* ------------------------------------------------------------------ */
+function Ticker() {
+  const row1 = [
+    "Alex cracked an orb in Tokyo — earned <g>0.5 SOL</g>",
+    "Maria dropped 10 orbs across Miami",
+    "James cracked a Legendary orb in London — earned <g>0.08 ETH</g>",
+    "Sofia dropped a BTC orb in Berlin",
+    "Kenji cracked an orb in Seoul — earned <g>0.0004 BTC</g>",
+  ];
+  const row2 = [
+    "Amara dropped 5 orbs across Lagos",
+    "Chen cracked a Legendary in Shanghai — earned <g>2.1 SOL</g>",
+    "Diego cracked an orb in Buenos Aires — earned <g>0.03 ETH</g>",
+    "Priya dropped a Rare orb in Mumbai",
+    "Luca cracked an orb in Rome — earned <g>0.01 ETH</g>",
+  ];
+
+  const renderItems = (items: string[]) =>
+    items.map((item, i) => {
+      const parts = item.split(/<g>(.*?)<\/g>/);
+      return (
+        <span
+          key={i}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            whiteSpace: "nowrap",
+            padding: "0 32px",
+            fontSize: 14,
+            color: C.muted,
+          }}
+        >
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: C.accent,
+              flexShrink: 0,
+              display: "inline-block",
+            }}
+          />
+          {parts.map((part, j) =>
+            j % 2 === 1 ? (
+              <span key={j} style={{ color: C.accent, fontWeight: 700 }}>
+                {part}
+              </span>
+            ) : (
+              <span key={j}>{part}</span>
+            )
+          )}
+        </span>
+      );
+    });
+
+  return (
+    <div style={{ overflow: "hidden", width: "100%" }}>
+      <div
+        style={{
+          display: "flex",
+          width: "max-content",
+          animation: "marqueeL 35s linear infinite",
+          marginBottom: 12,
+        }}
+      >
+        {renderItems(row1)}
+        {renderItems(row1)}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          width: "max-content",
+          animation: "marqueeR 28s linear infinite",
+        }}
+      >
+        {renderItems(row2)}
+        {renderItems(row2)}
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  MAIN PAGE                                                          */
+/* ================================================================== */
+export default function Home() {
+  const router = useRouter();
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.replace("/dashboard");
+    });
+  }, [router]);
+
+  return (
+    <div style={{ background: C.bg, minHeight: "100vh", overflowX: "hidden", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+      <style>{globalCSS}</style>
+
+      {/* ============================================================= */}
+      {/*  1. FIXED NAVBAR                                               */}
+      {/* ============================================================= */}
+      <motion.nav
+        initial={{ y: -60, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.6, delay: 0.2 }}
         style={{
           position: "fixed",
           top: 0,
@@ -361,327 +625,333 @@ export default function Home() {
           zIndex: 100,
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          padding: "16px 24px",
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
-          background: "rgba(10,10,15,0.6)",
-          borderBottom: `1px solid ${C.border}`,
+          padding: "14px 32px",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          background: "rgba(10,10,15,0.8)",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
         }}
       >
-        <Link
-          href="/"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            textDecoration: "none",
-          }}
-        >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <MMLogo size={38} />
-          <span
-            style={{
-              fontWeight: 800,
-              fontSize: 20,
-              color: C.text,
-              letterSpacing: "-0.02em",
-            }}
-          >
-            MishMesh
-          </span>
-        </Link>
+          <span style={{ fontWeight: 700, fontSize: 18, color: "#fff" }}>MishMesh</span>
+        </div>
+      </motion.nav>
 
-        <Link
-          href="/auth/signin"
-          style={{
-            padding: "10px 24px",
-            borderRadius: 10,
-            border: `1px solid ${C.primary}`,
-            background: "transparent",
-            color: C.primary,
-            fontWeight: 600,
-            fontSize: 14,
-            textDecoration: "none",
-            transition: "background 0.2s, color 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLAnchorElement).style.background = C.primary;
-            (e.currentTarget as HTMLAnchorElement).style.color = "#fff";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
-            (e.currentTarget as HTMLAnchorElement).style.color = C.primary;
-          }}
-        >
-          Sign In
-        </Link>
-      </nav>
-
-      {/* ============================================================ */}
-      {/*  HERO                                                        */}
-      {/* ============================================================ */}
+      {/* ============================================================= */}
+      {/*  2. HERO                                                       */}
+      {/* ============================================================= */}
       <section
         style={{
           position: "relative",
           minHeight: "100vh",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
           overflow: "hidden",
+          paddingTop: 80,
+          paddingBottom: 40,
         }}
       >
-        {/* Background radial glow */}
+        {/* Aurora bands */}
         <div
           style={{
             position: "absolute",
-            top: "30%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
+            top: "20%",
+            left: "-20%",
             width: "80vw",
-            height: "80vw",
-            maxWidth: 900,
-            maxHeight: 900,
+            height: "60vh",
             borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(153,69,255,0.12) 0%, rgba(153,69,255,0.03) 50%, transparent 70%)",
+            background: "radial-gradient(ellipse, rgba(99,102,241,0.08) 0%, transparent 70%)",
+            filter: "blur(80px)",
+            animation: "auroraLeft 20s ease-in-out infinite",
             pointerEvents: "none",
           }}
         />
-
-        {/* Secondary accent glow */}
         <div
           style={{
             position: "absolute",
-            top: "60%",
-            left: "65%",
-            width: "40vw",
-            height: "40vw",
-            maxWidth: 500,
-            maxHeight: 500,
+            top: "40%",
+            right: "-15%",
+            width: "70vw",
+            height: "50vh",
             borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(20,241,149,0.05) 0%, transparent 60%)",
+            background: "radial-gradient(ellipse, rgba(6,182,212,0.06) 0%, transparent 70%)",
+            filter: "blur(80px)",
+            animation: "auroraRight 25s ease-in-out infinite",
             pointerEvents: "none",
           }}
         />
 
-        {/* Particles */}
-        {mounted && <Particles />}
+        <Stars />
+        <Particles />
 
-        {/* Content */}
+        {/* Hero content wrapper */}
         <div
           style={{
             position: "relative",
             zIndex: 2,
-            textAlign: "center",
-            padding: "0 24px",
-            maxWidth: 860,
+            width: "100%",
+            maxWidth: 1200,
+            margin: "0 auto",
+            padding: "0 32px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 60,
           }}
         >
-          {/* Pulsing orb */}
-          <motion.div
-            animate={{
-              scale: [1, 1.15, 1],
-              boxShadow: [
-                "0 0 60px 20px rgba(153,69,255,0.3), 0 0 120px 60px rgba(153,69,255,0.12)",
-                "0 0 80px 30px rgba(153,69,255,0.5), 0 0 160px 80px rgba(153,69,255,0.2)",
-                "0 0 60px 20px rgba(153,69,255,0.3), 0 0 120px 60px rgba(153,69,255,0.12)",
-              ],
-            }}
-            transition={{
-              duration: 3,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            style={{
-              width: 100,
-              height: 100,
-              margin: "0 auto 48px",
-              borderRadius: "50%",
-              background:
-                "radial-gradient(circle at 35% 35%, #c084fc, #9945FF 50%, #6B21A8 100%)",
-              boxShadow:
-                "0 0 60px 20px rgba(153,69,255,0.3), 0 0 120px 60px rgba(153,69,255,0.12)",
-            }}
-          />
-
-          {/* H1 */}
-          <motion.h1
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            style={{
-              fontSize: "clamp(40px, 7vw, 80px)",
-              fontWeight: 900,
-              color: "#fff",
-              lineHeight: 1.08,
-              letterSpacing: "-0.03em",
-              marginBottom: 24,
-            }}
-          >
-            Drop crypto into the world.
-            <br />
-            <span
+          {/* Left side content */}
+          <div style={{ flex: "1 1 480px", maxWidth: 640 }}>
+            {/* Coming Soon badge */}
+            <motion.div
+              initial={{ opacity: 0, y: -16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
               style={{
-                background: "linear-gradient(90deg, #9945FF, #14F195)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}
-            >
-              Hunt it down. Crack it open.
-            </span>
-          </motion.h1>
-
-          {/* Sub */}
-          <motion.p
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            style={{
-              color: C.textMuted,
-              fontSize: "clamp(16px, 2.5vw, 20px)",
-              maxWidth: 620,
-              margin: "0 auto 40px",
-              lineHeight: 1.6,
-            }}
-          >
-            MishMesh hides real crypto at GPS locations around the world. Walk to
-            within 100m. Crack the orb. Earn SOL, tokens, and NFTs on Solana.
-          </motion.p>
-
-          {/* CTA buttons */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.6 }}
-            style={{
-              display: "flex",
-              gap: 16,
-              justifyContent: "center",
-              flexWrap: "wrap",
-              marginBottom: 28,
-            }}
-          >
-            <Link
-              href="/map"
-              style={{
-                padding: "16px 40px",
-                borderRadius: 12,
-                background: C.primary,
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: 16,
-                textDecoration: "none",
-                boxShadow: "0 0 30px rgba(153,69,255,0.4)",
-                transition: "transform 0.2s, box-shadow 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.transform =
-                  "translateY(-2px)";
-                (e.currentTarget as HTMLAnchorElement).style.boxShadow =
-                  "0 0 40px rgba(153,69,255,0.6)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.transform =
-                  "translateY(0)";
-                (e.currentTarget as HTMLAnchorElement).style.boxShadow =
-                  "0 0 30px rgba(153,69,255,0.4)";
-              }}
-            >
-              Start Hunting
-            </Link>
-            <Link
-              href="/drop"
-              style={{
-                padding: "16px 40px",
-                borderRadius: 12,
-                background: "transparent",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 18px",
+                borderRadius: 100,
                 border: `1px solid ${C.primary}`,
-                color: C.primary,
-                fontWeight: 700,
-                fontSize: 16,
-                textDecoration: "none",
-                transition: "background 0.2s, color 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.background =
-                  "rgba(153,69,255,0.1)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.background =
-                  "transparent";
+                marginBottom: 32,
               }}
             >
-              Drop an Orb
-            </Link>
-          </motion.div>
-
-          {/* Currency badges */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.8 }}
-            style={{
-              display: "flex",
-              gap: 10,
-              justifyContent: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            {["SOL", "SPL Tokens", "NFTs"].map((c) => (
               <span
-                key={c}
                 style={{
-                  padding: "6px 16px",
-                  borderRadius: 100,
-                  background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  color: C.textMuted,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  letterSpacing: "0.04em",
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: C.primary,
+                  animation: "pulsingDot 2s ease-in-out infinite",
+                }}
+              />
+              <span
+                style={{
+                  color: C.primary,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase" as const,
                 }}
               >
-                {c}
+                Coming Soon
               </span>
-            ))}
+            </motion.div>
+
+            {/* Headline */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
+            >
+              <h1
+                style={{
+                  fontSize: "clamp(48px, 8vw, 96px)",
+                  fontWeight: 900,
+                  color: C.text,
+                  lineHeight: 1.05,
+                  letterSpacing: "-0.03em",
+                  animation: "clipReveal 0.8s 0.5s both",
+                }}
+              >
+                The World Is
+              </h1>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.65 }}
+            >
+              <h1
+                style={{
+                  fontSize: "clamp(48px, 8vw, 96px)",
+                  fontWeight: 900,
+                  lineHeight: 1.05,
+                  letterSpacing: "-0.03em",
+                  marginBottom: 24,
+                  background: `linear-gradient(90deg, ${C.primary}, ${C.accent})`,
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                  animation: "clipReveal 0.8s 0.65s both",
+                }}
+              >
+                Your Trading Floor
+              </h1>
+            </motion.div>
+
+            {/* Subhead */}
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.8 }}
+              style={{
+                color: C.muted,
+                fontSize: "clamp(16px, 2.2vw, 20px)",
+                maxWidth: 520,
+                lineHeight: 1.7,
+                marginBottom: 28,
+              }}
+            >
+              Drop orbs. Hunt crypto. Trade with AI agents — anywhere on Earth.
+            </motion.p>
+
+            {/* Chain pills */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 1.0 }}
+              style={{ display: "flex", gap: 10, marginBottom: 32, flexWrap: "wrap" }}
+            >
+              {[
+                { label: "BTC", color: "#F7931A" },
+                { label: "ETH", color: "#627EEA" },
+                { label: "SOL", color: "#6366f1" },
+              ].map((ch) => (
+                <span
+                  key={ch.label}
+                  style={{
+                    display: "inline-block",
+                    padding: "6px 16px",
+                    borderRadius: 100,
+                    border: `1px solid ${ch.color}55`,
+                    color: ch.color,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    letterSpacing: "0.04em",
+                    background: `${ch.color}11`,
+                  }}
+                >
+                  {ch.label}
+                </span>
+              ))}
+            </motion.div>
+
+            {/* App Store Buttons */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 1.2 }}
+              style={{ marginBottom: 32 }}
+            >
+              <AppStoreButtons />
+            </motion.div>
+
+            {/* Waitlist form */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 1.4 }}
+            >
+              <p style={{ color: C.muted, fontSize: 13, marginBottom: 10, fontWeight: 600 }}>Or join the waitlist</p>
+              <WaitlistForm />
+            </motion.div>
+          </div>
+
+          {/* Right side orb */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, delay: 1.6 }}
+            style={{ flex: "0 0 auto", display: "flex", justifyContent: "center" }}
+          >
+            <HeroOrb />
           </motion.div>
         </div>
 
-        {/* Bottom gradient fade */}
+        {/* Scroll indicator */}
         <div
           style={{
             position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 160,
-            background: `linear-gradient(transparent, ${C.bg})`,
-            pointerEvents: "none",
-          }}
-        />
-      </section>
-
-      {/* ============================================================ */}
-      {/*  HOW IT WORKS                                                */}
-      {/* ============================================================ */}
-      <Section id="how">
-        <SectionHeading sub="Three steps to hidden crypto.">
-          How it works
-        </SectionHeading>
-
-        <div
-          style={{
+            bottom: 40,
+            left: "50%",
+            transform: "translateX(-50%)",
             display: "flex",
-            gap: 24,
-            flexWrap: "wrap",
-            justifyContent: "center",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 8,
+            zIndex: 3,
           }}
         >
-          {steps.map((s, i) => (
+          <span style={{ color: C.muted, fontSize: 12, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" as const }}>scroll</span>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={C.muted}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ animation: "scrollBounce 2s ease-in-out infinite" }}
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </div>
+      </section>
+
+      {/* ============================================================= */}
+      {/*  3. HOW IT WORKS                                               */}
+      {/* ============================================================= */}
+      <section style={{ padding: "120px 32px", maxWidth: 1200, margin: "0 auto" }}>
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          style={{ textAlign: "center", marginBottom: 64 }}
+        >
+          <h2 style={{ fontSize: 48, fontWeight: 800, color: C.text, lineHeight: 1.2 }}>How it works</h2>
+          <p style={{ marginTop: 16, color: C.muted, fontSize: 18 }}>Simple as walking outside.</p>
+        </motion.div>
+
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", justifyContent: "center" }}>
+          {[
+            {
+              num: "01",
+              title: "Drop an Orb",
+              body: "Load crypto into a digital orb, pin it to any location on Earth.",
+              icon: (
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                  <circle cx="20" cy="16" r="8" stroke={C.primary} strokeWidth="2" />
+                  <path d="M20 24 L20 36" stroke={C.primary} strokeWidth="2" strokeDasharray="3 3" />
+                  <circle cx="20" cy="38" r="2" fill={C.primary} opacity="0.5" />
+                  <path d="M14 10 L20 4 L26 10" stroke={C.accent} strokeWidth="1.5" fill="none" opacity="0.6" />
+                </svg>
+              ),
+            },
+            {
+              num: "02",
+              title: "Hunt and Catch",
+              body: "Players nearby race to find and crack your orb on the map.",
+              icon: (
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                  <path d="M20 4 L20 36" stroke={C.primary} strokeWidth="1.5" opacity="0.3" />
+                  <path d="M4 20 L36 20" stroke={C.primary} strokeWidth="1.5" opacity="0.3" />
+                  <circle cx="20" cy="20" r="12" stroke={C.primary} strokeWidth="2" fill="none" />
+                  <circle cx="20" cy="20" r="4" fill={C.accent} />
+                  <circle cx="20" cy="20" r="7" stroke={C.accent} strokeWidth="1" fill="none" opacity="0.4" />
+                </svg>
+              ),
+            },
+            {
+              num: "03",
+              title: "AI Trades It",
+              body: "Your AI agent automatically trades what you catch for max gains.",
+              icon: (
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                  <rect x="8" y="10" width="24" height="20" rx="3" stroke={C.primary} strokeWidth="2" fill="none" />
+                  <path d="M14 20 L18 24 L26 16" stroke={C.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <circle cx="30" cy="12" r="4" fill={C.accent} opacity="0.6" />
+                  <path d="M28 12 L32 12 M30 10 L30 14" stroke="#0a0a0f" strokeWidth="1" />
+                </svg>
+              ),
+            },
+          ].map((step, i) => (
             <motion.div
-              key={s.num}
+              key={step.num}
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -691,534 +961,465 @@ export default function Home() {
                 maxWidth: 380,
                 background: C.surface,
                 border: `1px solid ${C.border}`,
-                borderRadius: 16,
+                borderRadius: 20,
                 padding: 32,
+                transition: "border-color 0.3s, transform 0.3s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "rgba(99,102,241,0.4)";
+                e.currentTarget.style.transform = "translateY(-4px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = C.border;
+                e.currentTarget.style.transform = "translateY(0)";
               }}
             >
-              <span
-                style={{
-                  color: C.primary,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase" as const,
-                }}
-              >
-                {s.num}
-              </span>
-              <h3
-                style={{
-                  fontSize: 24,
-                  fontWeight: 700,
-                  color: C.text,
-                  margin: "12px 0 16px",
-                }}
-              >
-                {s.title}
-              </h3>
-              <p style={{ color: C.textMuted, lineHeight: 1.65, fontSize: 15 }}>
-                {s.body}
-              </p>
+              <div style={{ marginBottom: 20 }}>{step.icon}</div>
+              <span style={{ color: C.primary, fontSize: 13, fontWeight: 700, letterSpacing: "0.08em" }}>{step.num}</span>
+              <h3 style={{ fontSize: 26, fontWeight: 700, color: C.text, margin: "10px 0 14px" }}>{step.title}</h3>
+              <p style={{ color: C.muted, lineHeight: 1.65, fontSize: 15 }}>{step.body}</p>
             </motion.div>
           ))}
         </div>
-      </Section>
+      </section>
 
-      {/* ============================================================ */}
-      {/*  ECONOMICS                                                   */}
-      {/* ============================================================ */}
-      <Section>
-        <SectionHeading sub="Simple, transparent fee structure.">
-          How the money works
-        </SectionHeading>
+      {/* ============================================================= */}
+      {/*  4. ORB TYPES                                                  */}
+      {/* ============================================================= */}
+      <section style={{ background: "#060609", padding: "120px 32px" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            style={{ textAlign: "center", marginBottom: 64 }}
+          >
+            <h2 style={{ fontSize: 48, fontWeight: 800, color: C.text }}>Three tiers of treasure.</h2>
+          </motion.div>
 
+          <div style={{ display: "flex", gap: 32, flexWrap: "wrap", justifyContent: "center" }}>
+            {[
+              { label: "Common", color: "#C0C0C0", glow: false, reward: "$1 - $9", badge: null },
+              { label: "Rare", color: "#3B82F6", glow: true, reward: "$10 - $99", badge: null },
+              { label: "Legendary", color: C.gold, glow: true, reward: "$100+", badge: "LEGENDARY" },
+            ].map((orb, i) => (
+              <motion.div
+                key={orb.label}
+                initial={{ opacity: 0, scale: 0.8 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.15 }}
+                style={{
+                  flex: "1 1 260px",
+                  maxWidth: 340,
+                  background: C.surface,
+                  border: `1px solid ${orb.color}33`,
+                  borderRadius: 20,
+                  padding: "40px 32px",
+                  textAlign: "center",
+                  position: "relative",
+                }}
+              >
+                {orb.badge && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 16,
+                      right: 16,
+                      padding: "4px 12px",
+                      borderRadius: 6,
+                      background: `${C.gold}22`,
+                      color: C.gold,
+                      fontSize: 10,
+                      fontWeight: 800,
+                      letterSpacing: "0.1em",
+                    }}
+                  >
+                    {orb.badge}
+                  </div>
+                )}
+                <OrbTypeOrb color={orb.color} glow={orb.glow} />
+                <h3 style={{ fontSize: 24, fontWeight: 700, color: orb.color, marginBottom: 8 }}>{orb.label}</h3>
+                <p style={{ color: C.muted, fontSize: 16 }}>{orb.reward}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ============================================================= */}
+      {/*  5. LIVE TICKER                                                */}
+      {/* ============================================================= */}
+      <section style={{ background: "#0D0D14", padding: "48px 0", overflow: "hidden" }}>
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          style={{
-            background: C.surface,
-            border: `1px solid ${C.border}`,
-            borderRadius: 20,
-            padding: "48px 40px",
-            maxWidth: 720,
-            margin: "0 auto",
-          }}
         >
-          {/* Split graphic */}
-          <div
+          <p
             style={{
-              display: "flex",
-              gap: 24,
-              marginBottom: 32,
-              flexWrap: "wrap",
-              justifyContent: "center",
-            }}
-          >
-            <div
-              style={{
-                flex: "1 1 200px",
-                background: "rgba(153,69,255,0.08)",
-                border: "1px solid rgba(153,69,255,0.2)",
-                borderRadius: 14,
-                padding: "24px 20px",
-                textAlign: "center",
-              }}
-            >
-              <div style={{ fontSize: 36, fontWeight: 900, color: C.primary }}>
-                80%
-              </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  color: C.textMuted,
-                  marginTop: 4,
-                  fontWeight: 500,
-                }}
-              >
-                Goes to the dropper
-              </div>
-            </div>
-            <div
-              style={{
-                flex: "1 1 200px",
-                background: "rgba(20,241,149,0.06)",
-                border: "1px solid rgba(20,241,149,0.15)",
-                borderRadius: 14,
-                padding: "24px 20px",
-                textAlign: "center",
-              }}
-            >
-              <div style={{ fontSize: 36, fontWeight: 900, color: C.accent }}>
-                20%
-              </div>
-              <div
-                style={{
-                  fontSize: 14,
-                  color: C.textMuted,
-                  marginTop: 4,
-                  fontWeight: 500,
-                }}
-              >
-                Platform fee to MishMesh
-              </div>
-            </div>
-          </div>
-
-          {/* Example */}
-          <div
-            style={{
-              background: "rgba(255,255,255,0.03)",
-              borderRadius: 12,
-              padding: "20px 24px",
               textAlign: "center",
+              color: C.muted,
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase" as const,
+              marginBottom: 24,
             }}
           >
-            <p style={{ color: C.textMuted, fontSize: 15, lineHeight: 1.7 }}>
-              Drop 1 SOL. Set a{" "}
-              <span style={{ color: C.accent, fontWeight: 700 }}>$2</span> claim
-              fee. 100 hunters find it. You earn{" "}
-              <span style={{ color: C.accent, fontWeight: 700 }}>$160</span> in
-              fees alone.
-            </p>
-          </div>
+            Happening right now, everywhere.
+          </p>
+          <Ticker />
         </motion.div>
-      </Section>
+      </section>
 
-      {/* ============================================================ */}
-      {/*  SECURITY                                                    */}
-      {/* ============================================================ */}
-      <Section>
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
+      {/* ============================================================= */}
+      {/*  6. TASKS TEASER                                               */}
+      {/* ============================================================= */}
+      <section style={{ padding: "120px 32px", maxWidth: 1200, margin: "0 auto" }}>
+        <div
           style={{
-            background: C.surface,
-            border: `1px solid ${C.border}`,
-            borderRadius: 20,
-            padding: "60px 40px",
-            maxWidth: 900,
-            margin: "0 auto",
             display: "flex",
-            gap: 40,
+            gap: 60,
             flexWrap: "wrap",
             alignItems: "center",
           }}
         >
-          {/* Left side */}
-          <div style={{ flex: "1 1 400px", minWidth: 0 }}>
-            <span
+          {/* Left */}
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            style={{ flex: "1 1 340px" }}
+          >
+            <div
               style={{
                 display: "inline-block",
-                padding: "4px 14px",
+                padding: "5px 14px",
                 borderRadius: 100,
-                border: `1px solid ${C.primary}`,
-                color: C.primary,
-                fontSize: 11,
+                background: `${C.accent}1A`,
+                color: C.accent,
                 fontWeight: 700,
+                fontSize: 11,
                 letterSpacing: "0.1em",
                 textTransform: "uppercase" as const,
                 marginBottom: 20,
               }}
             >
-              SECURITY
-            </span>
+              Coming with Tasks
+            </div>
             <h2
               style={{
-                fontSize: "clamp(24px, 4vw, 36px)",
+                fontSize: "clamp(32px, 5vw, 48px)",
                 fontWeight: 800,
                 color: C.text,
-                lineHeight: 1.2,
-                marginBottom: 16,
+                lineHeight: 1.15,
+                marginBottom: 28,
               }}
             >
-              Your keys. Your crypto. Always.
+              Earn crypto by doing real things.
             </h2>
-            <p
-              style={{
-                color: C.textMuted,
-                fontSize: 15,
-                lineHeight: 1.7,
-                marginBottom: 24,
-              }}
-            >
-              MishMesh never sees your private key. Not when we create it. Not
-              ever. Your wallet is generated on your device and encrypted with
-              your phone hardware. We could not access it even if we wanted to.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {[
-                "Generated on your device \u2014 never transmitted to our servers",
-                "Encrypted by your phone hardware (iOS Secure Enclave / Android Keystore)",
-                "Export your private key anytime \u2014 it is yours to take anywhere",
-                "Biometric authentication required to reveal your key",
-              ].map((item) => (
-                <div
-                  key={item}
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    alignItems: "flex-start",
-                  }}
-                >
-                  <span
-                    style={{
-                      color: C.accent,
-                      fontWeight: 700,
-                      fontSize: 16,
-                      lineHeight: "1.5",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {"\u2713"}
-                  </span>
-                  <span
-                    style={{
-                      color: C.textMuted,
-                      fontSize: 14,
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {item}
-                  </span>
+                "Complete photo missions at real-world locations",
+                "Verify local businesses and earn bounties",
+                "Deliver items between GPS points for crypto",
+                "Solve location-based puzzles to unlock orbs",
+              ].map((item, i) => (
+                <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <span style={{ color: C.accent, fontWeight: 700, fontSize: 18, flexShrink: 0, lineHeight: 1.5 }}>--</span>
+                  <p style={{ color: C.muted, fontSize: 16, lineHeight: 1.6 }}>{item}</p>
                 </div>
               ))}
             </div>
-            <Link
-              href="/how-it-works"
-              style={{
-                display: "inline-block",
-                marginTop: 24,
-                color: C.primary,
-                fontSize: 14,
-                fontWeight: 600,
-                textDecoration: "none",
-                transition: "opacity 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.opacity = "0.7";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.opacity = "1";
-              }}
-            >
-              How escrow works &rarr;
-            </Link>
-          </div>
+          </motion.div>
 
-          {/* Right side — mock private key card */}
-          <div style={{ flex: "1 1 260px", minWidth: 240 }}>
+          {/* Right: floating task card */}
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            style={{ flex: "1 1 300px", display: "flex", justifyContent: "center" }}
+          >
             <div
               style={{
+                width: 320,
                 background: C.card,
-                borderRadius: 16,
-                padding: "28px 24px",
-                border: "1px solid rgba(239,68,68,0.25)",
-                boxShadow: "0 0 30px rgba(239,68,68,0.08)",
-                textAlign: "center",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: "0.12em",
-                  color: "#EF4444",
-                  textTransform: "uppercase" as const,
-                  marginBottom: 16,
-                }}
-              >
-                PRIVATE KEY
-              </div>
-              <div
-                style={{
-                  fontFamily: "monospace",
-                  fontSize: 13,
-                  color: C.textMuted,
-                  lineHeight: 1.8,
-                  filter: "blur(4px)",
-                  userSelect: "none",
-                  marginBottom: 16,
-                }}
-              >
-                5Kd3NBUAdUnhyzenE
-                <br />
-                wVnHGnet3TXd4kGIG
-                <br />
-                njAXoE6FzNUbeW7yR
-              </div>
-              <div
-                style={{
-                  color: C.textMuted,
-                  fontSize: 13,
-                  marginBottom: 8,
-                }}
-              >
-                Tap to reveal
-              </div>
-              <div
-                style={{
-                  color: C.accent,
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
-              >
-                Protected by Face ID
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      </Section>
-
-      {/* ============================================================ */}
-      {/*  CURRENCIES                                                  */}
-      {/* ============================================================ */}
-      <Section>
-        <SectionHeading sub="Real crypto. Real ownership. Real value.">
-          Supported currencies
-        </SectionHeading>
-
-        <div
-          style={{
-            display: "flex",
-            gap: 24,
-            flexWrap: "wrap",
-            justifyContent: "center",
-          }}
-        >
-          {currencies.map((cur, i) => (
-            <motion.div
-              key={cur.symbol}
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.12 }}
-              style={{
-                flex: "1 1 300px",
-                maxWidth: 380,
-                background: C.surface,
+                borderRadius: 20,
+                padding: 28,
                 border: `1px solid ${C.border}`,
-                borderRadius: 16,
-                padding: 32,
+                animation: "taskFloat 4s ease-in-out infinite",
+                boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
               }}
             >
               <div
                 style={{
                   display: "inline-block",
-                  padding: "6px 14px",
-                  borderRadius: 8,
-                  background:
-                    cur.symbol === "SOL"
-                      ? "rgba(153,69,255,0.12)"
-                      : cur.symbol === "SPL"
-                        ? "rgba(20,241,149,0.12)"
-                        : "rgba(245,158,11,0.12)",
-                  color:
-                    cur.symbol === "SOL"
-                      ? C.primary
-                      : cur.symbol === "SPL"
-                        ? C.accent
-                        : C.gold,
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  background: `${C.accent}1A`,
+                  color: C.accent,
+                  fontSize: 11,
                   fontWeight: 700,
-                  fontSize: 13,
-                  letterSpacing: "0.04em",
-                  marginBottom: 16,
+                  marginBottom: 14,
                 }}
               >
-                {cur.symbol}
+                PHOTO TASK
               </div>
-              <h3
+              <h4 style={{ color: C.text, fontSize: 17, fontWeight: 700, marginBottom: 8 }}>
+                Photograph the Golden Gate Bridge
+              </h4>
+              <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
+                Walk to the viewpoint. Take a photo. Upload for verification. Earn your reward.
+              </p>
+              <div
                 style={{
-                  fontSize: 22,
-                  fontWeight: 700,
-                  color: C.text,
-                  marginBottom: 10,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  borderTop: `1px solid ${C.border}`,
+                  paddingTop: 14,
                 }}
               >
-                {cur.name}
-              </h3>
-              <p style={{ color: C.textMuted, lineHeight: 1.6, fontSize: 15 }}>
-                {cur.desc}
-              </p>
+                <span style={{ color: C.muted, fontSize: 12 }}>San Francisco, CA</span>
+                <span style={{ color: C.accent, fontWeight: 700, fontSize: 15 }}>0.05 SOL</span>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ============================================================= */}
+      {/*  7. ECONOMICS                                                  */}
+      {/* ============================================================= */}
+      <section style={{ background: "#060609", padding: "120px 32px" }}>
+        <div style={{ maxWidth: 800, margin: "0 auto" }}>
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            style={{ textAlign: "center", marginBottom: 56 }}
+          >
+            <h2 style={{ fontSize: 48, fontWeight: 800, color: C.text }}>Drop to earn.</h2>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            style={{
+              background: C.surface,
+              border: `1px solid ${C.border}`,
+              borderRadius: 24,
+              padding: "48px 40px",
+              textAlign: "center",
+            }}
+          >
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+              style={{ color: C.muted, fontSize: 18, lineHeight: 1.8, marginBottom: 8 }}
+            >
+              You drop 1 ETH into a Legendary orb.
+            </motion.p>
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: 0.35 }}
+              style={{ color: C.muted, fontSize: 18, lineHeight: 1.8, marginBottom: 8 }}
+            >
+              You set a $10 claim fee.
+            </motion.p>
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: 0.5 }}
+              style={{ color: C.muted, fontSize: 18, lineHeight: 1.8, marginBottom: 32 }}
+            >
+              100 hunters find it.
+            </motion.p>
+
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.65 }}
+              style={{ fontSize: 28, fontWeight: 700, color: C.accent, marginBottom: 12 }}
+            >
+              You earn: $<AnimatedCounter target={800} />
+              {" "}in fees.
+            </motion.p>
+
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: 0.8 }}
+              style={{ color: C.muted, fontSize: 16, marginBottom: 8 }}
+            >
+              Platform takes: $200 (20%).
+            </motion.p>
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: 0.95 }}
+              style={{ color: C.muted, fontSize: 16, marginBottom: 40 }}
+            >
+              Your orb: still out there.
+            </motion.p>
+
+            {/* Stat pills */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 1.1 }}
+              style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}
+            >
+              {[
+                { label: "Dropper keeps", value: "80%" },
+                { label: "Platform fee", value: "20%" },
+                { label: "Orb persists", value: "Forever" },
+              ].map((s) => (
+                <div
+                  key={s.label}
+                  style={{
+                    padding: "12px 24px",
+                    borderRadius: 12,
+                    background: `${C.primary}11`,
+                    border: `1px solid ${C.primary}33`,
+                  }}
+                >
+                  <div style={{ color: C.muted, fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", marginBottom: 4 }}>{s.label}</div>
+                  <div style={{ color: C.text, fontSize: 18, fontWeight: 700 }}>{s.value}</div>
+                </div>
+              ))}
+            </motion.div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ============================================================= */}
+      {/*  8. THREE CHAINS                                               */}
+      {/* ============================================================= */}
+      <section style={{ padding: "120px 32px", maxWidth: 1200, margin: "0 auto" }}>
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          style={{ textAlign: "center", marginBottom: 64 }}
+        >
+          <h2 style={{ fontSize: 48, fontWeight: 800, color: C.text }}>Real crypto. Three chains.</h2>
+        </motion.div>
+
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", justifyContent: "center" }}>
+          {[
+            { name: "Bitcoin", symbol: "\u20BF", color: "#F7931A" },
+            { name: "Ethereum", symbol: "\u039E", color: "#627EEA" },
+            { name: "Solana", symbol: "\u25CE", color: "#6366f1" },
+          ].map((ch, i) => (
+            <motion.div
+              key={ch.name}
+              initial={{ opacity: 0, y: 36 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: i * 0.12 }}
+              style={{
+                flex: "1 1 280px",
+                maxWidth: 360,
+                background: C.surface,
+                border: `1px solid ${ch.color}33`,
+                borderRadius: 20,
+                padding: 40,
+                textAlign: "center",
+                transition: "box-shadow 0.3s, border-color 0.3s",
+                cursor: "default",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = `0 0 40px ${ch.color}22`;
+                e.currentTarget.style.borderColor = `${ch.color}66`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.borderColor = `${ch.color}33`;
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 56,
+                  fontWeight: 700,
+                  color: ch.color,
+                  marginBottom: 16,
+                  lineHeight: 1,
+                }}
+              >
+                {ch.symbol}
+              </div>
+              <h3 style={{ fontSize: 24, fontWeight: 700, color: C.text }}>{ch.name}</h3>
             </motion.div>
           ))}
         </div>
-      </Section>
-
-      {/* ============================================================ */}
-      {/*  LIVE ACTIVITY TICKER                                        */}
-      {/* ============================================================ */}
-      <section style={{ padding: "60px 0" }}>
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
-        >
-          <p
-            style={{
-              textAlign: "center",
-              color: C.textMuted,
-              fontSize: 12,
-              fontWeight: 600,
-              textTransform: "uppercase" as const,
-              letterSpacing: "0.1em",
-              marginBottom: 16,
-            }}
-          >
-            Happening right now
-          </p>
-          <div
-            style={{
-              borderTop: `1px solid ${C.border}`,
-              borderBottom: `1px solid ${C.border}`,
-              background: "rgba(255,255,255,0.015)",
-            }}
-          >
-            <Ticker />
-          </div>
-        </motion.div>
       </section>
 
-      {/* ============================================================ */}
-      {/*  CTA                                                         */}
-      {/* ============================================================ */}
-      <Section style={{ textAlign: "center" }}>
+      {/* ============================================================= */}
+      {/*  9. FINAL CTA                                                  */}
+      {/* ============================================================= */}
+      <section style={{ padding: "140px 32px", textAlign: "center" }}>
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.7 }}
+          style={{ maxWidth: 800, margin: "0 auto" }}
         >
-          {/* Glow backdrop */}
-          <div
+          <h2 style={{ fontSize: "clamp(36px, 6vw, 56px)", fontWeight: 900, color: "#fff", lineHeight: 1.1, marginBottom: 8 }}>
+            The world is your trading floor.
+          </h2>
+          <h2
             style={{
-              position: "relative",
-              display: "inline-block",
-              marginBottom: 32,
+              fontSize: "clamp(36px, 6vw, 56px)",
+              fontWeight: 900,
+              lineHeight: 1.1,
+              marginBottom: 48,
+              background: `linear-gradient(90deg, ${C.primary}, ${C.accent})`,
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
             }}
           >
-            <div
-              style={{
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                width: 300,
-                height: 300,
-                borderRadius: "50%",
-                background:
-                  "radial-gradient(circle, rgba(153,69,255,0.15) 0%, transparent 70%)",
-                pointerEvents: "none",
-              }}
-            />
-            <h2
-              style={{
-                position: "relative",
-                fontSize: "clamp(32px, 6vw, 56px)",
-                fontWeight: 900,
-                color: C.text,
-                lineHeight: 1.15,
-              }}
-            >
-              Ready to hunt?
-            </h2>
+            Start hunting.
+          </h2>
+
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 40 }}>
+            <AppStoreButtons />
           </div>
 
-          <p
-            style={{
-              color: C.textMuted,
-              fontSize: 18,
-              marginBottom: 40,
-              lineHeight: 1.6,
-            }}
-          >
-            No download required. Works in your browser.
-          </p>
-
-          <Link
-            href="/map"
-            style={{
-              display: "inline-block",
-              padding: "18px 52px",
-              borderRadius: 14,
-              background: `linear-gradient(135deg, ${C.primary}, #7C3AED)`,
-              color: "#fff",
-              fontWeight: 700,
-              fontSize: 18,
-              textDecoration: "none",
-              boxShadow:
-                "0 0 40px rgba(153,69,255,0.35), 0 4px 20px rgba(0,0,0,0.3)",
-              transition: "transform 0.2s, box-shadow 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.transform =
-                "translateY(-3px)";
-              (e.currentTarget as HTMLAnchorElement).style.boxShadow =
-                "0 0 60px rgba(153,69,255,0.5), 0 8px 30px rgba(0,0,0,0.3)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.transform =
-                "translateY(0)";
-              (e.currentTarget as HTMLAnchorElement).style.boxShadow =
-                "0 0 40px rgba(153,69,255,0.35), 0 4px 20px rgba(0,0,0,0.3)";
-            }}
-          >
-            Open the Map
-          </Link>
+          <div style={{ maxWidth: 480, margin: "0 auto" }}>
+            <WaitlistForm />
+          </div>
         </motion.div>
-      </Section>
+      </section>
 
-      {/* ============================================================ */}
-      {/*  FOOTER                                                      */}
-      {/* ============================================================ */}
+      {/* ============================================================= */}
+      {/*  10. FOOTER                                                    */}
+      {/* ============================================================= */}
       <footer
         style={{
+          background: "#060609",
           borderTop: `1px solid ${C.border}`,
-          padding: "32px 24px",
+          padding: "32px 32px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -1228,42 +1429,14 @@ export default function Home() {
           margin: "0 auto",
         }}
       >
-        <span style={{ color: C.textMuted, fontSize: 14 }}>MishMesh 2025</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <MMLogo size={28} />
+          <span style={{ color: C.muted, fontSize: 14, fontWeight: 600 }}>MishMesh</span>
+          <span style={{ color: C.muted, fontSize: 14 }}>2026</span>
+        </div>
         <div style={{ display: "flex", gap: 24 }}>
-          <Link
-            href="/privacy"
-            style={{
-              color: C.textMuted,
-              fontSize: 14,
-              textDecoration: "none",
-              transition: "color 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.color = C.text;
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.color = C.textMuted;
-            }}
-          >
-            Privacy
-          </Link>
-          <Link
-            href="/terms"
-            style={{
-              color: C.textMuted,
-              fontSize: 14,
-              textDecoration: "none",
-              transition: "color 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.color = C.text;
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.color = C.textMuted;
-            }}
-          >
-            Terms
-          </Link>
+          <Link href="/privacy" style={{ color: C.muted, fontSize: 14, textDecoration: "none" }}>Privacy</Link>
+          <Link href="/terms" style={{ color: C.muted, fontSize: 14, textDecoration: "none" }}>Terms</Link>
         </div>
       </footer>
     </div>
