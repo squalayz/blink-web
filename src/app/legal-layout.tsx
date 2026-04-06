@@ -35,7 +35,7 @@ export default function LegalLayout({ title, lastUpdated, children }: { title: s
           {[
             { href: "/terms", label: "Terms of Service" },
             { href: "/privacy", label: "Privacy Policy" },
-            { href: "/risk", label: "Risk Disclaimer" },
+            { href: "/acceptable-use", label: "Risk Disclaimer" },
             { href: "/acceptable-use", label: "Acceptable Use" },
           ].map(l => (
             <Link key={l.href} href={l.href} style={{ fontSize: 11, color: C.dim, textDecoration: "none" }}>{l.label}</Link>

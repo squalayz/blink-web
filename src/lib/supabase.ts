@@ -6,11 +6,7 @@ export const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Server client (uses service role, bypasses RLS — API routes only)
-export const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// supabaseAdmin is in supabase-admin.ts — import from there in API routes ONLY
 
 // Types
 export interface User {

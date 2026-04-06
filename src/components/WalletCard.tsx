@@ -19,7 +19,7 @@ const CHAIN_CONFIG: Record<
     name: "Solana",
     symbol: "\u25CE",
     currency: "SOL",
-    color: "#9945FF",
+    color: "#9945FF",  // SOL chain branding stays
     gradient: "linear-gradient(135deg, #1a0533, #2d1060)",
   },
   ethereum: {

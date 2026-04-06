@@ -11,7 +11,7 @@ interface ChainSelectorProps {
 }
 
 const CHAINS: { id: Chain; label: string; short: string; color: string }[] = [
-  { id: "solana", label: "Solana", short: "SOL", color: "#9945FF" },
+  { id: "solana", label: "Solana", short: "SOL", color: "#9945FF" },  // SOL chain branding stays
   { id: "ethereum", label: "Ethereum", short: "ETH", color: "#627EEA" },
   { id: "bitcoin", label: "Bitcoin", short: "BTC", color: "#F7931A" },
 ];

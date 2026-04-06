@@ -3,7 +3,7 @@
 // Sizes up when hot, sizes down when cold
 // ══════════════════════════════════════════════════════════════
 
-import { supabaseAdmin } from "./supabase";
+import { supabaseAdmin } from "./supabase-admin";
 import type { MarketRegime } from "./market-regime";
 
 export async function calculateKellySize(

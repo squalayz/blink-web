@@ -15,7 +15,7 @@
 //   8. Fusion Inheritance (personality genes from parents)
 // ══════════════════════════════════════════════════════════════
 
-import { supabaseAdmin } from "./supabase";
+import { supabaseAdmin } from "./supabase-admin";
 import { callUserLLM, getUserAIConfig } from "./ai-providers";
 import { generateEmbedding } from "./matching";
 import { selectQuirkTemplates, QUIRK_LIBRARY } from "./quirk-library";

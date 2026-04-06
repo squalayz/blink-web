@@ -1,4 +1,4 @@
-import { supabaseAdmin, type User, type AgentProfile } from "./supabase";
+import { supabaseAdmin, type User, type AgentProfile } from "./supabase-admin";
 import { callUserLLM, getUserAIConfig, type AIConfig } from "./ai-providers";
 
 // ── Embeddings (platform key only — pennies per call) ──

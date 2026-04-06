@@ -1,29 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-type Chain = "solana" | "ethereum" | "bitcoin";
-
-// Rough USD rates — in production, fetch from CoinGecko/similar
-async function fetchUsdRate(chain: Chain): Promise<number> {
-  try {
-    const ids: Record<Chain, string> = {
-      solana: "solana",
-      ethereum: "ethereum",
-      bitcoin: "bitcoin",
-    };
-    const res = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${ids[chain]}&vs_currencies=usd`,
-      { next: { revalidate: 60 } }
-    );
-    if (!res.ok) throw new Error("CoinGecko fetch failed");
-    const data = await res.json();
-    return data[ids[chain]]?.usd ?? 0;
-  } catch {
-    // Fallback rates
-    const fallback: Record<Chain, number> = { solana: 170, ethereum: 3400, bitcoin: 85000 };
-    return fallback[chain];
-  }
-}
-
 async function getSolBalance(address: string): Promise<number> {
   const res = await fetch("https://api.mainnet-beta.solana.com", {
     method: "POST",
@@ -41,8 +17,7 @@ async function getSolBalance(address: string): Promise<number> {
 }
 
 async function getEthBalance(address: string): Promise<number> {
-  const rpcUrl = process.env.ALCHEMY_ETH_RPC || "https://eth.llamarpc.com";
-  const res = await fetch(rpcUrl, {
+  const res = await fetch("https://mainnet.base.org", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -54,78 +29,68 @@ async function getEthBalance(address: string): Promise<number> {
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message);
-  return parseInt(data.result, 16) / 1e18; // wei to ETH
+  return parseInt(data.result, 16) / 1e18; // hex wei to ETH
 }
 
 async function getBtcBalance(address: string): Promise<number> {
-  const res = await fetch(`https://blockstream.info/api/address/${address}`);
-  if (!res.ok) throw new Error("Blockstream fetch failed");
+  const res = await fetch(`https://mempool.space/api/address/${address}`);
+  if (!res.ok) throw new Error("mempool.space fetch failed");
   const data = await res.json();
-  const funded = data.chain_stats?.funded_txo_sum ?? 0;
-  const spent = data.chain_stats?.spent_txo_sum ?? 0;
+  const funded: number = data.chain_stats?.funded_txo_sum ?? 0;
+  const spent: number = data.chain_stats?.spent_txo_sum ?? 0;
   return (funded - spent) / 1e8; // satoshis to BTC
 }
 
-const CURRENCY_MAP: Record<Chain, string> = {
-  solana: "SOL",
-  ethereum: "ETH",
-  bitcoin: "BTC",
-};
-
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const address = searchParams.get("address");
-  const chain = searchParams.get("chain") as Chain | null;
+  const solAddress = searchParams.get("sol_address");
+  const ethAddress = searchParams.get("eth_address");
+  const btcAddress = searchParams.get("btc_address");
 
-  if (!address || !chain) {
-    return NextResponse.json(
-      { error: "Missing required params: address, chain" },
-      { status: 400 }
-    );
-  }
-
-  if (!["solana", "ethereum", "bitcoin"].includes(chain)) {
-    return NextResponse.json(
-      { error: "Invalid chain. Must be solana, ethereum, or bitcoin" },
-      { status: 400 }
-    );
-  }
-
-  try {
-    let balance: number;
-
-    switch (chain) {
-      case "solana":
-        balance = await getSolBalance(address);
-        break;
-      case "ethereum":
-        balance = await getEthBalance(address);
-        break;
-      case "bitcoin":
-        balance = await getBtcBalance(address);
-        break;
-    }
-
-    const usdRate = await fetchUsdRate(chain);
-    const balanceUsd = balance * usdRate;
-
+  if (!solAddress && !ethAddress && !btcAddress) {
     return NextResponse.json(
       {
-        balance,
-        balanceUsd,
-        chain,
-        currency: CURRENCY_MAP[chain],
+        error:
+          "At least one address param required: sol_address, eth_address, btc_address",
       },
-      {
-        headers: {
-          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
-        },
-      }
-    );
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "Failed to fetch balance" },
-      { status: 500 }
+      { status: 400 }
     );
   }
+
+  const results: { sol: number; eth: number; btc: number } = {
+    sol: 0,
+    eth: 0,
+    btc: 0,
+  };
+
+  const errors: string[] = [];
+
+  await Promise.all([
+    solAddress
+      ? getSolBalance(solAddress)
+          .then((v) => (results.sol = v))
+          .catch((e) => errors.push(`SOL: ${e.message}`))
+      : Promise.resolve(),
+
+    ethAddress
+      ? getEthBalance(ethAddress)
+          .then((v) => (results.eth = v))
+          .catch((e) => errors.push(`ETH: ${e.message}`))
+      : Promise.resolve(),
+
+    btcAddress
+      ? getBtcBalance(btcAddress)
+          .then((v) => (results.btc = v))
+          .catch((e) => errors.push(`BTC: ${e.message}`))
+      : Promise.resolve(),
+  ]);
+
+  return NextResponse.json(
+    { ...results, ...(errors.length ? { errors } : {}) },
+    {
+      headers: {
+        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+      },
+    }
+  );
 }

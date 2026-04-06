@@ -6,7 +6,7 @@
 // - SL/TP Engine (runs every 5 min)
 // ══════════════════════════════════════════════════════════════
 
-import { supabaseAdmin } from "./supabase";
+import { supabaseAdmin } from "./supabase-admin";
 import { getWalletBalance, collectTradeFee, getSigner, getProvider, FEES } from "./wallet";
 import { getUserAIConfig, callUserLLM } from "./ai-providers";
 import { ethers } from "ethers";

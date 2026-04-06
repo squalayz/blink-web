@@ -9,10 +9,10 @@ import { X } from "lucide-react";
 
 const C = {
   bg: "#0A0A0F",
-  surface: "#111118",
-  card: "#1C1C28",
-  primary: "#9945FF",
-  accent: "#14F195",
+  surface: "#0d0d14",
+  card: "#1a1a24",
+  primary: "#6366f1",
+  accent: "#06b6d4",
   text: "#F9FAFB",
   textMuted: "#9CA3AF",
   border: "#1F2028",

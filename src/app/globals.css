@@ -1,9 +1,9 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { background: #0A0A0F; color: #F9FAFB; font-family: "Inter", sans-serif; height: 100%; }
+html, body { background: #0A0A0F; color: #F9FAFB; font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif; height: 100%; overflow-x: hidden; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
 :focus-visible {
-  outline: 2px solid #9945FF;
+  outline: 2px solid #6366f1;
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -17,10 +17,47 @@ html, body { background: #0A0A0F; color: #F9FAFB; font-family: "Inter", sans-ser
 }
 
 ::selection {
-  background: #9945FF;
+  background: #6366f1;
   color: white;
 }
 
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #0A0A0F; }
 ::-webkit-scrollbar-thumb { background: #1F2028; border-radius: 3px; }
+
+/* Aurora overlay animations */
+@keyframes auroraBlob1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(30%, -10%) scale(1.1); }
+}
+@keyframes auroraBlob2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-20%, 5%) scale(0.9); }
+}
+
+/* Orb animations */
+@keyframes orbPulseCommon { 0%, 100% { transform: scale(1); opacity: 0.7; } 50% { transform: scale(1.15); opacity: 1; } }
+@keyframes orbPulseRare { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.2); opacity: 1; } }
+@keyframes orbPulseLegendary { 0%, 100% { transform: scale(1); opacity: 0.85; } 50% { transform: scale(1.25); opacity: 1; } }
+@keyframes orbFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes sonarRing { 0% { transform: scale(0.8); opacity: 0.6; } 100% { transform: scale(2.5); opacity: 0; } }
+@keyframes glowPulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes fadeSlideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+@keyframes countUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes spinSlow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); } 20%, 40%, 60%, 80% { transform: translateX(4px); } }
+@keyframes crackFlash { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes confettiFall { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
+@keyframes particleFloat { 0% { transform: translateY(100vh); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translateY(-10vh); opacity: 0; } }
+@keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+@keyframes slideInRight { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes slideInLeft { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes globeRotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes btnGlow { 0%, 100% { box-shadow: 0 0 20px rgba(99,102,241,0.3); } 50% { box-shadow: 0 0 40px rgba(99,102,241,0.6); } }
+@keyframes userPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(20,241,149,0.4); } 50% { box-shadow: 0 0 0 8px rgba(20,241,149,0); } }
+@keyframes streakFire { 0%, 100% { transform: scale(1) translateY(0); } 50% { transform: scale(1.1) translateY(-2px); } }
+@keyframes progressFill { from { width: 0; } }
+@keyframes goldShimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }

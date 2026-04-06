@@ -7,7 +7,7 @@
 // 3% fee on EVERY trade (buy AND sell) sent to platform wallet.
 // ══════════════════════════════════════════════════════════════
 
-import { supabaseAdmin } from "./supabase";
+import { supabaseAdmin } from "./supabase-admin";
 import { getWalletBalance, collectTradeFee, FEES, getSigner, getProvider, PLATFORM_FEE_WALLET } from "./wallet";
 import { getUserAIConfig, callUserLLM } from "./ai-providers";
 import { ethers } from "ethers";

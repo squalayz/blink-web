@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { requireAuth } from "@/lib/api-auth";
 
 type Chain = "solana" | "ethereum" | "bitcoin";
 
@@ -17,17 +18,20 @@ const CHAIN_COLUMN: Record<Chain, string> = {
 };
 
 export async function POST(req: NextRequest) {
+  // Auth check
+  const { user, error: authError } = await requireAuth(req);
+  if (authError) return authError;
+
   try {
     const body = await req.json();
-    const { userId, chain, address } = body as {
-      userId?: string;
+    const { chain, address } = body as {
       chain?: Chain;
       address?: string;
     };
 
-    if (!userId || !chain || !address) {
+    if (!chain || !address) {
       return NextResponse.json(
-        { error: "Missing required fields: userId, chain, address" },
+        { error: "Missing required fields: chain, address" },
         { status: 400 }
       );
     }
@@ -47,6 +51,7 @@ export async function POST(req: NextRequest) {
     }
 
     const column = CHAIN_COLUMN[chain];
+    const userId = user!.id; // Use authenticated user, not request body
 
     // Update the user's address for this chain
     const { error: updateError } = await supabaseAdmin
@@ -55,7 +60,6 @@ export async function POST(req: NextRequest) {
       .eq("id", userId);
 
     if (updateError) {
-      // If user row doesn't exist in users table, try profiles table
       const { error: profileError } = await supabaseAdmin
         .from("profiles")
         .update({ [column]: address, preferred_chain: chain })
@@ -70,10 +74,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true, address });
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "Internal server error" },
-      { status: 500 }
-    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Internal server error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

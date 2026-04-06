@@ -2,23 +2,20 @@
 // MishMesh.ai — Per-User Wallet System (Non-Custodial)
 //
 // FEE STRUCTURE — ALL FEES GO TO PLATFORM WALLET:
+//   Platform fee: 10% on ALL transactions (crack, drop, tasks, hex sales)
 //   Deposit fee:  5%  (user deposits 0.1 ETH → 0.005 to platform, 0.095 credited)
-//   Trade fee:    3%   per trade (buy AND sell, not just profits)
-//   Withdraw fee: 0%   (no additional fee on withdrawals)
-//   Pro tier:     0.005  ETH/month
-//   Business:     0.015  ETH/month
-//   Boost:        0.005  ETH one-time
-//   Spotlight:    0.01   ETH/week
+//   Trade fee:    3%  per trade (buy AND sell, not just profits)
+//   Withdraw fee: 0%  (no additional fee on withdrawals)
 //
-// Platform fee wallet: 0xae055E5e11Eb9Da449fF049e97FfbCbc904d91a1
+// Platform fee wallet (ETH): 0x00468c1B22451ed9Fabc9DA32E6aEa28DC03a216
+// Platform fee wallet (SOL): FYxEmF7VKHpp1781aKFMWYc23kwgsD5j4foyCa2SKji7
+// Platform fee wallet (BTC): bc1q7tw2jnmj3v483vatwts8h8nrradct0yfpaj64
 // ══════════════════════════════════════════════════════════════
 
 import { ethers } from "ethers";
 
 const BASE_RPC = process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org";
-const PLATFORM_FEE_WALLET = "0xae055E5e11Eb9Da449fF049e97FfbCbc904d91a1";
-const PARTNER_FEE_WALLET = "0xFfCF74939d092a11B348931a64C21f70150D2705";
-const PARTNER_SPLIT = 0.40;
+const PLATFORM_FEE_WALLET = "0x00468c1B22451ed9Fabc9DA32E6aEa28DC03a216";
 
 // ═══ Fee Constants ═══
 export const FEES = {
@@ -95,7 +92,7 @@ export function getSigner(encryptedKey: string): ethers.Wallet {
 
 // ══════════════════════════════════════════════════════════════
 // SEND FEE TO PLATFORM — core function used by all fee types
-// Sends exact ETH amount from user's wallet to 0xEe9D...c280
+// Sends exact ETH amount from user's wallet to platform wallet
 // ══════════════════════════════════════════════════════════════
 
 export async function sendFeeToPlatform(
@@ -105,37 +102,19 @@ export async function sendFeeToPlatform(
 ): Promise<{ txHash: string; success: boolean }> {
   if (feeEth < 0.000001) return { txHash: "", success: true }; // Skip dust
 
-  const platformAmount = feeEth * (1 - PARTNER_SPLIT);
-  const partnerAmount = feeEth * PARTNER_SPLIT;
-
   try {
     const signer = getSigner(encryptedKey);
 
-    // Send 60% to platform wallet
-    const platformTx = await signer.sendTransaction({
+    const tx = await signer.sendTransaction({
       to: PLATFORM_FEE_WALLET,
-      value: ethers.parseEther(platformAmount.toFixed(18)),
+      value: ethers.parseEther(feeEth.toFixed(18)),
       gasLimit: 21000n,
     });
-    const platformReceipt = await platformTx.wait();
-    const platformHash = platformReceipt?.hash || platformTx.hash;
-    console.log(`Fee (platform 60%): ${platformAmount} ETH → ${PLATFORM_FEE_WALLET} | ${memo || ""} | tx: ${platformHash}`);
+    const receipt = await tx.wait();
+    const txHash = receipt?.hash || tx.hash;
+    console.log(`Fee: ${feeEth} ETH → ${PLATFORM_FEE_WALLET} | ${memo || ""} | tx: ${txHash}`);
 
-    // Send 40% to partner wallet (best-effort)
-    try {
-      const partnerTx = await signer.sendTransaction({
-        to: PARTNER_FEE_WALLET,
-        value: ethers.parseEther(partnerAmount.toFixed(18)),
-        gasLimit: 21000n,
-      });
-      const partnerReceipt = await partnerTx.wait();
-      const partnerHash = partnerReceipt?.hash || partnerTx.hash;
-      console.log(`Fee (partner 40%): ${partnerAmount} ETH → ${PARTNER_FEE_WALLET} | ${memo || ""} | tx: ${partnerHash}`);
-    } catch (partnerErr: any) {
-      console.error(`Partner fee failed (${partnerAmount} ETH, ${memo}):`, partnerErr.message);
-    }
-
-    return { txHash: platformHash, success: true };
+    return { txHash, success: true };
   } catch (err: any) {
     console.error(`Fee collection failed (${feeEth} ETH, ${memo}):`, err.message);
     return { txHash: "", success: false };
@@ -306,4 +285,4 @@ export async function executeWithdrawal(
   }
 }
 
-export { PLATFORM_FEE_WALLET, PARTNER_FEE_WALLET, decrypt, encrypt };
+export { PLATFORM_FEE_WALLET, decrypt, encrypt };

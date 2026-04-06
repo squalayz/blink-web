@@ -3,7 +3,7 @@
 // Prevents fee-destroying trade loops
 // ══════════════════════════════════════════════════════════════
 
-import { supabaseAdmin } from "./supabase";
+import { supabaseAdmin } from "./supabase-admin";
 
 const REBUY_COOLDOWN_MINUTES: Record<string, number> = {
   meme_scout: 30,

@@ -16,7 +16,7 @@
 //   7. Natural endings — know when it's done
 // ══════════════════════════════════════════════════════════════
 
-import { supabaseAdmin } from "./supabase";
+import { supabaseAdmin } from "./supabase-admin";
 import { callUserLLM, getUserAIConfig } from "./ai-providers";
 import {
   assembleSystemPrompt, analyzeSignals, getAdaptationHints,

@@ -1,1446 +1,1590 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { motion, useInView } from "framer-motion";
-import Link from "next/link";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/components/providers";
 
 /* ------------------------------------------------------------------ */
 /*  Colors                                                             */
 /* ------------------------------------------------------------------ */
 const C = {
-  bg: "#0a0a0f",
-  surface: "#0d0d14",
-  card: "#1a1a24",
-  primary: "#6366f1",
-  accent: "#06b6d4",
-  gold: "#F59E0B",
-  text: "#f9fafb",
-  muted: "#9ca3af",
-  border: "#1F2028",
+  bg: "#0A0A0F",
+  surface: "#111118",
+  card: "#1C1C28",
+  primary: "#9945FF",
+  accent: "#14F195",
+  gold: "#F7931A",
+  rareBlue: "#627EEA",
+  text: "#F9FAFB",
+  muted: "#9CA3AF",
 };
 
 /* ------------------------------------------------------------------ */
-/*  Global keyframes (injected once)                                   */
+/*  Types                                                              */
 /* ------------------------------------------------------------------ */
-const globalCSS = `
-@keyframes auroraLeft{0%{transform:translateX(0)}50%{transform:translateX(-8%)}100%{transform:translateX(0)}}
-@keyframes auroraRight{0%{transform:translateX(0)}50%{transform:translateX(8%)}100%{transform:translateX(0)}}
-@keyframes starTwinkle{0%,100%{opacity:0.15}50%{opacity:0.7}}
-@keyframes particleUp{0%{transform:translateY(0);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateY(-110vh);opacity:0}}
-@keyframes marqueeL{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-@keyframes marqueeR{0%{transform:translateX(-50%)}100%{transform:translateX(0)}}
-@keyframes orbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-16px)}}
-@keyframes orbGlow{0%,100%{transform:scale(1);opacity:0.5}50%{transform:scale(1.15);opacity:0.7}}
-@keyframes midRing{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
-@keyframes innerRing{0%{transform:rotate(0deg)}100%{transform:rotate(-360deg)}}
-@keyframes orbPing{0%{transform:scale(1);opacity:0.6}100%{transform:scale(2.5);opacity:0}}
-@keyframes orbitDot{0%{transform:rotate(0deg) translateX(var(--orbit-r))}100%{transform:rotate(360deg) translateX(var(--orbit-r))}}
-@keyframes scrollBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(8px)}}
-@keyframes taskFloat{0%,100%{transform:rotate(2deg) translateY(0)}50%{transform:rotate(2deg) translateY(-12px)}}
-@keyframes clipReveal{0%{clip-path:inset(0 100% 0 0)}100%{clip-path:inset(0 0% 0 0)}}
-@keyframes pulsingDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.8)}}
-@keyframes shakeBtn{0%,100%{transform:translateX(0)}10%,30%,50%,70%,90%{transform:translateX(-3px)}20%,40%,60%,80%{transform:translateX(3px)}}
-html{scroll-behavior:smooth}
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:${C.bg};color:${C.text};font-family:system-ui,-apple-system,sans-serif;overflow-x:hidden}
+type Step = "hero" | "authMethod" | "walletGen" | "keyReveal" | "profileSetup" | "walkthrough";
+
+interface WalletData {
+  access_token: string;
+  refresh_token: string;
+  sol_address: string;
+  eth_address: string;
+  btc_address: string;
+  sol_private_key: string;
+  eth_private_key: string;
+  btc_private_key: string;
+  user?: { id: string; username: string };
+}
+
+/* ------------------------------------------------------------------ */
+/*  CSS Keyframes                                                      */
+/* ------------------------------------------------------------------ */
+const keyframes = `
+@keyframes particleFloat {
+  0% { transform: translateY(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 0.8; }
+  100% { transform: translateY(-100vh); opacity: 0; }
+}
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+@keyframes orbPulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+}
+@keyframes globeRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes orbitDot {
+  from { transform: rotate(0deg) translateX(80px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(80px) rotate(-360deg); }
+}
+@keyframes slideInRight {
+  from { transform: translateX(60px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes fadeUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.5); }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+@keyframes expandRing {
+  0% { transform: scale(0.5); opacity: 0.8; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+@keyframes slideLeft {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideRight {
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+input::placeholder { color: #9CA3AF66; }
 `;
 
 /* ------------------------------------------------------------------ */
-/*  MMLogo                                                             */
+/*  Particles for hero                                                 */
 /* ------------------------------------------------------------------ */
-function MMLogo({ size = 44 }: { size?: number }) {
-  const h = Math.round(size * (70 / 120));
-  return (
-    <svg width={size} height={h} viewBox="0 0 120 70">
-      <defs>
-        <linearGradient id="lgL" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#6366f1" />
-          <stop offset="100%" stopColor="#4f46e5" />
-        </linearGradient>
-        <linearGradient id="lgR" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#06b6d4" />
-          <stop offset="100%" stopColor="#0891b2" />
-        </linearGradient>
-        <linearGradient id="lgM" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#6366f1" />
-          <stop offset="100%" stopColor="#06b6d4" />
-        </linearGradient>
-      </defs>
-      <circle cx="35" cy="35" r="24" fill="none" stroke="url(#lgL)" strokeWidth="5" />
-      <circle cx="65" cy="35" r="24" fill="none" stroke="url(#lgR)" strokeWidth="5" />
-      <path d="M50 15.4 A24 24 0 0 1 50 54.6 A24 24 0 0 1 50 15.4" fill="url(#lgM)" opacity="0.3" />
-      <circle cx="35" cy="14" r="4" fill="url(#lgL)" />
-      <circle cx="65" cy="14" r="4" fill="url(#lgR)" />
-    </svg>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Stars                                                              */
-/* ------------------------------------------------------------------ */
-function Stars() {
-  const stars = Array.from({ length: 80 }, (_, i) => ({
+function makeParticles(count: number) {
+  const colors = [C.primary, C.accent, C.gold, C.rareBlue, "#EC4899"];
+  return Array.from({ length: count }, (_, i) => ({
     id: i,
-    x: (i * 13.7 + i * i * 0.3) % 100,
-    y: (i * 11.3 + i * i * 0.7) % 100,
-    size: 1 + (i % 3),
-    delay: (i * 0.4) % 8,
-    dur: 3 + (i % 5),
+    left: Math.random() * 100,
+    size: 3 + Math.random() * 5,
+    duration: 6 + Math.random() * 10,
+    delay: Math.random() * 8,
+    color: colors[i % colors.length],
   }));
-  return (
-    <>
-      {stars.map((s) => (
-        <div
-          key={s.id}
-          style={{
-            position: "absolute",
-            left: `${s.x}%`,
-            top: `${s.y}%`,
-            width: s.size,
-            height: s.size,
-            borderRadius: "50%",
-            background: "#fff",
-            opacity: 0.2,
-            animation: `starTwinkle ${s.dur}s ${s.delay}s ease-in-out infinite`,
-            pointerEvents: "none",
-          }}
-        />
-      ))}
-    </>
-  );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Particles (30 floating up)                                         */
-/* ------------------------------------------------------------------ */
-function Particles() {
-  const particles = Array.from({ length: 30 }, (_, i) => ({
-    id: i,
-    x: (i * 3.47) % 100,
-    size: 2 + (i % 3),
-    delay: (i * 0.6) % 10,
-    dur: 8 + (i % 8),
-    color: [C.primary, C.accent, C.gold][i % 3],
-  }));
-  return (
-    <>
-      {particles.map((p) => (
-        <div
-          key={p.id}
-          style={{
-            position: "absolute",
-            left: `${p.x}%`,
-            bottom: "-2%",
-            width: p.size,
-            height: p.size,
-            borderRadius: "50%",
-            background: p.color,
-            opacity: 0,
-            animation: `particleUp ${p.dur}s ${p.delay}s linear infinite`,
-            pointerEvents: "none",
-          }}
-        />
-      ))}
-    </>
-  );
-}
+const particles = makeParticles(22);
 
 /* ------------------------------------------------------------------ */
-/*  Hero Orb (CSS only)                                                */
+/*  Main Component                                                     */
 /* ------------------------------------------------------------------ */
-function HeroOrb() {
-  const orbDots = [
-    { r: 180, dur: 6, color: C.primary, size: 8 },
-    { r: 180, dur: 8, color: C.accent, size: 6 },
-    { r: 160, dur: 10, color: C.gold, size: 7 },
-    { r: 160, dur: 7, color: "#06B6D4", size: 5 },
-    { r: 140, dur: 9, color: "#EC4899", size: 6 },
-    { r: 140, dur: 11, color: "#F97316", size: 5 },
-  ];
+export default function HomePage() {
+  const router = useRouter();
+  const { user, loading } = useAuth();
+  const [step, setStep] = useState<Step>("hero");
+  const [orbCount, setOrbCount] = useState<number | null>(null);
+  const [walletData, setWalletData] = useState<WalletData | null>(null);
+  const [genError, setGenError] = useState("");
+  const [chainStatus, setChainStatus] = useState<("idle" | "loading" | "done")[]>(["idle", "idle", "idle"]);
+  const [revealedKeys, setRevealedKeys] = useState([false, false, false]);
+  const [keysSaved, setKeysSaved] = useState(false);
+  const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [bio, setBio] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [usernameShake, setUsernameShake] = useState(false);
+  const [walkthroughPage, setWalkthroughPage] = useState(0);
+  const [wtDirection, setWtDirection] = useState<"left" | "right">("left");
+  const [showKeyImport, setShowKeyImport] = useState(false);
+  const [importKey, setImportKey] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  return (
-    <div style={{ position: "relative", width: 320, height: 320, flexShrink: 0 }}>
-      {/* Outer glow */}
-      <div
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          width: "160%",
-          height: "160%",
-          transform: "translate(-50%,-50%)",
-          borderRadius: "50%",
-          background: `radial-gradient(circle, ${C.primary}33 0%, transparent 70%)`,
-          animation: "orbGlow 3s ease-in-out infinite",
-          pointerEvents: "none",
-        }}
-      />
+  // Check auth on mount
+  useEffect(() => {
+    if (loading) return;
+    if (!user) return;
+    supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.username) router.push("/hunt");
+      });
+  }, [user, loading, router]);
 
-      {/* Mid ring */}
-      <div
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          width: "130%",
-          height: "130%",
-          transform: "translate(-50%,-50%)",
-          borderRadius: "50%",
-          border: `2px solid rgba(99,102,241,0.3)`,
-          animation: "midRing 12s linear infinite",
-          pointerEvents: "none",
-        }}
-      />
+  // Orb counter
+  // Fetch real orb count from Supabase
+  useEffect(() => {
+    async function fetchOrbCount() {
+      const { count } = await supabase
+        .from("orbs")
+        .select("*", { count: "exact", head: true })
+        .in("status", ["pending", "claimed"]);
+      if (typeof count === "number") setOrbCount(count);
+    }
+    fetchOrbCount();
+    // Refresh every 60s
+    const iv = setInterval(fetchOrbCount, 60000);
+    return () => clearInterval(iv);
+  }, []);
 
-      {/* Inner ring */}
-      <div
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          width: "115%",
-          height: "115%",
-          transform: "translate(-50%,-50%)",
-          borderRadius: "50%",
-          border: `1px solid rgba(6,182,212,0.4)`,
-          animation: "innerRing 8s linear infinite",
-          pointerEvents: "none",
-        }}
-      />
+  // Username validation
+  const usernameValid = /^[a-zA-Z0-9._]{3,20}$/.test(username);
 
-      {/* The orb itself */}
-      <div
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          width: 160,
-          height: 160,
-          transform: "translate(-50%,-50%)",
-          borderRadius: "50%",
-          background: "radial-gradient(circle at 35% 35%, #a5b4fc, #6366f1 40%, #4338ca 70%, #1e1b4b)",
-          boxShadow: `0 0 60px 20px rgba(99,102,241,0.3)`,
-          animation: "orbFloat 4s ease-in-out infinite",
-        }}
-      />
+  // Avatar handler
+  const handleAvatarChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setAvatarFile(f);
+    setAvatarPreview(URL.createObjectURL(f));
+  }, []);
 
-      {/* Orbiting dots */}
-      {orbDots.map((d, i) => (
-        <div
-          key={i}
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            width: d.size,
-            height: d.size,
-            marginLeft: -d.size / 2,
-            marginTop: -d.size / 2,
-            borderRadius: "50%",
-            background: d.color,
-            boxShadow: `0 0 8px ${d.color}`,
-            ["--orbit-r" as string]: `${d.r}px`,
-            animation: `orbitDot ${d.dur}s ${i * 0.5}s linear infinite`,
-            pointerEvents: "none",
-          }}
-        />
-      ))}
+  // Wallet generation
+  const generateWallets = useCallback(async () => {
+    setStep("walletGen");
+    setGenError("");
+    setChainStatus(["idle", "idle", "idle"]);
 
-      {/* Ping rings */}
-      {[0, 0.83, 1.67].map((delay, i) => (
-        <div
-          key={i}
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            width: 160,
-            height: 160,
-            marginLeft: -80,
-            marginTop: -80,
-            borderRadius: "50%",
-            border: `1px solid ${C.primary}`,
-            opacity: 0,
-            animation: `orbPing 1.2s ${delay}s ease-out infinite`,
-            pointerEvents: "none",
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  App Store Buttons                                                  */
-/* ------------------------------------------------------------------ */
-function AppStoreButtons() {
-  const [shaking, setShaking] = useState<string | null>(null);
-  const [tooltip, setTooltip] = useState<string | null>(null);
-
-  const handleClick = (store: string) => {
-    setShaking(store);
-    setTooltip(store);
-    setTimeout(() => setShaking(null), 500);
-    setTimeout(() => setTooltip(null), 2000);
-  };
-
-  const btnBase: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 18,
-    padding: "22px 44px",
-    borderRadius: 18,
-    cursor: "pointer",
-    textDecoration: "none",
-    border: "none",
-    position: "relative",
-    transition: "transform 0.2s, box-shadow 0.2s",
-  };
-
-  return (
-    <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-      {/* Apple */}
-      <div style={{ position: "relative" }}>
-        <button
-          onClick={() => handleClick("apple")}
-          style={{
-            ...btnBase,
-            background: "#fff",
-            boxShadow: "0 0 30px rgba(255,255,255,0.25)",
-            animation: shaking === "apple" ? "shakeBtn 0.5s ease" : "none",
-          }}
-        >
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="#000">
-            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-          </svg>
-          <div>
-            <div style={{ fontSize: 13, color: "#666", lineHeight: 1, textAlign: "left" as const }}>Download on the</div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: "#000", lineHeight: 1.3, textAlign: "left" as const }}>App Store</div>
-          </div>
-        </button>
-        <div style={{ textAlign: "center", marginTop: 6, fontSize: 11, color: C.muted, fontWeight: 600 }}>Coming Soon</div>
-        {tooltip === "apple" && (
-          <div style={{ position: "absolute", top: -36, left: "50%", transform: "translateX(-50%)", background: C.card, color: C.text, fontSize: 12, fontWeight: 600, padding: "6px 14px", borderRadius: 8, whiteSpace: "nowrap", border: `1px solid ${C.border}` }}>
-            Coming soon!
-          </div>
-        )}
-      </div>
-
-      {/* Google */}
-      <div style={{ position: "relative" }}>
-        <button
-          onClick={() => handleClick("google")}
-          style={{
-            ...btnBase,
-            background: C.card,
-            border: `1px solid ${C.border}`,
-            boxShadow: `0 0 30px rgba(99,102,241,0.25)`,
-            animation: shaking === "google" ? "shakeBtn 0.5s ease" : "none",
-          }}
-        >
-          <svg width="36" height="36" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M22.018 13.298l-11.5 6.636c-.59.34-1.326-.085-1.326-.765V4.83c0-.68.737-1.105 1.326-.764l11.5 6.636c.59.34.59 1.19 0 1.53z" />
-            <path fill="#34A853" d="M5.262 19.488L14.5 14l-3.598-3.598L5.262 19.488z" />
-            <path fill="#FBBC04" d="M2.004 21.522c.148.56.674.96 1.283.75l6.515-3.76L5.262 14l-3.258 7.522z" />
-            <path fill="#EA4335" d="M2.004 2.478C1.856 3.038 1.856 3.66 2.004 4.22L10.902 10 5.262 4.512 2.004 2.478z" />
-          </svg>
-          <div>
-            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1, textAlign: "left" as const }}>Get it on</div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: C.text, lineHeight: 1.3, textAlign: "left" as const }}>Google Play</div>
-          </div>
-        </button>
-        <div style={{ textAlign: "center", marginTop: 6, fontSize: 11, color: C.muted, fontWeight: 600 }}>Coming Soon</div>
-        {tooltip === "google" && (
-          <div style={{ position: "absolute", top: -36, left: "50%", transform: "translateX(-50%)", background: C.card, color: C.text, fontSize: 12, fontWeight: 600, padding: "6px 14px", borderRadius: 8, whiteSpace: "nowrap", border: `1px solid ${C.border}` }}>
-            Coming soon!
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Waitlist Form                                                      */
-/* ------------------------------------------------------------------ */
-function WaitlistForm() {
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) return;
-    setSubmitting(true);
     try {
-      await fetch("/api/waitlist", {
+      const res = await fetch("/api/auth/create-wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ username: `user_${Date.now()}` }),
       });
-      setSubmitted(true);
-    } catch {
-      setSubmitted(true);
-    } finally {
-      setSubmitting(false);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Wallet creation failed");
+
+      // Animate chain statuses
+      setChainStatus(["loading", "idle", "idle"]);
+      await new Promise((r) => setTimeout(r, 400));
+      setChainStatus(["done", "idle", "idle"]);
+
+      await new Promise((r) => setTimeout(r, 300));
+      setChainStatus(["done", "loading", "idle"]);
+      await new Promise((r) => setTimeout(r, 300));
+      setChainStatus(["done", "done", "idle"]);
+
+      await new Promise((r) => setTimeout(r, 300));
+      setChainStatus(["done", "done", "loading"]);
+      await new Promise((r) => setTimeout(r, 300));
+      setChainStatus(["done", "done", "done"]);
+
+      // Set session
+      await supabase.auth.setSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+      });
+
+      setWalletData(data);
+      await new Promise((r) => setTimeout(r, 600));
+      setStep("keyReveal");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setGenError(msg);
     }
+  }, []);
+
+  // Profile save
+  const saveProfile = useCallback(async () => {
+    if (!usernameValid || !walletData?.user?.id) return;
+    setProfileSaving(true);
+    const userId = walletData.user.id;
+
+    let avatarUrl = "";
+    if (avatarFile) {
+      const { error: uploadErr } = await supabase.storage
+        .from("avatars")
+        .upload(`${userId}/avatar.jpg`, avatarFile, { upsert: true });
+      if (!uploadErr) {
+        const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(`${userId}/avatar.jpg`);
+        avatarUrl = urlData.publicUrl;
+      }
+    }
+
+    await supabase.from("profiles").upsert({
+      id: userId,
+      user_id: userId,
+      username: username.toLowerCase(),
+      handle: username.toLowerCase(),
+      display_name: displayName || username,
+      bio,
+      avatar_url: avatarUrl || null,
+      onboarded: true,
+    });
+
+    setProfileSaving(false);
+    setStep("walkthrough");
+  }, [usernameValid, walletData, avatarFile, username, displayName, bio]);
+
+  // Copy to clipboard
+  const copyKey = useCallback((text: string) => {
+    navigator.clipboard.writeText(text);
+  }, []);
+
+  /* ================================================================ */
+  /*  Shared styles                                                    */
+  /* ================================================================ */
+  const fullScreen: React.CSSProperties = {
+    minHeight: "100vh",
+    background: C.bg,
+    color: C.text,
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    position: "relative",
+    overflow: "hidden",
   };
 
-  if (submitted) {
+  const centerCol: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "40px 24px",
+    minHeight: "100vh",
+    position: "relative",
+    zIndex: 2,
+  };
+
+  const primaryBtn = (disabled = false): React.CSSProperties => ({
+    width: "100%",
+    maxWidth: 380,
+    height: 58,
+    borderRadius: 16,
+    border: "none",
+    background: disabled
+      ? "#333"
+      : `linear-gradient(135deg, ${C.primary}, #7C3AED)`,
+    color: disabled ? "#666" : "#fff",
+    fontSize: 17,
+    fontWeight: 700,
+    cursor: disabled ? "not-allowed" : "pointer",
+    position: "relative",
+    overflow: "hidden",
+    boxShadow: disabled ? "none" : `0 0 30px ${C.primary}44`,
+    letterSpacing: 0.3,
+  });
+
+  const backBtn: React.CSSProperties = {
+    position: "absolute",
+    top: 16,
+    left: 16,
+    background: "none",
+    border: "none",
+    color: C.muted,
+    fontSize: 28,
+    cursor: "pointer",
+    zIndex: 10,
+    padding: 8,
+  };
+
+  const pill = (color: string): React.CSSProperties => ({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "6px 14px",
+    borderRadius: 20,
+    border: `1px solid ${color}33`,
+    background: `${color}0F`,
+    color,
+    fontSize: 13,
+    fontWeight: 600,
+  });
+
+  const cardStyle: React.CSSProperties = {
+    background: C.card,
+    borderRadius: 16,
+    padding: "16px 20px",
+    width: "100%",
+    maxWidth: 380,
+    border: `1px solid rgba(255,255,255,0.06)`,
+  };
+
+  /* ================================================================ */
+  /*  HERO STEP                                                        */
+  /* ================================================================ */
+  if (step === "hero") {
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-        <span style={{ color: C.accent, fontWeight: 700, fontSize: 16 }}>
-          You are on the list. We will notify you at launch.
-        </span>
+      <div style={fullScreen}>
+        <style>{keyframes}</style>
+
+        {/* Particles */}
+        {particles.map((p) => (
+          <div
+            key={p.id}
+            style={{
+              position: "absolute",
+              left: `${p.left}%`,
+              bottom: -10,
+              width: p.size,
+              height: p.size,
+              borderRadius: "50%",
+              background: p.color,
+              animation: `particleFloat ${p.duration}s linear ${p.delay}s infinite`,
+              opacity: 0,
+              zIndex: 1,
+            }}
+          />
+        ))}
+
+        <div style={centerCol}>
+          {/* Globe SVG */}
+          <div
+            style={{
+              width: 200,
+              height: 200,
+              position: "relative",
+              marginBottom: 32,
+              animation: "fadeUp 0.8s ease-out",
+            }}
+          >
+            <svg viewBox="0 0 200 200" width="200" height="200">
+              <defs>
+                <filter id="purpleGlow">
+                  <feGaussianBlur stdDeviation="4" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+              </defs>
+              <circle
+                cx="100"
+                cy="100"
+                r="80"
+                fill="none"
+                stroke={C.primary}
+                strokeWidth="1.5"
+                opacity="0.6"
+                filter="url(#purpleGlow)"
+              />
+              {/* Latitude lines */}
+              <ellipse cx="100" cy="70" rx="70" ry="12" fill="none" stroke={C.primary} strokeWidth="0.7" opacity="0.3" />
+              <ellipse cx="100" cy="100" rx="80" ry="15" fill="none" stroke={C.primary} strokeWidth="0.7" opacity="0.3" />
+              <ellipse cx="100" cy="130" rx="70" ry="12" fill="none" stroke={C.primary} strokeWidth="0.7" opacity="0.3" />
+              {/* Longitude lines */}
+              <ellipse cx="100" cy="100" rx="30" ry="80" fill="none" stroke={C.primary} strokeWidth="0.7" opacity="0.3" />
+              <ellipse cx="100" cy="100" rx="60" ry="80" fill="none" stroke={C.primary} strokeWidth="0.7" opacity="0.3" />
+              {/* Rotating ring */}
+              <circle
+                cx="100"
+                cy="100"
+                r="92"
+                fill="none"
+                stroke={C.accent}
+                strokeWidth="1"
+                strokeDasharray="8 12"
+                opacity="0.5"
+                style={{ transformOrigin: "100px 100px", animation: "globeRotate 20s linear infinite" }}
+              />
+            </svg>
+          </div>
+
+          {/* Counter badge */}
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 16px",
+              borderRadius: 20,
+              background: "rgba(20, 241, 149, 0.08)",
+              border: "1px solid rgba(20, 241, 149, 0.2)",
+              marginBottom: 24,
+              animation: "fadeUp 0.8s ease-out 0.2s both",
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: C.accent,
+                animation: "pulseDot 2s ease-in-out infinite",
+              }}
+            />
+            <span style={{ fontSize: 13, color: C.accent, fontWeight: 600 }}>
+              {orbCount !== null ? orbCount.toLocaleString() : "—"} orbs hidden worldwide
+            </span>
+          </div>
+
+          {/* Headlines */}
+          <h1
+            style={{
+              fontSize: 34,
+              fontWeight: 900,
+              margin: 0,
+              textAlign: "center",
+              animation: "fadeUp 0.8s ease-out 0.3s both",
+            }}
+          >
+            The world is hiding
+          </h1>
+          <h1
+            style={{
+              fontSize: 34,
+              fontWeight: 900,
+              margin: "4px 0 12px",
+              color: C.accent,
+              textAlign: "center",
+              position: "relative",
+              overflow: "hidden",
+              animation: "fadeUp 0.8s ease-out 0.4s both",
+            }}
+          >
+            Go find it.
+            <span
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "50%",
+                height: "100%",
+                background:
+                  "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)",
+                animation: "shimmer 3s ease-in-out infinite",
+              }}
+            />
+          </h1>
+
+          <p
+            style={{
+              fontSize: 14,
+              color: C.muted,
+              margin: "0 0 20px",
+              textAlign: "center",
+              animation: "fadeUp 0.8s ease-out 0.5s both",
+            }}
+          >
+            Real GPS. Real crypto. Real adventure.
+          </p>
+
+          {/* Chain pills */}
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              marginBottom: 32,
+              animation: "fadeUp 0.8s ease-out 0.6s both",
+            }}
+          >
+            <span style={pill(C.gold)}>BTC</span>
+            <span style={pill(C.rareBlue)}>ETH</span>
+            <span style={pill(C.primary)}>SOL</span>
+          </div>
+
+          {/* CTA Button */}
+          <button
+            onClick={() => setStep("authMethod")}
+            style={{
+              ...primaryBtn(),
+              animation: "fadeUp 0.8s ease-out 0.7s both",
+            }}
+          >
+            <span style={{ position: "relative", zIndex: 2 }}>Start Hunting &rarr;</span>
+            <span
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "40%",
+                height: "100%",
+                background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)",
+                animation: "shimmer 3s ease-in-out infinite",
+              }}
+            />
+          </button>
+
+          <p
+            style={{
+              fontSize: 12,
+              color: "#6B7280",
+              marginTop: 16,
+              textAlign: "center",
+              animation: "fadeUp 0.8s ease-out 0.8s both",
+            }}
+          >
+            Free to join. Your wallet is created automatically.
+          </p>
+        </div>
       </div>
     );
   }
 
-  return (
-    <form onSubmit={handleSubmit} style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-      <input
-        type="email"
-        required
-        placeholder="Enter your email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        style={{
-          flex: "1 1 240px",
-          maxWidth: 320,
-          padding: "14px 18px",
-          borderRadius: 10,
-          border: `1px solid ${C.border}`,
-          background: C.card,
-          color: C.text,
-          fontSize: 15,
-          outline: "none",
-        }}
-      />
-      <button
-        type="submit"
-        disabled={submitting}
-        style={{
-          padding: "14px 28px",
-          borderRadius: 10,
-          background: C.primary,
-          color: "#fff",
-          fontWeight: 700,
-          fontSize: 15,
-          border: "none",
-          cursor: submitting ? "not-allowed" : "pointer",
-          opacity: submitting ? 0.7 : 1,
-          boxShadow: "0 0 20px rgba(99,102,241,0.3)",
-        }}
-      >
-        {submitting ? "Joining..." : "Notify Me"}
-      </button>
-    </form>
-  );
-}
+  /* ================================================================ */
+  /*  AUTH METHOD STEP                                                  */
+  /* ================================================================ */
+  if (step === "authMethod") {
+    return (
+      <div style={fullScreen}>
+        <style>{keyframes}</style>
+        <button onClick={() => setStep("hero")} style={backBtn}>&larr;</button>
 
-/* ------------------------------------------------------------------ */
-/*  Animated counter                                                   */
-/* ------------------------------------------------------------------ */
-function AnimatedCounter({ target, prefix = "", suffix = "" }: { target: number; prefix?: string; suffix?: string }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true });
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    if (!isInView) return;
-    let start = 0;
-    const duration = 1500;
-    const step = (timestamp: number) => {
-      if (!start) start = timestamp;
-      const progress = Math.min((timestamp - start) / duration, 1);
-      setCount(Math.floor(progress * target));
-      if (progress < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  }, [isInView, target]);
-
-  return (
-    <span ref={ref}>
-      {prefix}
-      {count}
-      {suffix}
-    </span>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Mini orb for orb types section                                     */
-/* ------------------------------------------------------------------ */
-function OrbTypeOrb({ color, glow, size = 120 }: { color: string; glow: boolean; size?: number }) {
-  return (
-    <div style={{ position: "relative", width: size, height: size, margin: "0 auto 20px" }}>
-      {glow && (
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            width: "180%",
-            height: "180%",
-            transform: "translate(-50%,-50%)",
-            borderRadius: "50%",
-            background: `radial-gradient(circle, ${color}44 0%, transparent 70%)`,
-            animation: "orbGlow 2.5s ease-in-out infinite",
-          }}
-        />
-      )}
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          borderRadius: "50%",
-          background: `radial-gradient(circle at 35% 35%, ${color}ee, ${color} 50%, ${color}77 100%)`,
-          boxShadow: glow ? `0 0 30px 10px ${color}44` : `0 0 15px 5px ${color}22`,
-          animation: "orbFloat 4s ease-in-out infinite",
-        }}
-      />
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Live Ticker                                                        */
-/* ------------------------------------------------------------------ */
-function Ticker() {
-  const row1 = [
-    "Alex cracked an orb in Tokyo — earned <g>0.5 SOL</g>",
-    "Maria dropped 10 orbs across Miami",
-    "James cracked a Legendary orb in London — earned <g>0.08 ETH</g>",
-    "Sofia dropped a BTC orb in Berlin",
-    "Kenji cracked an orb in Seoul — earned <g>0.0004 BTC</g>",
-  ];
-  const row2 = [
-    "Amara dropped 5 orbs across Lagos",
-    "Chen cracked a Legendary in Shanghai — earned <g>2.1 SOL</g>",
-    "Diego cracked an orb in Buenos Aires — earned <g>0.03 ETH</g>",
-    "Priya dropped a Rare orb in Mumbai",
-    "Luca cracked an orb in Rome — earned <g>0.01 ETH</g>",
-  ];
-
-  const renderItems = (items: string[]) =>
-    items.map((item, i) => {
-      const parts = item.split(/<g>(.*?)<\/g>/);
-      return (
-        <span
-          key={i}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            whiteSpace: "nowrap",
-            padding: "0 32px",
-            fontSize: 14,
-            color: C.muted,
-          }}
-        >
-          <span
+        <div style={centerCol}>
+          {/* Pulsing wallet orb */}
+          <div
             style={{
-              width: 6,
-              height: 6,
+              width: 120,
+              height: 120,
               borderRadius: "50%",
-              background: C.accent,
-              flexShrink: 0,
-              display: "inline-block",
+              background: `radial-gradient(circle, ${C.primary}66, ${C.primary}11)`,
+              animation: "orbPulse 3s ease-in-out infinite",
+              marginBottom: 32,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
-          />
-          {parts.map((part, j) =>
-            j % 2 === 1 ? (
-              <span key={j} style={{ color: C.accent, fontWeight: 700 }}>
-                {part}
-              </span>
-            ) : (
-              <span key={j}>{part}</span>
-            )
-          )}
-        </span>
-      );
-    });
+          >
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="1.5">
+              <rect x="2" y="6" width="20" height="14" rx="3" />
+              <path d="M16 12h2" />
+              <path d="M2 10h20" />
+            </svg>
+          </div>
 
-  return (
-    <div style={{ overflow: "hidden", width: "100%" }}>
-      <div
-        style={{
-          display: "flex",
-          width: "max-content",
-          animation: "marqueeL 35s linear infinite",
-          marginBottom: 12,
-        }}
-      >
-        {renderItems(row1)}
-        {renderItems(row1)}
-      </div>
-      <div
-        style={{
-          display: "flex",
-          width: "max-content",
-          animation: "marqueeR 28s linear infinite",
-        }}
-      >
-        {renderItems(row2)}
-        {renderItems(row2)}
-      </div>
-    </div>
-  );
-}
+          <h1 style={{ fontSize: 32, fontWeight: 900, margin: 0, textAlign: "center" }}>
+            Your wallets.
+          </h1>
+          <h1 style={{ fontSize: 32, fontWeight: 900, margin: "2px 0 16px", textAlign: "center" }}>
+            Your keys.
+          </h1>
+          <p style={{ fontSize: 15, color: C.muted, textAlign: "center", margin: "0 0 24px", maxWidth: 320 }}>
+            We generate SOL, ETH & BTC wallets instantly. No email needed.
+          </p>
 
-/* ================================================================== */
-/*  MAIN PAGE                                                          */
-/* ================================================================== */
-export default function Home() {
-  const router = useRouter();
+          {/* Chain badges */}
+          <div style={{ display: "flex", gap: 10, marginBottom: 32 }}>
+            <span style={pill(C.primary)}>SOL</span>
+            <span style={pill(C.rareBlue)}>ETH</span>
+            <span style={pill(C.gold)}>BTC</span>
+          </div>
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) router.replace("/dashboard");
-    });
-  }, [router]);
+          {/* Security notes */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 32, width: "100%", maxWidth: 380 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 12, background: C.surface }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <span style={{ fontSize: 13, color: C.muted }}>Non-custodial -- keys never leave your device</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 12, background: C.surface }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2">
+                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+              </svg>
+              <span style={{ fontSize: 13, color: C.muted }}>Recover anytime with your private key</span>
+            </div>
+          </div>
 
-  return (
-    <div style={{ background: C.bg, minHeight: "100vh", overflowX: "hidden", fontFamily: "system-ui, -apple-system, sans-serif" }}>
-      <style>{globalCSS}</style>
+          {/* Primary button */}
+          <button onClick={generateWallets} style={primaryBtn()}>
+            <span style={{ position: "relative", zIndex: 2 }}>Generate My Wallets</span>
+            <span style={{ position: "absolute", top: 0, left: 0, width: "40%", height: "100%", background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)", animation: "shimmer 3s ease-in-out infinite" }} />
+          </button>
 
-      {/* ============================================================= */}
-      {/*  1. FIXED NAVBAR                                               */}
-      {/* ============================================================= */}
-      <motion.nav
-        initial={{ y: -60, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, delay: 0.2 }}
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 100,
-          display: "flex",
-          alignItems: "center",
-          padding: "14px 32px",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          background: "rgba(10,10,15,0.8)",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <MMLogo size={38} />
-          <span style={{ fontWeight: 700, fontSize: 18, color: "#fff" }}>MishMesh</span>
-        </div>
-      </motion.nav>
+          {/* Divider */}
+          <div style={{ display: "flex", alignItems: "center", gap: 16, margin: "24px 0", width: "100%", maxWidth: 380 }}>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
+            <span style={{ fontSize: 13, color: "#6B7280" }}>returning?</span>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
+          </div>
 
-      {/* ============================================================= */}
-      {/*  2. HERO                                                       */}
-      {/* ============================================================= */}
-      <section
-        style={{
-          position: "relative",
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          overflow: "hidden",
-          paddingTop: 80,
-          paddingBottom: 40,
-        }}
-      >
-        {/* Aurora bands */}
-        <div
-          style={{
-            position: "absolute",
-            top: "20%",
-            left: "-20%",
-            width: "80vw",
-            height: "60vh",
-            borderRadius: "50%",
-            background: "radial-gradient(ellipse, rgba(99,102,241,0.08) 0%, transparent 70%)",
-            filter: "blur(80px)",
-            animation: "auroraLeft 20s ease-in-out infinite",
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            top: "40%",
-            right: "-15%",
-            width: "70vw",
-            height: "50vh",
-            borderRadius: "50%",
-            background: "radial-gradient(ellipse, rgba(6,182,212,0.06) 0%, transparent 70%)",
-            filter: "blur(80px)",
-            animation: "auroraRight 25s ease-in-out infinite",
-            pointerEvents: "none",
-          }}
-        />
+          {/* Secondary button */}
+          <button
+            onClick={() => setShowKeyImport(true)}
+            style={{
+              width: "100%",
+              maxWidth: 380,
+              height: 48,
+              borderRadius: 12,
+              border: `1px solid ${C.gold}44`,
+              background: `${C.gold}0F`,
+              color: C.gold,
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Sign in with Private Key
+          </button>
 
-        <Stars />
-        <Particles />
-
-        {/* Hero content wrapper */}
-        <div
-          style={{
-            position: "relative",
-            zIndex: 2,
-            width: "100%",
-            maxWidth: 1200,
-            margin: "0 auto",
-            padding: "0 32px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 60,
-          }}
-        >
-          {/* Left side content */}
-          <div style={{ flex: "1 1 480px", maxWidth: 640 }}>
-            {/* Coming Soon badge */}
-            <motion.div
-              initial={{ opacity: 0, y: -16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "6px 18px",
-                borderRadius: 100,
-                border: `1px solid ${C.primary}`,
-                marginBottom: 32,
-              }}
-            >
-              <span
+          {/* Key import modal */}
+          {showKeyImport && (
+            <div style={{ ...cardStyle, marginTop: 20 }}>
+              <input
+                placeholder="Paste your private key..."
+                value={importKey}
+                onChange={(e) => setImportKey(e.target.value)}
                 style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: C.primary,
-                  animation: "pulsingDot 2s ease-in-out infinite",
+                  width: "100%",
+                  background: C.bg,
+                  border: `1px solid rgba(255,255,255,0.1)`,
+                  borderRadius: 10,
+                  padding: "12px 14px",
+                  color: C.text,
+                  fontSize: 14,
+                  fontFamily: "monospace",
+                  outline: "none",
+                  boxSizing: "border-box",
                 }}
               />
-              <span
-                style={{
-                  color: C.primary,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase" as const,
-                }}
-              >
-                Coming Soon
-              </span>
-            </motion.div>
-
-            {/* Headline */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
-            >
-              <h1
-                style={{
-                  fontSize: "clamp(48px, 8vw, 96px)",
-                  fontWeight: 900,
-                  color: C.text,
-                  lineHeight: 1.05,
-                  letterSpacing: "-0.03em",
-                  animation: "clipReveal 0.8s 0.5s both",
-                }}
-              >
-                The World Is
-              </h1>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.65 }}
-            >
-              <h1
-                style={{
-                  fontSize: "clamp(48px, 8vw, 96px)",
-                  fontWeight: 900,
-                  lineHeight: 1.05,
-                  letterSpacing: "-0.03em",
-                  marginBottom: 24,
-                  background: `linear-gradient(90deg, ${C.primary}, ${C.accent})`,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                  animation: "clipReveal 0.8s 0.65s both",
-                }}
-              >
-                Your Trading Floor
-              </h1>
-            </motion.div>
-
-            {/* Subhead */}
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.8 }}
-              style={{
-                color: C.muted,
-                fontSize: "clamp(16px, 2.2vw, 20px)",
-                maxWidth: 520,
-                lineHeight: 1.7,
-                marginBottom: 28,
-              }}
-            >
-              Drop orbs. Hunt crypto. Trade with AI agents — anywhere on Earth.
-            </motion.p>
-
-            {/* App Store Buttons — primary CTA */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 1.0 }}
-              style={{ marginBottom: 32 }}
-            >
-              <AppStoreButtons />
-            </motion.div>
-
-            {/* Chain pills */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 1.2 }}
-              style={{ display: "flex", gap: 10, marginBottom: 32, flexWrap: "wrap" }}
-            >
-              {[
-                { label: "BTC", color: "#F7931A" },
-                { label: "ETH", color: "#627EEA" },
-                { label: "SOL", color: "#6366f1" },
-              ].map((ch) => (
-                <span
-                  key={ch.label}
-                  style={{
-                    display: "inline-block",
-                    padding: "6px 16px",
-                    borderRadius: 100,
-                    border: `1px solid ${ch.color}55`,
-                    color: ch.color,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    letterSpacing: "0.04em",
-                    background: `${ch.color}11`,
-                  }}
+              <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                <button
+                  onClick={() => { console.log("Import key:", importKey); setShowKeyImport(false); }}
+                  style={{ flex: 1, height: 40, borderRadius: 10, border: "none", background: C.gold, color: "#000", fontWeight: 700, fontSize: 14, cursor: "pointer" }}
                 >
-                  {ch.label}
-                </span>
-              ))}
-            </motion.div>
-
-            {/* Waitlist form */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 1.4 }}
-            >
-              <p style={{ color: C.muted, fontSize: 13, marginBottom: 10, fontWeight: 600 }}>Or join the waitlist</p>
-              <WaitlistForm />
-            </motion.div>
-          </div>
-
-          {/* Right side orb */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 1.6 }}
-            style={{ flex: "0 0 auto", display: "flex", justifyContent: "center" }}
-          >
-            <HeroOrb />
-          </motion.div>
+                  Import
+                </button>
+                <button
+                  onClick={() => setShowKeyImport(false)}
+                  style={{ flex: 1, height: 40, borderRadius: 10, border: `1px solid rgba(255,255,255,0.1)`, background: "transparent", color: C.muted, fontWeight: 600, fontSize: 14, cursor: "pointer" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
+      </div>
+    );
+  }
 
-        {/* Scroll indicator */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 40,
-            left: "50%",
-            transform: "translateX(-50%)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 8,
-            zIndex: 3,
-          }}
-        >
-          <span style={{ color: C.muted, fontSize: 12, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" as const }}>scroll</span>
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke={C.muted}
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ animation: "scrollBounce 2s ease-in-out infinite" }}
-          >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </div>
-      </section>
+  /* ================================================================ */
+  /*  WALLET GEN STEP                                                  */
+  /* ================================================================ */
+  if (step === "walletGen") {
+    const chains = [
+      { name: "SOL Wallet", color: C.primary, icon: "S" },
+      { name: "ETH Wallet", color: C.rareBlue, icon: "E" },
+      { name: "BTC Wallet", color: C.gold, icon: "B" },
+    ];
 
-      {/* ============================================================= */}
-      {/*  3. HOW IT WORKS                                               */}
-      {/* ============================================================= */}
-      <section style={{ padding: "120px 32px", maxWidth: 1200, margin: "0 auto" }}>
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          style={{ textAlign: "center", marginBottom: 64 }}
-        >
-          <h2 style={{ fontSize: 48, fontWeight: 800, color: C.text, lineHeight: 1.2 }}>How it works</h2>
-          <p style={{ marginTop: 16, color: C.muted, fontSize: 18 }}>Simple as walking outside.</p>
-        </motion.div>
-
-        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", justifyContent: "center" }}>
-          {[
-            {
-              num: "01",
-              title: "Drop an Orb",
-              body: "Load crypto into a digital orb, pin it to any location on Earth.",
-              icon: (
-                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                  <circle cx="20" cy="16" r="8" stroke={C.primary} strokeWidth="2" />
-                  <path d="M20 24 L20 36" stroke={C.primary} strokeWidth="2" strokeDasharray="3 3" />
-                  <circle cx="20" cy="38" r="2" fill={C.primary} opacity="0.5" />
-                  <path d="M14 10 L20 4 L26 10" stroke={C.accent} strokeWidth="1.5" fill="none" opacity="0.6" />
-                </svg>
-              ),
-            },
-            {
-              num: "02",
-              title: "Hunt and Catch",
-              body: "Players nearby race to find and crack your orb on the map.",
-              icon: (
-                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                  <path d="M20 4 L20 36" stroke={C.primary} strokeWidth="1.5" opacity="0.3" />
-                  <path d="M4 20 L36 20" stroke={C.primary} strokeWidth="1.5" opacity="0.3" />
-                  <circle cx="20" cy="20" r="12" stroke={C.primary} strokeWidth="2" fill="none" />
-                  <circle cx="20" cy="20" r="4" fill={C.accent} />
-                  <circle cx="20" cy="20" r="7" stroke={C.accent} strokeWidth="1" fill="none" opacity="0.4" />
-                </svg>
-              ),
-            },
-            {
-              num: "03",
-              title: "AI Trades It",
-              body: "Your AI agent automatically trades what you catch for max gains.",
-              icon: (
-                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                  <rect x="8" y="10" width="24" height="20" rx="3" stroke={C.primary} strokeWidth="2" fill="none" />
-                  <path d="M14 20 L18 24 L26 16" stroke={C.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  <circle cx="30" cy="12" r="4" fill={C.accent} opacity="0.6" />
-                  <path d="M28 12 L32 12 M30 10 L30 14" stroke="#0a0a0f" strokeWidth="1" />
-                </svg>
-              ),
-            },
-          ].map((step, i) => (
-            <motion.div
-              key={step.num}
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.15 }}
-              style={{
-                flex: "1 1 300px",
-                maxWidth: 380,
-                background: C.surface,
-                border: `1px solid ${C.border}`,
-                borderRadius: 20,
-                padding: 32,
-                transition: "border-color 0.3s, transform 0.3s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "rgba(99,102,241,0.4)";
-                e.currentTarget.style.transform = "translateY(-4px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = C.border;
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
-            >
-              <div style={{ marginBottom: 20 }}>{step.icon}</div>
-              <span style={{ color: C.primary, fontSize: 13, fontWeight: 700, letterSpacing: "0.08em" }}>{step.num}</span>
-              <h3 style={{ fontSize: 26, fontWeight: 700, color: C.text, margin: "10px 0 14px" }}>{step.title}</h3>
-              <p style={{ color: C.muted, lineHeight: 1.65, fontSize: 15 }}>{step.body}</p>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* ============================================================= */}
-      {/*  4. ORB TYPES                                                  */}
-      {/* ============================================================= */}
-      <section style={{ background: "#060609", padding: "120px 32px" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            style={{ textAlign: "center", marginBottom: 64 }}
-          >
-            <h2 style={{ fontSize: 48, fontWeight: 800, color: C.text }}>Three tiers of treasure.</h2>
-          </motion.div>
-
-          <div style={{ display: "flex", gap: 32, flexWrap: "wrap", justifyContent: "center" }}>
-            {[
-              { label: "Common", color: "#C0C0C0", glow: false, reward: "$1 - $9", badge: null },
-              { label: "Rare", color: "#3B82F6", glow: true, reward: "$10 - $99", badge: null },
-              { label: "Legendary", color: C.gold, glow: true, reward: "$100+", badge: "LEGENDARY" },
-            ].map((orb, i) => (
-              <motion.div
-                key={orb.label}
-                initial={{ opacity: 0, scale: 0.8 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.15 }}
-                style={{
-                  flex: "1 1 260px",
-                  maxWidth: 340,
-                  background: C.surface,
-                  border: `1px solid ${orb.color}33`,
-                  borderRadius: 20,
-                  padding: "40px 32px",
-                  textAlign: "center",
-                  position: "relative",
-                }}
-              >
-                {orb.badge && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 16,
-                      right: 16,
-                      padding: "4px 12px",
-                      borderRadius: 6,
-                      background: `${C.gold}22`,
-                      color: C.gold,
-                      fontSize: 10,
-                      fontWeight: 800,
-                      letterSpacing: "0.1em",
-                    }}
-                  >
-                    {orb.badge}
-                  </div>
-                )}
-                <OrbTypeOrb color={orb.color} glow={orb.glow} />
-                <h3 style={{ fontSize: 24, fontWeight: 700, color: orb.color, marginBottom: 8 }}>{orb.label}</h3>
-                <p style={{ color: C.muted, fontSize: 16 }}>{orb.reward}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ============================================================= */}
-      {/*  5. LIVE TICKER                                                */}
-      {/* ============================================================= */}
-      <section style={{ background: "#0D0D14", padding: "48px 0", overflow: "hidden" }}>
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-        >
-          <p
+    return (
+      <div style={fullScreen}>
+        <style>{keyframes}</style>
+        <div style={centerCol}>
+          {/* Pulsing icon */}
+          <div
             style={{
-              textAlign: "center",
-              color: C.muted,
-              fontSize: 12,
-              fontWeight: 700,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase" as const,
+              width: 80,
+              height: 80,
+              borderRadius: "50%",
+              background: `radial-gradient(circle, ${C.primary}55, transparent)`,
+              animation: "orbPulse 2s ease-in-out infinite",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               marginBottom: 24,
             }}
           >
-            Happening right now, everywhere.
-          </p>
-          <Ticker />
-        </motion.div>
-      </section>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="1.5">
+              <rect x="2" y="6" width="20" height="14" rx="3" />
+              <path d="M16 12h2" />
+              <path d="M2 10h20" />
+            </svg>
+          </div>
 
-      {/* ============================================================= */}
-      {/*  6. TASKS TEASER                                               */}
-      {/* ============================================================= */}
-      <section style={{ padding: "120px 32px", maxWidth: 1200, margin: "0 auto" }}>
+          <h1 style={{ fontSize: 28, fontWeight: 900, margin: "0 0 8px", textAlign: "center" }}>
+            Create Your Wallet
+          </h1>
+          <p style={{ fontSize: 14, color: C.muted, textAlign: "center", margin: "0 0 32px", maxWidth: 320 }}>
+            We generate 3 blockchain wallets and a master private key.
+          </p>
+
+          {/* Chain rows */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: 380 }}>
+            {chains.map((chain, i) => (
+              <div
+                key={chain.name}
+                style={{
+                  ...cardStyle,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                  maxWidth: "100%",
+                }}
+              >
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: "50%",
+                    background: `${chain.color}22`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 16,
+                    fontWeight: 800,
+                    color: chain.color,
+                  }}
+                >
+                  {chain.icon}
+                </div>
+                <span style={{ flex: 1, fontSize: 15, fontWeight: 600 }}>{chain.name}</span>
+                <div style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {chainStatus[i] === "idle" && (
+                    <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid rgba(255,255,255,0.15)` }} />
+                  )}
+                  {chainStatus[i] === "loading" && (
+                    <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${chain.color}`, borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
+                  )}
+                  {chainStatus[i] === "done" && (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {genError && (
+            <div style={{ marginTop: 20, padding: "14px 18px", borderRadius: 12, background: "#EF444422", border: "1px solid #EF444444", color: "#EF4444", fontSize: 14, maxWidth: 380, width: "100%", textAlign: "center" }}>
+              {genError}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* ================================================================ */
+  /*  KEY REVEAL STEP                                                  */
+  /* ================================================================ */
+  if (step === "keyReveal") {
+    const keys = [
+      { label: "SOL Private Key", value: walletData?.sol_private_key || "", color: C.primary },
+      { label: "ETH Private Key", value: walletData?.eth_private_key || "", color: C.rareBlue },
+      { label: "BTC Private Key", value: walletData?.btc_private_key || "", color: C.gold },
+    ];
+
+    return (
+      <div style={fullScreen}>
+        <style>{keyframes}</style>
+        <div style={{ ...centerCol, justifyContent: "flex-start", paddingTop: 60 }}>
+          {/* Warning card */}
+          <div
+            style={{
+              background: "#EF444418",
+              border: "1px solid #EF444444",
+              borderRadius: 16,
+              padding: "18px 20px",
+              width: "100%",
+              maxWidth: 380,
+              marginBottom: 24,
+            }}
+          >
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: "#EF4444", margin: "0 0 6px" }}>
+              Save Your Private Keys
+            </h3>
+            <p style={{ fontSize: 13, color: "#EF4444CC", margin: 0 }}>
+              Shown once only. If you lose these, you lose access forever.
+            </p>
+          </div>
+
+          {/* Key cards */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: 380, marginBottom: 24 }}>
+            {keys.map((k, i) => (
+              <div key={k.label} style={cardStyle}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: k.color }}>{k.label}</span>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={() => {
+                        const next = [...revealedKeys];
+                        next[i] = !next[i];
+                        setRevealedKeys(next);
+                      }}
+                      style={{ background: "none", border: "none", color: C.muted, fontSize: 12, cursor: "pointer", fontWeight: 600, padding: 0 }}
+                    >
+                      {revealedKeys[i] ? "Hide" : "Show"}
+                    </button>
+                    <button
+                      onClick={() => copyKey(k.value)}
+                      style={{ background: "none", border: "none", color: C.accent, fontSize: 12, cursor: "pointer", fontWeight: 600, padding: 0 }}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    fontFamily: "monospace",
+                    fontSize: 12,
+                    color: C.muted,
+                    wordBreak: "break-all",
+                    background: C.bg,
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                  }}
+                >
+                  {revealedKeys[i] ? k.value : `${k.value.slice(0, 8)}${"*".repeat(20)}${k.value.slice(-6)}`}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Checkbox */}
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 24,
+              cursor: "pointer",
+              fontSize: 14,
+              color: C.text,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={keysSaved}
+              onChange={(e) => setKeysSaved(e.target.checked)}
+              style={{ width: 18, height: 18, accentColor: C.accent }}
+            />
+            I have saved my private keys
+          </label>
+
+          {/* Continue */}
+          <button
+            disabled={!keysSaved}
+            onClick={() => setStep("profileSetup")}
+            style={{
+              ...primaryBtn(!keysSaved),
+              background: keysSaved
+                ? `linear-gradient(135deg, ${C.accent}, #0D9668)`
+                : "#333",
+            }}
+          >
+            Continue to Profile Setup &rarr;
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ================================================================ */
+  /*  PROFILE SETUP STEP                                               */
+  /* ================================================================ */
+  if (step === "profileSetup") {
+    return (
+      <div style={{ ...fullScreen, overflowY: "auto" }}>
+        <style>{keyframes}</style>
         <div
           style={{
             display: "flex",
-            gap: 60,
-            flexWrap: "wrap",
+            flexDirection: "column",
             alignItems: "center",
+            padding: "60px 24px 40px",
+            minHeight: "100vh",
           }}
         >
-          {/* Left */}
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            style={{ flex: "1 1 340px" }}
-          >
-            <div
-              style={{
-                display: "inline-block",
-                padding: "5px 14px",
-                borderRadius: 100,
-                background: `${C.accent}1A`,
-                color: C.accent,
-                fontWeight: 700,
-                fontSize: 11,
-                letterSpacing: "0.1em",
-                textTransform: "uppercase" as const,
-                marginBottom: 20,
-              }}
-            >
-              Coming with Tasks
-            </div>
-            <h2
-              style={{
-                fontSize: "clamp(32px, 5vw, 48px)",
-                fontWeight: 800,
-                color: C.text,
-                lineHeight: 1.15,
-                marginBottom: 28,
-              }}
-            >
-              Earn crypto by doing real things.
-            </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {[
-                "Complete photo missions at real-world locations",
-                "Verify local businesses and earn bounties",
-                "Deliver items between GPS points for crypto",
-                "Solve location-based puzzles to unlock orbs",
-              ].map((item, i) => (
-                <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <span style={{ color: C.accent, fontWeight: 700, fontSize: 18, flexShrink: 0, lineHeight: 1.5 }}>--</span>
-                  <p style={{ color: C.muted, fontSize: 16, lineHeight: 1.6 }}>{item}</p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
+          <h1 style={{ fontSize: 28, fontWeight: 900, margin: "0 0 6px", textAlign: "center" }}>
+            Create Your Profile
+          </h1>
+          <p style={{ fontSize: 14, color: C.muted, margin: "0 0 32px", textAlign: "center" }}>
+            Choose a username to get started
+          </p>
 
-          {/* Right: floating task card */}
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            style={{ flex: "1 1 300px", display: "flex", justifyContent: "center" }}
-          >
-            <div
-              style={{
-                width: 320,
-                background: C.card,
-                borderRadius: 20,
-                padding: 28,
-                border: `1px solid ${C.border}`,
-                animation: "taskFloat 4s ease-in-out infinite",
-                boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
-              }}
-            >
-              <div
-                style={{
-                  display: "inline-block",
-                  padding: "4px 10px",
-                  borderRadius: 6,
-                  background: `${C.accent}1A`,
-                  color: C.accent,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  marginBottom: 14,
-                }}
-              >
-                PHOTO TASK
-              </div>
-              <h4 style={{ color: C.text, fontSize: 17, fontWeight: 700, marginBottom: 8 }}>
-                Photograph the Golden Gate Bridge
-              </h4>
-              <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
-                Walk to the viewpoint. Take a photo. Upload for verification. Earn your reward.
-              </p>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  borderTop: `1px solid ${C.border}`,
-                  paddingTop: 14,
-                }}
-              >
-                <span style={{ color: C.muted, fontSize: 12 }}>San Francisco, CA</span>
-                <span style={{ color: C.accent, fontWeight: 700, fontSize: 15 }}>0.05 SOL</span>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ============================================================= */}
-      {/*  7. ECONOMICS                                                  */}
-      {/* ============================================================= */}
-      <section style={{ background: "#060609", padding: "120px 32px" }}>
-        <div style={{ maxWidth: 800, margin: "0 auto" }}>
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            style={{ textAlign: "center", marginBottom: 56 }}
-          >
-            <h2 style={{ fontSize: 48, fontWeight: 800, color: C.text }}>Drop to earn.</h2>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
+          {/* Avatar */}
+          <div
+            onClick={() => fileInputRef.current?.click()}
             style={{
-              background: C.surface,
-              border: `1px solid ${C.border}`,
-              borderRadius: 24,
-              padding: "48px 40px",
-              textAlign: "center",
+              width: 80,
+              height: 80,
+              borderRadius: "50%",
+              background: C.card,
+              border: `3px solid transparent`,
+              backgroundImage: avatarPreview ? `url(${avatarPreview})` : undefined,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              marginBottom: 24,
+              position: "relative",
+              outline: `3px solid ${C.primary}`,
+              outlineOffset: 2,
             }}
           >
-            <motion.p
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: 0.2 }}
-              style={{ color: C.muted, fontSize: 18, lineHeight: 1.8, marginBottom: 8 }}
-            >
-              You drop 1 ETH into a Legendary orb.
-            </motion.p>
-            <motion.p
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: 0.35 }}
-              style={{ color: C.muted, fontSize: 18, lineHeight: 1.8, marginBottom: 8 }}
-            >
-              You set a $10 claim fee.
-            </motion.p>
-            <motion.p
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: 0.5 }}
-              style={{ color: C.muted, fontSize: 18, lineHeight: 1.8, marginBottom: 32 }}
-            >
-              100 hunters find it.
-            </motion.p>
+            {!avatarPreview && (
+              <span style={{ fontSize: 28, fontWeight: 800, color: C.primary }}>
+                {username ? username[0].toUpperCase() : "?"}
+              </span>
+            )}
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: "none" }} />
+          </div>
 
-            <motion.p
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.65 }}
-              style={{ fontSize: 28, fontWeight: 700, color: C.accent, marginBottom: 12 }}
+          {/* Username */}
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 380,
+              marginBottom: 16,
+              animation: usernameShake ? "shake 0.4s ease" : undefined,
+            }}
+          >
+            <label style={{ fontSize: 13, fontWeight: 600, color: C.muted, marginBottom: 6, display: "block" }}>
+              Username
+            </label>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                background: C.surface,
+                borderRadius: 12,
+                border: `1px solid ${username.length > 0 ? (usernameValid ? C.accent + "66" : "#EF444466") : "rgba(255,255,255,0.08)"}`,
+                overflow: "hidden",
+              }}
             >
-              You earn: $<AnimatedCounter target={800} />
-              {" "}in fees.
-            </motion.p>
+              <span style={{ padding: "0 0 0 14px", color: C.primary, fontWeight: 700, fontSize: 16 }}>@</span>
+              <input
+                value={username}
+                onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9._]/g, ""))}
+                placeholder="username"
+                style={{
+                  flex: 1,
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  padding: "14px 12px",
+                  color: C.text,
+                  fontSize: 16,
+                }}
+              />
+              {username.length > 0 && (
+                <span style={{ padding: "0 14px 0 0" }}>
+                  {usernameValid ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.5">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  )}
+                </span>
+              )}
+            </div>
+            {username.length > 0 && !usernameValid && (
+              <span style={{ fontSize: 11, color: "#EF4444", marginTop: 4, display: "block" }}>
+                3-20 chars, letters/numbers/dots/underscores only
+              </span>
+            )}
+          </div>
 
-            <motion.p
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: 0.8 }}
-              style={{ color: C.muted, fontSize: 16, marginBottom: 8 }}
-            >
-              Platform takes: $200 (20%).
-            </motion.p>
-            <motion.p
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: 0.95 }}
-              style={{ color: C.muted, fontSize: 16, marginBottom: 40 }}
-            >
-              Your orb: still out there.
-            </motion.p>
+          {/* Display Name */}
+          <div style={{ width: "100%", maxWidth: 380, marginBottom: 16 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: C.muted, marginBottom: 6, display: "block" }}>
+              Display Name
+            </label>
+            <input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="How others see you"
+              style={{
+                width: "100%",
+                background: C.surface,
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 12,
+                padding: "14px",
+                color: C.text,
+                fontSize: 16,
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
 
-            {/* Stat pills */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 1.1 }}
-              style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}
-            >
+          {/* Bio */}
+          <div style={{ width: "100%", maxWidth: 380, marginBottom: 32 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>Bio</label>
+              <span style={{ fontSize: 12, color: C.muted }}>{bio.length}/160</span>
+            </div>
+            <textarea
+              value={bio}
+              onChange={(e) => setBio(e.target.value.slice(0, 160))}
+              placeholder="Tell the world about yourself..."
+              rows={3}
+              style={{
+                width: "100%",
+                background: C.surface,
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 12,
+                padding: "14px",
+                color: C.text,
+                fontSize: 14,
+                outline: "none",
+                resize: "none",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          {/* Continue */}
+          <button
+            disabled={!usernameValid || profileSaving}
+            onClick={() => {
+              if (!usernameValid) {
+                setUsernameShake(true);
+                setTimeout(() => setUsernameShake(false), 500);
+                return;
+              }
+              saveProfile();
+            }}
+            style={{
+              ...primaryBtn(!usernameValid),
+              background: usernameValid
+                ? `linear-gradient(135deg, ${C.accent}, #0D9668)`
+                : "#333",
+            }}
+          >
+            {profileSaving ? "Saving..." : "Continue \u2192"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ================================================================ */
+  /*  WALKTHROUGH STEP                                                 */
+  /* ================================================================ */
+  if (step === "walkthrough") {
+    const totalPages = 6;
+    const goNext = () => {
+      if (walkthroughPage < totalPages - 1) {
+        setWtDirection("left");
+        setWalkthroughPage((p) => p + 1);
+      }
+    };
+    const goBack = () => {
+      if (walkthroughPage > 0) {
+        setWtDirection("right");
+        setWalkthroughPage((p) => p - 1);
+      }
+    };
+
+    const pageAnim: React.CSSProperties = {
+      animation: `${wtDirection === "left" ? "slideLeft" : "slideRight"} 0.35s ease-out`,
+    };
+
+    const wtBtn = (label: string, onClick: () => void, gradient?: string): React.CSSProperties => ({
+      width: "100%",
+      maxWidth: 380,
+      height: 54,
+      borderRadius: 14,
+      border: "none",
+      background: gradient || `linear-gradient(135deg, ${C.primary}, #7C3AED)`,
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: 700,
+      cursor: "pointer",
+      marginTop: 32,
+    });
+
+    const renderPage = () => {
+      switch (walkthroughPage) {
+        /* ---- Page 0: What is MishMesh ---- */
+        case 0:
+          return (
+            <div style={{ ...centerCol, ...pageAnim }}>
+              {/* Globe with orbiting dots */}
+              <div style={{ width: 160, height: 160, position: "relative", marginBottom: 32 }}>
+                <svg viewBox="0 0 160 160" width="160" height="160">
+                  <circle cx="80" cy="80" r="50" fill="none" stroke={C.primary} strokeWidth="1.5" opacity="0.5" />
+                  <ellipse cx="80" cy="80" rx="50" ry="20" fill="none" stroke={C.primary} strokeWidth="0.7" opacity="0.3" />
+                  <ellipse cx="80" cy="80" rx="20" ry="50" fill="none" stroke={C.primary} strokeWidth="0.7" opacity="0.3" />
+                </svg>
+                {[C.primary, C.accent, C.gold, C.rareBlue, "#EC4899", C.primary, C.accent, C.gold].map((color, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      position: "absolute",
+                      top: "50%",
+                      left: "50%",
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: color,
+                      animation: `orbitDot ${5 + i * 0.7}s linear ${i * 0.4}s infinite`,
+                      transformOrigin: "0 0",
+                    }}
+                  />
+                ))}
+              </div>
+
+              <h2 style={{ fontSize: 28, fontWeight: 900, textAlign: "center", margin: 0 }}>
+                The world is full of treasure.
+              </h2>
+              <h2
+                style={{
+                  fontSize: 28,
+                  fontWeight: 900,
+                  textAlign: "center",
+                  margin: "4px 0 16px",
+                  background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`,
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                }}
+              >
+                Go find it.
+              </h2>
+              <p style={{ fontSize: 15, color: C.muted, textAlign: "center", maxWidth: 320, lineHeight: 1.5 }}>
+                MishMesh lets people drop real crypto and NFTs as Orbs anywhere on Earth. Walk to them. Crack them. Keep what&apos;s inside.
+              </p>
+              <button onClick={goNext} style={wtBtn("", goNext)}>
+                How does it work? &rarr;
+              </button>
+            </div>
+          );
+
+        /* ---- Page 1: Hunt Explained ---- */
+        case 1:
+          return (
+            <div style={{ ...centerCol, ...pageAnim }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: "#06B6D4", letterSpacing: 3, textTransform: "uppercase", marginBottom: 16 }}>
+                HUNT
+              </span>
+              {/* Target icon with rings */}
+              <div style={{ width: 100, height: 100, position: "relative", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#06B6D4" strokeWidth="1.5" style={{ animation: "globeRotate 8s linear infinite" }}>
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="6" />
+                  <circle cx="12" cy="12" r="2" fill="#06B6D4" />
+                  <line x1="12" y1="2" x2="12" y2="6" />
+                  <line x1="12" y1="18" x2="12" y2="22" />
+                  <line x1="2" y1="12" x2="6" y2="12" />
+                  <line x1="18" y1="12" x2="22" y2="12" />
+                </svg>
+                {[0, 1, 2].map((r) => (
+                  <div
+                    key={r}
+                    style={{
+                      position: "absolute",
+                      width: 60 + r * 30,
+                      height: 60 + r * 30,
+                      borderRadius: "50%",
+                      border: "1px solid #06B6D466",
+                      animation: `expandRing 3s ease-out ${r * 0.8}s infinite`,
+                    }}
+                  />
+                ))}
+              </div>
+              <h2 style={{ fontSize: 26, fontWeight: 900, margin: "0 0 20px", textAlign: "center" }}>
+                Hunt Orbs near you
+              </h2>
               {[
-                { label: "Dropper keeps", value: "80%" },
-                { label: "Platform fee", value: "20%" },
-                { label: "Orb persists", value: "Forever" },
-              ].map((s) => (
+                { icon: "M", color: "#06B6D4", title: "Find orbs on the map", desc: "Open the Hunt tab to see glowing orbs placed by other users." },
+                { icon: "W", color: C.accent, title: "Walk to the orb", desc: "Get within 100 meters. The closer you get, the bigger the pulse." },
+                { icon: "T", color: C.gold, title: "Crack it open", desc: "Pay the claim fee and crypto transfers directly to your wallet." },
+              ].map((item, i) => (
                 <div
-                  key={s.label}
+                  key={item.title}
                   style={{
-                    padding: "12px 24px",
-                    borderRadius: 12,
-                    background: `${C.primary}11`,
-                    border: `1px solid ${C.primary}33`,
+                    ...cardStyle,
+                    display: "flex",
+                    gap: 14,
+                    marginBottom: 10,
+                    animation: `slideInRight 0.5s ease-out ${0.2 + i * 0.15}s both`,
                   }}
                 >
-                  <div style={{ color: C.muted, fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", marginBottom: 4 }}>{s.label}</div>
-                  <div style={{ color: C.text, fontSize: 18, fontWeight: 700 }}>{s.value}</div>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: `${item.color}22`, display: "flex", alignItems: "center", justifyContent: "center", color: item.color, fontWeight: 800, fontSize: 14, flexShrink: 0 }}>
+                    {i + 1}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>{item.title}</div>
+                    <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.4 }}>{item.desc}</div>
+                  </div>
                 </div>
               ))}
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
+              <button onClick={goNext} style={wtBtn("", goNext)}>
+                What about dropping? &rarr;
+              </button>
+            </div>
+          );
 
-      {/* ============================================================= */}
-      {/*  8. THREE CHAINS                                               */}
-      {/* ============================================================= */}
-      <section style={{ padding: "120px 32px", maxWidth: 1200, margin: "0 auto" }}>
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          style={{ textAlign: "center", marginBottom: 64 }}
-        >
-          <h2 style={{ fontSize: 48, fontWeight: 800, color: C.text }}>Real crypto. Three chains.</h2>
-        </motion.div>
-
-        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", justifyContent: "center" }}>
-          {[
-            { name: "Bitcoin", symbol: "\u20BF", color: "#F7931A" },
-            { name: "Ethereum", symbol: "\u039E", color: "#627EEA" },
-            { name: "Solana", symbol: "\u25CE", color: "#6366f1" },
-          ].map((ch, i) => (
-            <motion.div
-              key={ch.name}
-              initial={{ opacity: 0, y: 36 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.12 }}
-              style={{
-                flex: "1 1 280px",
-                maxWidth: 360,
-                background: C.surface,
-                border: `1px solid ${ch.color}33`,
-                borderRadius: 20,
-                padding: 40,
-                textAlign: "center",
-                transition: "box-shadow 0.3s, border-color 0.3s",
-                cursor: "default",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = `0 0 40px ${ch.color}22`;
-                e.currentTarget.style.borderColor = `${ch.color}66`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = "none";
-                e.currentTarget.style.borderColor = `${ch.color}33`;
-              }}
-            >
+        /* ---- Page 2: Drop Explained ---- */
+        case 2:
+          return (
+            <div style={{ ...centerCol, ...pageAnim }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: C.primary, letterSpacing: 3, textTransform: "uppercase", marginBottom: 16 }}>
+                DROP
+              </span>
               <div
                 style={{
-                  fontSize: 56,
-                  fontWeight: 700,
-                  color: ch.color,
-                  marginBottom: 16,
-                  lineHeight: 1,
+                  width: 80,
+                  height: 80,
+                  borderRadius: "50%",
+                  background: `radial-gradient(circle, ${C.primary}88, ${C.primary}22)`,
+                  animation: "orbPulse 2.5s ease-in-out infinite",
+                  marginBottom: 24,
+                }}
+              />
+              <h2 style={{ fontSize: 26, fontWeight: 900, margin: "0 0 8px", textAlign: "center" }}>
+                Drop your own Orbs
+              </h2>
+              <p style={{ fontSize: 14, color: C.muted, textAlign: "center", margin: "0 0 24px", maxWidth: 320 }}>
+                Choose a location, set the value, write a message. Your orb goes live instantly.
+              </p>
+              {[
+                { color: C.primary, title: "Crypto Orb", desc: "Drop SOL, ETH, or BTC. First one there wins it." },
+                { color: "#06B6D4", title: "NFT Orb", desc: "Place an NFT at a location. Whoever finds it owns it." },
+                { color: "#EC4899", title: "Stealth Orb", desc: "Invisible until hunters are 50m away. Ultimate hide and seek." },
+              ].map((orb, i) => (
+                <div
+                  key={orb.title}
+                  style={{
+                    ...cardStyle,
+                    display: "flex",
+                    gap: 14,
+                    marginBottom: 10,
+                    borderColor: `${orb.color}22`,
+                    animation: `fadeUp 0.5s ease-out ${0.1 + i * 0.12}s both`,
+                  }}
+                >
+                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${orb.color}22`, flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: orb.color, marginBottom: 2 }}>{orb.title}</div>
+                    <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.4 }}>{orb.desc}</div>
+                  </div>
+                </div>
+              ))}
+              <button onClick={goNext} style={wtBtn("", goNext)}>
+                What about my wallet? &rarr;
+              </button>
+            </div>
+          );
+
+        /* ---- Page 3: Wallet Explained ---- */
+        case 3:
+          return (
+            <div style={{ ...centerCol, ...pageAnim }}>
+              <svg width="60" height="60" viewBox="0 0 24 24" fill="none" style={{ marginBottom: 20 }}>
+                <rect x="2" y="6" width="20" height="14" rx="3" stroke={C.accent} strokeWidth="1.5" />
+                <path d="M16 12h2" stroke={C.primary} strokeWidth="1.5" />
+                <path d="M2 10h20" stroke={C.accent} strokeWidth="1.5" />
+              </svg>
+              <h2 style={{ fontSize: 26, fontWeight: 900, margin: "0 0 24px", textAlign: "center" }}>
+                Real crypto. Real value.
+              </h2>
+              {/* Chain circles */}
+              <div style={{ display: "flex", gap: 16, marginBottom: 28 }}>
+                {[
+                  { label: "SOL", color: C.primary },
+                  { label: "ETH", color: C.rareBlue },
+                  { label: "BTC", color: C.gold },
+                ].map((c, i) => (
+                  <div
+                    key={c.label}
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: "50%",
+                      background: `${c.color}22`,
+                      border: `2px solid ${c.color}44`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 14,
+                      fontWeight: 800,
+                      color: c.color,
+                      animation: `fadeUp 0.5s ease-out ${i * 0.15}s both`,
+                    }}
+                  >
+                    {c.label}
+                  </div>
+                ))}
+              </div>
+              {[
+                { color: C.accent, icon: "S", text: "Non-custodial -- only you control your keys" },
+                { color: "#06B6D4", icon: "C", text: "All transactions happen on-chain" },
+                { color: C.gold, icon: "D", text: "Cracked orb earnings deposit automatically" },
+              ].map((f, i) => (
+                <div
+                  key={f.text}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 14,
+                    padding: "14px 18px",
+                    borderRadius: 12,
+                    background: C.surface,
+                    width: "100%",
+                    maxWidth: 380,
+                    marginBottom: 10,
+                    animation: `slideInRight 0.5s ease-out ${0.2 + i * 0.12}s both`,
+                  }}
+                >
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: `${f.color}22`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={f.color} strokeWidth="2">
+                      {i === 0 && <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />}
+                      {i === 1 && <><circle cx="12" cy="12" r="10" /><path d="M8 12l2 2 4-4" /></>}
+                      {i === 2 && <><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></>}
+                    </svg>
+                  </div>
+                  <span style={{ fontSize: 14, color: C.muted }}>{f.text}</span>
+                </div>
+              ))}
+              <button onClick={goNext} style={wtBtn("", goNext)}>
+                What else can I do? &rarr;
+              </button>
+            </div>
+          );
+
+        /* ---- Page 4: Profile and Social ---- */
+        case 4:
+          return (
+            <div style={{ ...centerCol, ...pageAnim }}>
+              <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="1.5" style={{ marginBottom: 20 }}>
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+              <h2 style={{ fontSize: 26, fontWeight: 900, margin: "0 0 4px", textAlign: "center" }}>
+                More than just hunting
+              </h2>
+              <p style={{ fontSize: 14, color: C.muted, margin: "0 0 24px", textAlign: "center" }}>
+                A full social crypto experience
+              </p>
+              {[
+                { color: C.primary, title: "Your Profile", desc: "Track stats, badges, and cities conquered." },
+                { color: C.gold, title: "Leaderboards", desc: "Compete with hunters worldwide." },
+                { color: "#06B6D4", title: "Messages", desc: "When you crack an orb, a chat opens automatically." },
+                { color: C.accent, title: "Hex Land", desc: "Claim territory. Earn passive income." },
+              ].map((f, i) => (
+                <div
+                  key={f.title}
+                  style={{
+                    ...cardStyle,
+                    display: "flex",
+                    gap: 14,
+                    marginBottom: 10,
+                    animation: `slideInRight 0.5s ease-out ${0.1 + i * 0.12}s both`,
+                  }}
+                >
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: `${f.color}22`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={f.color} strokeWidth="2">
+                      {i === 0 && <><circle cx="12" cy="8" r="4" /><path d="M6 20v-2a6 6 0 0 1 12 0v2" /></>}
+                      {i === 1 && <><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 7 7 7 7" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 17 7 17 7" /><path d="M12 14l-3-3h6l-3 3z" /></>}
+                      {i === 2 && <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>}
+                      {i === 3 && <><polygon points="12 2 19.56 6.5 19.56 15.5 12 20 4.44 15.5 4.44 6.5" /></>}
+                    </svg>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>{f.title}</div>
+                    <div style={{ fontSize: 12, color: C.muted }}>{f.desc}</div>
+                  </div>
+                </div>
+              ))}
+              <button onClick={goNext} style={wtBtn("", goNext)}>
+                I am ready! &rarr;
+              </button>
+            </div>
+          );
+
+        /* ---- Page 5: Let's Go ---- */
+        case 5:
+          return (
+            <div style={{ ...centerCol, ...pageAnim }}>
+              {/* Compass with orbiting dots */}
+              <div style={{ width: 140, height: 140, position: "relative", marginBottom: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke={C.text} strokeWidth="1.5">
+                  <circle cx="12" cy="12" r="10" />
+                  <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88" fill={C.primary} stroke={C.primary} />
+                </svg>
+                {/* Rotating ring */}
+                <div
+                  style={{
+                    position: "absolute",
+                    width: 130,
+                    height: 130,
+                    borderRadius: "50%",
+                    border: `2px solid transparent`,
+                    borderImage: `linear-gradient(135deg, ${C.primary}, ${C.accent}) 1`,
+                    animation: "globeRotate 10s linear infinite",
+                  }}
+                />
+                {/* 16 orbiting dots */}
+                {Array.from({ length: 16 }, (_, i) => {
+                  const colors = [C.primary, C.accent, C.gold, C.rareBlue, "#EC4899", "#06B6D4", C.primary, C.accent];
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        position: "absolute",
+                        top: "50%",
+                        left: "50%",
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        background: colors[i % colors.length],
+                        animation: `orbitDot ${4 + i * 0.5}s linear ${i * 0.3}s infinite`,
+                        transformOrigin: "0 0",
+                      }}
+                    />
+                  );
+                })}
+              </div>
+
+              <h2 style={{ fontSize: 28, fontWeight: 900, margin: "0 0 8px", textAlign: "center" }}>
+                Your city is waiting.
+              </h2>
+              <p style={{ fontSize: 15, color: C.muted, textAlign: "center", maxWidth: 320, lineHeight: 1.5, marginBottom: 28 }}>
+                Every orb someone drops is yours to find. Every orb you drop is a gift or a trap.
+              </p>
+
+              {/* 3 stat cards */}
+              <div style={{ display: "flex", gap: 10, marginBottom: 32, width: "100%", maxWidth: 380 }}>
+                {[
+                  { value: "3 Wallets", color: C.primary },
+                  { value: "100m Range", color: C.accent },
+                  { value: "30d Orb Life", color: C.gold },
+                ].map((s) => (
+                  <div
+                    key={s.value}
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      padding: "14px 8px",
+                      borderRadius: 14,
+                      background: C.card,
+                      border: `1px solid ${s.color}22`,
+                    }}
+                  >
+                    <div style={{ fontSize: 14, fontWeight: 800, color: s.color }}>{s.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={() => router.push("/hunt")}
+                style={{
+                  ...primaryBtn(),
+                  background: `linear-gradient(135deg, #6366F1, #06B6D4)`,
+                  boxShadow: "0 0 30px #6366F144",
                 }}
               >
-                {ch.symbol}
-              </div>
-              <h3 style={{ fontSize: 24, fontWeight: 700, color: C.text }}>{ch.name}</h3>
-            </motion.div>
+                <span style={{ position: "relative", zIndex: 2 }}>Start Hunting &rarr;</span>
+                <span style={{ position: "absolute", top: 0, left: 0, width: "40%", height: "100%", background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)", animation: "shimmer 3s ease-in-out infinite" }} />
+              </button>
+            </div>
+          );
+
+        default:
+          return null;
+      }
+    };
+
+    return (
+      <div style={fullScreen}>
+        <style>{keyframes}</style>
+
+        {/* Skip */}
+        <button
+          onClick={() => router.push("/hunt")}
+          style={{
+            position: "absolute",
+            top: 16,
+            right: 16,
+            background: "none",
+            border: "none",
+            color: C.muted,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
+            zIndex: 10,
+          }}
+        >
+          Skip
+        </button>
+
+        {/* Back */}
+        {walkthroughPage > 0 && (
+          <button onClick={goBack} style={backBtn}>
+            &lsaquo;
+          </button>
+        )}
+
+        {renderPage()}
+
+        {/* Progress bar */}
+        <div
+          style={{
+            position: "fixed",
+            bottom: 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            display: "flex",
+            gap: 6,
+            zIndex: 10,
+          }}
+        >
+          {Array.from({ length: totalPages }, (_, i) => (
+            <div
+              key={i}
+              style={{
+                width: walkthroughPage === i ? 24 : 8,
+                height: 8,
+                borderRadius: 4,
+                background: walkthroughPage === i ? C.primary : "rgba(255,255,255,0.15)",
+                transition: "all 0.3s ease",
+              }}
+            />
           ))}
         </div>
-      </section>
+      </div>
+    );
+  }
 
-      {/* ============================================================= */}
-      {/*  9. FINAL CTA                                                  */}
-      {/* ============================================================= */}
-      <section style={{ padding: "140px 32px", textAlign: "center" }}>
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.7 }}
-          style={{ maxWidth: 800, margin: "0 auto" }}
-        >
-          <h2 style={{ fontSize: "clamp(36px, 6vw, 56px)", fontWeight: 900, color: "#fff", lineHeight: 1.1, marginBottom: 8 }}>
-            The world is your trading floor.
-          </h2>
-          <h2
-            style={{
-              fontSize: "clamp(36px, 6vw, 56px)",
-              fontWeight: 900,
-              lineHeight: 1.1,
-              marginBottom: 48,
-              background: `linear-gradient(90deg, ${C.primary}, ${C.accent})`,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            Start hunting.
-          </h2>
-
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 40 }}>
-            <AppStoreButtons />
-          </div>
-
-          <div style={{ maxWidth: 480, margin: "0 auto" }}>
-            <WaitlistForm />
-          </div>
-        </motion.div>
-      </section>
-
-      {/* ============================================================= */}
-      {/*  10. FOOTER                                                    */}
-      {/* ============================================================= */}
-      <footer
-        style={{
-          background: "#060609",
-          borderTop: `1px solid ${C.border}`,
-          padding: "32px 32px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 16,
-          maxWidth: 1200,
-          margin: "0 auto",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <MMLogo size={28} />
-          <span style={{ color: C.muted, fontSize: 14, fontWeight: 600 }}>MishMesh</span>
-          <span style={{ color: C.muted, fontSize: 14 }}>2026</span>
-        </div>
-        <div style={{ display: "flex", gap: 24 }}>
-          <Link href="/privacy" style={{ color: C.muted, fontSize: 14, textDecoration: "none" }}>Privacy</Link>
-          <Link href="/terms" style={{ color: C.muted, fontSize: 14, textDecoration: "none" }}>Terms</Link>
-        </div>
-      </footer>
+  /* Fallback */
+  return (
+    <div style={fullScreen}>
+      <style>{keyframes}</style>
+      <div style={centerCol}>
+        <p style={{ color: C.muted }}>Loading...</p>
+      </div>
     </div>
   );
 }

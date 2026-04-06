@@ -3,7 +3,7 @@
 // Signal proposals, AI voting, debates, performance tracking
 // ══════════════════════════════════════════════════════════════
 
-import { supabaseAdmin } from "./supabase";
+import { supabaseAdmin } from "./supabase-admin";
 import { getUserAIConfig, callUserLLM } from "./ai-providers";
 import {
   SyndicateVote, SyndicateChatMessage,

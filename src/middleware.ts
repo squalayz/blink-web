@@ -41,15 +41,8 @@ export function middleware(req: NextRequest) {
   // ═══ 0. AUTH-BASED ROUTING ═══
   const hasSession = req.cookies.get("mm-session");
 
-  // Unauthenticated users hitting "/" → serve landing.html (no React overhead)
-  if (pathname === "/") {
-    if (!hasSession) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/landing.html";
-      return NextResponse.rewrite(url);
-    }
-    // Authenticated users hitting "/" → let them through (page.tsx handles redirect to dashboard)
-  }
+  // "/" → always serve the Next.js page.tsx (landing.html was removed)
+  // page.tsx handles both logged-in and logged-out states internally
 
   // Unauthenticated users hitting protected pages → redirect to signin
   const protectedPaths = ["/dashboard", "/marketplace", "/leaderboard", "/explore"];
@@ -123,11 +116,12 @@ export function middleware(req: NextRequest) {
   // Content Security Policy
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://api.mapbox.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://api.mapbox.com",
+    "font-src 'self' https://fonts.gstatic.com https://api.mapbox.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://mainnet.base.org https://api.dexscreener.com https://*.walletconnect.com wss://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.org https://*.web3modal.org https://*.web3modal.com https://pulse.walletconnect.org https://rpc.ankr.com https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.groq.com https://api.x.ai https://openrouter.ai",
+    "worker-src blob:",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://mainnet.base.org https://api.dexscreener.com https://*.walletconnect.com wss://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.org https://*.web3modal.org https://*.web3modal.com https://pulse.walletconnect.org https://rpc.ankr.com https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.groq.com https://api.x.ai https://openrouter.ai https://api.mapbox.com https://events.mapbox.com",
     "frame-src 'self' https://*.walletconnect.com https://*.walletconnect.org https://*.web3modal.org https://*.web3modal.com",
     "frame-ancestors 'self'",
   ].join("; ");
@@ -137,7 +131,7 @@ export function middleware(req: NextRequest) {
   res.headers.set("X-Frame-Options", "SAMEORIGIN");
   res.headers.set("X-XSS-Protection", "1; mode=block");
   res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");
 
   if (isProd) {
     res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");

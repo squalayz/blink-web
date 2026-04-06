@@ -1,5 +1,5 @@
 import { MetadataRoute } from "next";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const BASE = "https://mishmesh.ai";
 

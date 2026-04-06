@@ -4,10 +4,10 @@ import Link from "next/link";
 
 const C = {
   bg: "#0A0A0F",
-  surface: "#111118",
-  card: "#1C1C28",
-  primary: "#9945FF",
-  accent: "#14F195",
+  surface: "#0d0d14",
+  card: "#1a1a24",
+  primary: "#6366f1",
+  accent: "#06b6d4",
   text: "#F9FAFB",
   textMuted: "#9CA3AF",
   border: "#1F2028",
@@ -19,16 +19,16 @@ function MMLogo({ size = 44 }: { size?: number }) {
     <svg width={size} height={h} viewBox="0 0 120 70">
       <defs>
         <linearGradient id="lgL" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#9945FF" />
+          <stop offset="0%" stopColor="#6366f1" />
           <stop offset="100%" stopColor="#7C3AED" />
         </linearGradient>
         <linearGradient id="lgR" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#14F195" />
+          <stop offset="0%" stopColor="#06b6d4" />
           <stop offset="100%" stopColor="#10B981" />
         </linearGradient>
         <linearGradient id="lgM" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#9945FF" />
-          <stop offset="100%" stopColor="#14F195" />
+          <stop offset="0%" stopColor="#6366f1" />
+          <stop offset="100%" stopColor="#06b6d4" />
         </linearGradient>
       </defs>
       <circle cx="35" cy="35" r="24" fill="none" stroke="url(#lgL)" strokeWidth="5" />

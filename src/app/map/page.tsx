@@ -45,10 +45,10 @@ interface Position {
 
 const COLORS = {
   bg: "#0A0A0F",
-  surface: "#111118",
-  card: "#1C1C28",
-  primary: "#9945FF",
-  accent: "#14F195",
+  surface: "#0d0d14",
+  card: "#1a1a24",
+  primary: "#6366f1",
+  accent: "#06b6d4",
   gold: "#F59E0B",
   text: "#F9FAFB",
   textMuted: "#9CA3AF",
@@ -70,7 +70,7 @@ const CHAIN_FILTER_MAP: Record<string, string> = {
 };
 
 const CHAIN_PILL_COLORS: Record<string, string> = {
-  SOL: "#9945FF",
+  SOL: "#9945FF",  // SOL chain branding stays
   ETH: "#627EEA",
   BTC: "#F7931A",
 };
@@ -231,34 +231,56 @@ export default function MapPage() {
   const nearbyCount = orbsWithDistance.filter((o) => o.distance < 5000).length;
 
   /* ---- Claim flow ---- */
-  const handleClaim = async (orb: Orb) => {
-    if (!user) return;
-    setClaimingId(orb.id);
-    try {
-      const { error: claimErr } = await supabase.from("orb_claims").insert({
-        orb_id: orb.id,
-        user_id: user.id,
-        fee_paid_usd: orb.claim_fee_usd,
-      });
-      if (claimErr) throw claimErr;
+  const [crackError, setCrackError] = useState<string | null>(null);
+  const [crackExplorerUrl, setCrackExplorerUrl] = useState<string | null>(null);
 
-      const { error: updateErr } = await supabase
-        .from("orbs")
-        .update({
-          status: "claimed",
-          claimed_by: user.id,
-          claimed_at: new Date().toISOString(),
-        })
-        .eq("id", orb.id);
-      if (updateErr) throw updateErr;
+  const handleClaim = async (orb: Orb) => {
+    if (!user || !position) return;
+    setClaimingId(orb.id);
+    setCrackError(null);
+    setCrackExplorerUrl(null);
+    try {
+      // Try the edge function crack flow first (presigned tx)
+      if (orb.status === "pending") {
+        const res = await fetch("/api/orbs/crack", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orbId: orb.id,
+            gpsLat: position.lat,
+            gpsLng: position.lng,
+          }),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          setCrackError(result.error ?? "Crack failed. Please try again.");
+          setClaimingId(null);
+          return;
+        }
+        if (result.explorerUrl) setCrackExplorerUrl(result.explorerUrl);
+      } else {
+        // Legacy active orb: direct Supabase update
+        const { error: claimErr } = await supabase.from("orb_claims").insert({
+          orb_id: orb.id,
+          user_id: user.id,
+          fee_paid_usd: orb.claim_fee_usd,
+        });
+        if (claimErr) throw claimErr;
+        const { error: updateErr } = await supabase
+          .from("orbs")
+          .update({ status: "claimed", claimed_by: user.id, claimed_at: new Date().toISOString() })
+          .eq("id", orb.id);
+        if (updateErr) throw updateErr;
+      }
 
       setClaimSuccess(true);
       setConfirmOrb(null);
       setSelectedOrb(null);
-      setTimeout(() => setClaimSuccess(false), 2500);
+      setTimeout(() => { setClaimSuccess(false); setCrackExplorerUrl(null); }, 4000);
       await fetchOrbs();
-    } catch {
-      alert("Claim failed. Please try again.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Crack failed. Please try again.";
+      setCrackError(msg);
     } finally {
       setClaimingId(null);
     }
@@ -1200,18 +1222,41 @@ export default function MapPage() {
                 textAlign: "center",
               }}
             >
-              <h3 style={{ color: COLORS.text, fontSize: 18, fontWeight: 700, margin: "0 0 8px" }}>
+              <h3 style={{ color: COLORS.text, fontSize: 18, fontWeight: 700, margin: "0 0 16px" }}>
                 Crack this orb?
               </h3>
-              <p style={{ color: COLORS.textMuted, fontSize: 14, margin: "0 0 6px" }}>
-                {confirmOrb.amount} {confirmOrb.currency} from {confirmOrb.dropper_name}
-              </p>
-              <p style={{ color: COLORS.gold, fontSize: 15, fontWeight: 700, margin: "0 0 20px" }}>
-                Fee: ${confirmOrb.claim_fee_usd?.toFixed(2)}
-              </p>
+              {/* Reward */}
+              <div style={{ background: COLORS.bg, borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ color: COLORS.textMuted, fontSize: 13 }}>Reward inside</span>
+                  <span style={{ color: COLORS.accent, fontSize: 14, fontWeight: 700 }}>{confirmOrb.amount} {confirmOrb.currency}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ color: COLORS.textMuted, fontSize: 13 }}>Claim fee</span>
+                  <span style={{ color: COLORS.text, fontSize: 13 }}>${confirmOrb.claim_fee_usd?.toFixed(2)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ color: COLORS.textMuted, fontSize: 13 }}>Platform fee (10%)</span>
+                  <span style={{ color: COLORS.textMuted, fontSize: 13 }}>${(confirmOrb.claim_fee_usd * 0.1).toFixed(3)}</span>
+                </div>
+                <div style={{ height: 1, background: COLORS.border, margin: "8px 0" }} />
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: COLORS.textMuted, fontSize: 13, fontWeight: 600 }}>You pay total</span>
+                  <span style={{ color: COLORS.gold, fontSize: 13, fontWeight: 700 }}>${(confirmOrb.claim_fee_usd * 1.1).toFixed(2)}</span>
+                </div>
+              </div>
+              {crackError && (
+                <p style={{ color: "#F87171", fontSize: 13, margin: "0 0 10px", textAlign: "left" }}>{crackError}</p>
+              )}
+              {crackExplorerUrl && (
+                <a href={crackExplorerUrl} target="_blank" rel="noopener noreferrer"
+                  style={{ display: "block", color: COLORS.accent, fontSize: 13, marginBottom: 10, wordBreak: "break-all" }}>
+                  View transaction
+                </a>
+              )}
               <div style={{ display: "flex", gap: 10 }}>
                 <button
-                  onClick={() => setConfirmOrb(null)}
+                  onClick={() => { setConfirmOrb(null); setCrackError(null); }}
                   style={{
                     flex: 1,
                     padding: "12px 0",
@@ -1242,7 +1287,7 @@ export default function MapPage() {
                     opacity: claimingId === confirmOrb.id ? 0.6 : 1,
                   }}
                 >
-                  {claimingId === confirmOrb.id ? "Cracking..." : "Confirm"}
+                  {claimingId === confirmOrb.id ? "Cracking..." : "Crack It"}
                 </button>
               </div>
             </motion.div>

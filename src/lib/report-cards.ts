@@ -3,7 +3,7 @@
 // Grades every trade A-F, generates lessons, tracks post-exit prices
 // ══════════════════════════════════════════════════════════════
 
-import { supabaseAdmin } from "./supabase";
+import { supabaseAdmin } from "./supabase-admin";
 
 export interface ReportCard {
   token_symbol: string;

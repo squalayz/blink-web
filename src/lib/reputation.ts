@@ -2,7 +2,7 @@
 // MishMesh.ai — Reputation Engine
 // ══════════════════════════════════════════════════════════════
 
-import { supabaseAdmin } from "./supabase";
+import { supabaseAdmin } from "./supabase-admin";
 
 export async function calculateReputation(agentId: string, userId: string): Promise<number> {
   // Trading: 30d P&L percentile (40%)
