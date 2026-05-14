@@ -266,7 +266,7 @@ export default function TrailPassportPage() {
           {[
             { label: 'Started', value: formatDate(progress.started_at) },
             { label: 'Time Elapsed', value: elapsed() },
-            { label: 'Orbs Cracked', value: `${progress.orbs_cracked} / ${orbCount}` },
+            { label: 'BLINKS Caught', value: `${progress.orbs_cracked} / ${orbCount}` },
             ...(isCompleted && progress.finish_rank ? [{ label: 'Finish Rank', value: `#${progress.finish_rank}` }] : []),
             ...(isCompleted ? [{ label: 'Completion Time', value: formatTime(progress.completion_time_seconds) }] : []),
           ].map((row, i) => (

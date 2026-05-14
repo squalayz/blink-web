@@ -550,7 +550,7 @@ function BottomOverlay({ nearbyCount }: { nearbyCount: number }) {
         }}
       >
         <DropIcon />
-        Launch Orb
+        Launch BLINK
       </a>
     </div>
   );

@@ -546,7 +546,7 @@ export default function MapPage() {
                     if (/Android/.test(ua)) return "Tap the lock icon → Permissions → Location";
                     return "Tap the lock icon in your address bar → Allow Location";
                   })()
-                : "Enable location to find nearby orbs"}
+                : "Enable location to find nearby BLINKS"}
             </span>
             {!isDenied && (
               <button
