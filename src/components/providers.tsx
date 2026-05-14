@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { User, Session } from "@supabase/supabase-js";
+import Web3Providers from "./Web3Providers";
 
 interface AuthContextType {
   user: User | null;
@@ -47,13 +48,20 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    try {
+      await fetch("/api/auth/siwe/logout", { method: "POST" });
+    } catch {
+      // Cookie clear is best-effort.
+    }
     setUser(null);
     setSession(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut }}>
-      {children}
-    </AuthContext.Provider>
+    <Web3Providers>
+      <AuthContext.Provider value={{ user, session, loading, signOut }}>
+        {children}
+      </AuthContext.Provider>
+    </Web3Providers>
   );
 }
