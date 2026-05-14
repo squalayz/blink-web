@@ -33,7 +33,7 @@ export default function AcceptableUsePage() {
       </Section>
 
       <Section title="5. Reporting Violations">
-        <P>If you become aware of any violation of this AUP, please report it to abuse@blinkworld.com. We take all reports seriously and will investigate promptly.</P>
+        <P>If you become aware of any violation of this AUP, please report it to abuse@blinkworld.xyz. We take all reports seriously and will investigate promptly.</P>
       </Section>
 
       <Section title="6. Enforcement">

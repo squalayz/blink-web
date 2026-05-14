@@ -8,4 +8,4 @@ Disallow: /onboarding
 Disallow: /messages
 Disallow: /catch/
 
-Sitemap: https://blinkworld.com/sitemap.xml
+Sitemap: https://blinkworld.xyz/sitemap.xml

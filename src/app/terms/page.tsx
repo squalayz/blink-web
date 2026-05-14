@@ -94,7 +94,7 @@ export default function TermsPage() {
       </Section>
 
       <Section title="16. Contact">
-        <P>For questions regarding these Terms, please contact us at legal@blinkworld.com.</P>
+        <P>For questions regarding these Terms, please contact us at legal@blinkworld.xyz.</P>
       </Section>
     </LegalLayout>
   );

@@ -1,31 +1,31 @@
-# Domain Migration Changelog: mishmesh.ai → blinkworld.com
+# Domain Migration Changelog: mishmesh.ai → blinkworld.xyz
 
-Primary domain is now **blinkworld.com**. mishmesh.ai stays live and 301s to blinkworld.com (handled by `next.config.js` redirects; both domains route to the same Vercel app).
+Primary domain is now **blinkworld.xyz**. mishmesh.ai stays live and 301s to blinkworld.xyz (handled by `next.config.js` redirects; both domains route to the same Vercel app).
 
 ## Changed
 
 ### Core URLs / SEO
-- `src/app/layout.tsx` — `metadataBase` and `openGraph.url` → `https://blinkworld.com`
-- `src/app/sitemap.ts` — `BASE` → `https://blinkworld.com`
-- `public/robots.txt` — `Sitemap:` → `https://blinkworld.com/sitemap.xml`
+- `src/app/layout.tsx` — `metadataBase` and `openGraph.url` → `https://blinkworld.xyz`
+- `src/app/sitemap.ts` — `BASE` → `https://blinkworld.xyz`
+- `public/robots.txt` — `Sitemap:` → `https://blinkworld.xyz/sitemap.xml`
 
 ### CORS
-- `src/middleware.ts` — added `https://blinkworld.com` and `https://www.blinkworld.com` to the allowlist. mishmesh.ai entries kept so the 301 path stays healthy.
+- `src/middleware.ts` — added `https://blinkworld.xyz` and `https://www.blinkworld.xyz` to the allowlist. mishmesh.ai entries kept so the 301 path stays healthy.
 
 ### Contact addresses (user-facing copy)
-- `src/app/privacy/page.tsx` — `legal@mishmesh.ai` → `legal@blinkworld.com`
-- `src/app/terms/page.tsx` — `legal@mishmesh.ai` → `legal@blinkworld.com`
-- `src/app/acceptable-use/page.tsx` — `abuse@mishmesh.ai` → `abuse@blinkworld.com`
-- `src/app/support/page.tsx` — `support@mishmesh.ai`, `legal@mishmesh.ai`, `mishmesh.ai/privacy`, `mishmesh.ai/terms` → `blinkworld.com` equivalents
+- `src/app/privacy/page.tsx` — `legal@mishmesh.ai` → `legal@blinkworld.xyz`
+- `src/app/terms/page.tsx` — `legal@mishmesh.ai` → `legal@blinkworld.xyz`
+- `src/app/acceptable-use/page.tsx` — `abuse@mishmesh.ai` → `abuse@blinkworld.xyz`
+- `src/app/support/page.tsx` — `support@mishmesh.ai`, `legal@mishmesh.ai`, `mishmesh.ai/privacy`, `mishmesh.ai/terms` → `blinkworld.xyz` equivalents
 
 ### NFT metadata
-- `supabase/functions/mint-nft/index.ts` — `external_url` in minted NFT metadata → `https://blinkworld.com` (so OpenSea / wallet UIs link to the new domain)
+- `supabase/functions/mint-nft/index.ts` — `external_url` in minted NFT metadata → `https://blinkworld.xyz` (so OpenSea / wallet UIs link to the new domain)
 
 ### Redirects (new)
 - `next.config.js` — added `redirects()` block. 301s:
-  - `mishmesh.ai/*` → `https://blinkworld.com/*`
-  - `www.mishmesh.ai/*` → `https://blinkworld.com/*`
-  - `www.blinkworld.com/*` → `https://blinkworld.com/*` (apex canonical)
+  - `mishmesh.ai/*` → `https://blinkworld.xyz/*`
+  - `www.mishmesh.ai/*` → `https://blinkworld.xyz/*`
+  - `www.blinkworld.xyz/*` → `https://blinkworld.xyz/*` (apex canonical)
 
 ## Intentionally NOT changed
 
@@ -39,5 +39,5 @@ Per the migration brief, the following retain `mishmesh.ai` for now:
 ## Verification
 
 - `npm run build` ✅ passes.
-- All listed user-facing surfaces (legal pages, support, OG/metadata, sitemap, robots, NFT metadata) now point at `blinkworld.com`.
+- All listed user-facing surfaces (legal pages, support, OG/metadata, sitemap, robots, NFT metadata) now point at `blinkworld.xyz`.
 - mishmesh.ai will continue to work for inbound traffic via 301 once both domains are pointed at the Vercel project.

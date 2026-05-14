@@ -95,8 +95,8 @@ export function middleware(req: NextRequest) {
 
   if (pathname.startsWith("/api/tokens") || pathname.startsWith("/marketplace")) {
     const allowedOrigins = [
-      "https://blinkworld.com",
-      "https://www.blinkworld.com",
+      "https://blinkworld.xyz",
+      "https://www.blinkworld.xyz",
       "https://mishmesh.ai",
       "https://www.mishmesh.ai",
       "http://localhost:3000",

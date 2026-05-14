@@ -14,25 +14,25 @@ const nextConfig = {
   poweredByHeader: false,
   compress: true,
   reactStrictMode: true,
-  // Redirects — 301 mishmesh.ai → blinkworld.com, and www → apex
+  // Redirects — 301 mishmesh.ai → blinkworld.xyz, and www → apex
   async redirects() {
     return [
       {
         source: "/:path*",
         has: [{ type: "host", value: "mishmesh.ai" }],
-        destination: "https://blinkworld.com/:path*",
+        destination: "https://blinkworld.xyz/:path*",
         permanent: true,
       },
       {
         source: "/:path*",
         has: [{ type: "host", value: "www.mishmesh.ai" }],
-        destination: "https://blinkworld.com/:path*",
+        destination: "https://blinkworld.xyz/:path*",
         permanent: true,
       },
       {
         source: "/:path*",
-        has: [{ type: "host", value: "www.blinkworld.com" }],
-        destination: "https://blinkworld.com/:path*",
+        has: [{ type: "host", value: "www.blinkworld.xyz" }],
+        destination: "https://blinkworld.xyz/:path*",
         permanent: true,
       },
     ];

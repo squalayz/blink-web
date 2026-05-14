@@ -58,7 +58,7 @@ serve(async (req) => {
         { trait_type: "Dropped By", value: orb.dropper_name || "Anonymous" },
         { trait_type: "Cracked By", value: walletAddress },
       ],
-      external_url: "https://blinkworld.com",
+      external_url: "https://blinkworld.xyz",
     };
 
     const pinRes = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {

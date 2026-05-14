@@ -1,6 +1,6 @@
 import { MetadataRoute } from "next";
 
-const BASE = "https://blinkworld.com";
+const BASE = "https://blinkworld.xyz";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
