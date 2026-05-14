@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useAccount } from "wagmi";
 import {
@@ -11,6 +11,7 @@ import {
   type Creature,
 } from "@/lib/bestiary";
 import { CreatureModal } from "./CreatureModal";
+import { sounds } from "@/lib/sounds";
 
 const SURFACE2 = "#1a1a24";
 const BORDER = "rgba(0,255,136,0.10)";
@@ -83,6 +84,7 @@ export function YourBestiary({
   const [selected, setSelected] = useState<Creature | null>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const fallback = useBlinkHoldings();
+  const revealedRef = useRef(false);
 
   const resolved = useMemo<number[] | null>(() => {
     if (ownedIds) return ownedIds;
@@ -95,6 +97,14 @@ export function YourBestiary({
     const set = new Set(resolved);
     return BESTIARY.filter((c) => set.has(c.id));
   }, [resolved]);
+
+  useEffect(() => {
+    if (variant === "compact") return;
+    if (revealedRef.current) return;
+    if (owned.length === 0) return;
+    revealedRef.current = true;
+    sounds.play("reveal");
+  }, [variant, owned.length]);
 
   // Council membership = any Genesis or Mythic.
   const isCouncil = owned.length > 0;
@@ -183,6 +193,7 @@ export function YourBestiary({
             href={BLINK_MINT_URL}
             target="_blank"
             rel="noreferrer"
+            onMouseEnter={() => sounds.play("tick")}
             style={{
               display: "inline-block",
               padding: "10px 22px",

@@ -11,6 +11,13 @@ import {
   type OrbCurrency,
 } from "@/lib/theme";
 import { distanceMeters } from "@/lib/geo";
+import { sounds, type BlinkSound } from "@/lib/sounds";
+
+function catchSoundFor(rarity: OrbRarity): BlinkSound {
+  if (rarity === "Legendary") return "catchMythic";
+  if (rarity === "Rare") return "catchRare";
+  return "catchCommon";
+}
 
 /* ================================================================== */
 /*  Types                                                              */
@@ -468,11 +475,12 @@ export default function CrackExperience({
       setTxHash(data.tx_hash ?? data.txHash ?? "simulated_tx_hash");
       setConfirmed(true);
       setPhaseSync("DONE");
+      sounds.play(catchSoundFor(rarity));
     } catch {
       setCollectError("Network error. Please try again.");
       setPhaseSync("REVEAL");
     }
-  }, [session, orb, userId, userProfile]);
+  }, [session, orb, rarity, userId, userProfile]);
 
   /* Rarity label */
   const RARITY_LABELS: Record<OrbRarity, string> = {
@@ -559,6 +567,7 @@ export default function CrackExperience({
                 boxShadow: `0 0 40px ${rarityCol}88, 0 4px 24px rgba(0,0,0,0.4)`,
                 transition: "box-shadow 0.2s, transform 0.1s",
               }}
+              onMouseEnter={() => sounds.play("tick")}
               onMouseDown={(e) => { (e.currentTarget as HTMLElement).style.transform = "scale(0.96)"; }}
               onMouseUp={(e) => { (e.currentTarget as HTMLElement).style.transform = "scale(1)"; }}
             >

@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Orb, rarityColor } from '@/lib/theme';
+import { sounds } from '@/lib/sounds';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
@@ -107,6 +108,8 @@ export default function HuntMap({ orbs, userPosition, onSelectOrb, mapRef: exter
   const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const hasInitialView = useRef(false);
+  const spottedIdsRef = useRef<Set<string>>(new Set());
+  const lastSpottedAtRef = useRef<number>(0);
 
   /* ── Inject CSS ── */
   useEffect(() => {
@@ -256,6 +259,15 @@ export default function HuntMap({ orbs, userPosition, onSelectOrb, mapRef: exter
           .setLngLat([orb.longitude, orb.latitude])
           .addTo(map);
         markersRef.current.set(orb.id, marker);
+
+        if (!isClaimed && !spottedIdsRef.current.has(orb.id)) {
+          spottedIdsRef.current.add(orb.id);
+          const now = Date.now();
+          if (now - lastSpottedAtRef.current > 220) {
+            lastSpottedAtRef.current = now;
+            sounds.play('spotted');
+          }
+        }
       }
     });
   }, [orbs, onSelectOrb]);

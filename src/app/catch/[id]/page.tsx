@@ -15,6 +15,13 @@ import {
 import { usePrices } from "@/hooks/usePrices";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import { OrbView } from "@/components/OrbAnimation";
+import { sounds, type BlinkSound } from "@/lib/sounds";
+
+function catchSoundFor(rarity: OrbRarity): BlinkSound {
+  if (rarity === "Legendary") return "catchMythic";
+  if (rarity === "Rare") return "catchRare";
+  return "catchCommon";
+}
 
 /* ================================================================== */
 /*  Types                                                              */
@@ -682,10 +689,11 @@ export default function CrackPage() {
         currency: data.currency ?? currency,
         chain: data.chain ?? null,
       });
+      sounds.play(catchSoundFor(rarity));
     } catch {
       setCrackError("Network error. Please try again.");
     }
-  }, [session, orb, userProfile, amount, currency]);
+  }, [session, orb, rarity, userProfile, amount, currency]);
 
   /* Phase orchestration on tap */
   const handleTap = useCallback(() => {

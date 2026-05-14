@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { User, Session } from "@supabase/supabase-js";
 import Web3Providers from "./Web3Providers";
+import SoundToggle from "./SoundToggle";
+import { sounds } from "@/lib/sounds";
 
 interface AuthContextType {
   user: User | null;
@@ -29,6 +31,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    sounds.init();
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -60,6 +63,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <Web3Providers>
       <AuthContext.Provider value={{ user, session, loading, signOut }}>
+        <SoundToggle />
         {children}
       </AuthContext.Provider>
     </Web3Providers>

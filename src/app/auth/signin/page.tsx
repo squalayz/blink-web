@@ -7,6 +7,7 @@ import { useAccount, useChainId, useDisconnect, useSignMessage } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { SiweMessage } from "siwe";
 import { supabase } from "@/lib/supabase";
+import { sounds } from "@/lib/sounds";
 import {
   BLINK_MINT_URL,
   BLINK_OPENSEA_URL,
@@ -128,6 +129,7 @@ export default function SignInPage() {
         });
       }
 
+      sounds.play("awaken");
       setHoldings(verifyJson.holdings ?? { genesis: [], mythics: [] });
       setPhase(verifyJson.isHolder ? "lore-holder" : "lore-non-holder");
 
@@ -372,6 +374,7 @@ function IdleStack({
           const el = e.currentTarget;
           el.style.transform = "scale(1.04)";
           el.style.background = "rgba(0,255,136,0.12)";
+          sounds.play("tick");
         }}
         onMouseLeave={(e) => {
           const el = e.currentTarget;
