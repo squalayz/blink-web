@@ -92,7 +92,7 @@ export default function PrivacyPage() {
       </Section>
 
       <Section title="16. Contact">
-        <P>For privacy-related inquiries, data requests, or complaints, please contact: legal@mishmesh.ai.</P>
+        <P>For privacy-related inquiries, data requests, or complaints, please contact: legal@blinkworld.com.</P>
       </Section>
     </LegalLayout>
   );

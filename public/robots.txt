@@ -8,4 +8,4 @@ Disallow: /onboarding
 Disallow: /messages
 Disallow: /catch/
 
-Sitemap: https://mishmesh.ai/sitemap.xml
+Sitemap: https://blinkworld.com/sitemap.xml

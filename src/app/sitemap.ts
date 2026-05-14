@@ -1,6 +1,6 @@
 import { MetadataRoute } from "next";
 
-const BASE = "https://mishmesh.ai";
+const BASE = "https://blinkworld.com";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [

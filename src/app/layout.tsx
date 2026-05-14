@@ -17,12 +17,12 @@ export const metadata: Metadata = {
   title: "BLINK — Don't blink. The Eye is open.",
   description:
     "Catch what others can't see. Mystical BLINK creatures spawn on a real-world map every minute. Watch. Approach. Witness. The Eye sees you. Now see back.",
-  metadataBase: new URL("https://mishmesh.ai"),
+  metadataBase: new URL("https://blinkworld.com"),
   openGraph: {
     title: "BLINK — Don't blink. The Eye is open.",
     description:
       "Catch what others can't see. Mystical creatures spawn on a real-world map every minute. The Eye sees you. Now see back.",
-    url: "https://mishmesh.ai",
+    url: "https://blinkworld.com",
     siteName: "BLINK",
     type: "website",
     images: [
