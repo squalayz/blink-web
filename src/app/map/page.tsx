@@ -4,11 +4,15 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
-import { MapPin, Filter, Plus, X, ChevronUp, User, Crosshair } from "lucide-react";
+import { Orb as ThemeOrb } from "@/lib/theme";
+import { MapPin, Filter, Plus, X, ChevronUp, User, Crosshair, Camera } from "lucide-react";
 import UserAvatar from "@/components/UserAvatar";
 import UserProfileCard from "@/components/UserProfileCard";
+
+const HuntMap = dynamic(() => import("@/components/HuntMap"), { ssr: false });
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -44,24 +48,25 @@ interface Position {
 /* ------------------------------------------------------------------ */
 
 const COLORS = {
-  bg: "#0A0A0F",
+  bg: "#0a0a0f",
   surface: "#0d0d14",
   card: "#1a1a24",
-  primary: "#6366f1",
-  accent: "#06b6d4",
-  gold: "#F59E0B",
-  text: "#F9FAFB",
-  textMuted: "#9CA3AF",
+  primary: "#00FF88",
+  accent: "#00FF88",
+  gold: "#88FF00",
+  text: "#FFFFFF",
+  textMuted: "#8a8a99",
   border: "#1F2028",
 };
 
 const RARITY_COLORS: Record<string, string> = {
   common: "#C0C0C0",
-  rare: "#3B82F6",
-  legendary: "#F59E0B",
+  rare: "#88FF00",
+  legendary: "#88FF00",
 };
 
-const FILTER_OPTIONS = ["All", "SOL", "ETH", "BTC", "Tasks"];
+// BLINK: ETH-only — Solana/Bitcoin filter pills hidden. Underlying chain map kept for legacy DB rows.
+const FILTER_OPTIONS = ["All", "ETH", "Tasks"];
 
 const CHAIN_FILTER_MAP: Record<string, string> = {
   SOL: "solana",
@@ -70,9 +75,9 @@ const CHAIN_FILTER_MAP: Record<string, string> = {
 };
 
 const CHAIN_PILL_COLORS: Record<string, string> = {
-  SOL: "#9945FF",  // SOL chain branding stays
-  ETH: "#627EEA",
-  BTC: "#F7931A",
+  SOL: "#00FF88",
+  ETH: "#00FF88",
+  BTC: "#88FF00",
 };
 
 const CLAIM_RADIUS_M = 100;
@@ -100,22 +105,52 @@ function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(1)}km`;
 }
 
-function orbScreenOffset(
-  userPos: Position,
-  orbLat: number,
-  orbLng: number,
-  containerW: number,
-  containerH: number
-): { x: number; y: number } {
-  const scale = 800000; // ~1 degree ≈ 800k px — tweak for visual density
-  const dx = (orbLng - userPos.lng) * scale * Math.cos((userPos.lat * Math.PI) / 180);
-  const dy = -(orbLat - userPos.lat) * scale;
-  const cx = containerW / 2;
-  const cy = containerH / 2;
-  // clamp so dots stay in view
-  const clampedX = Math.max(24, Math.min(containerW - 24, cx + dx));
-  const clampedY = Math.max(24, Math.min(containerH - 24, cy + dy));
-  return { x: clampedX, y: clampedY };
+const mapZoomBtn: React.CSSProperties = {
+  width: 36,
+  height: 36,
+  borderRadius: 10,
+  background: "rgba(10,10,15,0.7)",
+  backdropFilter: "blur(14px)",
+  WebkitBackdropFilter: "blur(14px)",
+  border: "1px solid rgba(0,255,136,0.30)",
+  color: "#00FF88",
+  fontSize: 18,
+  fontWeight: 700,
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontFamily: "inherit",
+};
+
+// Dev-only mock spawns so the map visual design is easy to verify locally.
+function mockSpawnsAround(pos: Position): Orb[] {
+  const rarities: Orb["rarity"][] = ["legendary", "rare", "rare", "common"];
+  const angles = [30, 110, 200, 320];
+  return rarities.map((r, idx) => {
+    const angle = (angles[idx] * Math.PI) / 180;
+    const dx = Math.cos(angle) * 0.0018; // ~200m
+    const dy = Math.sin(angle) * 0.0018;
+    return {
+      id: `mock-${idx}`,
+      lat: pos.lat + dy,
+      lng: pos.lng + dx,
+      currency: "ETH",
+      amount: 0.005,
+      rarity: r,
+      category: "creature",
+      status: "pending",
+      claim_fee_usd: 0.5,
+      dropper_id: null,
+      dropper_name: "BLINK",
+      dropper_handle: "blink",
+      dropper_pic: null,
+      dropper_wallet: null,
+      message: "A creature stirs in the dark.",
+      expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      created_at: new Date().toISOString(),
+    };
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -139,8 +174,10 @@ export default function MapPage() {
   const [confirmOrb, setConfirmOrb] = useState<Orb | null>(null);
   const [claimSuccess, setClaimSuccess] = useState(false);
   const [profileCardUserId, setProfileCardUserId] = useState<string | null>(null);
-  const mapRef = useRef<HTMLDivElement>(null);
-  const [mapSize, setMapSize] = useState({ w: 0, h: 0 });
+  const [cameraGranted, setCameraGranted] = useState(true); // assume granted until checked
+  const [cameraToast, setCameraToast] = useState(false);
+  const leafletMapRef = useRef<any>(null);
+  const watchIdRef = useRef<number | null>(null);
 
   /* ---- Auth redirect ---- */
   useEffect(() => {
@@ -156,7 +193,11 @@ export default function MapPage() {
       setGeoError("Geolocation is not supported by your browser.");
       return;
     }
-    navigator.geolocation.getCurrentPosition(
+    // Clear any existing watch
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+    }
+    const id = navigator.geolocation.watchPosition(
       (pos) => {
         setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
@@ -169,11 +210,30 @@ export default function MapPage() {
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
     );
+    watchIdRef.current = id;
   }, []);
 
   useEffect(() => {
     requestLocation();
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
   }, [requestLocation]);
+
+  /* ---- Camera permission check ---- */
+  useEffect(() => {
+    navigator.permissions
+      .query({ name: "camera" as PermissionName })
+      .then((status) => {
+        setCameraGranted(status.state === "granted");
+        status.onchange = () => setCameraGranted(status.state === "granted");
+      })
+      .catch(() => {
+        // permissions API not supported for camera, keep hidden
+      });
+  }, []);
 
   /* ---- Fetch orbs ---- */
   const fetchOrbs = useCallback(async () => {
@@ -183,8 +243,7 @@ export default function MapPage() {
       const { data, error } = await supabase
         .from("orbs")
         .select("*")
-        .eq("status", "active")
-        .gt("expires_at", new Date().toISOString());
+        .in("status", ["pending", "claimed"]);
       if (error) throw error;
       setOrbs((data as Orb[]) ?? []);
     } catch {
@@ -198,28 +257,20 @@ export default function MapPage() {
     if (user) fetchOrbs();
   }, [user, fetchOrbs]);
 
-  /* ---- Map sizing ---- */
-  useEffect(() => {
-    function measure() {
-      if (mapRef.current) {
-        setMapSize({
-          w: mapRef.current.clientWidth,
-          h: mapRef.current.clientHeight,
-        });
-      }
-    }
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [position]);
-
   /* ---- Derived ---- */
+  // Dev-only: inject 4 mock creatures around the user so the visual design is
+  // easy to verify locally without spawning real orbs. Skipped in production.
+  const orbsForRender: Orb[] =
+    process.env.NODE_ENV !== "production" && position && orbs.length === 0
+      ? mockSpawnsAround(position)
+      : orbs;
+
   const filteredOrbs =
     activeFilter === "All"
-      ? orbs
+      ? orbsForRender
       : activeFilter in CHAIN_FILTER_MAP
-        ? orbs.filter((o) => (o as any).chain === CHAIN_FILTER_MAP[activeFilter] || o.currency === activeFilter)
-        : orbs.filter((o) => o.category?.toLowerCase() === activeFilter.toLowerCase());
+        ? orbsForRender.filter((o) => (o as any).chain === CHAIN_FILTER_MAP[activeFilter] || o.currency === activeFilter)
+        : orbsForRender.filter((o) => o.category?.toLowerCase() === activeFilter.toLowerCase());
 
   const orbsWithDistance = filteredOrbs.map((o) => ({
     ...o,
@@ -241,37 +292,42 @@ export default function MapPage() {
     setCrackExplorerUrl(null);
     try {
       // Try the edge function crack flow first (presigned tx)
-      if (orb.status === "pending") {
-        const res = await fetch("/api/orbs/crack", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            orbId: orb.id,
-            gpsLat: position.lat,
-            gpsLng: position.lng,
-          }),
-        });
-        const result = await res.json();
-        if (!res.ok) {
-          setCrackError(result.error ?? "Crack failed. Please try again.");
-          setClaimingId(null);
-          return;
-        }
-        if (result.explorerUrl) setCrackExplorerUrl(result.explorerUrl);
-      } else {
-        // Legacy active orb: direct Supabase update
-        const { error: claimErr } = await supabase.from("orb_claims").insert({
-          orb_id: orb.id,
-          user_id: user.id,
-          fee_paid_usd: orb.claim_fee_usd,
-        });
-        if (claimErr) throw claimErr;
-        const { error: updateErr } = await supabase
-          .from("orbs")
-          .update({ status: "claimed", claimed_by: user.id, claimed_at: new Date().toISOString() })
-          .eq("id", orb.id);
-        if (updateErr) throw updateErr;
+      // Get session for auth header
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      const { data: profile } = await supabase.from("profiles").select("eth_address, sol_address, btc_address, wallet_address").eq("user_id", user.id).single();
+      const orbCurrency = (orb.currency || 'SOL').toUpperCase();
+      let hunterWallet: string | null = null;
+      if (orbCurrency === 'SOL') hunterWallet = profile?.sol_address ?? null;
+      else if (orbCurrency === 'ETH') hunterWallet = profile?.eth_address ?? null;
+      else if (orbCurrency === 'BTC') hunterWallet = profile?.btc_address ?? null;
+      if (!hunterWallet) {
+        setCrackError(`You need a ${orbCurrency} wallet to catch this creature. Check your wallet settings.`);
+        setClaimingId(null);
+        return;
       }
+
+      const res = await fetch("/api/orbs/crack", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          orb_id: orb.id,
+          hunter_wallet: hunterWallet,
+          lat: position.lat,
+          lng: position.lng,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        setCrackError(result.error ?? "Catch failed. Please try again.");
+        setClaimingId(null);
+        return;
+      }
+      if (result.explorerUrl) setCrackExplorerUrl(result.explorerUrl);
 
       setClaimSuccess(true);
       setConfirmOrb(null);
@@ -279,7 +335,7 @@ export default function MapPage() {
       setTimeout(() => { setClaimSuccess(false); setCrackExplorerUrl(null); }, 4000);
       await fetchOrbs();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Crack failed. Please try again.";
+      const msg = err instanceof Error ? err.message : "Catch failed. Please try again.";
       setCrackError(msg);
     } finally {
       setClaimingId(null);
@@ -313,90 +369,25 @@ export default function MapPage() {
     document.head.appendChild(style);
   }, []);
 
+  /* ---- Helpers ---- */
+  const handleCameraRequest = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach((t) => t.stop());
+      setCameraGranted(true);
+    } catch {
+      setCameraToast(true);
+      setTimeout(() => setCameraToast(false), 3000);
+    }
+  };
+
   /* ---- Guards ---- */
   if (authLoading) return null;
   if (!user) return null;
 
-  /* ================================================================ */
-  /*  LOADING STATE                                                    */
-  /* ================================================================ */
-  if (!position && !geoError) {
-    return (
-      <div
-        style={{
-          background: COLORS.bg,
-          height: "100dvh",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 20,
-        }}
-      >
-        <motion.div
-          animate={{ scale: [1, 1.4, 1], opacity: [1, 0.5, 1] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: "50%",
-            background: COLORS.primary,
-          }}
-        />
-        <span style={{ color: COLORS.textMuted, fontSize: 15, fontWeight: 500 }}>
-          Locating you...
-        </span>
-      </div>
-    );
-  }
-
-  /* ================================================================ */
-  /*  GEO DENIED / ERROR                                               */
-  /* ================================================================ */
-  if (geoError) {
-    const isDenied = geoError === "denied";
-    return (
-      <div
-        style={{
-          background: COLORS.bg,
-          height: "100dvh",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 16,
-          padding: 24,
-          textAlign: "center",
-        }}
-      >
-        <MapPin size={48} color={COLORS.primary} />
-        <h2 style={{ color: COLORS.text, fontSize: 20, fontWeight: 700, margin: 0 }}>
-          {isDenied ? "Enable location to hunt orbs" : "Location Error"}
-        </h2>
-        <p style={{ color: COLORS.textMuted, fontSize: 14, margin: 0, maxWidth: 320 }}>
-          {isDenied
-            ? "MishMesh needs your location to show nearby orbs. Please allow location access in your browser settings and try again."
-            : geoError}
-        </p>
-        <button
-          onClick={requestLocation}
-          style={{
-            marginTop: 8,
-            padding: "12px 32px",
-            borderRadius: 12,
-            border: "none",
-            background: COLORS.primary,
-            color: "#fff",
-            fontWeight: 700,
-            fontSize: 15,
-            cursor: "pointer",
-          }}
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
+  /* ---- Location banner logic ---- */
+  const showLocationBanner = !position;
+  const isDenied = geoError === "denied";
 
   /* ================================================================ */
   /*  MAIN RENDER                                                      */
@@ -439,12 +430,12 @@ export default function MapPage() {
               WebkitTextFillColor: "transparent",
             }}
           >
-            MishMesh
+            BLINK
           </span>
         </Link>
 
         <span style={{ color: COLORS.textMuted, fontSize: 13, fontWeight: 500 }}>
-          Nearby: {nearbyCount} orb{nearbyCount !== 1 ? "s" : ""}
+          Nearby: {nearbyCount} creature{nearbyCount !== 1 ? "s" : ""}
         </span>
 
         <Link href="/profile" style={{ textDecoration: "none" }}>
@@ -510,161 +501,184 @@ export default function MapPage() {
 
       {/* ========== MAP AREA ========== */}
       <div
-        ref={mapRef}
-        style={{
-          flex: 1,
-          position: "relative",
-          overflow: "hidden",
-          background: `
-            repeating-linear-gradient(0deg, transparent, transparent 39px, #1F202810 39px, #1F202810 40px),
-            repeating-linear-gradient(90deg, transparent, transparent 39px, #1F202810 39px, #1F202810 40px),
-            #0d0d14
-          `,
-        }}
+        style={{ flex: 1, position: "relative", overflow: "hidden" }}
       >
-        {/* Subtle radial vignette */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "radial-gradient(circle at center, transparent 30%, #0A0A0F 100%)",
-            pointerEvents: "none",
-            zIndex: 1,
+        <HuntMap
+          orbs={filteredOrbs.map((o) => ({
+            ...o,
+            latitude: o.lat,
+            longitude: o.lng,
+          })) as unknown as ThemeOrb[]}
+          userPosition={position}
+          onSelectOrb={(orb: ThemeOrb) => {
+            const local = filteredOrbs.find((o) => o.id === orb.id);
+            if (local) setSelectedOrb(local);
           }}
+          mapRef={leafletMapRef}
         />
 
-        {/* ---- User dot (center) ---- */}
-        {position && mapSize.w > 0 && (
+        {/* ---- Location banner ---- */}
+        {showLocationBanner && (
           <div
             style={{
               position: "absolute",
-              left: mapSize.w / 2,
-              top: mapSize.h / 2,
-              transform: "translate(-50%, -50%)",
-              zIndex: 10,
+              top: 12,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 50,
+              background: "rgba(13,13,20,0.95)",
+              border: `1px solid ${isDenied ? "rgba(239,68,68,0.3)" : "rgba(0,255,136,0.3)"}`,
+              borderRadius: 50,
+              padding: "8px 16px",
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              whiteSpace: "nowrap",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
             }}
           >
-            {/* ring */}
-            <div
-              style={{
-                position: "absolute",
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                border: `2px solid ${COLORS.primary}`,
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                animation: "mmRing 2s ease-out infinite",
-              }}
-            />
-            {/* dot */}
-            <div
-              style={{
-                width: 16,
-                height: 16,
-                borderRadius: "50%",
-                background: COLORS.primary,
-                boxShadow: `0 0 16px 4px ${COLORS.primary}80`,
-                animation: "mmPulse 2s ease-in-out infinite",
-              }}
-            />
+            <MapPin size={14} color={isDenied ? "#ef4444" : "#00FF88"} />
+            <span style={{ color: isDenied ? "#fca5a5" : "#8888aa", fontSize: 13 }}>
+              {isDenied
+                ? (() => {
+                    const ua = navigator.userAgent;
+                    if (/iPhone|iPad/.test(ua)) return "Tap the AA icon → Website Settings → Location";
+                    if (/Android/.test(ua)) return "Tap the lock icon → Permissions → Location";
+                    return "Tap the lock icon in your address bar → Allow Location";
+                  })()
+                : "Enable location to find nearby orbs"}
+            </span>
+            {!isDenied && (
+              <button
+                onClick={requestLocation}
+                style={{
+                  color: "#00FF88",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                Enable
+              </button>
+            )}
           </div>
         )}
 
-        {/* ---- Orb dots ---- */}
-        {position &&
-          mapSize.w > 0 &&
-          sortedOrbs.map((orb) => {
-            const { x, y } = orbScreenOffset(
-              position,
-              orb.lat,
-              orb.lng,
-              mapSize.w,
-              mapSize.h
-            );
-            const color = RARITY_COLORS[orb.rarity] || RARITY_COLORS.common;
-            return (
-              <motion.div
-                key={orb.id}
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.4, type: "spring" }}
-                onClick={() => setSelectedOrb(orb)}
-                style={{
-                  position: "absolute",
-                  left: x,
-                  top: y,
-                  transform: "translate(-50%, -50%)",
-                  zIndex: 5,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {/* glow ring */}
-                <div
-                  style={{
-                    position: "absolute",
-                    width: 28,
-                    height: 28,
-                    borderRadius: "50%",
-                    background: `${color}18`,
-                    animation: "mmPulse 3s ease-in-out infinite",
-                  }}
-                />
-                {/* outer ring */}
-                <div
-                  style={{
-                    position: "absolute",
-                    width: 20,
-                    height: 20,
-                    borderRadius: "50%",
-                    border: `1.5px solid ${color}60`,
-                    animation: "mmRing 3s ease-out infinite",
-                  }}
-                />
-                {/* core dot */}
-                <div
-                  style={
-                    {
-                      width: 10,
-                      height: 10,
-                      borderRadius: "50%",
-                      background: color,
-                      "--glow-color": `${color}90`,
-                      animation: "mmGlow 2s ease-in-out infinite, mmFloat 3s ease-in-out infinite",
-                    } as React.CSSProperties
-                  }
-                />
-              </motion.div>
-            );
-          })}
-
         {/* ---- Recenter button ---- */}
         <button
-          onClick={requestLocation}
+          onClick={() => {
+            if (leafletMapRef.current && position) {
+              leafletMapRef.current.flyTo({ center: [position.lng, position.lat], zoom: 16, duration: 800 });
+            } else {
+              requestLocation();
+            }
+          }}
           style={{
             position: "absolute",
-            bottom: 180,
-            left: 16,
-            width: 44,
-            height: 44,
+            top: 16,
+            right: 16,
+            width: 40,
+            height: 40,
             borderRadius: 12,
-            background: COLORS.card,
-            border: `1px solid ${COLORS.border}`,
+            background: "rgba(10,10,15,0.7)",
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
+            border: `1px solid ${position ? "rgba(0,255,136,0.45)" : "rgba(255,255,255,0.10)"}`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
             zIndex: 15,
+            boxShadow: position ? "0 0 14px rgba(0,255,136,0.25)" : "none",
+          }}
+          aria-label="Recenter on me"
+        >
+          <Crosshair size={18} color={position ? "#00FF88" : COLORS.textMuted} />
+        </button>
+        <div
+          style={{
+            position: "absolute",
+            top: 64,
+            right: 16,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            zIndex: 15,
           }}
         >
-          <Crosshair size={20} color={COLORS.textMuted} />
-        </button>
+          <button
+            onClick={() => leafletMapRef.current?.zoomIn?.()}
+            aria-label="Zoom in"
+            style={mapZoomBtn}
+          >
+            +
+          </button>
+          <button
+            onClick={() => leafletMapRef.current?.zoomOut?.()}
+            aria-label="Zoom out"
+            style={mapZoomBtn}
+          >
+            −
+          </button>
+        </div>
+
+        {/* ---- Camera permission button ---- */}
+        {!cameraGranted && (
+          <button
+            onClick={handleCameraRequest}
+            style={{
+              position: "absolute",
+              top: 16,
+              right: 16,
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              background: "rgba(13,13,20,0.9)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              zIndex: 15,
+            }}
+          >
+            <Camera size={20} color={COLORS.textMuted} />
+          </button>
+        )}
       </div>
+
+      {/* ========== CAMERA TOAST ========== */}
+      <AnimatePresence>
+        {cameraToast && (
+          <motion.div
+            key="camera-toast"
+            initial={{ y: 40, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 40, opacity: 0 }}
+            transition={{ type: "spring", damping: 22, stiffness: 300 }}
+            style={{
+              position: "absolute",
+              bottom: 200,
+              left: "50%",
+              transform: "translateX(-50%)",
+              background: COLORS.card,
+              color: "#8888aa",
+              padding: "10px 20px",
+              borderRadius: 12,
+              fontSize: 13,
+              fontWeight: 500,
+              zIndex: 70,
+              whiteSpace: "nowrap",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+          >
+            Allow camera in browser settings to spawn creatures
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ========== BOTTOM SHEET ========== */}
       <motion.div
@@ -718,7 +732,7 @@ export default function MapPage() {
               <span
                 style={{ color: COLORS.text, fontSize: 16, fontWeight: 700 }}
               >
-                Nearby Orbs
+                Nearby Creatures
               </span>
               <span
                 style={{
@@ -752,14 +766,14 @@ export default function MapPage() {
         >
           {orbsLoading && (
             <div style={{ textAlign: "center", padding: 20, color: COLORS.textMuted, fontSize: 13 }}>
-              Loading orbs...
+              Loading creatures...
             </div>
           )}
 
           {orbsError && (
             <div style={{ textAlign: "center", padding: 20 }}>
               <p style={{ color: COLORS.textMuted, fontSize: 13, margin: "0 0 12px" }}>
-                Failed to load orbs.
+                Failed to load creatures.
               </p>
               <button
                 onClick={fetchOrbs}
@@ -782,10 +796,10 @@ export default function MapPage() {
           {!orbsLoading && !orbsError && sortedOrbs.length === 0 && (
             <div style={{ textAlign: "center", padding: 24 }}>
               <p style={{ color: COLORS.textMuted, fontSize: 14, margin: "0 0 12px" }}>
-                No orbs nearby. Be the first to drop one!
+                No creatures nearby. Be the first to spawn one!
               </p>
               <Link
-                href="/drop"
+                href="/spawn"
                 style={{
                   display: "inline-block",
                   padding: "10px 24px",
@@ -797,7 +811,7 @@ export default function MapPage() {
                   textDecoration: "none",
                 }}
               >
-                Drop an Orb
+                Spawn a Creature
               </Link>
             </div>
           )}
@@ -904,7 +918,7 @@ export default function MapPage() {
                     whiteSpace: "nowrap",
                   }}
                 >
-                  Crack It
+                  Catch It
                 </button>
               </motion.div>
             );
@@ -913,7 +927,7 @@ export default function MapPage() {
       </motion.div>
 
       {/* ========== FAB ========== */}
-      <Link href="/drop" style={{ textDecoration: "none" }}>
+      <Link href="/spawn" style={{ textDecoration: "none" }}>
         <motion.div
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
@@ -1176,7 +1190,7 @@ export default function MapPage() {
                         opacity: claimable ? 1 : 0.3,
                       }}
                     >
-                      {claimable ? "Crack It" : "Get closer to crack"}
+                      {claimable ? "Catch It" : "Get closer to catch"}
                     </button>
                   </>
                 );
@@ -1223,7 +1237,7 @@ export default function MapPage() {
               }}
             >
               <h3 style={{ color: COLORS.text, fontSize: 18, fontWeight: 700, margin: "0 0 16px" }}>
-                Crack this orb?
+                Catch this creature?
               </h3>
               {/* Reward */}
               <div style={{ background: COLORS.bg, borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
@@ -1287,7 +1301,7 @@ export default function MapPage() {
                     opacity: claimingId === confirmOrb.id ? 0.6 : 1,
                   }}
                 >
-                  {claimingId === confirmOrb.id ? "Cracking..." : "Crack It"}
+                  {claimingId === confirmOrb.id ? "Catching..." : "Catch It"}
                 </button>
               </div>
             </motion.div>
@@ -1332,7 +1346,7 @@ export default function MapPage() {
                 strokeLinejoin="round"
               />
             </svg>
-            Orb cracked successfully!
+            Creature caught successfully!
           </motion.div>
         )}
       </AnimatePresence>

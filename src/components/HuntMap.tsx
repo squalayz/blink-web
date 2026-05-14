@@ -15,29 +15,32 @@ interface HuntMapProps {
 }
 
 function orbMarkerConfig(rarity: string) {
-  if (rarity === 'Legendary') return { size: 28, ring: 44, sonarDelay: '0s' };
-  if (rarity === 'Rare') return { size: 22, ring: 36, sonarDelay: '0.3s' };
-  return { size: 16, ring: 28, sonarDelay: '0.6s' };
+  if (rarity === 'Legendary') return { size: 32, ring: 56, sonarDelay: '0s' };
+  if (rarity === 'Rare') return { size: 26, ring: 46, sonarDelay: '0.3s' };
+  return { size: 20, ring: 36, sonarDelay: '0.6s' };
 }
 
 const HUNT_CSS = `
 @keyframes mmOrbPulse {
   0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.15); opacity: 0.85; }
+  50% { transform: scale(1.18); opacity: 0.88; }
   100% { transform: scale(1); opacity: 1; }
 }
 @keyframes mmSonarRing {
-  0% { transform: translate(-50%,-50%) scale(0.5); opacity: 0.7; }
-  100% { transform: translate(-50%,-50%) scale(2.5); opacity: 0; }
+  0% { transform: translate(-50%,-50%) scale(0.5); opacity: 0.75; }
+  100% { transform: translate(-50%,-50%) scale(2.8); opacity: 0; }
 }
-@keyframes mmUserPulse {
-  0% { box-shadow: 0 0 0 0 rgba(20,241,149,0.6); }
-  70% { box-shadow: 0 0 0 16px rgba(20,241,149,0); }
-  100% { box-shadow: 0 0 0 0 rgba(20,241,149,0); }
+@keyframes mmIrisBlink {
+  0%, 92%, 100% { transform: scaleY(1); opacity: 1; }
+  96% { transform: scaleY(0.05); opacity: 0.5; }
+}
+@keyframes mmUserBoltPulse {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(0,255,136,0.85)) drop-shadow(0 0 18px rgba(0,255,136,0.45)); transform: scale(1); }
+  50% { filter: drop-shadow(0 0 10px rgba(0,255,136,1)) drop-shadow(0 0 32px rgba(0,255,136,0.65)); transform: scale(1.05); }
 }
 @keyframes mmUserSonar {
-  0% { transform: translate(-50%,-50%) scale(0.5); opacity: 0.5; }
-  100% { transform: translate(-50%,-50%) scale(3); opacity: 0; }
+  0% { transform: translate(-50%,-50%) scale(0.5); opacity: 0.55; }
+  100% { transform: translate(-50%,-50%) scale(3.2); opacity: 0; }
 }
 .mm-orb-marker {
   border-radius: 50%;
@@ -45,6 +48,20 @@ const HUNT_CSS = `
   cursor: pointer;
   position: relative;
   z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mm-orb-marker:hover {
+  transform: scale(1.2);
+  animation-play-state: paused;
+}
+.mm-orb-iris {
+  width: 38%;
+  height: 38%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #FFFFFF 0%, #0a0a0f 70%);
+  animation: mmIrisBlink 4.6s ease-in-out infinite;
 }
 .mm-orb-sonar {
   position: absolute;
@@ -56,22 +73,21 @@ const HUNT_CSS = `
   animation: mmSonarRing 3s ease-out infinite;
   pointer-events: none;
 }
-.mm-user-dot {
-  border-radius: 50%;
-  background: #14F195;
-  border: 2.5px solid #fff;
-  animation: mmUserPulse 1.8s ease-in-out infinite;
+.mm-user-bolt {
   position: relative;
   z-index: 20;
+  width: 22px;
+  height: 28px;
+  animation: mmUserBoltPulse 1.8s ease-in-out infinite;
 }
 .mm-user-sonar {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  border: 1.5px solid rgba(20,241,149,0.4);
+  border: 1.5px solid rgba(0,255,136,0.55);
   animation: mmUserSonar 2.4s ease-out infinite;
   pointer-events: none;
 }
@@ -123,10 +139,16 @@ export default function HuntMap({ orbs, userPosition, onSelectOrb, mapRef: exter
     });
 
     map.on('style.load', () => {
-      // Set dusk lighting — dark sky, lit buildings, colored streets
-      map.setConfigProperty('basemap', 'lightPreset', 'dusk');
-      map.setConfigProperty('basemap', 'showPointOfInterestLabels', true);
-      map.setConfigProperty('basemap', 'showTransitLabels', true);
+      // BLINK Phase 3: cosmic-night look — dark base, label glow only on key POIs.
+      try {
+        map.setConfigProperty('basemap', 'lightPreset', 'night');
+        map.setConfigProperty('basemap', 'showPointOfInterestLabels', false);
+        map.setConfigProperty('basemap', 'showTransitLabels', false);
+        map.setConfigProperty('basemap', 'showRoadLabels', false);
+        map.setConfigProperty('basemap', 'showPlaceLabels', true);
+      } catch {
+        // Mapbox Standard style not active — silently fall back to defaults.
+      }
     });
 
     mapRef.current = map;
@@ -138,9 +160,19 @@ export default function HuntMap({ orbs, userPosition, onSelectOrb, mapRef: exter
     if (!mapRef.current || !userPosition) return;
 
     const el = document.createElement('div');
-    el.style.cssText = 'position:relative;width:18px;height:18px;';
+    el.style.cssText = 'position:relative;width:44px;height:44px;display:flex;align-items:center;justify-content:center;';
     el.innerHTML = `
-      <div class="mm-user-dot" style="width:18px;height:18px;"></div>
+      <svg class="mm-user-bolt" viewBox="0 0 24 30" fill="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="mm-bolt-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#88FF00" />
+            <stop offset="100%" stop-color="#00FF88" />
+          </linearGradient>
+        </defs>
+        <path d="M13 1 L1 17 H10 L7 29 L23 11 H14 L17 1 Z" fill="url(#mm-bolt-grad)" stroke="#0a0a0f" stroke-width="1.4" stroke-linejoin="round" />
+        <circle cx="12" cy="15" r="2.6" fill="#0a0a0f" />
+        <circle cx="12" cy="15" r="1.2" fill="#FFFFFF" />
+      </svg>
       <div class="mm-user-sonar"></div>
     `;
 
@@ -202,10 +234,12 @@ export default function HuntMap({ orbs, userPosition, onSelectOrb, mapRef: exter
             height:${cfg.size}px;
             background:radial-gradient(circle at 35% 35%, ${rColor}ee, ${rColor}55);
             border:2px solid ${rColor};
-            box-shadow: 0 0 16px ${rColor}88, 0 0 32px ${rColor}44;
+            box-shadow: 0 0 18px ${rColor}aa, 0 0 36px ${rColor}55, inset 0 0 6px ${rColor}55;
             --orb-color:${rColor};
           "
-        ></div>
+        >
+          <div class="mm-orb-iris"></div>
+        </div>
         ${!isClaimed ? `
           <div class="mm-orb-sonar" style="width:${cfg.ring}px;height:${cfg.ring}px;--orb-color:${rColor};animation-delay:${cfg.sonarDelay};"></div>
           <div class="mm-orb-sonar" style="width:${cfg.ring}px;height:${cfg.ring}px;--orb-color:${rColor};animation-delay:calc(${cfg.sonarDelay} + 1s);"></div>
@@ -241,7 +275,6 @@ export default function HuntMap({ orbs, userPosition, onSelectOrb, mapRef: exter
 
   return (
     <div
-      ref={containerRef}
       style={{
         position: 'absolute',
         inset: 0,
@@ -249,6 +282,29 @@ export default function HuntMap({ orbs, userPosition, onSelectOrb, mapRef: exter
         height: '100%',
         background: '#0a0a0f',
       }}
-    />
+    >
+      <div
+        ref={containerRef}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          background: '#0a0a0f',
+          filter: 'saturate(0.55) brightness(0.7) contrast(1.15) hue-rotate(95deg)',
+        }}
+      />
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          background:
+            'radial-gradient(ellipse at 50% 40%, rgba(0,255,136,0.06), transparent 55%), radial-gradient(ellipse at 80% 80%, rgba(136,255,0,0.04), transparent 60%), linear-gradient(180deg, rgba(10,10,15,0.15), rgba(10,10,15,0.35))',
+          mixBlendMode: 'screen',
+        }}
+      />
+    </div>
   );
 }
