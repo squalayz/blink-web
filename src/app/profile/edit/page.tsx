@@ -7,17 +7,8 @@ import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
 import UserAvatar from "@/components/UserAvatar";
 import { ArrowLeft } from "lucide-react";
-
-const C = {
-  bg: "#0A0A0F",
-  surface: "#0d0d14",
-  card: "#1a1a24",
-  primary: "#6366f1",
-  accent: "#06b6d4",
-  text: "#F9FAFB",
-  textMuted: "#9CA3AF",
-  border: "#1F2028",
-} as const;
+import { C } from "@/lib/theme";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
 
 export default function EditProfilePage() {
   const router = useRouter();
@@ -33,6 +24,21 @@ export default function EditProfilePage() {
   const [handleError, setHandleError] = useState("");
   const [toast, setToast] = useState("");
   const [loadingData, setLoadingData] = useState(true);
+
+  // Focus states for inputs
+  const [handleFocused, setHandleFocused] = useState(false);
+  const [bioFocused, setBioFocused] = useState(false);
+
+  // Avatar hover state
+  const [avatarHover, setAvatarHover] = useState(false);
+  // Change Photo hover state
+  const [photoLabelHover, setPhotoLabelHover] = useState(false);
+
+  // Save button states
+  const [savePressed, setSavePressed] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const { isDesktop } = useIsDesktop();
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -126,6 +132,8 @@ export default function EditProfilePage() {
       setToast("Failed to save. Please try again.");
     } else {
       setToast("Profile saved successfully!");
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 1200);
     }
     setTimeout(() => setToast(""), 2500);
   };
@@ -158,6 +166,8 @@ export default function EditProfilePage() {
 
   const displayPic = previewUrl || profilePicUrl;
 
+  const focusBoxShadow = "0 0 0 3px rgba(0,255,136,0.15)";
+
   return (
     <div
       style={{
@@ -182,7 +192,7 @@ export default function EditProfilePage() {
       >
         <div
           style={{
-            maxWidth: 600,
+            maxWidth: 560,
             margin: "0 auto",
             padding: "14px 20px",
             display: "flex",
@@ -211,9 +221,9 @@ export default function EditProfilePage() {
       {/* Content */}
       <div
         style={{
-          maxWidth: 600,
+          maxWidth: 560,
           margin: "0 auto",
-          padding: "32px 24px 80px",
+          padding: isDesktop ? "40px 40px 80px" : "32px 24px 80px",
         }}
       >
         {loadingData ? (
@@ -235,6 +245,16 @@ export default function EditProfilePage() {
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
+            style={
+              isDesktop
+                ? {
+                    background: C.glass,
+                    border: `1px solid ${C.glassBorder}`,
+                    borderRadius: 20,
+                    padding: 40,
+                  }
+                : undefined
+            }
           >
             {/* Avatar upload */}
             <div
@@ -245,12 +265,51 @@ export default function EditProfilePage() {
                 marginBottom: 32,
               }}
             >
-              <div style={{ position: "relative", marginBottom: 12 }}>
+              <div
+                style={{ position: "relative", marginBottom: 12, cursor: "pointer" }}
+                onMouseEnter={() => setAvatarHover(true)}
+                onMouseLeave={() => setAvatarHover(false)}
+              >
                 <UserAvatar
                   profilePicUrl={displayPic}
                   handle={handle || user.email || "user"}
                   size={100}
                 />
+                {/* Hover overlay with camera icon */}
+                {(avatarHover && !uploading) && (
+                  <label
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      borderRadius: "50%",
+                      background: "rgba(0,0,0,0.5)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <svg
+                      width="28"
+                      height="28"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#FFFFFF"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      style={{ display: "none" }}
+                    />
+                  </label>
+                )}
                 {uploading && (
                   <div
                     style={{
@@ -277,15 +336,18 @@ export default function EditProfilePage() {
                 )}
               </div>
               <label
+                onMouseEnter={() => setPhotoLabelHover(true)}
+                onMouseLeave={() => setPhotoLabelHover(false)}
                 style={{
                   padding: "8px 20px",
                   borderRadius: 10,
-                  border: `1px solid ${C.border}`,
-                  background: C.surface,
+                  border: `1px solid ${photoLabelHover ? C.primary : C.border}`,
+                  background: photoLabelHover ? C.s2 : C.surface,
                   color: C.text,
                   fontSize: 13,
                   fontWeight: 600,
                   cursor: "pointer",
+                  transition: "border-color 0.2s ease, background 0.2s ease",
                 }}
               >
                 Change Photo
@@ -305,8 +367,9 @@ export default function EditProfilePage() {
                   display: "block",
                   fontSize: 13,
                   fontWeight: 600,
-                  color: C.textMuted,
+                  color: C.muted,
                   marginBottom: 8,
+                  letterSpacing: "0.02em",
                 }}
               >
                 Handle
@@ -315,13 +378,21 @@ export default function EditProfilePage() {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  background: C.card,
-                  border: `1px solid ${handleError ? "#EF4444" : C.border}`,
+                  background: C.s2,
+                  border: `1px solid ${
+                    handleError
+                      ? C.danger
+                      : handleFocused
+                      ? C.primary
+                      : C.border
+                  }`,
                   borderRadius: 12,
                   padding: "0 16px",
+                  transition: "border-color 0.2s ease, box-shadow 0.2s ease",
+                  boxShadow: handleFocused && !handleError ? focusBoxShadow : "none",
                 }}
               >
-                <span style={{ color: C.textMuted, fontSize: 15 }}>@</span>
+                <span style={{ color: C.muted, fontSize: 15 }}>@</span>
                 <input
                   type="text"
                   value={handle}
@@ -329,7 +400,11 @@ export default function EditProfilePage() {
                     setHandle(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""));
                     setHandleError("");
                   }}
-                  onBlur={checkHandleUniqueness}
+                  onFocus={() => setHandleFocused(true)}
+                  onBlur={() => {
+                    setHandleFocused(false);
+                    checkHandleUniqueness();
+                  }}
                   placeholder="username"
                   style={{
                     flex: 1,
@@ -346,7 +421,7 @@ export default function EditProfilePage() {
               {handleError && (
                 <p
                   style={{
-                    color: "#EF4444",
+                    color: C.danger,
                     fontSize: 12,
                     marginTop: 6,
                   }}
@@ -363,8 +438,9 @@ export default function EditProfilePage() {
                   display: "block",
                   fontSize: 13,
                   fontWeight: 600,
-                  color: C.textMuted,
+                  color: C.muted,
                   marginBottom: 8,
+                  letterSpacing: "0.02em",
                 }}
               >
                 Bio
@@ -375,12 +451,14 @@ export default function EditProfilePage() {
                   onChange={(e) => {
                     if (e.target.value.length <= 160) setBio(e.target.value);
                   }}
+                  onFocus={() => setBioFocused(true)}
+                  onBlur={() => setBioFocused(false)}
                   placeholder="Tell the world about yourself..."
                   rows={3}
                   style={{
                     width: "100%",
-                    background: C.card,
-                    border: `1px solid ${C.border}`,
+                    background: C.s2,
+                    border: `1px solid ${bioFocused ? C.primary : C.border}`,
                     borderRadius: 12,
                     color: C.text,
                     fontSize: 15,
@@ -389,6 +467,8 @@ export default function EditProfilePage() {
                     outline: "none",
                     fontFamily: "inherit",
                     boxSizing: "border-box",
+                    transition: "border-color 0.2s ease, box-shadow 0.2s ease",
+                    boxShadow: bioFocused ? focusBoxShadow : "none",
                   }}
                 />
                 <span
@@ -397,12 +477,13 @@ export default function EditProfilePage() {
                     bottom: 10,
                     right: 14,
                     fontSize: 12,
+                    transition: "color 0.2s ease",
                     color:
                       bio.length >= 150
                         ? bio.length >= 160
-                          ? "#EF4444"
-                          : "#F59E0B"
-                        : C.textMuted,
+                          ? C.danger
+                          : C.gold
+                        : C.muted,
                   }}
                 >
                   {bio.length}/160
@@ -417,19 +498,20 @@ export default function EditProfilePage() {
                   display: "block",
                   fontSize: 13,
                   fontWeight: 600,
-                  color: C.textMuted,
+                  color: C.muted,
                   marginBottom: 8,
+                  letterSpacing: "0.02em",
                 }}
               >
                 Wallet Address
               </label>
               <div
                 style={{
-                  background: C.card,
+                  background: C.s2,
                   border: `1px solid ${C.border}`,
                   borderRadius: 12,
                   padding: "14px 16px",
-                  color: C.textMuted,
+                  color: C.muted,
                   fontSize: 14,
                   fontFamily: "monospace",
                   overflow: "hidden",
@@ -445,6 +527,9 @@ export default function EditProfilePage() {
             <motion.button
               whileTap={{ scale: 0.97 }}
               onClick={handleSave}
+              onPointerDown={() => setSavePressed(true)}
+              onPointerUp={() => setSavePressed(false)}
+              onPointerLeave={() => setSavePressed(false)}
               disabled={saving || !!handleError}
               style={{
                 width: "100%",
@@ -452,16 +537,44 @@ export default function EditProfilePage() {
                 borderRadius: 14,
                 border: "none",
                 background:
-                  saving || handleError ? C.border : C.primary,
-                color: saving || handleError ? C.textMuted : "#fff",
+                  saving || handleError
+                    ? C.border
+                    : saveSuccess
+                    ? C.accent
+                    : savePressed
+                    ? "rgba(0,255,136,0.8)"
+                    : C.primary,
+                color:
+                  saving || handleError
+                    ? C.muted
+                    : saveSuccess
+                    ? C.bg
+                    : "#fff",
                 fontSize: 16,
                 fontWeight: 700,
                 cursor:
                   saving || handleError ? "not-allowed" : "pointer",
                 outline: "none",
+                transition: "background 0.25s ease, color 0.25s ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
               }}
             >
-              {saving ? "Saving..." : "Save Profile"}
+              {saving && (
+                <div
+                  style={{
+                    width: 16,
+                    height: 16,
+                    border: "2px solid rgba(255,255,255,0.3)",
+                    borderTopColor: "#fff",
+                    borderRadius: "50%",
+                    animation: "spin 0.8s linear infinite",
+                  }}
+                />
+              )}
+              {saving ? "Saving..." : saveSuccess ? "Saved" : "Save Profile"}
             </motion.button>
           </motion.div>
         )}
@@ -478,14 +591,22 @@ export default function EditProfilePage() {
             top: 80,
             left: "50%",
             transform: "translateX(-50%)",
-            background: toast.includes("Failed") ? "#EF4444" : C.accent,
+            background: toast.includes("Failed") ? C.danger : C.accent,
             color: toast.includes("Failed") ? "#fff" : C.bg,
             padding: "12px 24px",
             borderRadius: 14,
             fontSize: 14,
             fontWeight: 700,
             zIndex: 100,
-            boxShadow: `0 8px 32px rgba(0,0,0,0.3)`,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+            maxWidth: isDesktop ? 400 : "calc(100vw - 32px)",
+            width: isDesktop ? 400 : "auto",
+            textAlign: "center",
+            border: `1px solid ${
+              toast.includes("Failed")
+                ? "rgba(239,68,68,0.3)"
+                : "rgba(0,255,136,0.3)"
+            }`,
           }}
         >
           {toast}

@@ -10,10 +10,11 @@ interface ChainSelectorProps {
   showLabels?: boolean;
 }
 
+// BLINK: ETH-only — Solana/Bitcoin pills hidden from UI. Underlying chain types preserved for future L2 work.
 const CHAINS: { id: Chain; label: string; short: string; color: string }[] = [
-  { id: "solana", label: "Solana", short: "SOL", color: "#9945FF" },  // SOL chain branding stays
-  { id: "ethereum", label: "Ethereum", short: "ETH", color: "#627EEA" },
-  { id: "bitcoin", label: "Bitcoin", short: "BTC", color: "#F7931A" },
+  // { id: "solana", label: "Solana", short: "SOL", color: "#00FF88" }, // BLINK: ETH-only — disabled
+  { id: "ethereum", label: "Ethereum", short: "ETH", color: "#00FF88" },
+  // { id: "bitcoin", label: "Bitcoin", short: "BTC", color: "#88FF00" }, // BLINK: ETH-only — disabled
 ];
 
 export default function ChainSelector({
@@ -43,9 +44,9 @@ export default function ChainSelector({
             style={{
               padding: showLabels ? "8px 20px" : "8px 16px",
               borderRadius: 20,
-              border: active ? `2px solid ${c.color}` : "2px solid #1F2028",
+              border: active ? `2px solid ${c.color}` : "2px solid #1a1a24",
               background: active ? `${c.color}20` : isHovered ? "rgba(255,255,255,0.03)" : "transparent",
-              color: active ? c.color : "#9CA3AF",
+              color: active ? c.color : "#8a8a99",
               fontSize: 14,
               fontWeight: 700,
               cursor: "pointer",

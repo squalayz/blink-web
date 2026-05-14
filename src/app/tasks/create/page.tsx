@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/providers";
 import { C } from "@/lib/theme";
 import { useRouter } from "next/navigation";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
 
 type ProofType = "photo" | "video" | "checkin" | "text";
 type RewardCurrency = "SOL" | "ETH";
@@ -44,6 +45,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default function CreateTaskPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { isDesktop } = useIsDesktop();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -61,7 +63,7 @@ export default function CreateTaskPage() {
     longitude: null,
     is_remote: true,
     reward_amount: "",
-    reward_currency: "SOL",
+    reward_currency: "ETH",
   });
 
   const update = (partial: Partial<TaskDraft>) => setDraft((p) => ({ ...p, ...partial }));
@@ -103,6 +105,8 @@ export default function CreateTaskPage() {
     setError(null);
 
     try {
+      const { data: profile } = await supabase.from('profiles').select('handle, avatar_url').eq('id', user.id).single();
+
       const { error: insertErr } = await supabase.from("tasks").insert({
         title: draft.title.trim(),
         category: draft.category,
@@ -118,6 +122,8 @@ export default function CreateTaskPage() {
         reward_amount: parseFloat(draft.reward_amount),
         reward_currency: draft.reward_currency,
         poster_id: user.id,
+        poster_handle: profile?.handle || null,
+        poster_avatar_url: profile?.avatar_url || null,
         status: "open",
       });
 
@@ -238,12 +244,10 @@ export default function CreateTaskPage() {
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
           borderBottom: `1px solid ${C.border}`,
-          padding: "16px 20px",
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
+          padding: isDesktop ? "16px 32px" : "16px 20px",
         }}
       >
+        <div style={{ display: "flex", alignItems: "center", gap: 16, maxWidth: isDesktop ? 560 : undefined, margin: isDesktop ? '0 auto' : undefined }}>
         <button
           onClick={() => (step > 1 ? setStep(step - 1) : router.back())}
           style={{
@@ -262,10 +266,11 @@ export default function CreateTaskPage() {
           <div style={{ fontSize: 18, fontWeight: 700 }}>Create Task</div>
           <div style={{ fontSize: 12, color: C.muted }}>Step {step} of 6</div>
         </div>
+        </div>
       </div>
 
       {/* Progress bar */}
-      <div style={{ padding: "0 20px", marginTop: 16, marginBottom: 24 }}>
+      <div style={{ padding: "0 20px", marginTop: 16, marginBottom: 24, maxWidth: isDesktop ? 560 : undefined, margin: isDesktop ? '16px auto 24px' : undefined }}>
         <div style={{ height: 4, background: C.border, borderRadius: 2, overflow: "hidden" }}>
           <div
             style={{
@@ -280,7 +285,7 @@ export default function CreateTaskPage() {
       </div>
 
       {/* Step content */}
-      <div style={{ padding: "0 20px 120px" }}>
+      <div style={{ padding: "0 20px 120px", maxWidth: isDesktop ? 560 : undefined, margin: isDesktop ? '0 auto' : undefined }}>
         {/* Step 1: Title + Category + Description */}
         {step === 1 && (
           <div>
@@ -681,10 +686,11 @@ export default function CreateTaskPage() {
             </div>
 
             <label style={labelStyle}>Currency</label>
+            {/* BLINK: ETH-only — Solana reward option hidden. */}
             <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
-              {(["SOL", "ETH"] as RewardCurrency[]).map((cur) => {
+              {(["ETH"] as RewardCurrency[]).map((cur) => {
                 const active = draft.reward_currency === cur;
-                const color = cur === "ETH" ? C.ethBlue : C.solPurple;
+                const color = C.primary;
                 return (
                   <button
                     key={cur}
@@ -853,8 +859,11 @@ export default function CreateTaskPage() {
         style={{
           position: "fixed",
           bottom: 0,
-          left: 0,
-          right: 0,
+          left: isDesktop ? '50%' : 0,
+          right: isDesktop ? 'auto' : 0,
+          transform: isDesktop ? 'translateX(-50%)' : undefined,
+          width: isDesktop ? '100%' : undefined,
+          maxWidth: isDesktop ? 560 : undefined,
           background: `${C.bg}ee`,
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",

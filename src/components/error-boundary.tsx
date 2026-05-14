@@ -5,8 +5,8 @@ interface Props { children: ReactNode; fallback?: ReactNode; }
 interface State { hasError: boolean; error: Error | null; errorInfo: string; }
 
 const C = {
-  bg: "#0a0a0a", card: "#141414", border: "#222",
-  text: "#fafafa", muted: "#a1a1aa", red: "#ef4444", violet: "#8b5cf6",
+  bg: "#0a0a0f", card: "#1a1a24", border: "rgba(255,255,255,0.06)",
+  text: "#FFFFFF", muted: "#8a8a99", red: "#ef4444", violet: "#00FF88",
 };
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -21,7 +21,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: any) {
     // Log to console (production: send to monitoring service)
-    console.error("[MishMesh ErrorBoundary]", error, info?.componentStack);
+    console.error("[BLINK ErrorBoundary]", error, info?.componentStack);
 
     this.setState({ errorInfo: info?.componentStack || "" });
 

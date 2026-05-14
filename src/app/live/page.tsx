@@ -5,9 +5,11 @@ import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/theme";
 import type { ActivityRow } from "@/lib/theme";
 import GlassCard from "@/components/GlassCard";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
 
 // ── Types ──────────────────────────────────────────────
 
+// BLINK: ETH-only — Filter is widened (kept for legacy DB rows tagged with SOL/BTC) but UI exposes only All + ETH.
 type ChainFilter = "All" | "SOL" | "ETH" | "BTC";
 
 interface StoryUser {
@@ -30,10 +32,31 @@ function relativeTime(ts: string): string {
   return `${d}d ago`;
 }
 
+// Rebrand activity feed copy at display time (DB strings retain legacy terms).
+function rebrandActivityText(s: string | null | undefined): string {
+  if (!s) return "";
+  return s
+    .replace(/\bdropped an orb\b/gi, "spawned a BLINK")
+    .replace(/\bcracked an orb\b/gi, "caught a BLINK")
+    .replace(/\bdropped\b/gi, "spawned")
+    .replace(/\bcracked\b/gi, "caught")
+    .replace(/\bcancelled an orb\b/gi, "released a BLINK")
+    .replace(/\bORBS\b/g, "BLINKS")
+    .replace(/\bORB\b/g, "BLINK")
+    .replace(/\borbs\b/gi, "BLINKS")
+    .replace(/\borb\b/gi, "BLINK")
+    .replace(/\bHunter\b/g, "Watcher")
+    .replace(/\bhunter\b/g, "watcher")
+    .replace(/\bHunting\b/g, "Watching")
+    .replace(/\bhunting\b/g, "watching")
+    .replace(/\bHunt\b/g, "Watch")
+    .replace(/\bhunt\b/g, "watch");
+}
+
 function typeColor(type: string): string {
-  if (type === "crack" || type === "orb_cracked") return C.gold;
+  if (type === "crack" || type === "orb_cracked") return C.accent;
   if (type === "drop") return C.primary;
-  if (type === "send") return "#3B82F6";
+  if (type === "send") return "#88FF00";
   if (type === "orb_cancelled") return C.danger;
   return C.muted;
 }
@@ -69,7 +92,7 @@ function IconDrop({ size = 20, color = C.primary }: { size?: number; color?: str
   );
 }
 
-function IconSend({ size = 20, color = "#3B82F6" }: { size?: number; color?: string }) {
+function IconSend({ size = 20, color = "#88FF00" }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="22" y1="2" x2="11" y2="13" />
@@ -109,6 +132,15 @@ function IconPlus({ size = 20, color = "#fff" }: { size?: number; color?: string
   );
 }
 
+function IconTrending({ size = 16, color = C.accent }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+      <polyline points="17 6 23 6 23 12" />
+    </svg>
+  );
+}
+
 function typeIcon(type: string) {
   const color = typeColor(type);
   if (type === "crack" || type === "orb_cracked") return <IconBolt size={20} color={color} />;
@@ -137,7 +169,7 @@ function SkeletonBlock({ width, height, radius = 8 }: { width: string | number; 
 
 function LoadingSkeleton() {
   return (
-    <div style={{ padding: "0 20px" }}>
+    <div style={{ padding: "0 0" }}>
       {/* Story skeleton */}
       <div style={{ display: "flex", gap: 14, padding: "16px 0", overflow: "hidden" }}>
         {[0, 1, 2, 3, 4].map((i) => (
@@ -184,7 +216,7 @@ function StoriesRow({ users }: { users: StoryUser[] }) {
         display: "flex",
         gap: 14,
         overflowX: "auto",
-        padding: "16px 20px",
+        padding: "16px 0",
         WebkitOverflowScrolling: "touch",
         scrollbarWidth: "none" as const,
         msOverflowStyle: "none" as const,
@@ -238,7 +270,7 @@ function StoriesRow({ users }: { users: StoryUser[] }) {
                 width: 64,
                 height: 64,
                 borderRadius: "50%",
-                background: `linear-gradient(${C.surface}, ${C.surface}) padding-box, linear-gradient(135deg, #9945FF, #14F195) border-box`,
+                background: `linear-gradient(${C.surface}, ${C.surface}) padding-box, linear-gradient(135deg, #00FF88, #88FF00) border-box`,
                 border: "2px solid transparent",
                 display: "flex",
                 alignItems: "center",
@@ -260,7 +292,7 @@ function StoriesRow({ users }: { users: StoryUser[] }) {
                 {u.avatar_url ? (
                   <img
                     src={u.avatar_url}
-                    alt=""
+                    alt="User avatar"
                     style={{
                       width: 50,
                       height: 50,
@@ -323,20 +355,23 @@ function ActivityCard({ item, index, isNew }: { item: ActivityRow; index: number
 
   return (
     <div
+      className="activity-card"
       style={{
         display: "flex",
         alignItems: "center",
         gap: 14,
         background: C.glass,
         border: `1px solid ${isNew ? `${color}44` : C.glassBorder}`,
+        borderLeft: `3px solid ${color}`,
         borderRadius: 16,
         padding: "14px 16px",
         marginBottom: 10,
         opacity: visible ? 1 : 0,
         transform: visible ? "translateY(0)" : "translateY(16px)",
-        transition: "opacity 0.35s ease, transform 0.35s ease",
+        transition: "opacity 0.35s ease, transform 0.35s ease, box-shadow 0.2s ease",
         transitionDelay: isNew ? "0ms" : `${Math.min(index * 50, 300)}ms`,
         animation: !isNew ? `fadeSlideUp 0.4s ease ${Math.min(index * 50, 300)}ms both` : "none",
+        cursor: "default",
       }}
     >
       {/* Icon circle */}
@@ -369,7 +404,7 @@ function ActivityCard({ item, index, isNew }: { item: ActivityRow; index: number
             lineHeight: 1.3,
           }}
         >
-          {item.title}
+          {rebrandActivityText(item.title)}
         </div>
         {item.subtitle && (
           <div
@@ -382,7 +417,7 @@ function ActivityCard({ item, index, isNew }: { item: ActivityRow; index: number
               textOverflow: "ellipsis",
             }}
           >
-            {item.subtitle}
+            {rebrandActivityText(item.subtitle)}
           </div>
         )}
         <div style={{ color: C.muted, fontSize: 11, marginTop: 4, opacity: 0.7 }}>
@@ -408,9 +443,177 @@ function ActivityCard({ item, index, isNew }: { item: ActivityRow; index: number
   );
 }
 
+// ── Trending Sidebar ───────────────────────────────────
+
+function TrendingSidebar() {
+  const statCardStyle: React.CSSProperties = {
+    background: C.s2,
+    border: `1px solid ${C.glassBorder}`,
+    borderRadius: 14,
+    padding: "16px 18px",
+    marginBottom: 10,
+  };
+
+  const statLabelStyle: React.CSSProperties = {
+    color: C.muted,
+    fontSize: 12,
+    fontWeight: 500,
+    marginBottom: 6,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase" as const,
+  };
+
+  const statValueStyle: React.CSSProperties = {
+    color: C.text,
+    fontSize: 26,
+    fontWeight: 700,
+    lineHeight: 1,
+  };
+
+  const statSubStyle: React.CSSProperties = {
+    color: C.accent,
+    fontSize: 12,
+    fontWeight: 600,
+    marginTop: 4,
+  };
+
+  return (
+    <aside
+      style={{
+        width: "35%",
+        flexShrink: 0,
+        paddingLeft: 24,
+        position: "sticky",
+        top: 80,
+        alignSelf: "flex-start",
+      }}
+    >
+      {/* Section header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 16,
+        }}
+      >
+        <IconTrending size={16} color={C.accent} />
+        <span
+          style={{
+            color: C.text,
+            fontSize: 15,
+            fontWeight: 700,
+            letterSpacing: "0.02em",
+          }}
+        >
+          Trending
+        </span>
+      </div>
+
+      {/* Total spawns today */}
+      <div style={statCardStyle}>
+        <div style={statLabelStyle}>Spawns Today</div>
+        <div style={statValueStyle}>142</div>
+        <div style={statSubStyle}>+18% vs yesterday</div>
+      </div>
+
+      {/* Total catches today */}
+      <div style={statCardStyle}>
+        <div style={statLabelStyle}>Catches Today</div>
+        <div style={statValueStyle}>89</div>
+        <div style={{ ...statSubStyle, color: C.gold }}>+9% vs yesterday</div>
+      </div>
+
+      {/* Most active chain */}
+      <div style={statCardStyle}>
+        <div style={statLabelStyle}>Most Active Chain</div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            marginTop: 4,
+          }}
+        >
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              background: `${C.primary}22`,
+              border: `1.5px solid ${C.primary}55`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 13,
+              fontWeight: 700,
+              color: C.primary,
+            }}
+          >
+            E
+          </div>
+          <div>
+            <div style={{ color: C.text, fontSize: 16, fontWeight: 700 }}>Ethereum</div>
+            <div style={{ color: C.muted, fontSize: 12 }}>100% of activity</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div
+        style={{
+          height: 1,
+          background: C.glassBorder,
+          margin: "18px 0",
+        }}
+      />
+
+      {/* Chain breakdown — BLINK: ETH-only */}
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ ...statLabelStyle, marginBottom: 12 }}>Chain Breakdown</div>
+        {[
+          { label: "Ethereum", pct: 100, color: C.primary },
+        ].map(({ label, pct, color }) => (
+          <div key={label} style={{ marginBottom: 10 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: 5,
+              }}
+            >
+              <span style={{ color: C.muted, fontSize: 12 }}>{label}</span>
+              <span style={{ color: C.text, fontSize: 12, fontWeight: 600 }}>{pct}%</span>
+            </div>
+            <div
+              style={{
+                height: 4,
+                borderRadius: 4,
+                background: C.glassBorder,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width: `${pct}%`,
+                  background: color,
+                  borderRadius: 4,
+                  transition: "width 0.6s ease",
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────
 
 export default function LiveFeedPage() {
+  const { isDesktop } = useIsDesktop();
   const [activities, setActivities] = useState<ActivityRow[]>([]);
   const [storyUsers, setStoryUsers] = useState<StoryUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -517,7 +720,8 @@ export default function LiveFeedPage() {
       ? activities
       : activities.filter((a) => chainFromText(a) === chainFilter);
 
-  const chains: ChainFilter[] = ["All", "SOL", "ETH", "BTC"];
+  // BLINK: ETH-only — Solana/Bitcoin filter pills hidden. Underlying chainFromText logic preserved for legacy rows.
+  const chains: ChainFilter[] = ["All", "ETH"];
 
   return (
     <div
@@ -529,7 +733,7 @@ export default function LiveFeedPage() {
         background: C.bg,
         display: "flex",
         flexDirection: "column",
-        paddingBottom: 100,
+        paddingBottom: isDesktop ? 40 : 100,
         overflowY: "auto",
       }}
     >
@@ -550,12 +754,16 @@ export default function LiveFeedPage() {
           to { opacity: 1; transform: translateY(0); }
         }
         div::-webkit-scrollbar { display: none; }
+        .activity-card:hover {
+          transform: translateY(-2px) !important;
+          box-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.08);
+        }
       `}</style>
 
       {/* ── Header ── */}
       <div
         style={{
-          padding: "60px 20px 16px",
+          padding: isDesktop ? "20px 40px 16px" : "60px 20px 16px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -563,7 +771,9 @@ export default function LiveFeedPage() {
           borderBottom: `1px solid ${C.glassBorder}`,
         }}
       >
-        <h1 style={{ color: C.text, fontSize: 28, fontWeight: 700, margin: 0 }}>Live Feed</h1>
+        <h1 style={{ color: C.text, fontSize: isDesktop ? 24 : 28, fontWeight: 700, margin: 0 }}>
+          Live Feed
+        </h1>
 
         {/* Live indicator */}
         <div
@@ -622,118 +832,150 @@ export default function LiveFeedPage() {
         </div>
       )}
 
-      {/* ── Stories Row ── */}
-      {!loading && storyUsers.length > 0 && <StoriesRow users={storyUsers} />}
-
-      {/* ── Chain Filter Pills ── */}
+      {/* ── Main content area ── */}
       <div
         style={{
+          flex: 1,
           display: "flex",
-          gap: 8,
-          padding: "8px 20px 14px",
-          overflowX: "auto",
+          flexDirection: "row",
+          maxWidth: isDesktop ? 1280 : "100%",
+          width: "100%",
+          margin: "0 auto",
+          padding: isDesktop ? "0 40px" : "0",
+          boxSizing: "border-box",
         }}
       >
-        {chains.map((ch) => {
-          const active = chainFilter === ch;
-          let pillColor = C.primary;
-          if (ch === "SOL") pillColor = "#9945FF";
-          if (ch === "ETH") pillColor = "#627EEA";
-          if (ch === "BTC") pillColor = "#F7931A";
+        {/* ── Left / Main column ── */}
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Stories Row */}
+          {!loading && storyUsers.length > 0 && (
+            <div style={{ padding: isDesktop ? "0" : "0 20px" }}>
+              <StoriesRow users={storyUsers} />
+            </div>
+          )}
 
-          return (
-            <button
-              key={ch}
-              onClick={() => setChainFilter(ch)}
-              style={{
-                padding: "7px 16px",
-                borderRadius: 20,
-                border: active ? `1.5px solid ${pillColor}` : `1px solid ${C.glassBorder}`,
-                background: active ? `${pillColor}1a` : "transparent",
-                color: active ? pillColor : C.muted,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                flexShrink: 0,
-                transition: "all 0.2s ease",
-              }}
-            >
-              {ch}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── Content ── */}
-      <div style={{ flex: 1, padding: "0 20px 32px" }}>
-        {loading ? (
-          <LoadingSkeleton />
-        ) : filtered.length === 0 ? (
-          /* ── Empty State ── */
+          {/* Chain Filter Pills */}
           <div
             style={{
               display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              paddingTop: 80,
-              gap: 16,
-              animation: "fadeSlideUp 0.4s ease",
+              gap: 8,
+              padding: isDesktop ? "8px 0 14px" : "8px 20px 14px",
+              overflowX: "auto",
+              scrollbarWidth: "none" as const,
             }}
           >
-            <div
-              style={{
-                width: 72,
-                height: 72,
-                borderRadius: "50%",
-                background: C.surface,
-                border: `1px solid ${C.glassBorder}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <IconAntenna size={34} color={C.muted} />
-            </div>
-            <p
-              style={{
-                color: C.text,
-                fontSize: 16,
-                fontWeight: 600,
-                textAlign: "center",
-                margin: 0,
-              }}
-            >
-              No activity yet
-            </p>
-            <p
-              style={{
-                color: C.muted,
-                fontSize: 14,
-                textAlign: "center",
-                margin: 0,
-                lineHeight: 1.5,
-                maxWidth: 260,
-              }}
-            >
-              {chainFilter !== "All"
-                ? `No ${chainFilter} activity to show. Try switching filters.`
-                : "Drop or crack orbs to see the feed light up."}
-            </p>
+            {chains.map((ch) => {
+              const active = chainFilter === ch;
+              let pillColor = C.primary;
+              if (ch === "SOL") pillColor = "#00FF88";
+              if (ch === "ETH") pillColor = "#88FF00";
+              if (ch === "BTC") pillColor = "#88FF00";
+
+              return (
+                <button
+                  key={ch}
+                  onClick={() => setChainFilter(ch)}
+                  style={{
+                    padding: "7px 16px",
+                    borderRadius: 20,
+                    border: active ? `1.5px solid ${pillColor}` : `1px solid ${C.glassBorder}`,
+                    background: active ? `${pillColor}1a` : "transparent",
+                    color: active ? pillColor : C.muted,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  {ch}
+                </button>
+              );
+            })}
           </div>
-        ) : (
-          /* ── Feed Cards ── */
-          <div>
-            {filtered.map((item, idx) => (
-              <ActivityCard
-                key={item.id}
-                item={item}
-                index={idx}
-                isNew={newIds.has(item.id)}
-              />
-            ))}
+
+          {/* Feed content */}
+          <div style={{ flex: 1, padding: isDesktop ? "0 0 32px" : "0 20px 32px" }}>
+            {loading ? (
+              <LoadingSkeleton />
+            ) : filtered.length === 0 ? (
+              /* ── Empty State ── */
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  paddingTop: 80,
+                  gap: 16,
+                  animation: "fadeSlideUp 0.4s ease",
+                }}
+              >
+                <div
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: "50%",
+                    background: C.surface,
+                    border: `1px solid ${C.glassBorder}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <IconAntenna size={34} color={C.muted} />
+                </div>
+                <p
+                  style={{
+                    color: C.text,
+                    fontSize: 16,
+                    fontWeight: 600,
+                    textAlign: "center",
+                    margin: 0,
+                  }}
+                >
+                  No activity yet
+                </p>
+                <p
+                  style={{
+                    color: C.muted,
+                    fontSize: 14,
+                    textAlign: "center",
+                    margin: 0,
+                    lineHeight: 1.5,
+                    maxWidth: 260,
+                  }}
+                >
+                  {chainFilter !== "All"
+                    ? `No ${chainFilter} activity to show. Try switching filters.`
+                    : "No activity yet — be the first to spawn a creature"}
+                </p>
+              </div>
+            ) : (
+              /* ── Feed Cards ── */
+              <div>
+                {filtered.map((item, idx) => (
+                  <ActivityCard
+                    key={item.id}
+                    item={item}
+                    index={idx}
+                    isNew={newIds.has(item.id)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        </div>
+
+        {/* ── Right / Sidebar column (desktop only) ── */}
+        {isDesktop && <TrendingSidebar />}
       </div>
     </div>
   );

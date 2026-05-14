@@ -1,26 +1,29 @@
+// BLINK palette — green / white / black. All cyan/purple/indigo collapsed to green per Phase 1.
 export const C = {
-  bg: '#0A0A0F',
-  surface: '#111118',
-  s2: '#1C1C28',
+  bg: '#0a0a0f',
+  surface: '#0d0d14',
+  s2: '#1a1a24',
   card: 'rgba(255,255,255,0.04)',
-  cardSolid: '#1C1C28',
-  cardBorder: 'rgba(255,255,255,0.06)',
-  primary: '#9945FF',
-  accent: '#14F195',
-  gold: '#F59E0B',
-  text: '#F9FAFB',
-  muted: '#9CA3AF',
-  rareBlue: '#3B82F6',
+  cardSolid: '#1a1a24',
+  cardBorder: 'rgba(0,255,136,0.10)',
+  primary: '#00FF88',
+  primary2: '#88FF00',
+  accent: '#00FF88',
+  gold: '#88FF00',
+  text: '#FFFFFF',
+  muted: '#8a8a99',
+  rareBlue: '#88FF00',
   border: 'rgba(255,255,255,0.06)',
   danger: '#EF4444',
-  btcOrange: '#F7931A',
-  ethBlue: '#627EEA',
-  solPurple: '#9945FF',
+  btcOrange: '#88FF00',
+  ethBlue: '#88FF00',
+  solPurple: '#00FF88',
   glass: 'rgba(255,255,255,0.04)',
-  glassBorder: 'rgba(255,255,255,0.06)',
-  // Extended colors used in tasks, squads, orb pages
-  indigo: '#6366F1',
-  cyan: '#06B6D4',
+  glassBorder: 'rgba(0,255,136,0.08)',
+  indigo: '#00FF88',
+  cyan: '#00FF88',
+  glow: 'rgba(0,255,136,0.4)',
+  glowSoft: 'rgba(0,255,136,0.18)',
 };
 
 export const FEE = {
@@ -57,7 +60,7 @@ export function normalizeOrb(raw: any): Orb {
 
 export type OrbType = 'Crypto' | 'Token' | 'NFT';
 export type OrbRarity = 'Common' | 'Rare' | 'Legendary';
-export type OrbStatus = 'pending' | 'claimed' | 'cracked' | 'cancelled' | 'expired' | 'failed';
+export type OrbStatus = 'pending' | 'claimed' | 'cracked' | 'cancelled' | 'expired' | 'failed' | 'unfunded';
 
 export interface Orb {
   id: string;
@@ -101,6 +104,8 @@ export interface Orb {
   cracked_at: string | null;
   failure_reason: string | null;
   radius_meters: number | null;
+  media_url: string | null;
+  media_type: string | null;
 }
 
 export interface UserProfile {

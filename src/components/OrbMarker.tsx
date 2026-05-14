@@ -3,9 +3,9 @@ import { C } from "@/lib/theme";
 import type { OrbRarity } from "@/lib/theme";
 
 const RARITY_CONFIG: Record<OrbRarity, { color: string; size: number; pulseAnim: string; pulseDuration: string }> = {
-  Common: { color: "#6B7280", size: 18, pulseAnim: "orbPulseCommon", pulseDuration: "2.4s" },
-  Rare: { color: C.primary, size: 22, pulseAnim: "orbPulseRare", pulseDuration: "1.4s" },
-  Legendary: { color: C.gold, size: 26, pulseAnim: "orbPulseLegendary", pulseDuration: "0.95s" },
+  Common: { color: "#FFFFFF", size: 18, pulseAnim: "orbPulseCommon", pulseDuration: "2.4s" },
+  Rare: { color: "#88FF00", size: 22, pulseAnim: "orbPulseRare", pulseDuration: "1.4s" },
+  Legendary: { color: "#00FF88", size: 26, pulseAnim: "orbPulseLegendary", pulseDuration: "0.95s" },
 };
 
 export default function OrbMarker({

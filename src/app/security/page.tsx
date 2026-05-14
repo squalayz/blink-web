@@ -1,48 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 
 const C = {
-  bg: "#0A0A0F",
+  bg: "#0a0a0f",
   surface: "#0d0d14",
   card: "#1a1a24",
-  primary: "#6366f1",
-  accent: "#06b6d4",
-  text: "#F9FAFB",
-  textMuted: "#9CA3AF",
-  border: "#1F2028",
+  primary: "#00FF88",
+  accent: "#88FF00",
+  text: "#FFFFFF",
+  textMuted: "#8a8a99",
+  border: "#1a1a24",
 };
-
-function MMLogo({ size = 44 }: { size?: number }) {
-  const h = Math.round(size * (70 / 120));
-  return (
-    <svg width={size} height={h} viewBox="0 0 120 70">
-      <defs>
-        <linearGradient id="lgL" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#6366f1" />
-          <stop offset="100%" stopColor="#7C3AED" />
-        </linearGradient>
-        <linearGradient id="lgR" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#06b6d4" />
-          <stop offset="100%" stopColor="#10B981" />
-        </linearGradient>
-        <linearGradient id="lgM" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#6366f1" />
-          <stop offset="100%" stopColor="#06b6d4" />
-        </linearGradient>
-      </defs>
-      <circle cx="35" cy="35" r="24" fill="none" stroke="url(#lgL)" strokeWidth="5" />
-      <circle cx="65" cy="35" r="24" fill="none" stroke="url(#lgR)" strokeWidth="5" />
-      <path
-        d="M50 15.4 A24 24 0 0 1 50 54.6 A24 24 0 0 1 50 15.4"
-        fill="url(#lgM)"
-        opacity="0.3"
-      />
-      <circle cx="35" cy="14" r="4" fill="url(#lgL)" />
-      <circle cx="65" cy="14" r="4" fill="url(#lgR)" />
-    </svg>
-  );
-}
 
 function Card({
   title,
@@ -82,14 +52,14 @@ export default function SecurityPage() {
     "You sign up with your phone",
     "Privy.io generates a key pair on your device",
     "Private key encrypted by Secure Enclave",
-    "Public key (wallet address) sent to MishMesh",
-    "You are ready to hunt",
+    "Public key (wallet address) sent to BLINK",
+    "You are ready to watch",
   ];
 
   const canSee = [
     "Your wallet ADDRESS (public)",
-    "Your username",
-    "Your orb activity",
+    "Your Watcher handle",
+    "Your Creature activity",
     "Your profile",
   ];
 
@@ -137,7 +107,13 @@ export default function SecurityPage() {
             textDecoration: "none",
           }}
         >
-          <MMLogo size={38} />
+          <Image
+            src="/blink-logo.png"
+            alt="BLINK"
+            width={38}
+            height={38}
+            style={{ objectFit: "contain" }}
+          />
           <span
             style={{
               fontWeight: 800,
@@ -146,7 +122,7 @@ export default function SecurityPage() {
               letterSpacing: "-0.02em",
             }}
           >
-            MishMesh
+            BLINK
           </span>
         </Link>
         <Link
@@ -162,7 +138,7 @@ export default function SecurityPage() {
             textDecoration: "none",
           }}
         >
-          Sign In
+          Enter The Eye
         </Link>
       </nav>
 
@@ -273,8 +249,8 @@ export default function SecurityPage() {
           </div>
         </Card>
 
-        {/* Card 2 — What MishMesh can see */}
-        <Card title="What MishMesh can see">
+        {/* Card 2 — What BLINK can see */}
+        <Card title="What BLINK can see">
           <div
             style={{
               display: "flex",
@@ -289,7 +265,7 @@ export default function SecurityPage() {
                   fontSize: 12,
                   fontWeight: 700,
                   letterSpacing: "0.08em",
-                  color: C.accent,
+                  color: C.primary,
                   textTransform: "uppercase" as const,
                   marginBottom: 16,
                 }}
@@ -304,13 +280,13 @@ export default function SecurityPage() {
                   >
                     <span
                       style={{
-                        color: C.accent,
+                        color: C.primary,
                         fontWeight: 700,
                         fontSize: 16,
                         flexShrink: 0,
                       }}
                     >
-                      {"\u2713"}
+                      {"✓"}
                     </span>
                     <span style={{ color: C.textMuted, fontSize: 14 }}>
                       {item}
@@ -348,7 +324,7 @@ export default function SecurityPage() {
                         flexShrink: 0,
                       }}
                     >
-                      {"\u2717"}
+                      {"✗"}
                     </span>
                     <span style={{ color: C.textMuted, fontSize: 14 }}>
                       {item}
@@ -406,15 +382,15 @@ export default function SecurityPage() {
           </div>
           <div
             style={{
-              background: "rgba(245,158,11,0.08)",
-              border: "1px solid rgba(245,158,11,0.25)",
+              background: "rgba(136,255,0,0.08)",
+              border: "1px solid rgba(136,255,0,0.25)",
               borderRadius: 12,
               padding: "16px 20px",
             }}
           >
             <p
               style={{
-                color: "#F59E0B",
+                color: C.accent,
                 fontSize: 14,
                 lineHeight: 1.6,
                 fontWeight: 500,
@@ -437,7 +413,7 @@ export default function SecurityPage() {
               marginBottom: 20,
             }}
           >
-            MishMesh uses Privy.io for wallet infrastructure — the same
+            BLINK uses Privy.io for wallet infrastructure &mdash; the same
             technology trusted by Coinbase, friend.tech, and thousands of other
             crypto apps.
           </p>
@@ -471,7 +447,7 @@ export default function SecurityPage() {
           margin: "0 auto",
         }}
       >
-        <span style={{ color: C.textMuted, fontSize: 14 }}>MishMesh 2025</span>
+        <span style={{ color: C.textMuted, fontSize: 14 }}>BLINK 2026</span>
         <div style={{ display: "flex", gap: 24 }}>
           <Link
             href="/privacy"

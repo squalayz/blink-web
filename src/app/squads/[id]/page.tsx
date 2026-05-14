@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/theme";
 import { useAuth } from "@/components/providers";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
 
 interface Squad {
   id: string;
@@ -41,6 +42,9 @@ export default function SquadDetailPage() {
   const [joining, setJoining] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [orbsCracked, setOrbsCracked] = useState(0);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const { isDesktop } = useIsDesktop();
 
   const fetchSquad = useCallback(async () => {
     setLoading(true);
@@ -97,6 +101,20 @@ export default function SquadDetailPage() {
       enriched.sort((a, b) => (b.contribution || 0) - (a.contribution || 0));
       setMembers(enriched);
 
+      const memberIds = enriched.map((m) => m.user_id);
+      if (memberIds.length > 0) {
+        try {
+          const { count } = await supabase
+            .from("orbs")
+            .select("*", { count: "exact", head: true })
+            .in("cracked_by", memberIds)
+            .eq("status", "cracked");
+          setOrbsCracked(count || 0);
+        } catch {
+          // orbs table may not exist yet
+        }
+      }
+
       if (user) {
         const found = (memberData || []).some((m: any) => m.user_id === user.id);
         setIsMember(found);
@@ -131,7 +149,8 @@ export default function SquadDetailPage() {
         .eq("id", squad.id);
       fetchSquad();
     } catch (e: any) {
-      alert(e?.message || "Failed to join");
+      setActionError(e?.message || "Failed to join");
+      setTimeout(() => setActionError(null), 3000);
     } finally {
       setJoining(false);
     }
@@ -153,7 +172,8 @@ export default function SquadDetailPage() {
         .eq("id", squad.id);
       router.push("/squads");
     } catch (e: any) {
-      alert(e?.message || "Failed to leave");
+      setActionError(e?.message || "Failed to leave");
+      setTimeout(() => setActionError(null), 3000);
     } finally {
       setLeaving(false);
     }
@@ -199,7 +219,7 @@ export default function SquadDetailPage() {
       {/* Header */}
       <div
         style={{
-          padding: "56px 20px 20px",
+          padding: isDesktop ? "32px 32px 20px" : "56px 20px 20px",
           background: C.surface,
           borderBottom: `1px solid ${C.border}`,
         }}
@@ -256,7 +276,7 @@ export default function SquadDetailPage() {
         </div>
       </div>
 
-      <div style={{ padding: "16px 20px" }}>
+      <div style={{ padding: isDesktop ? "16px 0" : "16px 20px", maxWidth: isDesktop ? 720 : undefined, margin: isDesktop ? "0 auto" : undefined, ...(isDesktop ? { paddingLeft: 32, paddingRight: 32 } : {}) }}>
         {/* Stats Row */}
         <div
           style={{
@@ -268,7 +288,7 @@ export default function SquadDetailPage() {
           {[
             { label: "Members", value: String(squad.member_count || members.length), color: C.text },
             { label: "Earned", value: `$${(squad.total_earnings || 0).toFixed(2)}`, color: C.gold },
-            { label: "Orbs Cracked", value: "--", color: C.cyan },
+            { label: "Creatures Caught", value: String(orbsCracked), color: C.cyan },
           ].map((stat) => (
             <div
               key={stat.label}
@@ -279,6 +299,7 @@ export default function SquadDetailPage() {
                 padding: "14px 12px",
                 textAlign: "center",
                 border: `1px solid ${C.border}`,
+                minWidth: isDesktop ? 120 : undefined,
               }}
             >
               <div style={{ fontSize: 20, fontWeight: 700, color: stat.color }}>{stat.value}</div>
@@ -286,6 +307,23 @@ export default function SquadDetailPage() {
             </div>
           ))}
         </div>
+
+        {actionError && (
+          <div
+            style={{
+              background: `${C.danger}18`,
+              border: `1px solid ${C.danger}40`,
+              borderRadius: 12,
+              padding: "12px 16px",
+              marginBottom: 16,
+              fontSize: 14,
+              color: C.danger,
+              fontWeight: 600,
+            }}
+          >
+            {actionError}
+          </div>
+        )}
 
         {/* Invite Code */}
         <div
@@ -298,6 +336,7 @@ export default function SquadDetailPage() {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            maxWidth: isDesktop ? 400 : undefined,
           }}
         >
           <div>
@@ -347,6 +386,9 @@ export default function SquadDetailPage() {
               cursor: joining ? "default" : "pointer",
               opacity: joining ? 0.6 : 1,
               marginBottom: 20,
+              maxWidth: isDesktop ? 400 : undefined,
+              margin: isDesktop ? "0 auto 20px" : undefined,
+              display: isDesktop ? "block" : undefined,
             }}
           >
             {joining ? "Joining..." : "Join Squad"}
@@ -369,6 +411,9 @@ export default function SquadDetailPage() {
               cursor: leaving ? "default" : "pointer",
               opacity: leaving ? 0.6 : 1,
               marginBottom: 20,
+              maxWidth: isDesktop ? 400 : undefined,
+              margin: isDesktop ? "0 auto 20px" : undefined,
+              display: isDesktop ? "block" : undefined,
             }}
           >
             {leaving ? "Leaving..." : "Leave Squad"}
@@ -386,80 +431,82 @@ export default function SquadDetailPage() {
           </div>
         )}
 
-        {members.map((member, idx) => (
-          <div
-            key={member.user_id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              background: C.card,
-              borderRadius: 12,
-              padding: "12px 14px",
-              marginBottom: 8,
-              border: `1px solid ${C.border}`,
-            }}
-          >
-            {/* Rank */}
+        <div style={isDesktop ? { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 } : {}}>
+          {members.map((member, idx) => (
             <div
+              key={member.user_id}
               style={{
-                width: 28,
-                height: 28,
-                borderRadius: 8,
-                background: idx === 0 ? C.gold : idx === 1 ? C.muted : C.s2,
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                fontSize: 13,
-                fontWeight: 700,
-                color: idx < 2 ? "#000" : C.muted,
-                flexShrink: 0,
+                gap: 12,
+                background: C.card,
+                borderRadius: 12,
+                padding: "12px 14px",
+                marginBottom: isDesktop ? 0 : 8,
+                border: `1px solid ${C.border}`,
               }}
             >
-              {idx + 1}
-            </div>
-
-            {/* Avatar */}
-            {member.avatar_url ? (
-              <img
-                src={member.avatar_url}
-                alt=""
-                style={{ width: 36, height: 36, borderRadius: 10, objectFit: "cover", flexShrink: 0 }}
-              />
-            ) : (
+              {/* Rank */}
               <div
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  background: C.s2,
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  background: idx === 0 ? C.gold : idx === 1 ? C.muted : C.s2,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: idx < 2 ? "#000" : C.muted,
                   flexShrink: 0,
                 }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
+                {idx + 1}
               </div>
-            )}
 
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>
-                {member.display_name || member.handle || member.user_id.slice(0, 8)}
+              {/* Avatar */}
+              {member.avatar_url ? (
+                <img
+                  src={member.avatar_url}
+                  alt="Squad member avatar"
+                  style={{ width: 36, height: 36, borderRadius: 10, objectFit: "cover", flexShrink: 0 }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    background: C.s2,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                </div>
+              )}
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                  {member.display_name || member.handle || member.user_id.slice(0, 8)}
+                </div>
+                <div style={{ fontSize: 12, color: C.muted }}>
+                  {member.role === "leader" ? "Leader" : "Member"}
+                </div>
               </div>
-              <div style={{ fontSize: 12, color: C.muted }}>
-                {member.role === "leader" ? "Leader" : "Member"}
+
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.gold, flexShrink: 0 }}>
+                ${(member.contribution || 0).toFixed(2)}
               </div>
             </div>
-
-            <div style={{ fontSize: 14, fontWeight: 600, color: C.gold, flexShrink: 0 }}>
-              ${(member.contribution || 0).toFixed(2)}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

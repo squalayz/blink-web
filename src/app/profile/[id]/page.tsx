@@ -564,34 +564,25 @@ export default function PublicProfilePage() {
             >
               Wallets
             </p>
+            {/* BLINK: ETH-only — Solana/Bitcoin wallet rows hidden. Stored addresses preserved. */}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {profile.sol_address && (
-                <WalletRow
-                  label="SOL"
-                  address={profile.sol_address}
-                  color={C.primary}
-                  copied={copiedKey === "sol"}
-                  onCopy={() => handleCopy("sol", profile.sol_address!)}
-                />
-              )}
+              {/* {profile.sol_address && (
+                <WalletRow label="SOL" address={profile.sol_address} color={C.primary}
+                  copied={copiedKey === "sol"} onCopy={() => handleCopy("sol", profile.sol_address!)} />
+              )} */}
               {profile.eth_address && (
                 <WalletRow
                   label="ETH"
                   address={profile.eth_address}
-                  color={C.ethBlue}
+                  color={C.primary}
                   copied={copiedKey === "eth"}
                   onCopy={() => handleCopy("eth", profile.eth_address!)}
                 />
               )}
-              {profile.btc_address && (
-                <WalletRow
-                  label="BTC"
-                  address={profile.btc_address}
-                  color={C.btcOrange}
-                  copied={copiedKey === "btc"}
-                  onCopy={() => handleCopy("btc", profile.btc_address!)}
-                />
-              )}
+              {/* {profile.btc_address && (
+                <WalletRow label="BTC" address={profile.btc_address} color={C.btcOrange}
+                  copied={copiedKey === "btc"} onCopy={() => handleCopy("btc", profile.btc_address!)} />
+              )} */}
             </div>
           </div>
         )}

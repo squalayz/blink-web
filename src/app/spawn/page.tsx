@@ -60,7 +60,7 @@ const ORB_TYPES: {
   {
     kind: "Crypto",
     title: "Crypto Creature",
-    desc: "Spawn SOL or ETH for watchers to discover and catch on The Eye Map.",
+    desc: "Spawn ETH for watchers to discover and catch on The Eye Map.",
     borderColor: C.accent,
     glowColor: C.accent,
   },
@@ -1361,9 +1361,10 @@ function Step2Value({
   const [hoveredQuick, setHoveredQuick] = useState<number | null>(null);
   const [amountFocused, setAmountFocused] = useState(false);
 
+  // BLINK: ETH-only — Solana currency pill hidden. Underlying SOL spawn code preserved for future L2 work.
   const currencies: { sym: OrbCurrency; color: string; label: string; live: boolean }[] = [
     { sym: "ETH", color: C.ethBlue, label: "ETH", live: true },
-    { sym: "SOL", color: C.solPurple, label: "SOL", live: true },
+    // { sym: "SOL", color: C.solPurple, label: "SOL", live: true }, // BLINK: ETH-only — disabled
   ];
 
   const amountNum = parseFloat(amount) || 0;
@@ -1700,12 +1701,13 @@ function Step2NFT({
       <textarea value={nftDescription} onChange={(e) => { if (e.target.value.length <= 200) setNftDescription(e.target.value); }} placeholder="Description (optional)" rows={3} style={{ width: "100%", boxSizing: "border-box", background: C.glass, border: `1px solid ${C.glassBorder}`, borderRadius: 14, color: C.text, fontSize: 14, padding: "14px 16px", outline: "none", fontFamily: "system-ui, sans-serif", resize: "none", marginBottom: 20 }} />
 
       <p style={{ color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, alignSelf: "flex-start", margin: "0 0 10px" }}>Chain</p>
+      {/* BLINK: ETH-only — Solana NFT chain option hidden. setNftChain still used internally; locked to ETH. */}
       <div style={{ display: "flex", gap: 8, marginBottom: 24, width: "100%" }}>
-        {(["ETH", "SOL"] as const).map((ch) => {
+        {(["ETH"] as const).map((ch) => {
           const active = nftChain === ch;
-          const color = ch === "ETH" ? "#88FF00" : "#00FF88";
+          const color = "#00FF88";
           return (
-            <button key={ch} onClick={() => setNftChain(ch)} style={{ flex: 1, padding: "12px 0", borderRadius: 50, border: active ? `2px solid ${color}` : `1px solid ${C.glassBorder}`, background: active ? `${color}18` : C.glass, color: active ? color : C.muted, fontSize: 15, fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }}>{ch === "ETH" ? "Ethereum" : "Solana"}</button>
+            <button key={ch} onClick={() => setNftChain(ch)} style={{ flex: 1, padding: "12px 0", borderRadius: 50, border: active ? `2px solid ${color}` : `1px solid ${C.glassBorder}`, background: active ? `${color}18` : C.glass, color: active ? color : C.muted, fontSize: 15, fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }}>Ethereum</button>
           );
         })}
       </div>
@@ -2809,7 +2811,7 @@ function Step4Review({
           <>
             <ReviewRow label="Name" value={nftName || "--"} />
             {nftDescription && <ReviewRow label="Description" value={nftDescription} />}
-            <ReviewRow label="Chain" value={nftChain === "ETH" ? "Ethereum" : "Solana"} />
+            <ReviewRow label="Chain" value="Ethereum" />
             <ReviewRow label="Rarity" value={nftRarity || "Common"} valueStyle={{ color: rarityCol, fontWeight: 700 }} />
             <ReviewRow label="Claim Fee" value={claimFee === 0 ? "Free" : `$${claimFee}`} />
           </>

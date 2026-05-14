@@ -37,7 +37,7 @@ export default function UserAvatar({
       {profilePicUrl ? (
         <img
           src={profilePicUrl}
-          alt={handle}
+          alt={handle + " avatar"}
           style={{
             width: size,
             height: size,
@@ -70,7 +70,7 @@ export default function UserAvatar({
           style={{
             fontSize: 14,
             fontWeight: 600,
-            color: "#F9FAFB",
+            color: "#FFFFFF",
           }}
         >
           @{handle}

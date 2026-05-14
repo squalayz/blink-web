@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     const { data: profile, error: fetchError } = await supabaseAdmin
       .from("profiles")
       .select(
-        "encrypted_sol_key, encrypted_eth_key, encrypted_btc_key"
+        "sol_encrypted_key, eth_encrypted_key, btc_encrypted_key"
       )
       .eq("id", user.id)
       .single();
@@ -40,14 +40,14 @@ export async function GET(req: NextRequest) {
     }
 
     // 3. Decrypt and return
-    const sol_key = profile.encrypted_sol_key
-      ? decryptAES(profile.encrypted_sol_key)
+    const sol_key = profile.sol_encrypted_key
+      ? decryptAES(profile.sol_encrypted_key)
       : null;
-    const eth_key = profile.encrypted_eth_key
-      ? decryptAES(profile.encrypted_eth_key)
+    const eth_key = profile.eth_encrypted_key
+      ? decryptAES(profile.eth_encrypted_key)
       : null;
-    const btc_key = profile.encrypted_btc_key
-      ? decryptAES(profile.encrypted_btc_key)
+    const btc_key = profile.btc_encrypted_key
+      ? decryptAES(profile.btc_encrypted_key)
       : null;
 
     return NextResponse.json({ sol_key, eth_key, btc_key });

@@ -6,6 +6,7 @@ import { useAuth } from "@/components/providers";
 import { C } from "@/lib/theme";
 import { useRouter } from "next/navigation";
 import GlassCard from "@/components/GlassCard";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -43,10 +44,10 @@ const CATEGORY_COLORS: Record<string, string> = {
   photo: C.primary,
   Survey: C.gold,
   survey: C.gold,
-  Errand: "#F7931A",
-  errand: "#F7931A",
-  Digital: "#3B82F6",
-  digital: "#3B82F6",
+  Errand: "#88FF00",
+  errand: "#88FF00",
+  Digital: "#88FF00",
+  digital: "#88FF00",
 };
 
 function categoryColor(cat: string): string {
@@ -393,7 +394,7 @@ function TaskCard({
             <div
               style={{
                 background: C.accent,
-                color: "#0A0A0F",
+                color: "#0a0a0f",
                 fontSize: 12,
                 fontWeight: 800,
                 padding: "6px 16px",
@@ -416,6 +417,7 @@ function TaskCard({
 export default function TasksFeed() {
   const router = useRouter();
   const { user } = useAuth();
+  const { isDesktop } = useIsDesktop();
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -427,7 +429,7 @@ export default function TasksFeed() {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-        () => {}
+        () => {} // location unavailable — "closest" sort degrades gracefully
       );
     }
   }, []);
@@ -475,7 +477,9 @@ export default function TasksFeed() {
         }
         setTasks(result);
       }
-    } catch {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load tasks";
+      setError(msg);
       setTasks([]);
     } finally {
       setLoading(false);
@@ -526,9 +530,10 @@ export default function TasksFeed() {
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
           borderBottom: `1px solid ${C.glassBorder}`,
-          padding: "56px 20px 0",
+          padding: isDesktop ? "32px 32px 0" : "56px 20px 0",
         }}
       >
+        <div style={{ maxWidth: isDesktop ? 900 : undefined, margin: isDesktop ? '0 auto' : undefined }}>
         {/* Title row */}
         <div
           style={{
@@ -627,10 +632,11 @@ export default function TasksFeed() {
             );
           })}
         </div>
+        </div>
       </div>
 
       {/* Content */}
-      <div style={{ padding: "16px 20px" }}>
+      <div style={{ padding: isDesktop ? "16px 32px" : "16px 20px", maxWidth: isDesktop ? 900 : undefined, margin: isDesktop ? '0 auto' : undefined }}>
         {/* Loading */}
         {loading && (
           <>
@@ -718,30 +724,32 @@ export default function TasksFeed() {
         )}
 
         {/* Task cards */}
-        {!loading &&
-          !error &&
-          tasks.map((task, i) => {
-            const dist =
-              userLocation && task.latitude != null && task.longitude != null
-                ? getDistance(userLocation.lat, userLocation.lon, task.latitude, task.longitude)
-                : null;
-            return (
-              <div
-                key={task.id}
-                style={{
-                  animation: "fadeSlideIn 0.35s ease forwards",
-                  animationDelay: `${i * 0.05}s`,
-                  opacity: 0,
-                }}
-              >
-                <TaskCard
-                  task={task}
-                  distance={dist}
-                  onClick={() => router.push(`/tasks/${task.id}`)}
-                />
-              </div>
-            );
-          })}
+        {!loading && !error && tasks.length > 0 && (
+          <div style={isDesktop ? { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 } : undefined}>
+            {tasks.map((task, i) => {
+              const dist =
+                userLocation && task.latitude != null && task.longitude != null
+                  ? getDistance(userLocation.lat, userLocation.lon, task.latitude, task.longitude)
+                  : null;
+              return (
+                <div
+                  key={task.id}
+                  style={{
+                    animation: "fadeSlideIn 0.35s ease forwards",
+                    animationDelay: `${i * 0.05}s`,
+                    opacity: 0,
+                  }}
+                >
+                  <TaskCard
+                    task={task}
+                    distance={dist}
+                    onClick={() => router.push(`/tasks/${task.id}`)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Floating action button */}
@@ -750,11 +758,11 @@ export default function TasksFeed() {
         style={{
           position: "fixed",
           bottom: 96,
-          right: 20,
+          right: isDesktop ? 32 : 20,
           width: 58,
           height: 58,
           borderRadius: "50%",
-          background: `linear-gradient(135deg, ${C.primary}, #8B5CF6)`,
+          background: `linear-gradient(135deg, ${C.primary}, #00FF88)`,
           border: "none",
           cursor: "pointer",
           boxShadow: `0 6px 24px ${C.primary}55`,

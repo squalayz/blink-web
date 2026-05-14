@@ -52,6 +52,13 @@ serve(async (req) => {
       })
       .eq("id", orbId);
 
+    // Release wallet lock
+    await supabase
+      .from("wallet_locks")
+      .update({ status: "released", updated_at: new Date().toISOString() })
+      .eq("orb_id", orbId)
+      .eq("status", "locked");
+
     return Response.json(
       { success: true, message: "Orb cancelled. Your funds were never moved." },
       { headers: CORS }

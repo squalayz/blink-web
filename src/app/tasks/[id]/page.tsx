@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/providers";
 import { C } from "@/lib/theme";
 import { useRouter, useParams } from "next/navigation";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
 
 interface TaskRow {
   id: string;
@@ -72,6 +73,7 @@ export default function TaskDetailPage() {
   const params = useParams();
   const taskId = params.id as string;
   const { user } = useAuth();
+  const { isDesktop } = useIsDesktop();
 
   const [task, setTask] = useState<TaskRow | null>(null);
   const [claims, setClaims] = useState<TaskClaim[]>([]);
@@ -137,9 +139,14 @@ export default function TaskDetailPage() {
     setActionError(null);
 
     try {
+      const { data: profile } = await supabase.from('profiles').select('handle, avatar_url').eq('id', user.id).single();
+
       const { error: claimErr } = await supabase.from("task_claims").insert({
         task_id: task.id,
         worker_id: user.id,
+        worker_handle: profile?.handle || null,
+        worker_avatar_url: profile?.avatar_url || null,
+        claimed_at: new Date().toISOString(),
         status: "applied",
       });
 
@@ -282,12 +289,10 @@ export default function TaskDetailPage() {
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
           borderBottom: `1px solid ${C.border}`,
-          padding: "16px 20px",
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
+          padding: isDesktop ? "16px 32px" : "16px 20px",
         }}
       >
+        <div style={{ display: "flex", alignItems: "center", gap: 16, maxWidth: isDesktop ? 640 : undefined, margin: isDesktop ? '0 auto' : undefined }}>
         <button
           onClick={() => router.back()}
           style={{
@@ -315,9 +320,10 @@ export default function TaskDetailPage() {
         >
           {statusConf.label}
         </div>
+        </div>
       </div>
 
-      <div style={{ padding: "20px 20px 0" }}>
+      <div style={{ padding: isDesktop ? "20px 32px 0" : "20px 20px 0", maxWidth: isDesktop ? 640 : undefined, margin: isDesktop ? '0 auto' : undefined }}>
         {/* Category + Title */}
         <span
           style={{
@@ -352,7 +358,7 @@ export default function TaskDetailPage() {
           {task.poster_avatar_url ? (
             <img
               src={task.poster_avatar_url}
-              alt=""
+              alt="Task poster avatar"
               style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }}
             />
           ) : (
@@ -698,7 +704,7 @@ export default function TaskDetailPage() {
                   {claim.worker_avatar_url ? (
                     <img
                       src={claim.worker_avatar_url}
-                      alt=""
+                      alt="Claimant avatar"
                       style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover" }}
                     />
                   ) : (
@@ -787,8 +793,11 @@ export default function TaskDetailPage() {
           style={{
             position: "fixed",
             bottom: 0,
-            left: 0,
-            right: 0,
+            left: isDesktop ? '50%' : 0,
+            right: isDesktop ? 'auto' : 0,
+            transform: isDesktop ? 'translateX(-50%)' : undefined,
+            width: isDesktop ? '100%' : undefined,
+            maxWidth: isDesktop ? 640 : undefined,
             background: `${C.bg}ee`,
             backdropFilter: "blur(20px)",
             WebkitBackdropFilter: "blur(20px)",

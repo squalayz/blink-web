@@ -5,11 +5,12 @@ import { useAuth } from "@/components/providers";
 import {
   C,
   rarityColor,
-  FALLBACK_RATES,
   type Orb,
   type OrbRarity,
   type OrbCurrency,
 } from "@/lib/theme";
+import { usePrices } from "@/hooks/usePrices";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
 import { distanceMeters } from "@/lib/geo";
 import { sounds, type BlinkSound } from "@/lib/sounds";
 
@@ -50,9 +51,10 @@ function normaliseCurrency(c: string | undefined): OrbCurrency {
   return "SOL";
 }
 
-function usdValue(orb: Orb): number {
+function usdValue(orb: Orb, rates: { sol: number; eth: number; btc: number }): number {
   const c = normaliseCurrency(orb.currency);
-  return (orb.amount ?? 0) * (FALLBACK_RATES[c] ?? 0);
+  const map: Record<OrbCurrency, number> = { SOL: rates.sol, ETH: rates.eth, BTC: rates.btc };
+  return (orb.amount ?? 0) * (map[c] ?? 0);
 }
 
 function truncateHash(h: string): string {
@@ -127,6 +129,10 @@ const KEYFRAMES = `
     0%, 100% { opacity: 0.15; transform: scale(1); }
     50%      { opacity: 1;    transform: scale(1.8); }
   }
+  @keyframes textShimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
   @keyframes ringRotate {
     from { transform: translate(-50%,-50%) rotate(0deg); }
     to   { transform: translate(-50%,-50%) rotate(360deg); }
@@ -163,9 +169,9 @@ function OrbVisual({
 }) {
   const col = rarityColor(rarity);
   const gradMap: Record<OrbRarity, string> = {
-    Common:    "radial-gradient(circle at 35% 35%, #ffffff, #9ca3af 60%, #4b5563)",
-    Rare:      "radial-gradient(circle at 35% 35%, #93c5fd, #3b82f6 55%, #1e3a8a)",
-    Legendary: "radial-gradient(circle at 35% 35%, #fde68a, #f59e0b 55%, #92400e)",
+    Common:    "radial-gradient(circle at 35% 35%, #ffffff, #8a8a99 60%, #1a1a24)",
+    Rare:      "radial-gradient(circle at 35% 35%, #88FF00, #00FF88 55%, #0d0d14)",
+    Legendary: "radial-gradient(circle at 35% 35%, #ffffff, #00FF88 55%, #0a0a0f)",
   };
 
   const shaking = phase === "CRACKING";
@@ -371,11 +377,13 @@ export default function CrackExperience({
   userProfile: any;
 }) {
   const { session } = useAuth();
+  const prices = usePrices();
+  const { isDesktop } = useIsDesktop();
 
   const rarity = normaliseRarity(orb.rarity);
   const currency = normaliseCurrency(orb.currency);
   const rarityCol = rarityColor(rarity);
-  const usd = usdValue(orb);
+  const usd = usdValue(orb, prices);
 
   const [phase, setPhase] = useState<Phase>("APPROACH");
   const [geoError, setGeoError] = useState("");
@@ -432,15 +440,19 @@ export default function CrackExperience({
 
     const orbLat = orb.latitude ?? (orb as any).lat ?? 0;
     const orbLng = orb.longitude ?? (orb as any).lng ?? 0;
-    const radius = orb.radius_meters ?? 100;
+    const radius = Math.min(orb.radius_meters ?? 100, 50);
 
-    if (check) {
-      const dist = distanceMeters(check.lat, check.lng, orbLat, orbLng);
-      if (dist > radius) {
-        setGeoError(`You are ${Math.round(dist)}m away. Get within ${radius}m to crack.`);
-        setPhaseSync("REVEAL");
-        return;
-      }
+    if (!check) {
+      setGeoError("Location access is required to catch creatures. Please enable GPS and try again.");
+      setPhaseSync("REVEAL");
+      return;
+    }
+
+    const dist = distanceMeters(check.lat, check.lng, orbLat, orbLng);
+    if (dist > radius) {
+      setGeoError(`You are ${Math.round(dist)}m away. Get within ${radius}m to catch.`);
+      setPhaseSync("REVEAL");
+      return;
     }
 
     try {
@@ -459,8 +471,8 @@ export default function CrackExperience({
             userProfile?.btc_address ??
             userProfile?.wallet_address ??
             null,
-          lat: check?.lat ?? orbLat,
-          lng: check?.lng ?? orbLng,
+          lat: check?.lat ?? null,
+          lng: check?.lng ?? null,
         }),
       });
 
@@ -472,7 +484,7 @@ export default function CrackExperience({
         return;
       }
 
-      setTxHash(data.tx_hash ?? data.txHash ?? "simulated_tx_hash");
+      setTxHash(data.tx_hash ?? data.txHash ?? null);
       setConfirmed(true);
       setPhaseSync("DONE");
       sounds.play(catchSoundFor(rarity));
@@ -518,7 +530,10 @@ export default function CrackExperience({
           color: C.text, borderRadius: 20, padding: "6px 14px",
           fontSize: 13, fontWeight: 600, cursor: "pointer",
           zIndex: 100, backdropFilter: "blur(8px)",
+          transition: "all 0.2s",
         }}
+        onMouseEnter={(e) => { if (isDesktop) { e.currentTarget.style.background = "rgba(255,255,255,0.14)"; } }}
+        onMouseLeave={(e) => { if (isDesktop) { e.currentTarget.style.background = `${C.card}cc`; } }}
       >
         Close
       </button>
@@ -527,7 +542,7 @@ export default function CrackExperience({
       {phase === "APPROACH" && (
         <div style={{ textAlign: "center", animation: "fadeIn 0.4s ease-out", position: "relative", zIndex: 10 }}>
           <p style={{ color: C.muted, fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 28 }}>
-            Orb Detected
+            Creature Sighted
           </p>
           <OrbVisual rarity={rarity} size={140} phase="APPROACH" />
           <div style={{
@@ -548,7 +563,7 @@ export default function CrackExperience({
       {phase === "READY" && (
         <div style={{ textAlign: "center", animation: "fadeIn 0.3s ease-out", position: "relative", zIndex: 10 }}>
           <p style={{ color: C.muted, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 32 }}>
-            Orb Detected
+            Creature Sighted
           </p>
           <OrbVisual rarity={rarity} size={160} phase="READY" />
           <div style={{ marginTop: 36 }}>
@@ -571,7 +586,7 @@ export default function CrackExperience({
               onMouseDown={(e) => { (e.currentTarget as HTMLElement).style.transform = "scale(0.96)"; }}
               onMouseUp={(e) => { (e.currentTarget as HTMLElement).style.transform = "scale(1)"; }}
             >
-              CRACK
+              WITNESS
             </button>
           </div>
         </div>
@@ -589,7 +604,7 @@ export default function CrackExperience({
             textTransform: "uppercase", marginTop: 32,
             animation: "dotPulse 0.6s ease-in-out infinite",
           }}>
-            Cracking...
+            Witnessing...
           </p>
         </div>
       )}
@@ -612,7 +627,7 @@ export default function CrackExperience({
 
       {/* ---- Phase: REVEAL ---- */}
       {phase === "REVEAL" && (
-        <div style={{ textAlign: "center", position: "relative", zIndex: 10, width: "100%", maxWidth: 400, padding: "0 24px", boxSizing: "border-box" }}>
+        <div style={{ textAlign: "center", position: "relative", zIndex: 10, width: "100%", maxWidth: isDesktop ? 480 : 400, padding: "0 24px", boxSizing: "border-box" }}>
           {/* Value display */}
           <div style={{ animation: "fadeIn 0.5s ease-out", marginBottom: 8 }}>
             {rarity === "Legendary" && (
@@ -692,7 +707,7 @@ export default function CrackExperience({
                 <div style={{ color: C.text, fontSize: 14, fontWeight: 700 }}>
                   @{orb.dropper_handle ?? orb.dropper_username ?? "unknown"}
                 </div>
-                <div style={{ color: C.muted, fontSize: 12 }}>dropped this orb</div>
+                <div style={{ color: C.muted, fontSize: 12 }}>spawned this creature</div>
               </div>
             </div>
 
@@ -740,7 +755,10 @@ export default function CrackExperience({
                   cursor: geoError ? "not-allowed" : "pointer",
                   boxShadow: geoError ? "none" : `0 4px 20px ${rarityCol}66`,
                   letterSpacing: "0.04em",
+                  transition: "all 0.2s",
                 }}
+                onMouseEnter={(e) => { if (isDesktop && !geoError) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.boxShadow = `0 0 40px ${rarityCol}77, 0 6px 24px rgba(0,0,0,0.4)`; } }}
+                onMouseLeave={(e) => { if (isDesktop && !geoError) { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 4px 20px ${rarityCol}66`; } }}
               >
                 Collect
               </button>
@@ -748,12 +766,12 @@ export default function CrackExperience({
                 onClick={() => {
                   if (navigator.share) {
                     navigator.share({
-                      title: "I found a MishMesh orb!",
-                      text: `I just cracked a ${rarity} orb worth ${orb.amount} ${currency} ($${usd.toFixed(2)}) on MishMesh!`,
+                      title: "I caught a BLINK creature!",
+                      text: `I just caught a ${rarity} creature worth ${orb.amount} ${currency} ($${usd.toFixed(2)}) on BLINK!`,
                       url: window.location.origin,
                     }).catch(() => {});
                   } else {
-                    const text = `I just cracked a ${rarity} MishMesh orb worth ${orb.amount} ${currency}!`;
+                    const text = `I just caught a ${rarity} BLINK creature worth ${orb.amount} ${currency}!`;
                     navigator.clipboard.writeText(text).catch(() => {});
                   }
                 }}
@@ -765,7 +783,10 @@ export default function CrackExperience({
                   color: C.muted,
                   fontSize: 14, fontWeight: 600,
                   cursor: "pointer",
+                  transition: "all 0.2s",
                 }}
+                onMouseEnter={(e) => { if (isDesktop) { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)"; } }}
+                onMouseLeave={(e) => { if (isDesktop) { e.currentTarget.style.background = C.surface; e.currentTarget.style.borderColor = "#2a2a3a"; } }}
               >
                 Share
               </button>
@@ -787,7 +808,14 @@ export default function CrackExperience({
           }}>
             <div style={{ fontSize: 32 }}>&#9711;</div>
           </div>
-          <p style={{ color: C.text, fontSize: 18, fontWeight: 700, margin: 0 }}>
+          <p style={{
+            fontSize: 18, fontWeight: 700, margin: 0,
+            background: `linear-gradient(90deg, ${C.text} 0%, ${C.text} 40%, ${rarityCol} 50%, ${C.text} 60%, ${C.text} 100%)`,
+            backgroundSize: "200% 100%",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            animation: "textShimmer 2s linear infinite",
+          }}>
             Sending to wallet...
           </p>
           <LoadingDots />
@@ -838,7 +866,10 @@ export default function CrackExperience({
                 fontSize: 16, fontWeight: 700,
                 cursor: "pointer",
                 boxShadow: `0 4px 24px ${C.primary}55`,
+                transition: "all 0.2s",
               }}
+              onMouseEnter={(e) => { if (isDesktop) { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.boxShadow = `0 0 40px ${C.primary}77, 0 6px 28px rgba(0,0,0,0.4)`; } }}
+              onMouseLeave={(e) => { if (isDesktop) { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 4px 24px ${C.primary}55`; } }}
             >
               Done
             </button>

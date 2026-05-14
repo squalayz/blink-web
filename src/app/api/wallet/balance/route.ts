@@ -17,7 +17,7 @@ async function getSolBalance(address: string): Promise<number> {
 }
 
 async function getEthBalance(address: string): Promise<number> {
-  const res = await fetch("https://mainnet.base.org", {
+  const res = await fetch("https://cloudflare-eth.com", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

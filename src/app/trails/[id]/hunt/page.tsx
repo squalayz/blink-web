@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { C } from '@/lib/theme';
 import { useAuth } from '@/components/providers';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { supabase } from '@/lib/supabase';
 
 interface TrailOrb {
@@ -43,12 +44,12 @@ const HUNT_CSS = `
   100% { transform: rotate(360deg); }
 }
 @keyframes glowPulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(99,102,241,0.3); }
-  50% { box-shadow: 0 0 40px rgba(99,102,241,0.6); }
+  0%, 100% { box-shadow: 0 0 20px rgba(0,255,136,0.3); }
+  50% { box-shadow: 0 0 40px rgba(0,255,136,0.6); }
 }
 @keyframes closeGlow {
-  0%, 100% { box-shadow: 0 0 20px rgba(20,241,149,0.4); }
-  50% { box-shadow: 0 0 40px rgba(20,241,149,0.8); }
+  0%, 100% { box-shadow: 0 0 20px rgba(0,255,136,0.4); }
+  50% { box-shadow: 0 0 40px rgba(0,255,136,0.8); }
 }
 `;
 
@@ -72,6 +73,7 @@ export default function TrailHuntPage() {
   const router = useRouter();
   const trailId = params.id as string;
   const { user, session } = useAuth();
+  const { isDesktop } = useIsDesktop();
 
   const [trail, setTrail] = useState<{ title: string; orb_count: number } | null>(null);
   const [progress, setProgress] = useState<TrailProgress | null>(null);
@@ -108,7 +110,7 @@ export default function TrailHuntPage() {
           .single();
 
         if (!prog) {
-          setError('Trail not started. Go back and start the hunt first.');
+          setError('Trail not started. Go back and start the watch first.');
           setLoading(false);
           return;
         }
@@ -230,7 +232,7 @@ export default function TrailHuntPage() {
         }
       }
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to crack');
+      alert(e instanceof Error ? e.message : 'Failed to catch');
     } finally {
       setCracking(false);
     }
@@ -239,7 +241,7 @@ export default function TrailHuntPage() {
   if (loading) {
     return (
       <div style={{ position: 'fixed', inset: 0, background: C.bg, color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: C.muted }}>Loading hunt...</div>
+        <div style={{ color: C.muted }}>Loading watch...</div>
       </div>
     );
   }
@@ -348,7 +350,8 @@ export default function TrailHuntPage() {
 
       {/* Bottom glass card */}
       <div style={{
-        margin: '0 16px 32px',
+        margin: isDesktop ? '0 auto 32px' : '0 16px 32px',
+        ...(isDesktop ? { maxWidth: 480 } : {}),
         padding: 20,
         borderRadius: 20,
         background: 'rgba(10,10,15,0.7)',
@@ -359,7 +362,7 @@ export default function TrailHuntPage() {
       }}>
         {/* Orb label */}
         <div style={{ fontSize: 12, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Orb {pos} of {orbCount}
+          Creature {pos} of {orbCount}
         </div>
 
         {/* Clue text */}
@@ -419,7 +422,7 @@ export default function TrailHuntPage() {
               animation: 'closeGlow 1.5s ease-in-out infinite',
             }}
           >
-            {cracking ? 'Cracking...' : "You're close! Tap to Crack"}
+            {cracking ? 'Catching...' : "You're close! Tap to Catch"}
           </button>
         )}
 

@@ -1,13 +1,14 @@
 // ══════════════════════════════════════════════════════════════
-// MishMesh.ai — Telegram Bot Helpers
-// Bot: @MishMeshAiBot
+// BLINK — Telegram Bot Helpers
+// Bot: @TheEyeBlinkBot
+// Group: https://t.me/+7Xj6CKZs9iVmMDhh
 // ══════════════════════════════════════════════════════════════
 
 function getAPI() {
   const token = process.env.TELEGRAM_BOT_TOKEN || "";
   return `https://api.telegram.org/bot${token}`;
 }
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://mishmesh.ai";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://blink.app";
 
 export type InlineButton = { text: string; url?: string; callback_data?: string };
 
@@ -85,9 +86,9 @@ export async function editMessage(
 
 export function welcomeMessage() {
   return {
-    text: `⚡ *Welcome to MishMesh*
+    text: `👁 *Welcome to BLINK*
 
-Your AI agent lives here.
+The Eye is open.
 
 I'll find you business partners, collaborators, and co-founders — while you sleep. Fund me with ETH on Base, and I'll:
 
@@ -95,12 +96,12 @@ I'll find you business partners, collaborators, and co-founders — while you sl
 📈 Trade to grow my own balance
 💬 Notify you the second something hits
 
-Get started at mishmesh.ai and connect your account.
+Get started at blink.app and connect your account.
 
 Once connected, I'll handle the rest. You just show up when it matters.`,
     keyboard: [
       [
-        { text: "🌐 Open MishMesh", url: APP_URL },
+        { text: "👁 Open BLINK", url: APP_URL },
         { text: "📖 How It Works", url: `${APP_URL}/#how-it-works` },
       ],
     ] as InlineButton[][],
@@ -109,9 +110,9 @@ Once connected, I'll handle the rest. You just show up when it matters.`,
 
 export function welcomeLinkedMessage(userName: string) {
   return {
-    text: `⚡ *Account Connected!*
+    text: `👁 *Account Connected!*
 
-Hey ${userName} — your Telegram is now linked to MishMesh.
+Hey ${userName} — your Telegram is now linked to BLINK.
 
 I'll send you notifications right here when:
 🔗 A new match is found
@@ -124,13 +125,13 @@ You don't need to do anything. I'll message you when something needs your attent
 
 Type /help to see what I can do.`,
     keyboard: [
-      [{ text: "🌐 Open Dashboard", url: `${APP_URL}/dashboard` }],
+      [{ text: "👁 Open Dashboard", url: `${APP_URL}/watch` }],
     ] as InlineButton[][],
   };
 }
 
 export function helpMessage() {
-  return `⚡ *MishMesh Commands*
+  return `👁 *BLINK Commands*
 
 /status — What your agent is up to right now
 /balance — Your agent's ETH balance
@@ -139,12 +140,12 @@ export function helpMessage() {
 /pass — Pass on a match
 /hunt — Hot tokens right now
 /recap — Today's trading recap
-/alerts on — Enable hunt alerts
-/alerts off — Disable hunt alerts
+/alerts on — Enable watch alerts
+/alerts off — Disable watch alerts
 /settings — Notification preferences
 /help — This message
 
-💡 *Tip:* You don't need to do anything. I'll message you when something needs your attention. Just live your life — I'm working 24/7.`;
+💡 *Tip:* You don't need to do anything. I'll message you when something needs your attention. Just live your life — The Eye is open 24/7.`;
 }
 
 export function matchFoundMessage(matchId: string, score: number, synergy: string, reasoning: string) {
@@ -160,7 +161,7 @@ What do you want to do?`,
       [
         { text: "✅ Accept", callback_data: `accept:${matchId}` },
         { text: "❌ Pass", callback_data: `pass:${matchId}` },
-        { text: "👀 View Details", url: `${APP_URL}/dashboard?view=pending` },
+        { text: "👀 View Details", url: `${APP_URL}/watch` },
       ],
     ] as InlineButton[][],
   };
@@ -181,7 +182,7 @@ _"${otherBio}"_`;
   return {
     text,
     keyboard: [
-      [{ text: "💬 Send Message", url: `${APP_URL}/dashboard?view=matches` }],
+      [{ text: "💬 Send Message", url: `${APP_URL}/messages` }],
     ] as InlineButton[][],
   };
 }
@@ -205,7 +206,7 @@ Your agent balance is *${balance.toFixed(4)} ETH*. Matching and trading will pau
 
 Fund your agent to keep the mesh alive.`,
     keyboard: [
-      [{ text: "💰 Fund Agent", url: `${APP_URL}/dashboard?view=wallet` }],
+      [{ text: "💰 Fund Agent", url: `${APP_URL}/wallet` }],
     ] as InlineButton[][],
   };
 }
@@ -233,7 +234,7 @@ export function balanceMessage(balance: number, estDays: number, tradingPnl: num
 ${isActive ? `⏱ ~${estDays} days of matching left` : "🔴 Inactive — fund to activate"}
 📈 Trading P&L: ${tradingPnl >= 0 ? "+" : ""}${tradingPnl.toFixed(4)} ETH`,
     keyboard: [
-      [{ text: "💰 Fund Agent", url: `${APP_URL}/dashboard?view=wallet` }],
+      [{ text: "💰 Fund Agent", url: `${APP_URL}/wallet` }],
     ] as InlineButton[][],
   };
 }
@@ -262,7 +263,7 @@ Your agent is still searching. I'll message you the second I find someone good.`
 
   if (matches.length > 5) {
     text += `\n\n_...and ${matches.length - 5} more_`;
-    keyboard.push([{ text: "👀 View All", url: `${APP_URL}/dashboard?view=pending` }]);
+    keyboard.push([{ text: "👀 View All", url: `${APP_URL}/watch` }]);
   }
 
   return { text, keyboard };
@@ -278,7 +279,7 @@ ${settings.notify_matches ? on : off} Matches
 ${settings.notify_messages ? on : off} Messages
 ${settings.notify_trades ? on : off} Trading
 ${settings.notify_balance ? on : off} Balance
-${settings.hunt_alerts_enabled !== false ? on : off} Hunt Alerts
+${settings.hunt_alerts_enabled !== false ? on : off} Watch Alerts
 
 Tap to toggle:`,
     keyboard: [
@@ -291,13 +292,13 @@ Tap to toggle:`,
         { text: `${settings.notify_balance ? "🔔" : "🔕"} Balance`, callback_data: "toggle:notify_balance" },
       ],
       [
-        { text: `${settings.hunt_alerts_enabled !== false ? "🔔" : "🔕"} Hunt Alerts`, callback_data: "toggle:hunt_alerts_enabled" },
+        { text: `${settings.hunt_alerts_enabled !== false ? "🔔" : "🔕"} Watch Alerts`, callback_data: "toggle:hunt_alerts_enabled" },
       ],
     ] as InlineButton[][],
   };
 }
 
-// ═══ Hunt & Co-Hunt Message Templates ═══
+// ═══ Watch & Co-Watch Message Templates ═══
 
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -321,7 +322,7 @@ export function huntAlertMessage(token: {
   const pct = token.priceChange1h >= 0 ? `+${token.priceChange1h.toFixed(1)}%` : `${token.priceChange1h.toFixed(1)}%`;
   const tagLine = token.tags.length > 0 ? token.tags.join(" · ") : "";
   return {
-    text: `🎯 *Hunt Alert — ${chainLabel(token.chainId)}*
+    text: `🎯 *Watch Alert — ${chainLabel(token.chainId)}*
 
 🔥 *${token.symbol}* hit score *${token.score}/100*
 
@@ -329,7 +330,7 @@ export function huntAlertMessage(token: {
 💧 Liq: ${formatNumber(token.liquidity)} | Vol: ${formatNumber(token.volume1h)}${tagLine ? `\n⚡ ${tagLine}` : ""}`,
     keyboard: [
       [
-        { text: "🔍 View on Hunt", url: `${appUrl}/hunt` },
+        { text: "👁 View on Watch", url: `${appUrl}/watch` },
         { text: "📊 DexScreener", url: token.url },
       ],
     ] as InlineButton[][],
@@ -345,9 +346,9 @@ export function dailyRecapMessage(stats: {
     return {
       text: `📊 *Your Agent's Daily Recap*
 
-Your agent is watching the market. 👀 Check Hunt for hot tokens.`,
+Your agent is watching the market. 👁 Check Watch for hot tokens.`,
       keyboard: [
-        [{ text: "🎯 Open Hunt", url: `${appUrl}/hunt` }],
+        [{ text: "👁 Open Watch", url: `${appUrl}/watch` }],
       ] as InlineButton[][],
     };
   }
@@ -368,27 +369,27 @@ Your agent is watching the market. 👀 Check Hunt for hot tokens.`,
 
 Keep going — your agent is learning.`,
     keyboard: [
-      [{ text: "📈 View Full Activity", url: `${appUrl}/dashboard?view=wallet` }],
+      [{ text: "📈 View Full Activity", url: `${appUrl}/wallet` }],
     ] as InlineButton[][],
   };
 }
 
 export function coHuntActivatedMessage(partnerName: string, chain: string, appUrl: string) {
   return {
-    text: `🤝 *Co-Hunt activated!*
+    text: `🤝 *Co-Watch activated!*
 
-You and *${partnerName}* are now hunting *${chainLabel(chain)}* together. Your agents will share signals.`,
+You and *${partnerName}* are now watching *${chainLabel(chain)}* together. Your agents will share signals.`,
     keyboard: [
-      [{ text: "🎯 Open Hunt", url: `${appUrl}/hunt` }],
+      [{ text: "👁 Open Watch", url: `${appUrl}/watch` }],
     ] as InlineButton[][],
   };
 }
 
 export function coHuntSharedTokenMessage(partnerName: string, tokenSymbol: string, chainId: string, appUrl: string) {
   return {
-    text: `👀 You and *${partnerName}* are both watching *${tokenSymbol}* on ${chainLabel(chainId)}! Your agents are aligned. 🔥`,
+    text: `👁 You and *${partnerName}* are both watching *${tokenSymbol}* on ${chainLabel(chainId)}! Your agents are aligned. 🔥`,
     keyboard: [
-      [{ text: "🎯 View on Hunt", url: `${appUrl}/hunt` }],
+      [{ text: "👁 View on Watch", url: `${appUrl}/watch` }],
     ] as InlineButton[][],
   };
 }
@@ -400,12 +401,12 @@ export function huntTopTokensMessage(
 ) {
   if (tokens.length === 0) {
     return {
-      text: `🎯 *No hot tokens on ${chainLabel(chain)} right now.*\n\nCheck back soon — the market moves fast.`,
-      keyboard: [[{ text: "🎯 Open Hunt", url: `${appUrl}/hunt` }]] as InlineButton[][],
+      text: `👁 *No hot tokens on ${chainLabel(chain)} right now.*\n\nCheck back soon — the market moves fast.`,
+      keyboard: [[{ text: "👁 Open Watch", url: `${appUrl}/watch` }]] as InlineButton[][],
     };
   }
 
-  let text = `🎯 *Hot on ${chainLabel(chain)} right now:*\n`;
+  let text = `👁 *Hot on ${chainLabel(chain)} right now:*\n`;
   tokens.forEach((t, i) => {
     const pct = t.priceChange1h >= 0 ? `+${t.priceChange1h.toFixed(0)}%` : `${t.priceChange1h.toFixed(0)}%`;
     text += `\n${i + 1}. 🔥 *${t.symbol}* — Score: ${t.score}\n   ${pct} 1h · ${formatNumber(t.liquidity)} liq`;
@@ -413,6 +414,6 @@ export function huntTopTokensMessage(
 
   return {
     text,
-    keyboard: [[{ text: "🎯 Open Hunt Tab", url: `${appUrl}/hunt` }]] as InlineButton[][],
+    keyboard: [[{ text: "👁 Open Watch Tab", url: `${appUrl}/watch` }]] as InlineButton[][],
   };
 }

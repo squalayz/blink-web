@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { decryptAES } from "@/lib/production";
+import { requireAuth, rateLimitByUser } from "@/lib/api-auth";
 import { Connection, PublicKey, SystemProgram, Transaction, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 const supabaseAdmin = createClient(
@@ -10,15 +11,11 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const token = authHeader.slice(7);
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { user, error: authError } = await requireAuth(req);
+    if (authError) return authError;
+
+    const rlError = rateLimitByUser(user!.id, "send-sol", 5, 60_000);
+    if (rlError) return rlError;
 
     const { to_address, amount } = await req.json();
     if (!to_address || !amount || amount <= 0) {
@@ -28,7 +25,7 @@ export async function POST(req: NextRequest) {
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("sol_address, sol_encrypted_key")
-      .eq("user_id", user.id)
+      .eq("id", user.id)
       .single();
 
     if (!profile?.sol_address || !profile?.sol_encrypted_key) {
@@ -40,6 +37,16 @@ export async function POST(req: NextRequest) {
     const keypair = Keypair.fromSecretKey(privateKeyBytes);
 
     const connection = new Connection("https://api.mainnet-beta.solana.com", "confirmed");
+
+    const { data: locks } = await supabaseAdmin.from('wallet_locks').select('amount').eq('user_id', user.id).eq('status', 'locked').eq('currency', 'SOL');
+    const lockedAmount = (locks || []).reduce((sum: number, l: { amount: number }) => sum + Number(l.amount), 0);
+    const balance = await connection.getBalance(keypair.publicKey);
+    const balanceSOL = balance / LAMPORTS_PER_SOL;
+    const availableSOL = balanceSOL - lockedAmount;
+    if (amount > availableSOL) {
+      return NextResponse.json({ error: `Insufficient available balance. ${lockedAmount.toFixed(4)} SOL is locked in active BLINKS. Available: ${availableSOL.toFixed(4)} SOL` }, { status: 400 });
+    }
+
     const toPublicKey = new PublicKey(to_address);
     const lamports = Math.floor(amount * LAMPORTS_PER_SOL);
 

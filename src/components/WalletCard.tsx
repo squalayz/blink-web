@@ -11,30 +11,33 @@ interface WalletCardProps {
   onAddFunds?: () => void;
 }
 
+// BLINK: ETH-only \u2014 only Ethereum is surfaced. Solana/Bitcoin entries retained as commented stubs for future L2 work.
 const CHAIN_CONFIG: Record<
   Chain,
   { name: string; symbol: string; currency: string; color: string; gradient: string }
 > = {
+  // BLINK: ETH-only \u2014 disabled
   solana: {
-    name: "Solana",
-    symbol: "\u25CE",
-    currency: "SOL",
-    color: "#9945FF",  // SOL chain branding stays
-    gradient: "linear-gradient(135deg, #1a0533, #2d1060)",
+    name: "Ethereum",
+    symbol: "\u2B21",
+    currency: "ETH",
+    color: "#00FF88",
+    gradient: "linear-gradient(135deg, #0a0a0f, #0d0d14)",
   },
   ethereum: {
     name: "Ethereum",
     symbol: "\u2B21",
     currency: "ETH",
-    color: "#627EEA",
-    gradient: "linear-gradient(135deg, #0a1628, #1a2d5a)",
+    color: "#00FF88",
+    gradient: "linear-gradient(135deg, #0a0a0f, #0d0d14)",
   },
+  // BLINK: ETH-only \u2014 disabled
   bitcoin: {
-    name: "Bitcoin",
-    symbol: "\u20BF",
-    currency: "BTC",
-    color: "#F7931A",
-    gradient: "linear-gradient(135deg, #1a0d00, #3d1f00)",
+    name: "Ethereum",
+    symbol: "\u2B21",
+    currency: "ETH",
+    color: "#00FF88",
+    gradient: "linear-gradient(135deg, #0a0a0f, #0d0d14)",
   },
 };
 
@@ -119,24 +122,24 @@ export default function WalletCard({
           {config.symbol}
         </span>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#F9FAFB" }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#FFFFFF" }}>
             {config.name}
           </div>
-          <div style={{ fontSize: 12, color: "#9CA3AF" }}>{config.currency}</div>
+          <div style={{ fontSize: 12, color: "#8a8a99" }}>{config.currency}</div>
         </div>
       </div>
 
       {/* Balance */}
       <div style={{ marginBottom: 16 }}>
         {loadingBalance ? (
-          <div style={{ color: "#9CA3AF", fontSize: 14 }}>Loading balance...</div>
+          <div style={{ color: "#8a8a99", fontSize: 14 }}>Loading balance...</div>
         ) : (
           <>
-            <div style={{ fontSize: 28, fontWeight: 700, color: "#F9FAFB", letterSpacing: "-0.02em" }}>
+            <div style={{ fontSize: 28, fontWeight: 700, color: "#FFFFFF", letterSpacing: "-0.02em" }}>
               {balance !== null ? `${balance.toFixed(balance < 1 ? 6 : 4)} ${config.currency}` : "--"}
             </div>
             {balanceUsd !== null && (
-              <div style={{ fontSize: 14, color: "#9CA3AF", marginTop: 2 }}>
+              <div style={{ fontSize: 14, color: "#8a8a99", marginTop: 2 }}>
                 ${balanceUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
               </div>
             )}
@@ -155,7 +158,7 @@ export default function WalletCard({
           border: "1px solid rgba(255,255,255,0.1)",
           borderRadius: 8,
           padding: "6px 12px",
-          color: "#9CA3AF",
+          color: "#8a8a99",
           fontSize: 13,
           fontFamily: "monospace",
           cursor: "pointer",
@@ -200,7 +203,7 @@ export default function WalletCard({
             borderRadius: 10,
             border: `1px solid ${config.color}44`,
             background: "transparent",
-            color: "#9CA3AF",
+            color: "#8a8a99",
             fontSize: 14,
             fontWeight: 600,
             cursor: "not-allowed",

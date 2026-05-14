@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (progress.status !== "complete") {
+    if (progress.status !== "completed") {
       return NextResponse.json(
         { error: "Mission is not yet complete" },
         { status: 400 }

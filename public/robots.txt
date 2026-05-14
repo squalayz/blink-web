@@ -1,7 +1,11 @@
 User-agent: *
 Allow: /
 Disallow: /api/
-Disallow: /dashboard/
 Disallow: /auth/
+Disallow: /wallet
+Disallow: /profile/edit
+Disallow: /onboarding
+Disallow: /messages
+Disallow: /catch/
 
 Sitemap: https://mishmesh.ai/sitemap.xml

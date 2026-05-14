@@ -23,11 +23,11 @@ declare global {
 
 const C = {
   card: "#1a1a24",
-  primary: "#6366f1",
-  accent: "#06b6d4",
-  text: "#F9FAFB",
-  muted: "#9CA3AF",
-  border: "#2A2A38",
+  primary: "#00FF88",
+  accent: "#00FF88",
+  text: "#FFFFFF",
+  muted: "#8a8a99",
+  border: "rgba(255,255,255,0.06)",
   surface: "#0d0d14",
 };
 

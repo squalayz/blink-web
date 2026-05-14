@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════
-// MishMesh.ai — CoinGecko CLI Wrapper with REST API Fallback
+// BLINK — CoinGecko CLI Wrapper with REST API Fallback
 // Shells out to coingecko CLI binary if available, otherwise
 // falls back to CoinGecko REST API (api.coingecko.com/api/v3)
 // ══════════════════════════════════════════════════════════════

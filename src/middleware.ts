@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // ══════════════════════════════════════════
-// MishMesh.ai — Production Middleware
+// BLINK — Production Middleware
 //
 // 1. Security headers (CSP, HSTS, XSS, clickjacking)
 // 2. CORS for public API routes
@@ -39,20 +39,22 @@ export function middleware(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.ip || "unknown";
 
   // ═══ 0. AUTH-BASED ROUTING ═══
-  const hasSession = req.cookies.get("mm-session");
+  // Check for Supabase auth cookies (sb-<ref>-auth-token or sb-<ref>-auth-token-code-verifier)
+  const hasSession = Array.from(req.cookies.getAll()).some(c => c.name.startsWith("sb-") && c.name.includes("auth-token"));
 
   // "/" → always serve the Next.js page.tsx (landing.html was removed)
   // page.tsx handles both logged-in and logged-out states internally
 
   // Unauthenticated users hitting protected pages → redirect to signin
-  const protectedPaths = ["/dashboard", "/marketplace", "/leaderboard", "/explore"];
+  // Note: /messages and /profile handle their own auth checks client-side
+  const protectedPaths = ["/wallet", "/missions", "/tasks"];
   if (!hasSession && protectedPaths.some(p => pathname.startsWith(p))) {
     return NextResponse.redirect(new URL("/auth/signin", req.url));
   }
 
-  // Authenticated users hitting signin → redirect to dashboard
+  // Authenticated users hitting signin → redirect to watch
   if (hasSession && pathname === "/auth/signin") {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+    return NextResponse.redirect(new URL("/watch", req.url));
   }
 
   // ═══ 1. GLOBAL RATE LIMIT ═══
@@ -121,7 +123,7 @@ export function middleware(req: NextRequest) {
     "font-src 'self' https://fonts.gstatic.com https://api.mapbox.com",
     "img-src 'self' data: blob: https:",
     "worker-src blob:",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://mainnet.base.org https://api.dexscreener.com https://*.walletconnect.com wss://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.org https://*.web3modal.org https://*.web3modal.com https://pulse.walletconnect.org https://rpc.ankr.com https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.groq.com https://api.x.ai https://openrouter.ai https://api.mapbox.com https://events.mapbox.com",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflare-eth.com https://api.mainnet-beta.solana.com https://mempool.space https://blockstream.info https://nominatim.openstreetmap.org https://api.dexscreener.com https://*.walletconnect.com wss://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.org https://*.web3modal.org https://*.web3modal.com https://pulse.walletconnect.org https://rpc.ankr.com https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.groq.com https://api.x.ai https://openrouter.ai https://api.mapbox.com https://events.mapbox.com https://api.coingecko.com",
     "frame-src 'self' https://*.walletconnect.com https://*.walletconnect.org https://*.web3modal.org https://*.web3modal.com",
     "frame-ancestors 'self'",
   ].join("; ");

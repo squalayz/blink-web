@@ -3,8 +3,8 @@
 import Link from "next/link";
 
 const C = {
-  bg: "#0a0a0f", surface: "#12121a", text: "#e8e6e3", muted: "#8a8a8a",
-  dim: "#555", border: "#1e1e2a", cold: "#00d4ff", cyan: "#00e5ff",
+  bg: "#0a0a0f", surface: "#0d0d14", text: "#FFFFFF", muted: "#8a8a99",
+  dim: "#555", border: "#1a1a24", cold: "#00FF88", cyan: "#88FF00",
 };
 
 export default function LegalLayout({ title, lastUpdated, children }: { title: string; lastUpdated: string; children: React.ReactNode }) {
@@ -14,7 +14,7 @@ export default function LegalLayout({ title, lastUpdated, children }: { title: s
         {/* Nav */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 40 }}>
           <Link href="/" style={{ fontSize: 18, fontWeight: 800, color: C.cold, textDecoration: "none", letterSpacing: "-0.02em" }}>
-            MishMesh<span style={{ color: C.text }}>.ai</span>
+            BLINK
           </Link>
           <Link href="/auth/signin" style={{ fontSize: 12, color: C.muted, textDecoration: "none", padding: "6px 14px", border: `1px solid ${C.border}`, borderRadius: 6 }}>
             Back to App
@@ -50,7 +50,7 @@ export default function LegalLayout({ title, lastUpdated, children }: { title: s
 export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 28 }}>
-      <h2 style={{ fontSize: 17, fontWeight: 700, color: "#e8e6e3", marginBottom: 10 }}>{title}</h2>
+      <h2 style={{ fontSize: 17, fontWeight: 700, color: "#FFFFFF", marginBottom: 10 }}>{title}</h2>
       {children}
     </div>
   );

@@ -5,12 +5,13 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/providers";
 import {
   C,
-  FALLBACK_RATES,
   truncateAddress,
   withdrawalBreakdown,
   type OrbCurrency,
   type ActivityRow,
 } from "@/lib/theme";
+import { useBalances } from "@/hooks/useBalances";
+import { usePrices } from "@/hooks/usePrices";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -144,64 +145,12 @@ function chainColor(chain: OrbCurrency): string {
   return C.btcOrange;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Balance fetching                                                   */
-/* ------------------------------------------------------------------ */
-async function fetchSolBalance(address: string): Promise<number> {
-  try {
-    const res = await fetch("https://api.mainnet-beta.solana.com", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "getBalance",
-        params: [address],
-      }),
-      signal: AbortSignal.timeout(5000),
-    });
-    const data = await res.json();
-    return (data.result?.value ?? 0) / 1e9;
-  } catch {
-    return 0;
-  }
-}
+// BLINK: ETH-only — visible chain list. Underlying SOL/BTC types preserved but never shown.
+const VISIBLE_CHAINS: OrbCurrency[] = ["ETH"];
 
-async function fetchEthBalance(address: string): Promise<number> {
-  try {
-    const res = await fetch("https://mainnet.base.org", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "eth_getBalance",
-        params: [address, "latest"],
-      }),
-      signal: AbortSignal.timeout(5000),
-    });
-    const data = await res.json();
-    const hex = data.result ?? "0x0";
-    return parseInt(hex, 16) / 1e18;
-  } catch {
-    return 0;
-  }
-}
-
-async function fetchBtcBalance(address: string): Promise<number> {
-  try {
-    const res = await fetch(`https://mempool.space/api/address/${address}`, {
-      signal: AbortSignal.timeout(5000),
-    });
-    const data = await res.json();
-    const sats =
-      (data.chain_stats?.funded_txo_sum ?? 0) -
-      (data.chain_stats?.spent_txo_sum ?? 0);
-    return sats / 1e8;
-  } catch {
-    return 0;
-  }
-}
+/* ------------------------------------------------------------------ */
+/*  Balance fetching (now via useBalances hook)                         */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Main WalletModal component                                         */
@@ -210,14 +159,12 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
   const { user } = useAuth();
   const [tab, setTab] = useState<"balance" | "activity">("balance");
   const [view, setView] = useState<"main" | "send" | "receive">("main");
-  const [balances, setBalances] = useState<ChainBalance[]>([]);
   const [locks, setLocks] = useState<WalletLock[]>([]);
   const [activity, setActivity] = useState<ActivityRow[]>([]);
-  const [loadingBalances, setLoadingBalances] = useState(false);
-  const [receiveChain, setReceiveChain] = useState<OrbCurrency>("SOL");
+  const [receiveChain, setReceiveChain] = useState<OrbCurrency>("ETH");
   const [copied, setCopied] = useState(false);
   const [send, setSend] = useState<SendState>({
-    chain: "SOL",
+    chain: "ETH",
     recipient: "",
     amount: "",
     sending: false,
@@ -225,47 +172,32 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
     success: "",
   });
 
-  const fetchBalances = useCallback(async () => {
+  const [addresses, setAddresses] = useState<{
+    sol_address?: string | null;
+    eth_address?: string | null;
+    btc_address?: string | null;
+  }>({});
+
+  const fetchAddresses = useCallback(async () => {
     if (!user) return;
-    setLoadingBalances(true);
-    try {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("sol_address, eth_address, btc_address")
-        .eq("id", user.id)
-        .single();
-
-      const chains: Array<{ chain: OrbCurrency; address: string }> = (
-        [
-          { chain: "SOL" as OrbCurrency, address: profile?.sol_address ?? "" },
-          { chain: "ETH" as OrbCurrency, address: profile?.eth_address ?? "" },
-          { chain: "BTC" as OrbCurrency, address: profile?.btc_address ?? "" },
-        ] as Array<{ chain: OrbCurrency; address: string }>
-      ).filter((c) => c.address);
-
-      const results = await Promise.all(
-        chains.map(async ({ chain, address }) => {
-          let native = 0;
-          if (chain === "SOL") native = await fetchSolBalance(address);
-          else if (chain === "ETH") native = await fetchEthBalance(address);
-          else native = await fetchBtcBalance(address);
-          const rate = FALLBACK_RATES[chain];
-          return {
-            chain,
-            native,
-            usd: native * rate,
-            change24h: (Math.random() - 0.5) * 10,
-            address,
-          };
-        })
-      );
-      setBalances(results);
-    } catch {
-      // silently fall through
-    } finally {
-      setLoadingBalances(false);
-    }
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("sol_address, eth_address, btc_address")
+      .eq("id", user.id)
+      .single();
+    if (profile) setAddresses(profile);
   }, [user]);
+
+  const { sol: solBal, eth: ethBal, btc: btcBal, loading: loadingBalances, refresh: refreshBalances } = useBalances(addresses);
+  const prices = usePrices();
+
+  // BLINK: ETH-only — SOL/BTC balance rows hidden from UI (underlying data still fetched).
+  void solBal; void btcBal;
+  const balances: ChainBalance[] = [
+    // ...(addresses.sol_address ? [{ chain: "SOL" as OrbCurrency, native: solBal, usd: solBal * prices.sol, change24h: 0, address: addresses.sol_address }] : []), // BLINK: ETH-only — disabled
+    ...(addresses.eth_address ? [{ chain: "ETH" as OrbCurrency, native: ethBal, usd: ethBal * prices.eth, change24h: 0, address: addresses.eth_address }] : []),
+    // ...(addresses.btc_address ? [{ chain: "BTC" as OrbCurrency, native: btcBal, usd: btcBal * prices.btc, change24h: 0, address: addresses.btc_address }] : []), // BLINK: ETH-only — disabled
+  ];
 
   const fetchLocks = useCallback(async () => {
     if (!user) return;
@@ -291,11 +223,12 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
 
   useEffect(() => {
     if (isOpen && user) {
-      fetchBalances();
+      fetchAddresses();
+      refreshBalances();
       fetchLocks();
       fetchActivity();
     }
-  }, [isOpen, user, fetchBalances, fetchLocks, fetchActivity]);
+  }, [isOpen, user, fetchAddresses, refreshBalances, fetchLocks, fetchActivity]);
 
   const totalUSD = balances.reduce((s, b) => s + b.usd, 0);
 
@@ -375,7 +308,7 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
 
         {/* Chain tabs */}
         <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-          {(["SOL", "ETH", "BTC"] as OrbCurrency[]).map((ch) => (
+          {VISIBLE_CHAINS.map((ch) => (
             <button
               key={ch}
               onClick={() => setReceiveChain(ch)}
@@ -409,7 +342,7 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
             marginBottom: 20,
           }}
         >
-          <QRCanvas value={addr || "mishmesh"} size={160} />
+          <QRCanvas value={addr || "blink"} size={160} />
         </div>
 
         {/* Address */}
@@ -487,7 +420,7 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
       {/* Chain selector */}
       <label style={labelStyle}>Chain</label>
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        {(["SOL", "ETH", "BTC"] as OrbCurrency[]).map((ch) => (
+        {VISIBLE_CHAINS.map((ch) => (
           <button
             key={ch}
             onClick={() => setSend((s) => ({ ...s, chain: ch }))}
@@ -636,7 +569,7 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
 
         {/* Chain pills */}
         <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-          {(["SOL", "ETH", "BTC"] as OrbCurrency[]).map((ch) => {
+          {VISIBLE_CHAINS.map((ch) => {
             const bal = balances.find((b) => b.chain === ch);
             return (
               <div
@@ -857,7 +790,7 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
                     margin: "20px 0 10px",
                   }}
                 >
-                  Orb Locks
+                  Creature Locks
                 </p>
                 {locks.map((lock) => (
                   <div

@@ -1,106 +1,61 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 
 const C = {
-  bg: "#0A0A0F",
+  bg: "#0a0a0f",
   surface: "#0d0d14",
   card: "#1a1a24",
-  primary: "#6366f1",
-  accent: "#06b6d4",
-  text: "#F9FAFB",
-  textMuted: "#9CA3AF",
-  border: "#1F2028",
+  primary: "#00FF88",
+  accent: "#88FF00",
+  text: "#FFFFFF",
+  textMuted: "#8a8a99",
+  border: "#1a1a24",
 };
 
-function MMLogo({ size = 44 }: { size?: number }) {
-  const h = Math.round(size * (70 / 120));
-  return (
-    <svg width={size} height={h} viewBox="0 0 120 70">
-      <defs>
-        <linearGradient id="lgL" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#6366f1" />
-          <stop offset="100%" stopColor="#7C3AED" />
-        </linearGradient>
-        <linearGradient id="lgR" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#06b6d4" />
-          <stop offset="100%" stopColor="#10B981" />
-        </linearGradient>
-        <linearGradient id="lgM" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#6366f1" />
-          <stop offset="100%" stopColor="#06b6d4" />
-        </linearGradient>
-      </defs>
-      <circle cx="35" cy="35" r="24" fill="none" stroke="url(#lgL)" strokeWidth="5" />
-      <circle cx="65" cy="35" r="24" fill="none" stroke="url(#lgR)" strokeWidth="5" />
-      <path
-        d="M50 15.4 A24 24 0 0 1 50 54.6 A24 24 0 0 1 50 15.4"
-        fill="url(#lgM)"
-        opacity="0.3"
-      />
-      <circle cx="35" cy="14" r="4" fill="url(#lgL)" />
-      <circle cx="65" cy="14" r="4" fill="url(#lgR)" />
-    </svg>
-  );
-}
-
 export default function HowItWorks() {
-  const claimSteps = [
+  const watchSteps = [
     {
       num: 1,
-      title: "Hunter walks within 100m",
-      desc: "GPS verified by MishMesh servers. You have to physically be there.",
+      title: "Watch",
+      desc: "Open The Eye Map. Creatures shimmer at real-world coordinates only Watchers can see. Each one waits where it spawned.",
     },
     {
       num: 2,
-      title: "Humanity check passed",
-      desc: "Proves a real person is claiming, not a bot or script.",
+      title: "Approach",
+      desc: "Move toward the Creature. GPS verifies your real presence. Get within range and the air starts to change.",
     },
     {
       num: 3,
-      title: "Oracle issues authorization",
-      desc: "MishMesh oracle issues a one-time signed claim authorization. Each authorization can only be used once.",
-    },
-    {
-      num: 4,
-      title: "Submit to Solana",
-      desc: "Hunter submits the authorization to the Solana program on-chain.",
-    },
-    {
-      num: 5,
-      title: "Program verifies signature",
-      desc: "The program verifies the ed25519 signature on-chain. Any tampering is rejected.",
-    },
-    {
-      num: 6,
-      title: "SOL transfers instantly",
-      desc: "SOL transfers directly to your wallet. 400ms finality, less than $0.001 in fees.",
+      title: "Witness",
+      desc: "Hold steady. Confirm the catch. The Creature is recorded in your trail and stitched into your Council standing.",
     },
   ];
 
-  const cannotDoItems = [
-    "Steal your escrowed SOL \u2014 the program rejects unauthorized withdrawals",
-    "Stop you from reclaiming expired orbs \u2014 reclaim_expired is permissionless",
-    "Replay a claim authorization \u2014 each nonce is permanently burned on-chain",
-    "Change your orb after dropping \u2014 orb data is immutable in the PDA",
-    "Block your refund if we shut down \u2014 the program runs forever on Solana",
+  const rules = [
+    "You must physically be at the spawn point. No teleporting, no spoofing.",
+    "Every catch is verified through The Eye. Fake locations are rejected.",
+    "Rare Creatures appear less often and in unpredictable places.",
+    "Your activity earns standing in The Council, the ranked order of Watchers.",
+    "$BLINK token rewards are coming. Early Watchers are remembered.",
   ];
 
-  const supportedAssets = [
+  const creatureKinds = [
     {
-      name: "SOL",
-      sub: "Native",
-      desc: "Held directly in the escrow PDA. No token accounts needed. The simplest and fastest way to drop.",
+      name: "Sprite",
+      sub: "Common",
+      desc: "Quick, common, shy. The first thing most Watchers ever catch. Spawns everywhere there is movement.",
     },
     {
-      name: "SPL Tokens",
-      sub: "Any SPL token",
-      desc: "Held in a program-owned token account. Supports USDC, BONK, JUP, and every other SPL token on Solana.",
+      name: "Cyclops",
+      sub: "Rare",
+      desc: "Single-eyed sentinels that drift between high-traffic spawn lines. Hard to catch without patience.",
     },
     {
-      name: "NFTs",
-      sub: "Metaplex",
-      desc: "Metaplex NFTs transferred to the program. Drop a 1-of-1 artwork, a membership pass, or a collectible.",
+      name: "Serpent",
+      sub: "Legendary",
+      desc: "Long, slow, unmistakable. Legendary Creatures appear at strange hours and reward bold Watchers.",
     },
   ];
 
@@ -133,7 +88,13 @@ export default function HowItWorks() {
             textDecoration: "none",
           }}
         >
-          <MMLogo size={38} />
+          <Image
+            src="/blink-logo.png"
+            alt="BLINK"
+            width={38}
+            height={38}
+            style={{ objectFit: "contain" }}
+          />
           <span
             style={{
               fontWeight: 800,
@@ -142,7 +103,7 @@ export default function HowItWorks() {
               letterSpacing: "-0.02em",
             }}
           >
-            MishMesh
+            BLINK
           </span>
         </Link>
         <Link
@@ -158,13 +119,13 @@ export default function HowItWorks() {
             textDecoration: "none",
           }}
         >
-          Sign In
+          Enter The Eye
         </Link>
       </nav>
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "120px 24px 80px" }}>
         {/* ============================================================ */}
-        {/*  Section 1: Your crypto, your control                        */}
+        {/*  Section 1: Don't blink                                       */}
         {/* ============================================================ */}
         <section style={{ marginBottom: 100 }}>
           <h1
@@ -176,7 +137,7 @@ export default function HowItWorks() {
               textAlign: "center",
             }}
           >
-            Your crypto, your control
+            Don&apos;t blink. The Eye is open.
           </h1>
           <p
             style={{
@@ -190,8 +151,8 @@ export default function HowItWorks() {
               lineHeight: 1.6,
             }}
           >
-            Understand exactly how MishMesh protects your funds using Solana
-            smart contracts.
+            BLINK is a real-world catching game. Creatures spawn at real
+            coordinates. You walk. You watch. You witness.
           </p>
 
           <div
@@ -205,19 +166,20 @@ export default function HowItWorks() {
             {/* Left: explanation */}
             <div style={{ flex: "1 1 320px", minWidth: 0 }}>
               <p style={{ color: C.textMuted, fontSize: 16, lineHeight: 1.7, marginBottom: 16 }}>
-                When you drop SOL into an orb, it goes into a{" "}
-                <span style={{ color: C.accent, fontWeight: 700 }}>
-                  program-controlled escrow account
-                </span>{" "}
-                (called a PDA) on Solana. Not to MishMesh. Not to a company wallet.
+                The Eye is open across cities, parks, alleys and skylines.
+                Creatures appear at{" "}
+                <span style={{ color: C.primary, fontWeight: 700 }}>
+                  precise GPS spawn points
+                </span>
+                . You have to physically be there. No spoofing, no shortcuts.
               </p>
               <p style={{ color: C.textMuted, fontSize: 16, lineHeight: 1.7, marginBottom: 16 }}>
-                Funds are locked by code, not by us. The rules are enforced by the
-                Solana program, which is open source and verifiable by anyone.
+                Every catch is verified through The Mesh of Eyes. Your record is
+                stitched onto your trail and into The Council standings.
               </p>
               <p style={{ color: C.textMuted, fontSize: 16, lineHeight: 1.7 }}>
-                Only a valid, oracle-signed claim authorization can release the funds.
-                If no one claims, you get everything back automatically.
+                $BLINK token rewards are coming. Watchers who catch early are
+                remembered. The Eye does not forget.
               </p>
             </div>
 
@@ -231,18 +193,18 @@ export default function HowItWorks() {
                   padding: "32px 24px",
                 }}
               >
-                {/* Your Wallet */}
+                {/* You */}
                 <div
                   style={{
-                    background: "rgba(99,102,241,0.1)",
-                    border: `1px solid rgba(99,102,241,0.3)`,
+                    background: "rgba(0,255,136,0.1)",
+                    border: `1px solid rgba(0,255,136,0.3)`,
                     borderRadius: 12,
                     padding: "16px 20px",
                     textAlign: "center",
                     marginBottom: 4,
                   }}
                 >
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>Your Wallet</div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>You</div>
                 </div>
 
                 {/* Arrow down + label */}
@@ -256,7 +218,7 @@ export default function HowItWorks() {
                     }}
                   />
                   <div style={{ fontSize: 11, color: C.primary, fontWeight: 600, marginTop: 2 }}>
-                    Instant lock
+                    Approach
                   </div>
                   <div
                     style={{
@@ -270,11 +232,11 @@ export default function HowItWorks() {
                   />
                 </div>
 
-                {/* Escrow PDA */}
+                {/* Spawn point */}
                 <div
                   style={{
-                    background: "rgba(6,182,212,0.08)",
-                    border: `1px solid rgba(6,182,212,0.25)`,
+                    background: "rgba(136,255,0,0.08)",
+                    border: `1px solid rgba(136,255,0,0.25)`,
                     borderRadius: 12,
                     padding: "16px 20px",
                     textAlign: "center",
@@ -282,10 +244,10 @@ export default function HowItWorks() {
                   }}
                 >
                   <div style={{ fontWeight: 700, fontSize: 15, color: C.accent }}>
-                    Solana Escrow (PDA)
+                    Spawn point
                   </div>
                   <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>
-                    Code-enforced rules
+                    GPS verified by The Eye
                   </div>
                 </div>
 
@@ -300,7 +262,7 @@ export default function HowItWorks() {
                     }}
                   />
                   <div style={{ fontSize: 11, color: C.accent, fontWeight: 600, marginTop: 2 }}>
-                    Atomic transfer
+                    Witness
                   </div>
                   <div
                     style={{
@@ -314,18 +276,21 @@ export default function HowItWorks() {
                   />
                 </div>
 
-                {/* Hunter Wallet */}
+                {/* Caught */}
                 <div
                   style={{
-                    background: "rgba(6,182,212,0.1)",
-                    border: `1px solid rgba(6,182,212,0.3)`,
+                    background: "rgba(0,255,136,0.1)",
+                    border: `1px solid rgba(0,255,136,0.3)`,
                     borderRadius: 12,
                     padding: "16px 20px",
                     textAlign: "center",
                   }}
                 >
-                  <div style={{ fontWeight: 700, fontSize: 15, color: C.accent }}>
-                    Hunter Wallet
+                  <div style={{ fontWeight: 700, fontSize: 15, color: C.primary }}>
+                    Caught
+                  </div>
+                  <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>
+                    Trail updated. Council notices.
                   </div>
                 </div>
               </div>
@@ -334,7 +299,7 @@ export default function HowItWorks() {
         </section>
 
         {/* ============================================================ */}
-        {/*  Section 2: The claim process                                 */}
+        {/*  Section 2: Watch, Approach, Witness                          */}
         {/* ============================================================ */}
         <section style={{ marginBottom: 100 }}>
           <h2
@@ -345,7 +310,7 @@ export default function HowItWorks() {
               marginBottom: 48,
             }}
           >
-            The claim process
+            Watch. Approach. Witness.
           </h2>
 
           <div
@@ -355,7 +320,7 @@ export default function HowItWorks() {
               gap: 20,
             }}
           >
-            {claimSteps.map((step) => (
+            {watchSteps.map((step) => (
               <div
                 key={step.num}
                 style={{
@@ -373,7 +338,7 @@ export default function HowItWorks() {
                     width: 36,
                     height: 36,
                     borderRadius: "50%",
-                    background: "rgba(99,102,241,0.15)",
+                    background: "rgba(0,255,136,0.15)",
                     color: C.primary,
                     fontWeight: 800,
                     fontSize: 16,
@@ -401,13 +366,13 @@ export default function HowItWorks() {
         </section>
 
         {/* ============================================================ */}
-        {/*  Section 3: What MishMesh cannot do                           */}
+        {/*  Section 3: Rules of The Eye                                  */}
         {/* ============================================================ */}
         <section style={{ marginBottom: 100 }}>
           <div
             style={{
               background: C.card,
-              border: "1px solid rgba(239,68,68,0.25)",
+              border: `1px solid rgba(0,255,136,0.25)`,
               borderRadius: 16,
               padding: "40px 32px",
             }}
@@ -420,11 +385,11 @@ export default function HowItWorks() {
                 textAlign: "center",
               }}
             >
-              What we cannot do (by design)
+              Rules of The Eye
             </h2>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              {cannotDoItems.map((item) => (
+              {rules.map((item) => (
                 <div
                   key={item}
                   style={{
@@ -435,14 +400,14 @@ export default function HowItWorks() {
                 >
                   <span
                     style={{
-                      color: "#EF4444",
+                      color: C.primary,
                       fontWeight: 800,
                       fontSize: 18,
                       lineHeight: "1.5",
                       flexShrink: 0,
                     }}
                   >
-                    {"\u2717"}
+                    {"•"}
                   </span>
                   <span
                     style={{
@@ -460,7 +425,7 @@ export default function HowItWorks() {
         </section>
 
         {/* ============================================================ */}
-        {/*  Section 4: Built on Solana                                   */}
+        {/*  Section 4: $BLINK rewards (coming)                           */}
         {/* ============================================================ */}
         <section style={{ marginBottom: 100 }}>
           <h2
@@ -471,7 +436,7 @@ export default function HowItWorks() {
               marginBottom: 48,
             }}
           >
-            Built on Solana
+            $BLINK token rewards are coming
           </h2>
 
           <div
@@ -493,68 +458,40 @@ export default function HowItWorks() {
               }}
             >
               <div>
-                <div style={{ fontSize: 32, fontWeight: 900, color: C.accent }}>
-                  400ms
+                <div style={{ fontSize: 32, fontWeight: 900, color: C.primary }}>
+                  Watch
                 </div>
                 <div style={{ fontSize: 14, color: C.textMuted, marginTop: 4 }}>
-                  Transaction finality
+                  Earn standing in The Council
                 </div>
               </div>
               <div>
                 <div style={{ fontSize: 32, fontWeight: 900, color: C.accent }}>
-                  &lt;$0.001
+                  Catch
                 </div>
                 <div style={{ fontSize: 14, color: C.textMuted, marginTop: 4 }}>
-                  Per transaction
+                  Build your trail of witnessed Creatures
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 32, fontWeight: 900, color: C.primary }}>
+                  $BLINK
+                </div>
+                <div style={{ fontSize: 14, color: C.textMuted, marginTop: 4 }}>
+                  Early Watchers are remembered
                 </div>
               </div>
             </div>
 
-            <div
-              style={{
-                background: "rgba(255,255,255,0.03)",
-                borderRadius: 10,
-                padding: "16px 20px",
-                marginBottom: 24,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 12,
-                  color: C.textMuted,
-                  fontWeight: 600,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase" as const,
-                  marginBottom: 8,
-                }}
-              >
-                Program Address
-              </div>
-              <a
-                href="https://solscan.io/account/placeholder_until_deployed"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  fontFamily: "monospace",
-                  fontSize: 14,
-                  color: C.primary,
-                  textDecoration: "none",
-                  wordBreak: "break-all",
-                }}
-              >
-                placeholder_until_deployed
-              </a>
-            </div>
-
-            <p style={{ color: C.textMuted, fontSize: 15, lineHeight: 1.6 }}>
-              Transactions cost a fraction of a cent. Claiming a $5 orb costs
-              you $0.0005 in fees.
+            <p style={{ color: C.textMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 560, margin: "0 auto" }}>
+              Your trail, your Creatures and your Council standing are recorded
+              now. When $BLINK arrives, the ledger is already written.
             </p>
           </div>
         </section>
 
         {/* ============================================================ */}
-        {/*  Section 5: Supported assets                                  */}
+        {/*  Section 5: Creature kinds                                    */}
         {/* ============================================================ */}
         <section style={{ marginBottom: 80 }}>
           <h2
@@ -565,7 +502,7 @@ export default function HowItWorks() {
               marginBottom: 48,
             }}
           >
-            Supported assets
+            What you will witness
           </h2>
 
           <div
@@ -575,9 +512,9 @@ export default function HowItWorks() {
               gap: 20,
             }}
           >
-            {supportedAssets.map((asset) => (
+            {creatureKinds.map((kind) => (
               <div
-                key={asset.name}
+                key={kind.name}
                 style={{
                   background: C.surface,
                   border: `1px solid ${C.border}`,
@@ -590,7 +527,7 @@ export default function HowItWorks() {
                     display: "inline-block",
                     padding: "4px 12px",
                     borderRadius: 6,
-                    background: "rgba(99,102,241,0.12)",
+                    background: "rgba(0,255,136,0.12)",
                     color: C.primary,
                     fontWeight: 700,
                     fontSize: 12,
@@ -598,7 +535,7 @@ export default function HowItWorks() {
                     marginBottom: 14,
                   }}
                 >
-                  {asset.sub}
+                  {kind.sub}
                 </div>
                 <h3
                   style={{
@@ -608,10 +545,10 @@ export default function HowItWorks() {
                     color: C.text,
                   }}
                 >
-                  {asset.name}
+                  {kind.name}
                 </h3>
                 <p style={{ color: C.textMuted, fontSize: 14, lineHeight: 1.6 }}>
-                  {asset.desc}
+                  {kind.desc}
                 </p>
               </div>
             ))}
@@ -633,7 +570,7 @@ export default function HowItWorks() {
           margin: "0 auto",
         }}
       >
-        <span style={{ color: C.textMuted, fontSize: 14 }}>MishMesh 2025</span>
+        <span style={{ color: C.textMuted, fontSize: 14 }}>BLINK 2026</span>
         <div style={{ display: "flex", gap: 24 }}>
           <Link
             href="/privacy"

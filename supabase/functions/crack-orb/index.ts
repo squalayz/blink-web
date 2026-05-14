@@ -2,43 +2,46 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL } from "https://esm.sh/@solana/web3.js@1.91.8";
 import { ethers } from "https://esm.sh/ethers@6.11.1";
+import { scryptSync } from "node:crypto";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-/* ------------------------------------------------------------------ */
-/*  AES-256-CBC decryption                                             */
-/*  Format: hex string = IV (32 hex chars / 16 bytes) + ciphertext     */
-/*  Key: base64-encoded 32-byte AES key from env                       */
-/* ------------------------------------------------------------------ */
-async function decryptKey(encryptedHex: string): Promise<string> {
-  const keyB64 = Deno.env.get("WALLET_ENCRYPTION_KEY")!;
-  const keyBytes = Uint8Array.from(atob(keyB64), (c) => c.charCodeAt(0));
+const ENC_SALT = "mishmesh-v17-salt";
 
-  const key = await crypto.subtle.importKey(
+function deriveKey(): Uint8Array {
+  const password = Deno.env.get("WALLET_ENCRYPTION_KEY") || Deno.env.get("NEXTAUTH_SECRET") || "";
+  return new Uint8Array(scryptSync(password, ENC_SALT, 32));
+}
+
+async function decryptKey(encoded: string): Promise<string> {
+  const keyBytes = deriveKey();
+  const data = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
+  const iv = data.slice(0, 16);
+  const authTag = data.slice(16, 32);
+  const ciphertext = data.slice(32);
+
+  const cryptoKey = await crypto.subtle.importKey(
     "raw",
     keyBytes,
-    { name: "AES-CBC" },
+    { name: "AES-GCM" },
     false,
     ["decrypt"]
   );
 
-  // Split hex: first 32 hex chars = 16 bytes IV, rest = ciphertext
-  const ivHex = encryptedHex.slice(0, 32);
-  const ctHex = encryptedHex.slice(32);
-
-  const iv = new Uint8Array(ivHex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
-  const ct = new Uint8Array(ctHex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
+  const combined = new Uint8Array(ciphertext.length + authTag.length);
+  combined.set(ciphertext);
+  combined.set(authTag, ciphertext.length);
 
   const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-CBC", iv },
-    key,
-    ct
+    { name: "AES-GCM", iv, tagLength: 128 },
+    cryptoKey,
+    combined
   );
 
-  return new TextDecoder().decode(new Uint8Array(decrypted));
+  return new TextDecoder().decode(decrypted);
 }
 
 serve(async (req) => {
@@ -90,6 +93,13 @@ serve(async (req) => {
       );
     }
 
+    if (hunterUserId === orb.dropper_id) {
+      return Response.json(
+        { error: "You cannot crack your own orb" },
+        { status: 403, headers: CORS }
+      );
+    }
+
     // Fetch dropper's profile to get encrypted private key
     const { data: dropperProfile, error: profileError } = await supabase
       .from("profiles")
@@ -133,6 +143,15 @@ serve(async (req) => {
       const hunterLamports = Math.floor(hunterAmount * LAMPORTS_PER_SOL);
       const feeLamports = Math.floor(feeAmount * LAMPORTS_PER_SOL);
 
+      const balance = await connection.getBalance(keypair.publicKey);
+      const totalLamports = hunterLamports + feeLamports + 10000;
+      if (balance < totalLamports) {
+        return Response.json(
+          { error: "Dropper wallet has insufficient SOL balance. The orb may no longer be funded." },
+          { status: 400, headers: CORS }
+        );
+      }
+
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
 
       const tx = new Transaction();
@@ -154,8 +173,17 @@ serve(async (req) => {
       tx.feePayer = keypair.publicKey;
       tx.sign(keypair);
 
-      const sig = await connection.sendRawTransaction(tx.serialize());
-      await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+      const sig = await connection.sendRawTransaction(tx.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: "confirmed",
+      });
+
+      // Don't block on confirmation — tx is broadcast, return immediately.
+      // confirmTransaction fires in background so the UI can show success ASAP.
+      connection.confirmTransaction(
+        { signature: sig, blockhash, lastValidBlockHeight },
+        "confirmed"
+      ).catch(() => {}); // fire and forget
 
       txHash = sig;
       explorerUrl = `https://solscan.io/tx/${txHash}`;
@@ -168,29 +196,44 @@ serve(async (req) => {
       const privateKeyHex = await decryptKey(encryptedKey);
       const privateKey = privateKeyHex.startsWith("0x") ? privateKeyHex : `0x${privateKeyHex}`;
 
-      const rpcUrl = Deno.env.get("ETH_RPC_URL") || "https://mainnet.base.org";
+      const rpcUrl = Deno.env.get("ETH_RPC_URL") || "https://cloudflare-eth.com";
       const provider = new ethers.JsonRpcProvider(rpcUrl);
       const wallet = new ethers.Wallet(privateKey, provider);
 
       const feeWallet = Deno.env.get("MISHMESH_FEE_WALLET_ETH")!;
 
-      // Send 90% to hunter
+      const walletBalance = await provider.getBalance(wallet.address);
+      const totalNeeded = ethers.parseEther(hunterAmount.toString()) + ethers.parseEther(feeAmount.toString());
+      if (walletBalance < totalNeeded) {
+        return Response.json(
+          { error: "Dropper wallet has insufficient ETH balance. The orb may no longer be funded." },
+          { status: 400, headers: CORS }
+        );
+      }
+
+      // Send 90% to hunter — broadcast immediately, don't wait for confirmation
       const hunterTx = await wallet.sendTransaction({
         to: hunterWallet,
         value: ethers.parseEther(hunterAmount.toString()),
       });
-      const hunterReceipt = await hunterTx.wait(1);
-      if (!hunterReceipt) throw new Error("Hunter transfer failed");
 
-      // Send 10% platform fee
-      const feeTx = await wallet.sendTransaction({
+      // Send 10% platform fee — broadcast immediately
+      wallet.sendTransaction({
         to: feeWallet,
         value: ethers.parseEther(feeAmount.toString()),
+      }).catch((feeErr: unknown) => {
+        const msg = feeErr instanceof Error ? feeErr.message : String(feeErr);
+        console.error('[PLATFORM_FEE_FAILED]', JSON.stringify({ orbId, feeAmount, currency: 'ETH', error: msg, timestamp: new Date().toISOString() }));
       });
-      await feeTx.wait(1);
 
-      txHash = hunterReceipt.hash;
-      explorerUrl = `https://basescan.org/tx/${txHash}`;
+      // Return hash immediately — tx is in mempool, user sees it right away
+      txHash = hunterTx.hash;
+      explorerUrl = `https://etherscan.io/tx/${txHash}`;
+    } else if (currency === 'BTC') {
+      return Response.json(
+        { error: 'BTC orb cracking is coming soon. This orb cannot be cracked yet.' },
+        { status: 501, headers: CORS }
+      );
     } else {
       throw new Error(`Unsupported currency: ${currency}`);
     }

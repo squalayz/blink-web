@@ -11,7 +11,7 @@ export default function AuroraOverlay() {
         zIndex: 1,
       }}
     >
-      {/* Blob 1: indigo + purple */}
+      {/* Blob 1: green primary */}
       <div
         style={{
           position: "absolute",
@@ -21,12 +21,12 @@ export default function AuroraOverlay() {
           height: "35%",
           borderRadius: "50%",
           background:
-            "linear-gradient(to right, rgba(99,102,241,0.12), rgba(6,182,212,0.08), transparent)",
+            "linear-gradient(to right, rgba(0,255,136,0.12), rgba(0,255,136,0.08), transparent)",
           filter: "blur(60px)",
           animation: "auroraBlob1 12s ease-in-out infinite alternate",
         }}
       />
-      {/* Blob 2: cyan + blue */}
+      {/* Blob 2: green secondary */}
       <div
         style={{
           position: "absolute",
@@ -36,7 +36,7 @@ export default function AuroraOverlay() {
           height: "25%",
           borderRadius: "50%",
           background:
-            "linear-gradient(to left, rgba(6,182,212,0.08), rgba(99,102,241,0.06), transparent)",
+            "linear-gradient(to left, rgba(136,255,0,0.08), rgba(0,255,136,0.06), transparent)",
           filter: "blur(50px)",
           animation: "auroraBlob2 16s ease-in-out infinite alternate",
         }}

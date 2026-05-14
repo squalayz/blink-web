@@ -8,14 +8,14 @@ import UserAvatar from "@/components/UserAvatar";
 import { X } from "lucide-react";
 
 const C = {
-  bg: "#0A0A0F",
+  bg: "#0a0a0f",
   surface: "#0d0d14",
   card: "#1a1a24",
-  primary: "#6366f1",
-  accent: "#06b6d4",
-  text: "#F9FAFB",
-  textMuted: "#9CA3AF",
-  border: "#1F2028",
+  primary: "#00FF88",
+  accent: "#00FF88",
+  text: "#FFFFFF",
+  textMuted: "#8a8a99",
+  border: "#1a1a24",
 } as const;
 
 interface ProfileData {
@@ -251,8 +251,8 @@ export default function UserProfileCard({
                 }}
               >
                 {[
-                  { label: "Dropped", value: profile.orbs_dropped },
-                  { label: "Found", value: profile.orbs_found },
+                  { label: "Spawned", value: profile.orbs_dropped },
+                  { label: "Caught", value: profile.orbs_found },
                   { label: "Reputation", value: profile.reputation },
                 ].map((s) => (
                   <div

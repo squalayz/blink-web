@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   let query = supabaseAdmin
     .from("orbs")
     .select("*")
-    .in("status", ["pending", "claimed"])
+    .in("status", ["pending", "active", "claimed"])
     .order("created_at", { ascending: false });
 
   // Apply currency or type filter

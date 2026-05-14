@@ -1,11 +1,13 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import BottomNav from "./BottomNav";
+import BottomNav, { SIDEBAR_WIDTH } from "./BottomNav";
 import PortfolioBar from "./PortfolioBar";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
+import { C } from "@/lib/theme";
 
-const SHOW_SHELL_PATHS = ["/hunt", "/live", "/drop", "/messages", "/profile", "/leaderboard", "/wallet", "/missions", "/tasks", "/squads"];
-const HIDE_SHELL_PREFIXES = ["/onboarding", "/auth", "/crack", "/orb"];
+const SHOW_SHELL_PATHS = ["/watch", "/live", "/spawn", "/messages", "/profile", "/council", "/wallet", "/missions", "/tasks", "/squads", "/market", "/trails", "/travel", "/map"];
+const HIDE_SHELL_PREFIXES = ["/onboarding", "/auth", "/catch", "/orb"];
 
 function shouldShowShell(pathname: string): boolean {
   if (HIDE_SHELL_PREFIXES.some((p) => pathname.startsWith(p))) return false;
@@ -16,28 +18,60 @@ function shouldShowShell(pathname: string): boolean {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const showShell = shouldShowShell(pathname);
+  const { isDesktop, isTablet } = useIsDesktop();
 
   if (!showShell) {
     return <>{children}</>;
   }
 
-  // Hunt is full-screen map — no padding, just overlay the nav
-  const isHunt = pathname === "/hunt" || pathname.startsWith("/hunt/");
+  // Watch & Map are full-screen — no padding, just overlay the nav
+  const isWatch = pathname === "/watch" || pathname.startsWith("/watch/");
+  const isMap = pathname === "/map" || pathname.startsWith("/map/");
 
-  if (isHunt) {
+  if (isWatch || isMap) {
     return (
-      <div style={{ position: "fixed", inset: 0, background: "#0A0A0F" } as React.CSSProperties}>
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: C.bg,
+          ...(isDesktop ? { paddingLeft: SIDEBAR_WIDTH } : {}),
+        } as React.CSSProperties}
+      >
         {children}
         <BottomNav />
       </div>
     );
   }
 
+  const contentMaxWidth = isDesktop ? 1200 : isTablet ? 640 : 480;
+
+  /* ===== DESKTOP: Sidebar left, content right ===== */
+  if (isDesktop) {
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, display: "flex" } as React.CSSProperties}>
+        <BottomNav />
+        {/* Content area: offset by sidebar width */}
+        <div style={{ flex: 1, marginLeft: SIDEBAR_WIDTH, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+          <PortfolioBar />
+          <div style={{ flex: 1, paddingTop: 52, overflow: "auto", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+            <div style={{ maxWidth: contentMaxWidth, margin: "0 auto", width: "100%", padding: "0 24px" }}>
+              {children}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ===== MOBILE / TABLET: Top bar + bottom nav ===== */
   return (
-    <div style={{ minHeight: "100vh", minHeight: "100dvh", background: "#0A0A0F", display: "flex", flexDirection: "column" } as React.CSSProperties}>
+    <div style={{ minHeight: "100vh", minHeight: "100dvh", background: C.bg, display: "flex", flexDirection: "column" } as React.CSSProperties}>
       <PortfolioBar />
-      <div style={{ flex: 1, paddingTop: 52, paddingBottom: 88, overflow: "auto", WebkitOverflowScrolling: "touch" }}>
-        {children}
+      <div style={{ flex: 1, paddingTop: 52, paddingBottom: 88, overflow: "auto", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+        <div style={{ maxWidth: contentMaxWidth, margin: "0 auto", width: "100%" }}>
+          {children}
+        </div>
       </div>
       <BottomNav />
     </div>

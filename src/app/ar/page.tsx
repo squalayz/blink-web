@@ -247,7 +247,7 @@ export default function ARPage() {
 
   // ── Tap handler ────────────────────────────────────────────────────────────
   const handleOrbTap = useCallback((id: string) => {
-    router.push('/crack/' + id);
+    router.push('/catch/' + id);
   }, [router]);
 
   // ── Compass display ────────────────────────────────────────────────────────
@@ -346,7 +346,7 @@ export default function ARPage() {
             </span>
           )}
           <button
-            onClick={() => router.push('/hunt')}
+            onClick={() => router.push('/watch')}
             style={{
               marginTop: 12,
               padding: '12px 28px',
@@ -387,7 +387,7 @@ export default function ARPage() {
           }}>
             {/* Back arrow */}
             <button
-              onClick={() => router.push('/hunt')}
+              onClick={() => router.push('/watch')}
               style={{
                 background: 'none',
                 border: 'none',
@@ -401,7 +401,7 @@ export default function ARPage() {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.text} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="15 18 9 12 15 6" />
               </svg>
-              <span style={{ color: C.text, fontSize: 15, fontWeight: 600 }}>AR Hunt</span>
+              <span style={{ color: C.text, fontSize: 15, fontWeight: 600 }}>AR Watch</span>
             </button>
 
             {/* Compass */}
@@ -434,7 +434,7 @@ export default function ARPage() {
                 fontSize: 12,
                 fontWeight: 700,
               }}>
-                {loading ? '...' : nearbyOrbs.length} orbs
+                {loading ? '...' : nearbyOrbs.length} creatures
               </span>
             </div>
           </div>
@@ -546,10 +546,10 @@ export default function ARPage() {
               <path d="M12 6v6l4 2" />
             </svg>
             <p style={{ color: C.text, fontSize: 15, fontWeight: 600, margin: '0 0 4px 0' }}>
-              No orbs nearby
+              No creatures nearby
             </p>
             <p style={{ color: C.muted, fontSize: 13, margin: 0 }}>
-              Explore the map to find orbs!
+              Explore the map to find creatures!
             </p>
           </div>
         </div>
@@ -598,7 +598,7 @@ export default function ARPage() {
             animation: 'arFadeIn 0.4s ease-out 0.1s backwards',
           }}>
             <button
-              onClick={() => router.push('/hunt')}
+              onClick={() => router.push('/watch')}
               style={{
                 padding: '10px 28px',
                 borderRadius: 20,

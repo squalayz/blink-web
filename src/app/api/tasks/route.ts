@@ -61,15 +61,15 @@ export async function GET(req: NextRequest) {
       const userLat = parseFloat(lat);
       const userLng = parseFloat(lng);
       result = result
-        .filter((t: Record<string, unknown>) => t.lat != null && t.lng != null)
+        .filter((t: Record<string, unknown>) => t.latitude != null && t.longitude != null)
         .sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
           const distA = Math.hypot(
-            (a.lat as number) - userLat,
-            (a.lng as number) - userLng
+            (a.latitude as number) - userLat,
+            (a.longitude as number) - userLng
           );
           const distB = Math.hypot(
-            (b.lat as number) - userLat,
-            (b.lng as number) - userLng
+            (b.latitude as number) - userLat,
+            (b.longitude as number) - userLng
           );
           return distA - distB;
         });
@@ -106,8 +106,8 @@ export async function POST(req: NextRequest) {
           category,
           reward_amount,
           reward_currency,
-          lat,
-          lng,
+          latitude,
+          longitude,
           deadline,
         } = body;
 
@@ -127,10 +127,10 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           );
         }
-        if (lat != null && !isValidLat(lat)) {
+        if (latitude != null && !isValidLat(latitude)) {
           return NextResponse.json({ error: "Invalid latitude" }, { status: 400 });
         }
-        if (lng != null && !isValidLng(lng)) {
+        if (longitude != null && !isValidLng(longitude)) {
           return NextResponse.json({ error: "Invalid longitude" }, { status: 400 });
         }
 
@@ -143,8 +143,8 @@ export async function POST(req: NextRequest) {
             category: sanitizeText(category, 50) || "general",
             reward_amount,
             reward_currency: reward_currency || "ETH",
-            lat: lat || null,
-            lng: lng || null,
+            latitude: latitude || null,
+            longitude: longitude || null,
             deadline: deadline || null,
             status: "open",
             created_at: new Date().toISOString(),

@@ -1,11 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
-import { C, FALLBACK_RATES, truncateAddress, type OrbCurrency } from "@/lib/theme";
+import { C, truncateAddress, type OrbCurrency } from "@/lib/theme";
 import GlassCard from "@/components/GlassCard";
+import Skeleton from "@/components/Skeleton";
+import ErrorState from "@/components/ErrorState";
+import { useBalances } from "@/hooks/useBalances";
+import { usePrices } from "@/hooks/usePrices";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -19,7 +24,6 @@ interface ChainMeta {
   name: string;
   color: string;
   gradient: string;
-  rpcFetch: (addr: string) => Promise<number>;
 }
 
 interface ChainBalance {
@@ -39,56 +43,19 @@ interface ProfileData {
 /* ------------------------------------------------------------------ */
 /*  Chain config                                                       */
 /* ------------------------------------------------------------------ */
+// BLINK: ETH-only — Solana/Bitcoin chain rows hidden. Underlying balance + send code kept for future L2 work.
 const CHAINS: ChainMeta[] = [
-  {
-    key: "solana",
-    currency: "SOL",
-    name: "Solana",
-    color: "#9945FF",
-    gradient: "linear-gradient(135deg, #1a0533 0%, #2d1060 100%)",
-    rpcFetch: async (addr: string) => {
-      const res = await fetch("https://api.mainnet-beta.solana.com", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getBalance", params: [addr] }),
-        signal: AbortSignal.timeout(5000),
-      });
-      const d = await res.json();
-      return (d.result?.value ?? 0) / 1e9;
-    },
-  },
+  // { key: "solana", currency: "SOL", name: "Solana", color: "#00FF88",
+  //   gradient: "linear-gradient(135deg, #1a0533 0%, #2d1060 100%)" }, // BLINK: ETH-only — disabled
   {
     key: "ethereum",
     currency: "ETH",
     name: "Ethereum",
-    color: "#627EEA",
+    color: "#00FF88",
     gradient: "linear-gradient(135deg, #0a1628 0%, #1a2d5a 100%)",
-    rpcFetch: async (addr: string) => {
-      const res = await fetch("https://mainnet.base.org", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBalance", params: [addr, "latest"] }),
-        signal: AbortSignal.timeout(5000),
-      });
-      const d = await res.json();
-      return parseInt(d.result ?? "0x0", 16) / 1e18;
-    },
   },
-  {
-    key: "bitcoin",
-    currency: "BTC",
-    name: "Bitcoin",
-    color: "#F7931A",
-    gradient: "linear-gradient(135deg, #1a0d00 0%, #3d1f00 100%)",
-    rpcFetch: async (addr: string) => {
-      const res = await fetch(`https://mempool.space/api/address/${addr}`, {
-        signal: AbortSignal.timeout(5000),
-      });
-      const d = await res.json();
-      const sats = (d.chain_stats?.funded_txo_sum ?? 0) - (d.chain_stats?.spent_txo_sum ?? 0);
-      return sats / 1e8;
-    },
-  },
+  // { key: "bitcoin", currency: "BTC", name: "Bitcoin", color: "#88FF00",
+  //   gradient: "linear-gradient(135deg, #1a0d00 0%, #3d1f00 100%)" }, // BLINK: ETH-only — disabled
 ];
 
 /* ------------------------------------------------------------------ */
@@ -172,7 +139,7 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
 function SolIcon({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="11" fill="#9945FF" />
+      <circle cx="12" cy="12" r="11" fill="#00FF88" />
       <path d="M7 15.5l2.5-2.5h8L15 15.5H7z" fill="#fff" />
       <path d="M7 8.5l2.5 2.5h8L15 8.5H7z" fill="#fff" />
       <path d="M7 12l2.5-2h8L15 12H7z" fill="#fff" opacity="0.7" />
@@ -183,7 +150,7 @@ function SolIcon({ size = 18 }: { size?: number }) {
 function EthIcon({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="11" fill="#627EEA" />
+      <circle cx="12" cy="12" r="11" fill="#88FF00" />
       <path d="M12 4v6.5l5.5 2.5L12 4z" fill="#fff" opacity="0.6" />
       <path d="M12 4L6.5 13l5.5-2.5V4z" fill="#fff" />
       <path d="M12 16.5v3.5l5.5-7.5L12 16.5z" fill="#fff" opacity="0.6" />
@@ -195,7 +162,7 @@ function EthIcon({ size = 18 }: { size?: number }) {
 function BtcIcon({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="11" fill="#F7931A" />
+      <circle cx="12" cy="12" r="11" fill="#88FF00" />
       <text x="12" y="16.5" textAnchor="middle" fill="#fff" fontSize="13" fontWeight="700" fontFamily="Arial">B</text>
     </svg>
   );
@@ -248,15 +215,10 @@ function chainIcon(chain: Chain, size = 18): React.ReactNode {
 export default function WalletPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { isDesktop } = useIsDesktop();
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [balances, setBalances] = useState<Record<Chain, ChainBalance | null>>({
-    solana: null,
-    ethereum: null,
-    bitcoin: null,
-  });
   const [loadingProfile, setLoadingProfile] = useState(true);
-  const [loadingBalances, setLoadingBalances] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>("balance");
   const [expandedChain, setExpandedChain] = useState<Chain | null>(null);
   const [copiedAddr, setCopiedAddr] = useState<string | null>(null);
@@ -264,7 +226,8 @@ export default function WalletPage() {
   // Send flow
   const [showSend, setShowSend] = useState(false);
   const [sendStep, setSendStep] = useState<1 | 2 | 3>(1);
-  const [sendChain, setSendChain] = useState<Chain>("solana");
+  // BLINK: ETH-only — Send defaults to ethereum
+  const [sendChain, setSendChain] = useState<Chain>("ethereum");
   const [sendTo, setSendTo] = useState("");
   const [sendAmount, setSendAmount] = useState("");
   const [sending, setSending] = useState(false);
@@ -273,11 +236,22 @@ export default function WalletPage() {
 
   // Receive flow
   const [showReceive, setShowReceive] = useState(false);
-  const [receiveChain, setReceiveChain] = useState<Chain>("solana");
+  // BLINK: ETH-only — Receive defaults to ethereum
+  const [receiveChain, setReceiveChain] = useState<Chain>("ethereum");
 
   // Orb locks & referral earnings
   const [orbLocks, setOrbLocks] = useState<Array<{ id: string; currency: OrbCurrency; amount: number; message: string; status: string }>>([]);
   const [referralEarnings, setReferralEarnings] = useState(0);
+
+  // Animated count-up for total balance
+  const [displayBalance, setDisplayBalance] = useState(0);
+  const displayBalanceRef = useRef(0);
+
+  // Press states
+  const [pressedId, setPressedId] = useState<string | null>(null);
+
+  // Hover state for chain cards (desktop)
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
 
   /* ---- Auth redirect ---- */
   useEffect(() => {
@@ -310,17 +284,13 @@ export default function WalletPage() {
       const shortHash = data.txHash ? `${data.txHash.slice(0, 8)}...${data.txHash.slice(-6)}` : "";
       setSendSuccess(`Sent! TX: ${shortHash}`);
       setSendStep(3);
-      // Refresh balances
-      setTimeout(() => {
-        setBalances({ solana: null, ethereum: null, bitcoin: null });
-        setLoadingBalances(true);
-      }, 3000);
+      setTimeout(() => refreshBalances(), 3000);
     } catch (err: unknown) {
       setSendError(err instanceof Error ? err.message : "Send failed");
     } finally {
       setSending(false);
     }
-  }, [user, profile, sendTo, sendAmount, sendChain, balances]);
+  }, [user, profile, sendTo, sendAmount, sendChain, balances, refreshBalances]);
 
   /* ---- Fetch profile ---- */
   const fetchProfile = useCallback(async () => {
@@ -335,41 +305,19 @@ export default function WalletPage() {
     setLoadingProfile(false);
   }, [user]);
 
-  /* ---- Fetch on-chain balances ---- */
-  const fetchBalances = useCallback(async () => {
-    if (!profile) return;
-    setLoadingBalances(true);
+  /* ---- On-chain balances via shared hook ---- */
+  const { sol: solNative, eth: ethNative, btc: btcNative, loading: loadingBalances, refresh: refreshBalances } = useBalances({
+    sol_address: profile?.sol_address,
+    eth_address: profile?.eth_address,
+    btc_address: profile?.btc_address,
+  });
+  const prices = usePrices();
 
-    const addresses: Record<Chain, string | null> = {
-      solana: profile.sol_address,
-      ethereum: profile.eth_address,
-      bitcoin: profile.btc_address,
-    };
-
-    const results = await Promise.allSettled(
-      CHAINS.map(async (c) => {
-        const addr = addresses[c.key];
-        if (!addr) return { chain: c.key, native: 0, usd: 0, address: "" };
-        try {
-          const native = await c.rpcFetch(addr);
-          const usd = native * FALLBACK_RATES[c.currency];
-          return { chain: c.key, native, usd, address: addr };
-        } catch {
-          return { chain: c.key, native: 0, usd: 0, address: addr };
-        }
-      })
-    );
-
-    const next: Record<Chain, ChainBalance | null> = { solana: null, ethereum: null, bitcoin: null };
-    for (const r of results) {
-      if (r.status === "fulfilled") {
-        const v = r.value;
-        next[v.chain as Chain] = { native: v.native, usd: v.usd, address: v.address };
-      }
-    }
-    setBalances(next);
-    setLoadingBalances(false);
-  }, [profile]);
+  const balances: Record<Chain, ChainBalance | null> = {
+    solana: profile?.sol_address ? { native: solNative, usd: solNative * prices.sol, address: profile.sol_address } : null,
+    ethereum: profile?.eth_address ? { native: ethNative, usd: ethNative * prices.eth, address: profile.eth_address } : null,
+    bitcoin: profile?.btc_address ? { native: btcNative, usd: btcNative * prices.btc, address: profile.btc_address } : null,
+  };
 
   /* ---- Fetch orb locks ---- */
   const fetchOrbLocks = useCallback(async () => {
@@ -401,12 +349,29 @@ export default function WalletPage() {
   }, [user]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
-  useEffect(() => { fetchBalances(); }, [fetchBalances]);
   useEffect(() => { fetchOrbLocks(); fetchReferrals(); }, [fetchOrbLocks, fetchReferrals]);
 
   /* ---- Computed totals ---- */
   const totalUSD = Object.values(balances).reduce((sum, b) => sum + (b?.usd ?? 0), 0);
   const change24h = 0; // Real 24h change would require historical price data
+
+  /* ---- Animated count-up ---- */
+  useEffect(() => {
+    if (totalUSD === 0) { setDisplayBalance(0); displayBalanceRef.current = 0; return; }
+    const duration = 800;
+    const start = Date.now();
+    const startVal = displayBalanceRef.current;
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const val = startVal + (totalUSD - startVal) * eased;
+      setDisplayBalance(val);
+      displayBalanceRef.current = val;
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [totalUSD]);
 
   /* ---- Copy address ---- */
   const handleCopy = async (addr: string) => {
@@ -417,17 +382,60 @@ export default function WalletPage() {
     } catch { /* noop */ }
   };
 
-  /* ---- Loading state ---- */
+  /* ---- Press handler helpers ---- */
+  const pressProps = (id: string) => ({
+    onPointerDown: () => setPressedId(id),
+    onPointerUp: () => setPressedId(null),
+    onPointerLeave: () => setPressedId(null),
+  });
+  const pressStyle = (id: string): React.CSSProperties => ({
+    transform: pressedId === id ? "scale(0.97)" : "scale(1)",
+    transition: "transform 0.15s ease",
+  });
+
+  /* ---- Loading state with skeleton ---- */
   if (authLoading || !user) {
     return (
-      <div style={{ minHeight: "100vh", backgroundColor: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ width: 32, height: 32, border: `3px solid ${C.border}`, borderTopColor: C.primary, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <div style={{ minHeight: "100vh", backgroundColor: C.bg, color: C.text, fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif' }}>
+        <div style={{ maxWidth: 480, margin: "0 auto", padding: "0 20px" }}>
+          {/* Header skeleton */}
+          <div style={{ padding: "14px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <Skeleton width={120} height={20} borderRadius={8} />
+            <Skeleton width={22} height={22} borderRadius="50%" />
+          </div>
+          {/* Balance skeleton */}
+          <div style={{ textAlign: "center", padding: "32px 0 8px" }}>
+            <Skeleton width={80} height={12} borderRadius={6} />
+            <div style={{ display: "flex", justifyContent: "center", margin: "12px 0" }}>
+              <Skeleton width={160} height={36} borderRadius={8} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <Skeleton width={80} height={24} borderRadius={12} />
+            </div>
+          </div>
+          {/* Chain cards skeleton */}
+          <div style={{ display: "flex", gap: 10, margin: "24px 0" }}>
+            {[0, 1, 2].map(i => (
+              <div key={i} style={{ flex: 1, minWidth: 105, padding: "14px 12px", borderRadius: 16, background: C.glass, border: `1px solid ${C.glassBorder}` }}>
+                <Skeleton width={40} height={20} borderRadius={10} />
+                <div style={{ marginTop: 8 }}><Skeleton width="70%" height={16} borderRadius={6} /></div>
+                <div style={{ marginTop: 6 }}><Skeleton width="50%" height={12} borderRadius={4} /></div>
+              </div>
+            ))}
+          </div>
+          {/* Action buttons skeleton */}
+          <div style={{ display: "flex", gap: 12, margin: "20px 0 28px" }}>
+            <Skeleton width="100%" height={50} borderRadius={25} />
+            <Skeleton width="100%" height={50} borderRadius={25} />
+          </div>
+        </div>
+        <style>{`@keyframes skeletonPulse{0%,100%{opacity:0.3}50%{opacity:0.7}}`}</style>
       </div>
     );
   }
 
   const accountName = profile?.display_name || profile?.handle || "My Wallet";
+  const contentMaxWidth = isDesktop ? 900 : 480;
 
   return (
     <div
@@ -441,6 +449,10 @@ export default function WalletPage() {
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
+        @keyframes chainCardGlow {
+          0%, 100% { opacity: 0.5; }
+          50% { opacity: 1; }
+        }
       `}</style>
 
       {/* ============================================================ */}
@@ -459,7 +471,7 @@ export default function WalletPage() {
       >
         <div
           style={{
-            maxWidth: 640,
+            maxWidth: contentMaxWidth,
             margin: "0 auto",
             padding: "14px 20px",
             display: "flex",
@@ -468,19 +480,20 @@ export default function WalletPage() {
           }}
         >
           <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.3px" }}>
-            {loadingProfile ? "..." : accountName}
+            {loadingProfile ? <Skeleton width={100} height={18} borderRadius={6} /> : accountName}
           </span>
           <button
             onClick={() => router.push("/profile/edit")}
-            style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", ...pressStyle("settings") }}
             aria-label="Settings"
+            {...pressProps("settings")}
           >
             <SettingsIcon />
           </button>
         </div>
       </div>
 
-      <div style={{ maxWidth: 640, margin: "0 auto", padding: "0 20px 120px" }}>
+      <div style={{ maxWidth: contentMaxWidth, margin: "0 auto", padding: "0 20px 120px" }}>
 
         {/* ============================================================ */}
         {/* 2. BALANCE HERO                                               */}
@@ -489,20 +502,13 @@ export default function WalletPage() {
           <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, marginBottom: 8, letterSpacing: "0.5px", textTransform: "uppercase" }}>
             Portfolio
           </div>
-          {loadingBalances && !Object.values(balances).some(Boolean) ? (
-            <div
-              style={{
-                width: 120,
-                height: 36,
-                borderRadius: 8,
-                background: C.s2,
-                margin: "0 auto 12px",
-                animation: "pulse 1.4s ease-in-out infinite",
-              }}
-            />
+          {loadingBalances && !Object.values(balances).some(b => b && b.native > 0) ? (
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+              <Skeleton width={160} height={36} borderRadius={8} />
+            </div>
           ) : (
             <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: "-1px", marginBottom: 12, color: C.text }}>
-              ${fmtUSD(totalUSD)}
+              ${fmtUSD(displayBalance)}
             </div>
           )}
           {/* 24h change pill */}
@@ -515,7 +521,7 @@ export default function WalletPage() {
               borderRadius: 20,
               fontSize: 13,
               fontWeight: 600,
-              background: change24h >= 0 ? "rgba(20,241,149,0.12)" : "rgba(239,68,68,0.12)",
+              background: change24h >= 0 ? "rgba(0,255,136,0.12)" : "rgba(239,68,68,0.12)",
               color: change24h >= 0 ? C.accent : "#EF4444",
             }}
           >
@@ -533,17 +539,29 @@ export default function WalletPage() {
         {/* ============================================================ */}
         {/* 3. CHAIN BALANCE MINI CARDS                                   */}
         {/* ============================================================ */}
-        <div style={{ display: "flex", gap: 10, margin: "24px 0", overflowX: "auto" }}>
+        <div style={{
+          display: isDesktop ? "grid" : "flex",
+          ...(isDesktop
+            ? { gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }
+            : { gap: 10, overflowX: "auto" as const }
+          ),
+          margin: "24px 0",
+        }}>
           {CHAINS.map((c) => {
             const b = balances[c.key];
             const addr = c.key === "solana" ? profile?.sol_address : c.key === "ethereum" ? profile?.eth_address : profile?.btc_address;
             const hasAddr = Boolean(addr);
+            const cardId = `chain-${c.key}`;
+            const isHovered = hoveredCard === c.key;
             return (
               <div
                 key={c.key}
+                onMouseEnter={() => setHoveredCard(c.key)}
+                onMouseLeave={() => setHoveredCard(null)}
                 style={{
-                  flex: 1,
-                  minWidth: 105,
+                  position: "relative",
+                  flex: isDesktop ? undefined : 1,
+                  minWidth: isDesktop ? undefined : 105,
                   background: c.gradient,
                   borderRadius: 16,
                   border: `1px solid ${c.color}25`,
@@ -551,16 +569,32 @@ export default function WalletPage() {
                   display: "flex",
                   flexDirection: "column",
                   gap: 8,
+                  overflow: "hidden",
+                  cursor: "pointer",
+                  transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                  transform: pressedId === cardId ? "scale(0.97)" : (isDesktop && isHovered ? "scale(1.03)" : "scale(1)"),
+                  boxShadow: isDesktop && isHovered ? `0 4px 24px ${c.color}33` : "none",
                 }}
+                {...pressProps(cardId)}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {/* Gradient border glow overlay */}
+                <div style={{
+                  position: "absolute",
+                  inset: 0,
+                  borderRadius: 16,
+                  border: `1.5px solid transparent`,
+                  background: `linear-gradient(${c.gradient}) padding-box, linear-gradient(135deg, ${c.color}40, transparent 60%, ${c.color}20) border-box`,
+                  pointerEvents: "none",
+                  animation: "chainCardGlow 3s ease-in-out infinite",
+                }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 6, position: "relative" }}>
                   {chainIcon(c.key, 20)}
                   <span style={{ fontSize: 12, fontWeight: 700, color: c.color }}>{c.currency}</span>
                 </div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.text, position: "relative" }}>
                   {!hasAddr ? "--" : loadingBalances && !b ? "..." : fmtNative(b?.native ?? 0)}
                 </div>
-                <div style={{ fontSize: 11, color: C.muted }}>
+                <div style={{ fontSize: 11, color: C.muted, position: "relative" }}>
                   {!hasAddr ? "Not linked" : loadingBalances && !b ? "" : `$${fmtUSD(b?.usd ?? 0)}`}
                 </div>
               </div>
@@ -579,7 +613,7 @@ export default function WalletPage() {
               flex: 1,
               height: 50,
               borderRadius: 25,
-              background: "#6366f1",
+              background: "#00FF88",
               border: "none",
               color: "#fff",
               fontSize: 15,
@@ -590,7 +624,10 @@ export default function WalletPage() {
               justifyContent: "center",
               gap: 8,
               fontFamily: "inherit",
+              boxShadow: "0 4px 20px rgba(0,255,136,0.25)",
+              ...pressStyle("btn-send"),
             }}
+            {...pressProps("btn-send")}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
             Send
@@ -603,8 +640,8 @@ export default function WalletPage() {
               height: 50,
               borderRadius: 25,
               background: "transparent",
-              border: "2px solid #6366f1",
-              color: "#6366f1",
+              border: "2px solid #00FF88",
+              color: "#00FF88",
               fontSize: 15,
               fontWeight: 700,
               cursor: "pointer",
@@ -613,9 +650,12 @@ export default function WalletPage() {
               justifyContent: "center",
               gap: 8,
               fontFamily: "inherit",
+              boxShadow: "0 4px 20px rgba(0,255,136,0.12)",
+              ...pressStyle("btn-receive"),
             }}
+            {...pressProps("btn-receive")}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00FF88" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
             Receive
           </button>
         </div>
@@ -650,7 +690,9 @@ export default function WalletPage() {
                 fontFamily: "inherit",
                 transition: "background 0.2s, color 0.2s",
                 textTransform: "capitalize",
+                ...pressStyle(`tab-${tab}`),
               }}
+              {...pressProps(`tab-${tab}`)}
             >
               {tab === "balance" ? "Balance" : "Collection"}
             </button>
@@ -667,7 +709,7 @@ export default function WalletPage() {
             <GlassCard>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <LockIcon />
-                <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Orb Locks</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Creature Locks</span>
                 <span
                   style={{
                     marginLeft: "auto",
@@ -684,7 +726,7 @@ export default function WalletPage() {
               </div>
               {orbLocks.length === 0 ? (
                 <div style={{ fontSize: 13, color: C.muted, padding: "8px 0" }}>
-                  No active orb drops with locked crypto.
+                  No active creature spawns with locked crypto.
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -708,7 +750,7 @@ export default function WalletPage() {
                         </span>
                       </div>
                       <span style={{ fontSize: 11, color: C.muted, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {orb.message || "Orb drop"}
+                        {orb.message || "Creature spawn"}
                       </span>
                     </div>
                   ))}
@@ -735,6 +777,7 @@ export default function WalletPage() {
               const b = balances[c.key];
               const addr = c.key === "solana" ? profile?.sol_address : c.key === "ethereum" ? profile?.eth_address : profile?.btc_address;
               const isExpanded = expandedChain === c.key;
+              const rowId = `chain-row-${c.key}`;
 
               return (
                 <GlassCard
@@ -750,7 +793,9 @@ export default function WalletPage() {
                       padding: "14px 16px",
                       cursor: "pointer",
                       gap: 12,
+                      ...pressStyle(rowId),
                     }}
+                    {...pressProps(rowId)}
                   >
                     {chainIcon(c.key, 28)}
                     <div style={{ flex: 1 }}>
@@ -796,7 +841,9 @@ export default function WalletPage() {
                                 fontSize: 11,
                                 fontFamily: "inherit",
                                 gap: 4,
+                                ...pressStyle(`copy-${c.key}`),
                               }}
+                              {...pressProps(`copy-${c.key}`)}
                             >
                               <CopyIcon />
                               <span>{copiedAddr === addr ? "Copied" : "Copy"}</span>
@@ -825,7 +872,9 @@ export default function WalletPage() {
                               fontWeight: 600,
                               cursor: "pointer",
                               fontFamily: "inherit",
+                              ...pressStyle(`link-${c.key}`),
                             }}
+                            {...pressProps(`link-${c.key}`)}
                           >
                             Link {c.name} Wallet
                           </button>
@@ -884,7 +933,7 @@ export default function WalletPage() {
                 No collectibles yet
               </div>
               <div style={{ fontSize: 13, color: C.muted }}>
-                NFTs and collectibles from orb drops will appear here.
+                NFTs and collectibles from creature spawns will appear here.
               </div>
             </GlassCard>
           </div>
@@ -898,18 +947,45 @@ export default function WalletPage() {
         const chainMeta = CHAINS.find(c => c.key === sendChain)!;
         const addr = sendChain === "solana" ? profile?.sol_address : sendChain === "ethereum" ? profile?.eth_address : profile?.btc_address;
         const bal = balances[sendChain]?.native ?? 0;
-        const rate = sendChain === "solana" ? FALLBACK_RATES.SOL : sendChain === "ethereum" ? FALLBACK_RATES.ETH : FALLBACK_RATES.BTC;
+        const rate = sendChain === "solana" ? prices.sol : sendChain === "ethereum" ? prices.eth : prices.btc;
         const usdEq = parseFloat(sendAmount || "0") * rate;
         const feeTxt = sendChain === "solana" ? "~0.000005 SOL" : sendChain === "ethereum" ? "~0.0001 ETH" : "~0.0001 BTC";
         const ticker = sendChain === "solana" ? "SOL" : sendChain === "ethereum" ? "ETH" : "BTC";
         return (
-          <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column", background: "#0a0a0f" }}>
+          <div style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            display: "flex",
+            alignItems: isDesktop ? "center" : "stretch",
+            justifyContent: isDesktop ? "center" : "stretch",
+            background: isDesktop ? "rgba(0,0,0,0.6)" : "#0a0a0f",
+            backdropFilter: isDesktop ? "blur(8px)" : undefined,
+            WebkitBackdropFilter: isDesktop ? "blur(8px)" : undefined,
+          }}>
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              background: "#0a0a0f",
+              ...(isDesktop ? {
+                maxWidth: 520,
+                width: "100%",
+                maxHeight: "85vh",
+                borderRadius: 20,
+                border: `1px solid ${C.glassBorder}`,
+                overflow: "hidden",
+              } : {
+                flex: 1,
+              }),
+            }}>
             {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-              <button onClick={() => { if (sendStep > 1 && sendStep < 3) setSendStep(s => (s - 1) as 1|2|3); else setShowSend(false); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", color: "#9ca3af" }}>
+              <button onClick={() => { if (sendStep > 1 && sendStep < 3) setSendStep(s => (s - 1) as 1|2|3); else setShowSend(false); }}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", color: "#8a8a99", ...pressStyle("send-back") }}
+                {...pressProps("send-back")}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
               </button>
-              <span style={{ fontSize: 17, fontWeight: 700, color: "#f9fafb" }}>{sendStep === 3 ? "Sent" : "Send"}</span>
+              <span style={{ fontSize: 17, fontWeight: 700, color: "#FFFFFF" }}>{sendStep === 3 ? "Sent" : "Send"}</span>
               <div style={{ width: 30 }} />
             </div>
 
@@ -917,20 +993,22 @@ export default function WalletPage() {
               {/* Step 1: Pick chain */}
               {sendStep === 1 && (
                 <div>
-                  <div style={{ fontSize: 13, color: "#9ca3af", marginBottom: 16, fontWeight: 600 }}>Select asset to send</div>
+                  <div style={{ fontSize: 13, color: "#8a8a99", marginBottom: 16, fontWeight: 600 }}>Select asset to send</div>
                   {CHAINS.map((c) => {
                     const b = balances[c.key];
+                    const btnId = `send-chain-${c.key}`;
                     return (
                       <button key={c.key} onClick={() => { setSendChain(c.key); setSendStep(2); }}
-                        style={{ width: "100%", background: "#111118", border: `1px solid ${c.color}30`, borderRadius: 16, padding: "16px", marginBottom: 10, display: "flex", alignItems: "center", gap: 14, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                        style={{ width: "100%", background: "#0d0d14", border: `1px solid ${c.color}30`, borderRadius: 16, padding: "16px", marginBottom: 10, display: "flex", alignItems: "center", gap: 14, cursor: "pointer", textAlign: "left", fontFamily: "inherit", ...pressStyle(btnId) }}
+                        {...pressProps(btnId)}>
                         {chainIcon(c.key, 36)}
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 16, fontWeight: 700, color: "#f9fafb" }}>{c.name}</div>
-                          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>{c.currency}</div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: "#FFFFFF" }}>{c.name}</div>
+                          <div style={{ fontSize: 12, color: "#8a8a99", marginTop: 2 }}>{c.currency}</div>
                         </div>
                         <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: 16, fontWeight: 700, color: "#f9fafb" }}>{fmtNative(b?.native ?? 0)}</div>
-                          <div style={{ fontSize: 12, color: "#9ca3af" }}>${fmtUSD(b?.usd ?? 0)}</div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: "#FFFFFF" }}>{fmtNative(b?.native ?? 0)}</div>
+                          <div style={{ fontSize: 12, color: "#8a8a99" }}>${fmtUSD(b?.usd ?? 0)}</div>
                         </div>
                       </button>
                     );
@@ -945,23 +1023,23 @@ export default function WalletPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24, padding: "10px 14px", background: `${chainMeta.color}15`, border: `1px solid ${chainMeta.color}30`, borderRadius: 12 }}>
                     {chainIcon(sendChain, 22)}
                     <span style={{ fontSize: 14, fontWeight: 700, color: chainMeta.color }}>{chainMeta.name}</span>
-                    <span style={{ marginLeft: "auto", fontSize: 12, color: "#9ca3af" }}>{fmtNative(bal)} available</span>
+                    <span style={{ marginLeft: "auto", fontSize: 12, color: "#8a8a99" }}>{fmtNative(bal)} available</span>
                   </div>
 
                   {/* To address */}
                   <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600, marginBottom: 8, letterSpacing: "0.4px" }}>TO</div>
+                    <div style={{ fontSize: 12, color: "#8a8a99", fontWeight: 600, marginBottom: 8, letterSpacing: "0.4px" }}>TO</div>
                     <input
                       value={sendTo}
                       onChange={e => setSendTo(e.target.value)}
-                      placeholder={sendChain === "solana" ? "Solana address" : sendChain === "ethereum" ? "0x address" : "bc1... address"}
-                      style={{ width: "100%", background: "#111118", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, color: "#f9fafb", padding: "14px", fontSize: 14, fontFamily: "monospace", outline: "none", boxSizing: "border-box" }}
+                      placeholder="0x address"
+                      style={{ width: "100%", background: "#0d0d14", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, color: "#FFFFFF", padding: "14px", fontSize: 14, fontFamily: "monospace", outline: "none", boxSizing: "border-box" }}
                     />
                   </div>
 
                   {/* Amount */}
                   <div style={{ marginBottom: 8 }}>
-                    <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600, marginBottom: 8, letterSpacing: "0.4px" }}>AMOUNT</div>
+                    <div style={{ fontSize: 12, color: "#8a8a99", fontWeight: 600, marginBottom: 8, letterSpacing: "0.4px" }}>AMOUNT</div>
                     <div style={{ position: "relative" }}>
                       <input
                         type="number"
@@ -970,29 +1048,30 @@ export default function WalletPage() {
                         placeholder="0.00"
                         min="0"
                         step="any"
-                        style={{ width: "100%", background: "#111118", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, color: "#f9fafb", padding: "14px 80px 14px 14px", fontSize: 18, fontWeight: 700, outline: "none", boxSizing: "border-box" }}
+                        style={{ width: "100%", background: "#0d0d14", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, color: "#FFFFFF", padding: "14px 80px 14px 14px", fontSize: 18, fontWeight: 700, outline: "none", boxSizing: "border-box" }}
                       />
                       <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", display: "flex", alignItems: "center", gap: 8 }}>
                         <button onClick={() => setSendAmount(fmtNative(bal))}
-                          style={{ background: "#6366f125", border: "1px solid #6366f140", borderRadius: 8, color: "#6366f1", fontSize: 11, fontWeight: 700, padding: "4px 8px", cursor: "pointer", fontFamily: "inherit" }}>MAX</button>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#9ca3af" }}>{ticker}</span>
+                          style={{ background: "#00FF8825", border: "1px solid #00FF8840", borderRadius: 8, color: "#00FF88", fontSize: 11, fontWeight: 700, padding: "4px 8px", cursor: "pointer", fontFamily: "inherit", ...pressStyle("max-btn") }}
+                          {...pressProps("max-btn")}>MAX</button>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#8a8a99" }}>{ticker}</span>
                       </div>
                     </div>
-                    <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 6, paddingLeft: 2 }}>
-                      {usdEq > 0 ? `≈ $${fmtUSD(usdEq)}` : "≈ $0.00"}
+                    <div style={{ fontSize: 12, color: "#8a8a99", marginTop: 6, paddingLeft: 2 }}>
+                      {usdEq > 0 ? `$${fmtUSD(usdEq)}` : "$0.00"}
                     </div>
                   </div>
 
                   {/* Fee */}
                   <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid rgba(255,255,255,0.06)", marginBottom: 20 }}>
-                    <span style={{ fontSize: 12, color: "#9ca3af" }}>Network fee</span>
-                    <span style={{ fontSize: 12, color: "#9ca3af" }}>{feeTxt}</span>
+                    <span style={{ fontSize: 12, color: "#8a8a99" }}>Network fee</span>
+                    <span style={{ fontSize: 12, color: "#8a8a99" }}>{feeTxt}</span>
                   </div>
 
                   {/* From address */}
                   <div style={{ padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10, marginBottom: 20 }}>
-                    <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>FROM</div>
-                    <div style={{ fontSize: 12, fontFamily: "monospace", color: "#f9fafb" }}>{addr ? truncateAddress(addr) : "No wallet"}</div>
+                    <div style={{ fontSize: 11, color: "#8a8a99", marginBottom: 4 }}>FROM</div>
+                    <div style={{ fontSize: 12, fontFamily: "monospace", color: "#FFFFFF" }}>{addr ? truncateAddress(addr) : "No wallet"}</div>
                   </div>
 
                   {sendError && (
@@ -1006,14 +1085,15 @@ export default function WalletPage() {
               {/* Step 3: Success */}
               {sendStep === 3 && (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 20px", textAlign: "center" }}>
-                  <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(20,241,149,0.15)", border: "2px solid #14f195", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#14f195" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(0,255,136,0.15)", border: "2px solid #00FF88", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#00FF88" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                   </div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: "#f9fafb", marginBottom: 8 }}>Transaction Sent</div>
-                  <div style={{ fontSize: 14, color: "#9ca3af", marginBottom: 4 }}>{sendSuccess}</div>
-                  <div style={{ fontSize: 13, color: "#9ca3af", marginBottom: 32 }}>Your {ticker} is on its way</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "#FFFFFF", marginBottom: 8 }}>Transaction Sent</div>
+                  <div style={{ fontSize: 14, color: "#8a8a99", marginBottom: 4 }}>{sendSuccess}</div>
+                  <div style={{ fontSize: 13, color: "#8a8a99", marginBottom: 32 }}>Your {ticker} is on its way</div>
                   <button onClick={() => setShowSend(false)}
-                    style={{ width: "100%", maxWidth: 320, height: 50, borderRadius: 25, background: "#6366f1", border: "none", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Done</button>
+                    style={{ width: "100%", maxWidth: 320, height: 50, borderRadius: 25, background: "#00FF88", border: "none", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", ...pressStyle("done-send") }}
+                    {...pressProps("done-send")}>Done</button>
                 </div>
               )}
             </div>
@@ -1024,13 +1104,15 @@ export default function WalletPage() {
                 <button
                   onClick={handleSend}
                   disabled={sending || !sendTo.trim() || !sendAmount}
-                  style={{ width: "100%", height: 54, borderRadius: 27, background: sending || !sendTo.trim() || !sendAmount ? "#374151" : "#6366f1", border: "none", color: "#fff", fontSize: 16, fontWeight: 700, cursor: sending || !sendTo.trim() || !sendAmount ? "not-allowed" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  style={{ width: "100%", height: 54, borderRadius: 27, background: sending || !sendTo.trim() || !sendAmount ? "#374151" : "#00FF88", border: "none", color: "#fff", fontSize: 16, fontWeight: 700, cursor: sending || !sendTo.trim() || !sendAmount ? "not-allowed" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: sending || !sendTo.trim() || !sendAmount ? "none" : "0 4px 20px rgba(0,255,136,0.3)", ...pressStyle("confirm-send") }}
+                  {...pressProps("confirm-send")}>
                   {sending ? (
                     <><div style={{ width: 18, height: 18, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />Sending...</>
                   ) : `Send ${ticker}`}
                 </button>
               </div>
             )}
+            </div>
           </div>
         );
       })()}
@@ -1044,12 +1126,39 @@ export default function WalletPage() {
         const ticker = receiveChain === "solana" ? "SOL" : receiveChain === "ethereum" ? "ETH" : "BTC";
         const qrUrl = addr ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&bgcolor=111118&color=ffffff&data=${encodeURIComponent(addr)}` : "";
         return (
-          <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", flexDirection: "column", background: "#0a0a0f" }}>
+          <div style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            display: "flex",
+            alignItems: isDesktop ? "center" : "stretch",
+            justifyContent: isDesktop ? "center" : "stretch",
+            background: isDesktop ? "rgba(0,0,0,0.6)" : "#0a0a0f",
+            backdropFilter: isDesktop ? "blur(8px)" : undefined,
+            WebkitBackdropFilter: isDesktop ? "blur(8px)" : undefined,
+          }}>
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              background: "#0a0a0f",
+              ...(isDesktop ? {
+                maxWidth: 520,
+                width: "100%",
+                maxHeight: "85vh",
+                borderRadius: 20,
+                border: `1px solid ${C.glassBorder}`,
+                overflow: "hidden",
+              } : {
+                flex: 1,
+              }),
+            }}>
             {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
               <div style={{ width: 30 }} />
-              <span style={{ fontSize: 17, fontWeight: 700, color: "#f9fafb" }}>Receive</span>
-              <button onClick={() => setShowReceive(false)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af", display: "flex" }}>
+              <span style={{ fontSize: 17, fontWeight: 700, color: "#FFFFFF" }}>Receive</span>
+              <button onClick={() => setShowReceive(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "#8a8a99", display: "flex", ...pressStyle("close-receive") }}
+                {...pressProps("close-receive")}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
@@ -1059,7 +1168,8 @@ export default function WalletPage() {
               <div style={{ display: "flex", gap: 8, marginBottom: 28 }}>
                 {CHAINS.map(c => (
                   <button key={c.key} onClick={() => setReceiveChain(c.key)}
-                    style={{ flex: 1, height: 38, borderRadius: 19, border: `1.5px solid ${receiveChain === c.key ? c.color : "rgba(255,255,255,0.08)"}`, background: receiveChain === c.key ? `${c.color}18` : "transparent", color: receiveChain === c.key ? c.color : "#9ca3af", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                    style={{ flex: 1, height: 38, borderRadius: 19, border: `1.5px solid ${receiveChain === c.key ? c.color : "rgba(255,255,255,0.08)"}`, background: receiveChain === c.key ? `${c.color}18` : "transparent", color: receiveChain === c.key ? c.color : "#8a8a99", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", ...pressStyle(`recv-${c.key}`) }}
+                    {...pressProps(`recv-${c.key}`)}>
                     {c.currency}
                   </button>
                 ))}
@@ -1067,11 +1177,11 @@ export default function WalletPage() {
 
               {/* QR Code */}
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
-                <div style={{ padding: 16, background: "#111118", borderRadius: 20, border: `1px solid ${chainMeta.color}30`, boxShadow: `0 0 40px ${chainMeta.color}15` }}>
+                <div style={{ padding: 16, background: "#0d0d14", borderRadius: 20, border: `1px solid ${chainMeta.color}30`, boxShadow: `0 0 40px ${chainMeta.color}15` }}>
                   {addr ? (
                     <img src={qrUrl} width={220} height={220} alt="QR Code" style={{ borderRadius: 8, display: "block" }} />
                   ) : (
-                    <div style={{ width: 220, height: 220, display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: 13 }}>No {ticker} wallet</div>
+                    <div style={{ width: 220, height: 220, display: "flex", alignItems: "center", justifyContent: "center", color: "#8a8a99", fontSize: 13 }}>No {ticker} wallet</div>
                   )}
                 </div>
               </div>
@@ -1079,12 +1189,13 @@ export default function WalletPage() {
               {/* Address */}
               {addr && (
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600, marginBottom: 8, textAlign: "center", letterSpacing: "0.4px" }}>{ticker} ADDRESS</div>
-                  <div style={{ background: "#111118", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ flex: 1, fontSize: 12, fontFamily: "monospace", color: "#f9fafb", wordBreak: "break-all" }}>{addr}</span>
+                  <div style={{ fontSize: 12, color: "#8a8a99", fontWeight: 600, marginBottom: 8, textAlign: "center", letterSpacing: "0.4px" }}>{ticker} ADDRESS</div>
+                  <div style={{ background: "#0d0d14", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ flex: 1, fontSize: 12, fontFamily: "monospace", color: "#FFFFFF", wordBreak: "break-all" }}>{addr}</span>
                     <button
                       onClick={() => { navigator.clipboard.writeText(addr); setCopiedAddr(addr); setTimeout(() => setCopiedAddr(null), 2000); }}
-                      style={{ background: copiedAddr === addr ? "rgba(20,241,149,0.15)" : "rgba(255,255,255,0.06)", border: "none", borderRadius: 8, padding: "8px 12px", color: copiedAddr === addr ? "#14f195" : "#9ca3af", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                      style={{ background: copiedAddr === addr ? "rgba(0,255,136,0.15)" : "rgba(255,255,255,0.06)", border: "none", borderRadius: 8, padding: "8px 12px", color: copiedAddr === addr ? "#00FF88" : "#8a8a99", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", ...pressStyle("copy-recv") }}
+                      {...pressProps("copy-recv")}>
                       {copiedAddr === addr ? "Copied" : "Copy"}
                     </button>
                   </div>
@@ -1095,6 +1206,7 @@ export default function WalletPage() {
               <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "#d97706", textAlign: "center" }}>
                 Only send {ticker} to this address. Sending other assets may result in permanent loss.
               </div>
+            </div>
             </div>
           </div>
         );

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { decryptAES } from "@/lib/production";
+import { requireAuth, rateLimitByUser } from "@/lib/api-auth";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,32 +10,33 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const token = authHeader.slice(7);
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { user, error: authError } = await requireAuth(req);
+    if (authError) return authError;
+
+    const rlError = rateLimitByUser(user!.id, "send-btc", 5, 60_000);
+    if (rlError) return rlError;
 
     const { to_address, amount } = await req.json();
     if (!to_address || !amount || amount <= 0) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    const btcAddressRegex = /^(1[1-9A-HJ-NP-Za-km-z]{25,34}|3[1-9A-HJ-NP-Za-km-z]{25,34}|bc1[0-9a-zA-Z]{25,90})$/;
+    if (!btcAddressRegex.test(to_address)) {
+      return NextResponse.json({ error: "Invalid Bitcoin address format" }, { status: 400 });
+    }
+
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("btc_address, encrypted_btc_key")
+      .select("btc_address, btc_encrypted_key")
       .eq("id", user.id)
       .single();
 
-    if (!profile?.btc_address || !profile?.encrypted_btc_key) {
+    if (!profile?.btc_address || !profile?.btc_encrypted_key) {
       return NextResponse.json({ error: "No BTC wallet found" }, { status: 400 });
     }
 
-    const wif = decryptAES(profile.encrypted_btc_key);
+    const wif = decryptAES(profile.btc_encrypted_key);
 
     const ecc = await import("tiny-secp256k1");
     const { ECPairFactory } = await import("ecpair");
@@ -49,6 +51,17 @@ export async function POST(req: NextRequest) {
 
     if (!senderAddress || senderAddress !== profile.btc_address) {
       return NextResponse.json({ error: "Key mismatch" }, { status: 403 });
+    }
+
+    const { data: locks } = await supabaseAdmin.from('wallet_locks').select('amount').eq('user_id', user.id).eq('status', 'locked').eq('currency', 'BTC');
+    const lockedAmount = (locks || []).reduce((sum: number, l: { amount: number }) => sum + Number(l.amount), 0);
+    const addrRes = await fetch(`https://mempool.space/api/address/${senderAddress}`);
+    if (!addrRes.ok) throw new Error("Failed to fetch BTC balance");
+    const addrData = await addrRes.json();
+    const balanceBTC = (addrData.chain_stats.funded_txo_sum - addrData.chain_stats.spent_txo_sum) / 1e8;
+    const availableBTC = balanceBTC - lockedAmount;
+    if (amount > availableBTC) {
+      return NextResponse.json({ error: `Insufficient available balance. ${lockedAmount.toFixed(8)} BTC is locked in active BLINKS. Available: ${availableBTC.toFixed(8)} BTC` }, { status: 400 });
     }
 
     // Fetch UTXOs

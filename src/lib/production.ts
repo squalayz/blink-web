@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════
-// MishMesh.ai — Production Hardening: Shared Utilities
+// BLINK — Production Hardening: Shared Utilities
 //
 // This module provides:
 //   1. AES-256-GCM encryption (replaces XOR)

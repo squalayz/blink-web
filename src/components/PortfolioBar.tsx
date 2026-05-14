@@ -3,16 +3,19 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/providers";
-import { C, FALLBACK_RATES, type OrbCurrency } from "@/lib/theme";
+import { C, type OrbCurrency } from "@/lib/theme";
+import { useBalances } from "@/hooks/useBalances";
+import { usePrices } from "@/hooks/usePrices";
 import WalletModal from "@/components/WalletModal";
 
 /* ------------------------------------------------------------------ */
 /*  Chain dot definitions                                              */
 /* ------------------------------------------------------------------ */
+// BLINK: ETH-only — Solana/Bitcoin dots hidden. Underlying balance fetching still runs.
 const CHAIN_DOTS: Array<{ chain: OrbCurrency; color: string }> = [
-  { chain: "SOL", color: C.primary },
-  { chain: "ETH", color: C.ethBlue },
-  { chain: "BTC", color: C.btcOrange },
+  // { chain: "SOL", color: C.primary },     // BLINK: ETH-only — disabled
+  { chain: "ETH", color: C.primary },
+  // { chain: "BTC", color: C.btcOrange },   // BLINK: ETH-only — disabled
 ];
 
 /* ------------------------------------------------------------------ */
@@ -20,104 +23,47 @@ const CHAIN_DOTS: Array<{ chain: OrbCurrency; color: string }> = [
 /* ------------------------------------------------------------------ */
 export default function PortfolioBar() {
   const { user } = useAuth();
-  const [totalUSD, setTotalUSD] = useState(0);
-  const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [activeChains, setActiveChains] = useState<OrbCurrency[]>([]);
   const [hovered, setHovered] = useState(false);
+  const [isWide, setIsWide] = useState(false);
 
-  const fetchTotal = useCallback(async () => {
+  useEffect(() => {
+    function checkWidth() { setIsWide(window.innerWidth >= 1024); }
+    checkWidth();
+    window.addEventListener("resize", checkWidth);
+    return () => window.removeEventListener("resize", checkWidth);
+  }, []);
+  const [addresses, setAddresses] = useState<{
+    sol_address?: string | null;
+    eth_address?: string | null;
+    btc_address?: string | null;
+  }>({});
+
+  const fetchAddresses = useCallback(async () => {
     if (!user) return;
-    setLoading(true);
-    try {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("sol_address, eth_address, btc_address")
-        .eq("id", user.id)
-        .single();
-
-      if (!profile) {
-        setLoading(false);
-        return;
-      }
-
-      const chains: Array<{ chain: OrbCurrency; address: string }> = (
-        [
-          { chain: "SOL" as OrbCurrency, address: profile.sol_address ?? "" },
-          { chain: "ETH" as OrbCurrency, address: profile.eth_address ?? "" },
-          { chain: "BTC" as OrbCurrency, address: profile.btc_address ?? "" },
-        ] as Array<{ chain: OrbCurrency; address: string }>
-      ).filter((c) => Boolean(c.address));
-
-      setActiveChains(chains.map((c) => c.chain));
-
-      // Fetch balances in parallel with a short timeout
-      const results = await Promise.allSettled(
-        chains.map(async ({ chain, address }) => {
-          try {
-            let native = 0;
-            if (chain === "SOL") {
-              const res = await fetch("https://api.mainnet-beta.solana.com", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  jsonrpc: "2.0",
-                  id: 1,
-                  method: "getBalance",
-                  params: [address],
-                }),
-                signal: AbortSignal.timeout(4000),
-              });
-              const d = await res.json();
-              native = (d.result?.value ?? 0) / 1e9;
-            } else if (chain === "ETH") {
-              const res = await fetch("https://mainnet.base.org", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  jsonrpc: "2.0",
-                  id: 1,
-                  method: "eth_getBalance",
-                  params: [address, "latest"],
-                }),
-                signal: AbortSignal.timeout(4000),
-              });
-              const d = await res.json();
-              native = parseInt(d.result ?? "0x0", 16) / 1e18;
-            } else {
-              const res = await fetch(`https://mempool.space/api/address/${address}`, {
-                signal: AbortSignal.timeout(4000),
-              });
-              const d = await res.json();
-              const sats =
-                (d.chain_stats?.funded_txo_sum ?? 0) -
-                (d.chain_stats?.spent_txo_sum ?? 0);
-              native = sats / 1e8;
-            }
-            return native * FALLBACK_RATES[chain];
-          } catch {
-            return 0;
-          }
-        })
-      );
-
-      const total = results.reduce(
-        (sum, r) => sum + (r.status === "fulfilled" ? r.value : 0),
-        0
-      );
-      setTotalUSD(total);
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("sol_address, eth_address, btc_address")
+      .eq("id", user.id)
+      .single();
+    if (profile) setAddresses(profile);
   }, [user]);
 
   useEffect(() => {
-    fetchTotal();
-    const interval = setInterval(fetchTotal, 60_000);
-    return () => clearInterval(interval);
-  }, [fetchTotal]);
+    fetchAddresses();
+  }, [fetchAddresses]);
+
+  const { sol, eth, btc, loading } = useBalances(addresses);
+  const prices = usePrices();
+
+  // BLINK: ETH-only — only ETH chain counts toward visible totals.
+  void sol; void btc;
+  const activeChains: OrbCurrency[] = [];
+  // if (addresses.sol_address) activeChains.push("SOL"); // BLINK: ETH-only — disabled
+  if (addresses.eth_address) activeChains.push("ETH");
+  // if (addresses.btc_address) activeChains.push("BTC"); // BLINK: ETH-only — disabled
+
+  const totalUSD = eth * prices.eth;
 
   if (!user) return null;
 
@@ -128,20 +74,27 @@ export default function PortfolioBar() {
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
-          background: "rgba(10,10,15,0.95)",
+          background: hovered ? "rgba(12,12,18,0.98)" : "rgba(10,10,15,0.95)",
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          borderBottom: hovered ? `1px solid ${C.primary}20` : "1px solid rgba(255,255,255,0.06)",
           height: 48,
+          cursor: "pointer",
+          transition: "background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease",
+          userSelect: "none",
+          boxShadow: hovered ? `0 2px 16px ${C.primary}12` : "none",
+        }}
+      >
+        <div style={{
+          maxWidth: isWide ? 1200 : 480,
+          margin: "0 auto",
+          width: "100%",
+          height: "100%",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           padding: "0 16px",
-          cursor: "pointer",
-          transition: "background 0.2s, border-color 0.2s",
-          userSelect: "none",
-        }}
-      >
+        }}>
         {/* Left: total value */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <svg
@@ -216,6 +169,7 @@ export default function PortfolioBar() {
           >
             <polyline points="6 9 12 15 18 9" />
           </svg>
+        </div>
         </div>
       </div>
 

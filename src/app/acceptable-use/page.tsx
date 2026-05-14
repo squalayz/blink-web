@@ -5,11 +5,11 @@ export default function AcceptableUsePage() {
   return (
     <LegalLayout title="Acceptable Use Policy" lastUpdated="February 20, 2026">
       <Section title="1. Purpose">
-        <P>This Acceptable Use Policy ("AUP") governs your use of MishMesh.ai and is incorporated into our Terms of Service. By using the Platform, you agree to comply with this AUP. We reserve the right to suspend or terminate accounts that violate this policy.</P>
+        <P>This Acceptable Use Policy (&ldquo;AUP&rdquo;) governs your use of BLINK and is incorporated into our Terms of Service. By using the Platform, you agree to comply with this AUP. We reserve the right to suspend or terminate accounts that violate this policy.</P>
       </Section>
 
       <Section title="2. Prohibited Activities">
-        <P>You may not use MishMesh.ai to:</P>
+        <P>You may not use BLINK to:</P>
         <P>(a) Engage in fraud, money laundering, terrorist financing, or any illegal activity.</P>
         <P>(b) Manipulate markets, engage in wash trading, or artificially inflate trading volumes.</P>
         <P>(c) Exploit bugs, vulnerabilities, or errors in the Platform or its smart contracts for personal gain.</P>

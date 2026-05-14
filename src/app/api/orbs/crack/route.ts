@@ -67,14 +67,21 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (orbError || !orb) {
-    return NextResponse.json({ error: "Orb not found" }, { status: 404 });
+    return NextResponse.json({ error: "Creature not found" }, { status: 404 });
   }
 
   // 4. Verify status is pending
   if (orb.status !== "pending") {
     return NextResponse.json(
-      { error: `Orb is not available for cracking (status: ${orb.status})` },
+      { error: `Creature is not available to catch (status: ${orb.status})` },
       { status: 409 }
+    );
+  }
+
+  if (orb.dropper_id === hunter_id) {
+    return NextResponse.json(
+      { error: "You cannot catch your own creature" },
+      { status: 403 }
     );
   }
 
@@ -85,7 +92,7 @@ export async function POST(req: NextRequest) {
   if (distance > maxRadius) {
     return NextResponse.json(
       {
-        error: "Too far from orb",
+        error: "Too far from creature",
         distance_meters: Math.round(distance),
         required_meters: maxRadius,
       },
@@ -137,28 +144,36 @@ export async function POST(req: NextRequest) {
       .eq("id", hunter_id)
       .single();
 
-    await supabaseAdmin.from("activity").insert({
+    const { error: hunterActivityErr } = await supabaseAdmin.from("activity").insert({
       user_id: hunter_id,
       type: "crack",
-      title: "Orb Cracked",
-      subtitle: `You cracked an orb and claimed ${orb.amount} ${orb.currency}`,
+      title: "Creature Caught",
+      subtitle: `You caught a creature and claimed ${orb.amount} ${orb.currency}`,
       amount_text: `${orb.amount} ${orb.currency}`,
       tx_hash: edgeData.txHash ?? null,
     });
 
+    if (hunterActivityErr) {
+      console.error("Failed to insert hunter activity:", hunterActivityErr.message);
+    }
+
     // 8. Insert activity for dropper
     if (orb.dropper_id) {
-      await supabaseAdmin.from("activity").insert({
+      const { error: dropperActivityErr } = await supabaseAdmin.from("activity").insert({
         user_id: orb.dropper_id,
         type: "orb_cracked",
-        title: "Your Orb Was Cracked",
-        subtitle: `Someone found and cracked your orb containing ${orb.amount} ${orb.currency}`,
+        title: "Your Creature Was Caught",
+        subtitle: `Someone found and caught your creature containing ${orb.amount} ${orb.currency}`,
         amount_text: `${orb.amount} ${orb.currency}`,
         tx_hash: edgeData.txHash ?? null,
         related_profile_id: hunter_id,
         related_profile_handle: hunterProfile.data?.handle ?? null,
         related_profile_avatar_url: hunterProfile.data?.avatar_url ?? null,
       });
+
+      if (dropperActivityErr) {
+        console.error("Failed to insert dropper activity:", dropperActivityErr.message);
+      }
     }
 
     return NextResponse.json({

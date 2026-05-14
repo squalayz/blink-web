@@ -5,17 +5,27 @@ module.exports = {
     extend: {
       colors: {
         base: "#0a0a0f",
-        surface: "#111118",
+        surface: "#0d0d14",
         surface2: "#1a1a24",
-        indigo: { DEFAULT: "#6366f1", glow: "rgba(99,102,241,0.3)" },
-        cyan: { DEFAULT: "#06b6d4", glow: "rgba(6,182,212,0.3)" },
-        purple: { DEFAULT: "#a855f7", glow: "rgba(168,85,247,0.3)" },
+        blink: {
+          DEFAULT: "#00FF88",
+          green: "#00FF88",
+          green2: "#88FF00",
+          glow: "rgba(0,255,136,0.4)",
+          glowSoft: "rgba(0,255,136,0.2)",
+        },
+        green: { DEFAULT: "#00FF88", glow: "rgba(0,255,136,0.4)" },
         dim: "#3a3a4a",
         muted: "#6b6b80",
       },
       fontFamily: {
-        sans: ["Outfit", "system-ui", "sans-serif"],
+        sans: ["Inter", "Outfit", "system-ui", "sans-serif"],
+        display: ["Space Grotesk", "Inter", "system-ui", "sans-serif"],
         mono: ["Space Mono", "monospace"],
+      },
+      boxShadow: {
+        blinkGlow: "0 0 24px rgba(0,255,136,0.4), 0 0 48px rgba(0,255,136,0.2)",
+        blinkGlowSoft: "0 0 16px rgba(0,255,136,0.25)",
       },
     },
   },

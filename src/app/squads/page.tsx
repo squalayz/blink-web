@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/theme";
 import { useAuth } from "@/components/providers";
 import GlassCard from "@/components/GlassCard";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
 
 interface Squad {
   id: string;
@@ -190,7 +191,7 @@ function MemberRow({ member }: { member: SquadMember }) {
       {member.avatar_url ? (
         <img
           src={member.avatar_url}
-          alt=""
+          alt="Squad member avatar"
           style={{
             width: 36,
             height: 36,
@@ -254,6 +255,7 @@ function MemberRow({ member }: { member: SquadMember }) {
 
 export default function SquadsPage() {
   const { user, loading: authLoading } = useAuth();
+  const { isDesktop } = useIsDesktop();
   const [squads, setSquads] = useState<Squad[]>([]);
   const [mySquadIds, setMySquadIds] = useState<Set<string>>(new Set());
   const [myRole, setMyRole] = useState<Record<string, string>>({});
@@ -461,14 +463,14 @@ export default function SquadsPage() {
       {/* ── Header ── */}
       <div
         style={{
-          padding: "60px 20px 20px",
+          padding: isDesktop ? "32px 32px 20px" : "60px 20px 20px",
           background: C.surface,
           borderBottom: `1px solid ${C.glassBorder}`,
         }}
       >
         <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, color: C.text }}>Squads</h1>
         <p style={{ fontSize: 14, color: C.muted, margin: "6px 0 0", lineHeight: 1.4 }}>
-          Team up. Earn together. Climb the leaderboard.
+          Team up. Earn together. Climb The Council.
         </p>
       </div>
 
@@ -483,13 +485,17 @@ export default function SquadsPage() {
       )}
 
       {!loading && !error && (
-        <div style={{ padding: "16px 20px" }}>
+        <div style={{
+          padding: isDesktop ? "16px 32px" : "16px 20px",
+          maxWidth: isDesktop ? 960 : undefined,
+          margin: isDesktop ? "0 auto" : undefined,
+        }}>
           {/* ── My Squad Section ── */}
           {hasSquad &&
             mySquads.map((squad) => (
               <div
                 key={squad.id}
-                style={{ animation: "fadeIn 0.4s ease", marginBottom: 20 }}
+                style={{ animation: "fadeIn 0.4s ease", marginBottom: 20, maxWidth: isDesktop ? 640 : undefined }}
               >
                 <div
                   style={{
@@ -637,6 +643,8 @@ export default function SquadsPage() {
                 animation: "fadeIn 0.4s ease",
                 textAlign: "center",
                 padding: "40px 0 32px",
+                maxWidth: isDesktop ? 640 : undefined,
+                margin: isDesktop ? "0 auto" : undefined,
               }}
             >
               <div
@@ -830,7 +838,7 @@ export default function SquadsPage() {
 
           {/* ── Squad Leaderboard ── */}
           {leaderboard.length > 0 && (
-            <div style={{ marginTop: 28, animation: "fadeIn 0.5s ease" }}>
+            <div style={{ marginTop: 28, animation: "fadeIn 0.5s ease", maxWidth: isDesktop ? 640 : undefined }}>
               <div
                 style={{
                   display: "flex",
@@ -847,7 +855,7 @@ export default function SquadsPage() {
                     color: C.text,
                   }}
                 >
-                  Squad Leaderboard
+                  Squad Council
                 </span>
               </div>
 
@@ -957,10 +965,15 @@ export default function SquadsPage() {
               >
                 {hasSquad ? "Other Squads" : "All Squads"}
               </div>
+              <div style={isDesktop ? {
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                gap: 16,
+              } : undefined}>
               {otherSquads.map((squad) => (
                 <GlassCard
                   key={squad.id}
-                  style={{ padding: 16, marginBottom: 12, cursor: "pointer" }}
+                  style={{ padding: 16, marginBottom: isDesktop ? 0 : 12, cursor: "pointer" }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div
@@ -1034,6 +1047,7 @@ export default function SquadsPage() {
                   </div>
                 </GlassCard>
               ))}
+              </div>
             </div>
           )}
 
@@ -1042,15 +1056,60 @@ export default function SquadsPage() {
             <div
               style={{
                 textAlign: "center",
-                padding: "40px 0",
-                color: C.muted,
-                fontSize: 14,
+                padding: "60px 0",
+                maxWidth: isDesktop ? 480 : undefined,
+                margin: isDesktop ? "0 auto" : undefined,
               }}
             >
-              <div style={{ marginBottom: 12 }}>
-                <IconUsers size={48} color={C.muted} />
+              <div
+                style={{
+                  width: 72,
+                  height: 72,
+                  borderRadius: "50%",
+                  background: `${C.primary}15`,
+                  border: `1px solid ${C.primary}33`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 20px",
+                }}
+              >
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
               </div>
-              No squads yet. Be the first to create one.
+              <div style={{ fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 8 }}>
+                No squads yet
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: C.muted,
+                  lineHeight: 1.5,
+                  maxWidth: 280,
+                  margin: "0 auto 24px",
+                }}
+              >
+                Create or join one to team up and earn together.
+              </div>
+              <button
+                onClick={() => setMode("create")}
+                style={{
+                  background: C.primary,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 14,
+                  padding: "12px 28px",
+                  fontSize: 15,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Create a Squad
+              </button>
             </div>
           )}
         </div>

@@ -71,8 +71,8 @@ const KEYFRAMES = `
 
 const CORE_GRADIENT: Record<OrbRarity, string> = {
   Common: "radial-gradient(circle at 35% 35%, #ffffff, #888888 50%, #ffffff88)",
-  Rare: "radial-gradient(circle at 35% 35%, #3B82F6, #9945FF 50%, #ffffff88)",
-  Legendary: "radial-gradient(circle at 35% 35%, #F59E0B, #9945FF 50%, #14F195)",
+  Rare: "radial-gradient(circle at 35% 35%, #88FF00, #00FF88 50%, #ffffff88)",
+  Legendary: "radial-gradient(circle at 35% 35%, #00FF88, #88FF00 50%, #ffffff)",
 };
 
 const RING_SPEED: Record<OrbRarity, number> = { Common: 8, Rare: 5, Legendary: 3 };
@@ -111,7 +111,7 @@ export function OrbView({ rarity, isClaimable = false, size }: OrbViewProps) {
 
   const coreSize = isClaimable ? size * 1.3 : size;
   const ringSize = coreSize * 1.25;
-  const ringBorderColor = rarity === "Legendary" ? "#F59E0B" : rarity === "Rare" ? "#3B82F6" : "#ffffff44";
+  const ringBorderColor = rarity === "Legendary" ? "#00FF88" : rarity === "Rare" ? "#88FF00" : "#ffffff44";
 
   return (
     <div style={{
@@ -135,7 +135,7 @@ export function OrbView({ rarity, isClaimable = false, size }: OrbViewProps) {
             width: coreSize * 1.8,
             height: coreSize * 1.8,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(249,158,11,0.15), transparent 70%)",
+            background: "radial-gradient(circle, rgba(0,255,136,0.15), transparent 70%)",
             filter: "blur(12px)",
             pointerEvents: "none",
           }} />
@@ -146,7 +146,7 @@ export function OrbView({ rarity, isClaimable = false, size }: OrbViewProps) {
             width: coreSize * 2.2,
             height: coreSize * 2.2,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(153,69,255,0.1), transparent 70%)",
+            background: "radial-gradient(circle, rgba(136,255,0,0.10), transparent 70%)",
             filter: "blur(18px)",
             pointerEvents: "none",
           }} />
@@ -157,7 +157,7 @@ export function OrbView({ rarity, isClaimable = false, size }: OrbViewProps) {
             width: coreSize * 2.6,
             height: coreSize * 2.6,
             borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(20,241,149,0.08), transparent 70%)",
+            background: "radial-gradient(circle, rgba(0,255,136,0.08), transparent 70%)",
             filter: "blur(24px)",
             pointerEvents: "none",
           }} />
@@ -174,7 +174,7 @@ export function OrbView({ rarity, isClaimable = false, size }: OrbViewProps) {
               width: coreSize,
               height: coreSize,
               borderRadius: "50%",
-              border: "2px solid #F59E0B",
+              border: "2px solid #00FF88",
               animation: `orbSonar 2.4s ease-out ${i * 0.8}s infinite`,
               pointerEvents: "none",
             }} />
@@ -191,7 +191,7 @@ export function OrbView({ rarity, isClaimable = false, size }: OrbViewProps) {
           transform: "translateX(-50%)",
           width: 4,
           height: coreSize * 2,
-          background: "linear-gradient(to top, #F59E0B88, #F59E0B00)",
+          background: "linear-gradient(to top, #00FF8888, #00FF8800)",
           borderRadius: 2,
           animation: "orbBeam 2s ease-in-out infinite",
           pointerEvents: "none",
@@ -225,8 +225,8 @@ export function OrbView({ rarity, isClaimable = false, size }: OrbViewProps) {
           borderRadius: "50%",
           background: CORE_GRADIENT[rarity],
           boxShadow: isClaimable
-            ? `0 0 ${coreSize * 0.4}px #F59E0B88, 0 0 ${coreSize * 0.7}px #F59E0B44`
-            : `0 0 ${coreSize * 0.25}px ${rarity === "Legendary" ? "#F59E0B" : rarity === "Rare" ? "#3B82F6" : "#ffffff"}44`,
+            ? `0 0 ${coreSize * 0.4}px #00FF8888, 0 0 ${coreSize * 0.7}px #00FF8844`
+            : `0 0 ${coreSize * 0.25}px ${rarity === "Legendary" ? "#00FF88" : rarity === "Rare" ? "#88FF00" : "#ffffff"}44`,
           position: "relative",
         }}>
           {/* Inner highlight */}
@@ -255,8 +255,8 @@ export function OrbView({ rarity, isClaimable = false, size }: OrbViewProps) {
             width: coreSize * 0.9,
             height: coreSize * 0.9,
             borderRadius: "50%",
-            border: "1px solid #3B82F6",
-            boxShadow: "0 0 12px #3B82F6, inset 0 0 8px #3B82F666",
+            border: "1px solid #88FF00",
+            boxShadow: "0 0 12px #88FF00, inset 0 0 8px #88FF0066",
             opacity: 0,
             transition: "opacity 0.15s ease-in-out",
             pointerEvents: "none",
@@ -281,8 +281,8 @@ export function OrbView({ rarity, isClaimable = false, size }: OrbViewProps) {
                 width: 6,
                 height: 6,
                 borderRadius: "50%",
-                background: i % 2 === 0 ? "#F59E0B" : "#14F195",
-                boxShadow: `0 0 6px ${i % 2 === 0 ? "#F59E0B" : "#14F195"}`,
+                background: i % 2 === 0 ? "#00FF88" : "#FFFFFF",
+                boxShadow: `0 0 6px ${i % 2 === 0 ? "#00FF88" : "#FFFFFF"}`,
                 marginTop: -3,
                 marginLeft: -3,
               }} />
@@ -300,7 +300,7 @@ export function OrbView({ rarity, isClaimable = false, size }: OrbViewProps) {
           transform: "translateX(-50%)",
           padding: "3px 10px",
           borderRadius: 8,
-          background: "#F59E0B",
+          background: "#00FF88",
           color: "#000",
           fontSize: 10,
           fontWeight: 800,

@@ -25,6 +25,13 @@ serve(async (_req) => {
         expired_at: new Date().toISOString(),
       })
       .eq("id", orb.id);
+
+    // Release wallet lock
+    await supabase
+      .from("wallet_locks")
+      .update({ status: "released", updated_at: new Date().toISOString() })
+      .eq("orb_id", orb.id)
+      .eq("status", "locked");
   }
 
   return Response.json({ expired: expiredOrbs.length });

@@ -74,9 +74,9 @@ export async function POST(req: NextRequest) {
         sol_address: solResult.address,
         eth_address: ethResult.address,
         btc_address: btcResult.address || null,
-        encrypted_sol_key: solResult.encryptedKey,
-        encrypted_eth_key: ethResult.encryptedKey,
-        encrypted_btc_key: btcResult.encryptedKey || null,
+        sol_encrypted_key: solResult.encryptedKey,
+        eth_encrypted_key: ethResult.encryptedKey,
+        btc_encrypted_key: btcResult.encryptedKey || null,
       })
       .eq("id", user.id);
 
@@ -89,9 +89,9 @@ export async function POST(req: NextRequest) {
           sol_address: solResult.address,
           eth_address: ethResult.address,
           btc_address: btcResult.address || null,
-          encrypted_sol_key: solResult.encryptedKey,
-          encrypted_eth_key: ethResult.encryptedKey,
-          encrypted_btc_key: btcResult.encryptedKey || null,
+          sol_encrypted_key: solResult.encryptedKey,
+          eth_encrypted_key: ethResult.encryptedKey,
+          btc_encrypted_key: btcResult.encryptedKey || null,
         });
 
       if (insertError) {

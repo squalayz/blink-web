@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate a unique fake email for Supabase Auth (wallet-only users have no real email)
-    const fakeEmail = `${cleaned}-${Date.now()}@wallet.mishmesh.ai`;
+    const fakeEmail = `${cleaned}-${Date.now()}@wallet.blink.app`;
     const tempPassword = crypto.randomUUID() + crypto.randomUUID();
 
     // Create Supabase auth user

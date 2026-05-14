@@ -6,17 +6,21 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/providers";
 import { C } from "@/lib/theme";
 import type { ChatMessage } from "@/lib/theme";
+import Skeleton from "@/components/Skeleton";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
 
-function relativeTime(ts: string): string {
-  const diff = Date.now() - new Date(ts).getTime();
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
+/* ── helpers ────────────────────────────────────────────────── */
+
+function formatTimestamp(ts: string): string {
+  const d = new Date(ts);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function initials(handle: string): string {
@@ -33,22 +37,36 @@ function avatarBg(handle: string): string {
   return colors[hash];
 }
 
+/* ── main component ─────────────────────────────────────────── */
+
 export default function ChatPage() {
   const params = useParams();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { isDesktop } = useIsDesktop();
   const partnerId = params?.id as string;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [partnerHandle, setPartnerHandle] = useState(partnerId?.slice(0, 8) || "");
+  const [partnerHandle, setPartnerHandle] = useState(
+    partnerId?.slice(0, 8) || ""
+  );
   const [partnerAvatar, setPartnerAvatar] = useState<string | null>(null);
+  const [sendHovered, setSendHovered] = useState(false);
+  const [sendPressed, setSendPressed] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // On desktop, redirect to the split-pane messages page
+  useEffect(() => {
+    if (isDesktop) {
+      router.replace("/messages");
+    }
+  }, [isDesktop, router]);
 
   // Load partner profile
   useEffect(() => {
@@ -194,6 +212,18 @@ export default function ChatPage() {
     ? partnerHandle
     : `@${partnerHandle}`;
 
+  // If desktop, we'll redirect — show nothing while that happens
+  if (isDesktop) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: C.bg,
+        }}
+      />
+    );
+  }
+
   if (!authLoading && !user) {
     return (
       <div
@@ -203,6 +233,8 @@ export default function ChatPage() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          fontFamily:
+            "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         }}
       >
         <p style={{ color: C.muted, fontSize: 15 }}>
@@ -212,6 +244,16 @@ export default function ChatPage() {
     );
   }
 
+  const skeletonWidths = ["65%", "45%", "72%", "38%", "55%", "48%"];
+  const skeletonAligns: ("flex-start" | "flex-end")[] = [
+    "flex-start",
+    "flex-end",
+    "flex-start",
+    "flex-end",
+    "flex-start",
+    "flex-end",
+  ];
+
   return (
     <div
       style={{
@@ -219,10 +261,16 @@ export default function ChatPage() {
         background: C.bg,
         display: "flex",
         flexDirection: "column",
+        fontFamily:
+          "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       }}
     >
       <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes shimmerStagger {
+          0% { opacity: 0.4; }
+          50% { opacity: 0.7; }
+          100% { opacity: 0.4; }
+        }
       `}</style>
 
       {/* Header */}
@@ -274,7 +322,9 @@ export default function ChatPage() {
             width: 38,
             height: 38,
             borderRadius: "50%",
-            background: partnerAvatar ? "transparent" : avatarBg(partnerHandle),
+            background: partnerAvatar
+              ? "transparent"
+              : avatarBg(partnerHandle),
             flexShrink: 0,
             display: "flex",
             alignItems: "center",
@@ -314,23 +364,20 @@ export default function ChatPage() {
         }}
       >
         {loading ? (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              paddingTop: 60,
-            }}
-          >
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                border: `3px solid ${C.border}`,
-                borderTopColor: C.primary,
-                borderRadius: "50%",
-                animation: "spin 0.8s linear infinite",
-              }}
-            />
+          <div style={{ paddingTop: 24 }}>
+            {skeletonWidths.map((w, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  justifyContent: skeletonAligns[i],
+                  marginBottom: 12,
+                  animation: `shimmerStagger 1.5s ease-in-out ${i * 0.12}s infinite`,
+                }}
+              >
+                <Skeleton width={w} height={38} borderRadius={18} />
+              </div>
+            ))}
           </div>
         ) : messages.length === 0 ? (
           <div
@@ -338,6 +385,8 @@ export default function ChatPage() {
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
+              justifyContent: "center",
+              flex: 1,
               paddingTop: 60,
               gap: 12,
             }}
@@ -376,10 +425,10 @@ export default function ChatPage() {
                       textAlign: "center",
                       color: C.muted,
                       fontSize: 11,
-                      margin: "10px 0 6px",
+                      margin: "12px 0 6px",
                     }}
                   >
-                    {relativeTime(msg.created_at)}
+                    {formatTimestamp(msg.created_at)}
                   </div>
                 )}
                 <div
@@ -392,7 +441,9 @@ export default function ChatPage() {
                   <div
                     style={{
                       maxWidth: "72%",
-                      background: isSent ? C.primary : C.card,
+                      background: isSent
+                        ? `linear-gradient(135deg, ${C.primary}, ${C.indigo})`
+                        : C.surface,
                       color: C.text,
                       borderRadius: isSent
                         ? "18px 18px 4px 18px"
@@ -423,7 +474,9 @@ export default function ChatPage() {
           alignItems: "center",
           gap: 10,
           padding: "12px 16px 28px",
-          background: C.surface,
+          background: C.glass,
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
           borderTop: `1px solid ${C.border}`,
         }}
       >
@@ -443,11 +496,20 @@ export default function ChatPage() {
             color: C.text,
             fontSize: 14,
             outline: "none",
+            fontFamily:
+              "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
           }}
         />
         <button
           onClick={sendMessage}
           disabled={!text.trim() || sending}
+          onMouseEnter={() => setSendHovered(true)}
+          onMouseLeave={() => {
+            setSendHovered(false);
+            setSendPressed(false);
+          }}
+          onPointerDown={() => setSendPressed(true)}
+          onPointerUp={() => setSendPressed(false)}
           style={{
             width: 44,
             height: 44,
@@ -460,7 +522,12 @@ export default function ChatPage() {
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
-            transition: "background 0.2s",
+            transition: "background 0.2s, transform 0.12s",
+            transform: sendPressed
+              ? "scale(0.92)"
+              : sendHovered
+              ? "scale(1.06)"
+              : "scale(1)",
           }}
         >
           <svg

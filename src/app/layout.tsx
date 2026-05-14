@@ -10,38 +10,38 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#6366f1",
+  themeColor: "#00FF88",
 };
 
 export const metadata: Metadata = {
-  title: "MishMesh — Drop. Hunt. Crack.",
+  title: "BLINK — Don't blink. The Eye is open.",
   description:
-    "Real crypto hidden at GPS locations worldwide. Drop SOL, ETH, BTC & NFTs as Orbs anywhere on Earth. Walk to them. Crack them. Keep what's inside.",
+    "Catch what others can't see. Mystical BLINK creatures spawn on a real-world map every minute. Watch. Approach. Witness. The Eye sees you. Now see back.",
   metadataBase: new URL("https://mishmesh.ai"),
   openGraph: {
-    title: "MishMesh — Drop. Hunt. Crack.",
+    title: "BLINK — Don't blink. The Eye is open.",
     description:
-      "Real crypto hidden at GPS locations worldwide. Drop SOL, ETH, BTC & NFTs as Orbs anywhere on Earth. Walk to them. Crack them. Keep what's inside.",
+      "Catch what others can't see. Mystical creatures spawn on a real-world map every minute. The Eye sees you. Now see back.",
     url: "https://mishmesh.ai",
-    siteName: "MishMesh",
+    siteName: "BLINK",
     type: "website",
     images: [
       {
         url: "/api/og",
         width: 1200,
         height: 630,
-        alt: "MishMesh — Drop. Hunt. Crack. Real crypto hidden at GPS locations worldwide.",
+        alt: "BLINK — Don't blink. The Eye is open.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "MishMesh — Drop. Hunt. Crack.",
+    title: "BLINK — Don't blink. The Eye is open.",
     description:
-      "Real crypto hidden at GPS locations worldwide. Drop SOL, ETH, BTC & NFTs. Walk to them. Crack them. Keep what's inside.",
+      "Catch what others can't see. Mystical creatures spawn on a real-world map every minute.",
     images: ["/api/og"],
   },
-  icons: { icon: "/favicon.ico" },
+  icons: { icon: "/blink-logo.png" },
   manifest: "/manifest.json",
 };
 

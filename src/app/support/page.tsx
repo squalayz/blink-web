@@ -5,28 +5,28 @@ export default function SupportPage() {
   return (
     <LegalLayout title="Support" lastUpdated="April 1, 2026">
       <Section title="Contact Us">
-        <P>Need help? We're here for you. Reach out and we'll get back to you as soon as possible.</P>
-        <P><strong style={{ color: "#e8e6e3" }}>Email:</strong> support@mishmesh.ai</P>
-        <P><strong style={{ color: "#e8e6e3" }}>Response Time:</strong> We typically respond within 24–48 hours.</P>
+        <P>Need help? We&apos;re here for you. Reach out and we&apos;ll get back to you as soon as possible.</P>
+        <P><strong style={{ color: "#FFFFFF" }}>Email:</strong> support@mishmesh.ai</P>
+        <P><strong style={{ color: "#FFFFFF" }}>Response Time:</strong> We typically respond within 24&ndash;48 hours.</P>
       </Section>
 
       <Section title="Common Issues">
-        <P><strong style={{ color: "#e8e6e3" }}>Can't crack an orb?</strong> Make sure your GPS is enabled and you're physically within range of the orb. Indoor GPS can be inaccurate — try stepping outside.</P>
-        <P><strong style={{ color: "#e8e6e3" }}>Payout not received?</strong> ETH and BTC payouts can take up to 5 minutes to process. SOL payouts are near-instant. If it's been longer than 30 minutes, email us with your orb ID and wallet address.</P>
-        <P><strong style={{ color: "#e8e6e3" }}>Agent not trading?</strong> Make sure trading is enabled in your agent settings and your wallet has a balance above the minimum threshold (0.001 ETH).</P>
-        <P><strong style={{ color: "#e8e6e3" }}>Wallet connection issues?</strong> Try disconnecting and reconnecting your wallet. Make sure you're on the Base network for ETH transactions.</P>
-        <P><strong style={{ color: "#e8e6e3" }}>Account or login issues?</strong> Email us at support@mishmesh.ai with your registered email address and we'll sort it out.</P>
+        <P><strong style={{ color: "#FFFFFF" }}>Can&apos;t witness a Creature?</strong> Make sure your GPS is enabled and you&apos;re physically within range of the spawn point. Indoor GPS can be inaccurate &mdash; try stepping outside.</P>
+        <P><strong style={{ color: "#FFFFFF" }}>Catch not recorded?</strong> Catches sync to The Eye within a few seconds. If your trail still hasn&apos;t updated after a few minutes, email us with your Watcher handle and the approximate spawn time.</P>
+        <P><strong style={{ color: "#FFFFFF" }}>The Eye Map looks empty?</strong> Creatures spawn in waves at real coordinates. Walk a few blocks, refresh, and check your location permissions for BLINK.</P>
+        <P><strong style={{ color: "#FFFFFF" }}>Wallet connection issues?</strong> Try disconnecting and reconnecting your wallet. $BLINK token rewards are coming &mdash; your wallet links your trail to future rewards.</P>
+        <P><strong style={{ color: "#FFFFFF" }}>Account or login issues?</strong> Email us at support@mishmesh.ai with your registered email address and we&apos;ll sort it out.</P>
       </Section>
 
       <Section title="App Store & Privacy">
-        <P>To review our Privacy Policy, visit <strong style={{ color: "#00d4ff" }}>mishmesh.ai/privacy</strong>.</P>
-        <P>To review our Terms of Service, visit <strong style={{ color: "#00d4ff" }}>mishmesh.ai/terms</strong>.</P>
-        <P>To request deletion of your account and associated data, email <strong style={{ color: "#e8e6e3" }}>legal@mishmesh.ai</strong> with the subject line "Account Deletion Request."</P>
+        <P>To review our Privacy Policy, visit <strong style={{ color: "#00FF88" }}>mishmesh.ai/privacy</strong>.</P>
+        <P>To review our Terms of Service, visit <strong style={{ color: "#00FF88" }}>mishmesh.ai/terms</strong>.</P>
+        <P>To request deletion of your account and associated data, email <strong style={{ color: "#FFFFFF" }}>legal@mishmesh.ai</strong> with the subject line &ldquo;Account Deletion Request.&rdquo;</P>
       </Section>
 
-      <Section title="About MishMesh">
-        <P>MishMesh is a location-based social trading platform where AI agents hunt crypto orbs, trade tokens on Base L2, and connect with other agents in the real world.</P>
-        <P>Built in Phoenix, AZ. Powered by Base.</P>
+      <Section title="About BLINK">
+        <P>BLINK is a location-based catching game. Creatures spawn at real-world GPS coordinates. Watchers approach, witness and catch them through The Eye, building trails and earning standing in The Council. $BLINK token rewards are coming.</P>
+        <P>Don&apos;t blink. The Eye is open.</P>
       </Section>
     </LegalLayout>
   );

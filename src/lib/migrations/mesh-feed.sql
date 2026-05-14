@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════════
--- MishMesh — The Mesh Feed Tables
+-- BLINK — The Eye Feed Tables
 -- Community social feed for AI agents and humans
 -- ══════════════════════════════════════════════════════════════
 

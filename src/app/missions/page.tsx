@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/providers";
 import { C } from "@/lib/theme";
 import GlassCard from "@/components/GlassCard";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -316,6 +317,57 @@ function SkeletonCard() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Claim Button with hover/press states                               */
+/* ------------------------------------------------------------------ */
+function ClaimButton({
+  isClaiming,
+  onClick,
+}: {
+  isClaiming: boolean;
+  onClick: (e: React.MouseEvent) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [pressed, setPressed] = useState(false);
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => { setHovered(false); setPressed(false); }}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      onTouchStart={() => setPressed(true)}
+      onTouchEnd={() => setPressed(false)}
+      disabled={isClaiming}
+      style={{
+        marginTop: 12,
+        width: "100%",
+        padding: "10px 0",
+        borderRadius: 14,
+        border: "none",
+        background: isClaiming
+          ? C.cardSolid
+          : `linear-gradient(135deg, ${C.accent}, ${C.cyan})`,
+        color: isClaiming ? C.muted : "#0a0a0f",
+        fontSize: 14,
+        fontWeight: 800,
+        cursor: isClaiming ? "not-allowed" : "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        transition: "all 0.2s ease",
+        letterSpacing: 0.5,
+        transform: pressed ? "scale(0.98)" : "scale(1)",
+        boxShadow: hovered && !isClaiming ? `0 0 20px ${C.accent}40` : "none",
+      }}
+    >
+      {isClaiming ? "Claiming..." : "Claim Reward"}
+    </button>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Mission Card                                                        */
 /* ------------------------------------------------------------------ */
 function MissionCard({
@@ -327,6 +379,7 @@ function MissionCard({
   onClaim: (id: string) => void;
   claiming: string | null;
 }) {
+  const [hovered, setHovered] = useState(false);
   const pct = progressPercent(mission.current, mission.target);
   const isComplete = mission.current >= mission.target;
   const isClaimed = mission.status === "claimed";
@@ -336,12 +389,18 @@ function MissionCard({
 
   return (
     <GlassCard
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         marginBottom: 12,
         opacity: isClaimed ? 0.55 : 1,
-        transition: "all 0.3s ease",
+        transition: "all 0.25s ease",
         position: "relative",
         overflow: "hidden",
+        transform: hovered && !isClaimed ? "translateY(-2px)" : "translateY(0)",
+        boxShadow: hovered && !isClaimed ? `0 8px 32px rgba(0,0,0,0.35)` : "none",
+        // Left border accent for completed-but-unclaimed missions
+        borderLeft: isComplete && !isClaimed ? `3px solid ${C.accent}` : undefined,
       }}
     >
       {/* Completed glow stripe */}
@@ -370,6 +429,20 @@ function MissionCard({
           }}
         >
           <CheckCircleIcon size={28} color={C.muted} />
+        </div>
+      )}
+
+      {/* Green checkmark overlay for completed (not yet claimed) */}
+      {isComplete && !isClaimed && (
+        <div
+          style={{
+            position: "absolute",
+            top: 12,
+            right: 12,
+            opacity: 0.85,
+          }}
+        >
+          <CheckCircleIcon size={22} color={C.accent} />
         </div>
       )}
 
@@ -407,6 +480,8 @@ function MissionCard({
                 fontWeight: 700,
                 color: isClaimed ? C.muted : C.text,
                 lineHeight: 1.3,
+                // Leave room for checkmark overlay when complete
+                paddingRight: isComplete ? 32 : 0,
               }}
             >
               {mission.title}
@@ -473,11 +548,7 @@ function MissionCard({
                 width: `${pct}%`,
                 height: "100%",
                 borderRadius: 3,
-                background: isClaimed
-                  ? C.muted
-                  : isComplete
-                  ? C.accent
-                  : C.accent,
+                background: isClaimed ? C.muted : C.accent,
                 transition: "width 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
                 boxShadow: isComplete && !isClaimed ? `0 0 10px ${C.accent}60` : "none",
               }}
@@ -486,35 +557,13 @@ function MissionCard({
 
           {/* Claim button */}
           {isComplete && !isClaimed && (
-            <button
+            <ClaimButton
+              isClaiming={isClaiming}
               onClick={(e) => {
                 e.stopPropagation();
                 onClaim(mission.id);
               }}
-              disabled={isClaiming}
-              style={{
-                marginTop: 12,
-                width: "100%",
-                padding: "10px 0",
-                borderRadius: 14,
-                border: "none",
-                background: isClaiming
-                  ? C.cardSolid
-                  : C.accent,
-                color: isClaiming ? C.muted : "#0A0A0F",
-                fontSize: 14,
-                fontWeight: 800,
-                cursor: isClaiming ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-                transition: "all 0.2s ease",
-                letterSpacing: 0.5,
-              }}
-            >
-              {isClaiming ? "Claiming..." : "Claim"}
-            </button>
+            />
           )}
         </div>
       </div>
@@ -527,6 +576,7 @@ function MissionCard({
 /* ------------------------------------------------------------------ */
 export default function MissionsPage() {
   const { user } = useAuth();
+  const { isDesktop } = useIsDesktop();
   const [tab, setTab] = useState<Tab>("daily");
   const [missions, setMissions] = useState<MissionWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -654,10 +704,12 @@ export default function MissionsPage() {
   const weeklyMissions = missions.filter((m) => m.type === "weekly");
   const activeMissions = tab === "daily" ? dailyMissions : weeklyMissions;
 
+  const claimedCount = activeMissions.filter((m) => m.status === "claimed").length;
   const completed = activeMissions.filter(
     (m) => m.status === "completed" || m.status === "claimed"
   ).length;
   const total = activeMissions.length;
+  const allClaimed = total > 0 && claimedCount === total;
 
   return (
     <div
@@ -686,233 +738,310 @@ export default function MissionsPage() {
           from { stroke-dashoffset: 30; }
           to { stroke-dashoffset: 0; }
         }
+        @keyframes celebrationPop {
+          0% { opacity: 0; transform: scale(0.85) translateY(8px); }
+          60% { opacity: 1; transform: scale(1.04) translateY(-2px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
       `}</style>
 
       {/* Confetti */}
       {showConfetti && <ConfettiBurst onDone={() => setShowConfetti(false)} />}
 
-      {/* Header */}
+      {/* Outer wrapper — centers content on desktop */}
       <div
         style={{
-          padding: "60px 20px 20px",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
+          maxWidth: isDesktop ? 900 : "100%",
+          margin: "0 auto",
+          padding: isDesktop ? "0 24px" : "0",
         }}
       >
-        <button
-          onClick={() => window.history.back()}
-          style={{
-            background: "none",
-            border: "none",
-            padding: 4,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-          }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
-        <h1
-          style={{
-            fontSize: 30,
-            fontWeight: 800,
-            margin: 0,
-            letterSpacing: -0.5,
-          }}
-        >
-          Missions
-        </h1>
-      </div>
-
-      {/* Tab switcher: Daily | Weekly */}
-      <div style={{ padding: "0 20px", marginBottom: 20 }}>
+        {/* Header */}
         <div
           style={{
-            display: "flex",
-            background: C.cardSolid,
-            borderRadius: 14,
-            padding: 3,
-          }}
-        >
-          {(["daily", "weekly"] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              style={{
-                flex: 1,
-                padding: "11px 0",
-                borderRadius: 11,
-                border: "none",
-                background: tab === t ? C.primary : "transparent",
-                color: tab === t ? "#fff" : C.muted,
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-                textTransform: "capitalize",
-              }}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Section header with countdown */}
-      <div style={{ padding: "0 20px", marginBottom: 16 }}>
-        <div
-          style={{
+            padding: isDesktop ? "20px 0 20px" : "60px 20px 20px",
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
+            gap: 12,
           }}
         >
-          <span
+          <button
+            onClick={() => window.history.back()}
             style={{
-              fontSize: 18,
-              fontWeight: 700,
-              color: C.text,
-              textTransform: "capitalize",
+              background: "none",
+              border: "none",
+              padding: 4,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
             }}
           >
-            {tab}
-          </span>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <h1
+            style={{
+              fontSize: isDesktop ? 34 : 30,
+              fontWeight: 800,
+              margin: 0,
+              letterSpacing: -0.5,
+            }}
+          >
+            Missions
+          </h1>
+        </div>
+
+        {/* Tab switcher: Daily | Weekly */}
+        <div style={{ padding: isDesktop ? "0 0" : "0 20px", marginBottom: 20 }}>
+          <div
+            style={{
+              display: "flex",
+              background: C.cardSolid,
+              borderRadius: 14,
+              padding: 3,
+              maxWidth: isDesktop ? 320 : "100%",
+            }}
+          >
+            {(["daily", "weekly"] as Tab[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                style={{
+                  flex: 1,
+                  padding: "11px 0",
+                  borderRadius: 11,
+                  border: "none",
+                  background: tab === t ? C.primary : "transparent",
+                  color: tab === t ? "#fff" : C.muted,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  textTransform: "capitalize",
+                }}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Section header with countdown */}
+        <div style={{ padding: isDesktop ? "0 0" : "0 20px", marginBottom: 16 }}>
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 6,
-              background: C.glass,
-              border: `1px solid ${C.glassBorder}`,
-              borderRadius: 20,
-              padding: "5px 12px",
+              justifyContent: "space-between",
             }}
           >
-            <ClockIcon size={13} color={C.muted} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>Resets in</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: C.accent }}>
-              {tab === "daily" ? dailyTime : weeklyTime}
-            </span>
-          </div>
-        </div>
-
-        {/* Progress summary */}
-        {total > 0 && (
-          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
-            <div
-              style={{
-                flex: 1,
-                height: 4,
-                borderRadius: 2,
-                background: C.cardSolid,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  width: total > 0 ? `${(completed / total) * 100}%` : "0%",
-                  height: "100%",
-                  borderRadius: 2,
-                  background: C.accent,
-                  transition: "width 0.5s ease",
-                }}
-              />
-            </div>
-            <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flexShrink: 0 }}>
-              {completed}/{total}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Content */}
-      <div style={{ padding: "0 20px" }}>
-        {/* Error */}
-        {error && (
-          <div
-            style={{
-              background: "rgba(239, 68, 68, 0.12)",
-              border: `1px solid rgba(239, 68, 68, 0.25)`,
-              borderRadius: 14,
-              padding: "10px 14px",
-              marginBottom: 12,
-              fontSize: 13,
-              color: "#ef4444",
-              textAlign: "center",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {/* Loading skeletons */}
-        {loading && (
-          <>
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </>
-        )}
-
-        {/* Empty state */}
-        {!loading && activeMissions.length === 0 && (
-          <div style={{ textAlign: "center", padding: "60px 20px" }}>
-            <div
-              style={{
-                width: 72,
-                height: 72,
-                borderRadius: 22,
-                background: C.cardSolid,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                margin: "0 auto 20px",
-              }}
-            >
-              <TargetIcon size={36} color={C.muted} />
-            </div>
-            <div
+            <span
               style={{
                 fontSize: 18,
                 fontWeight: 700,
                 color: C.text,
-                marginBottom: 8,
+                textTransform: "capitalize",
               }}
             >
-              No missions available yet
-            </div>
+              {tab}
+            </span>
             <div
               style={{
-                fontSize: 14,
-                color: C.muted,
-                lineHeight: 1.5,
-                maxWidth: 280,
-                margin: "0 auto",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                background: C.glass,
+                border: `1px solid ${C.glassBorder}`,
+                borderRadius: 20,
+                padding: "5px 12px",
               }}
             >
-              New {tab} missions are coming soon. Keep exploring to stay ready.
+              <ClockIcon size={13} color={C.muted} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>Resets in</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.accent }}>
+                {tab === "daily" ? dailyTime : weeklyTime}
+              </span>
             </div>
           </div>
-        )}
 
-        {/* Mission cards with stagger animation */}
-        {!loading &&
-          activeMissions.map((m, i) => (
+          {/* Progress summary */}
+          {total > 0 && (
+            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
+              <div
+                style={{
+                  flex: 1,
+                  height: 4,
+                  borderRadius: 2,
+                  background: C.cardSolid,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: total > 0 ? `${(completed / total) * 100}%` : "0%",
+                    height: "100%",
+                    borderRadius: 2,
+                    background: C.accent,
+                    transition: "width 0.5s ease",
+                  }}
+                />
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, flexShrink: 0 }}>
+                {completed}/{total}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Content */}
+        <div style={{ padding: isDesktop ? "0 0" : "0 20px" }}>
+          {/* Error */}
+          {error && (
             <div
-              key={m.id}
               style={{
-                animation: "fadeSlideIn 0.35s ease forwards",
-                animationDelay: `${i * 0.06}s`,
-                opacity: 0,
+                background: "rgba(239, 68, 68, 0.12)",
+                border: `1px solid rgba(239, 68, 68, 0.25)`,
+                borderRadius: 14,
+                padding: "10px 14px",
+                marginBottom: 12,
+                fontSize: 13,
+                color: "#ef4444",
+                textAlign: "center",
               }}
             >
-              <MissionCard mission={m} onClaim={handleClaim} claiming={claiming} />
+              {error}
             </div>
-          ))}
+          )}
+
+          {/* Loading skeletons — 2-col grid on desktop */}
+          {loading && (
+            <div
+              style={{
+                display: isDesktop ? "grid" : "block",
+                gridTemplateColumns: isDesktop ? "repeat(2, 1fr)" : undefined,
+                gap: isDesktop ? 16 : undefined,
+              }}
+            >
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!loading && activeMissions.length === 0 && (
+            <div style={{ textAlign: "center", padding: "60px 20px" }}>
+              <div
+                style={{
+                  width: 72,
+                  height: 72,
+                  borderRadius: 22,
+                  background: C.cardSolid,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 20px",
+                }}
+              >
+                <TargetIcon size={36} color={C.muted} />
+              </div>
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: C.text,
+                  marginBottom: 8,
+                }}
+              >
+                No missions available
+              </div>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: C.muted,
+                  lineHeight: 1.5,
+                  maxWidth: 280,
+                  margin: "0 auto 20px",
+                }}
+              >
+                New {tab} missions are coming soon. Keep exploring to stay ready.
+              </div>
+              <button
+                onClick={() => window.history.back()}
+                style={{
+                  background: "transparent",
+                  border: `1.5px solid ${C.primary}`,
+                  color: C.primary,
+                  borderRadius: 12,
+                  padding: "10px 24px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Go Back
+              </button>
+            </div>
+          )}
+
+          {/* All caught up celebration state */}
+          {!loading && activeMissions.length > 0 && allClaimed && (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "24px 20px 16px",
+                animation: "celebrationPop 0.45s ease forwards",
+              }}
+            >
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: `${C.accent}14`,
+                  border: `1px solid ${C.accent}30`,
+                  borderRadius: 16,
+                  padding: "10px 20px",
+                  marginBottom: 6,
+                }}
+              >
+                <CheckCircleIcon size={18} color={C.accent} />
+                <span style={{ fontSize: 15, fontWeight: 700, color: C.accent }}>
+                  All missions complete!
+                </span>
+              </div>
+              <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
+                All caught up! Come back when missions reset.
+              </div>
+            </div>
+          )}
+
+          {/* Mission cards — 2-col grid on desktop */}
+          {!loading && activeMissions.length > 0 && (
+            <div
+              style={{
+                display: isDesktop ? "grid" : "block",
+                gridTemplateColumns: isDesktop ? "repeat(2, 1fr)" : undefined,
+                gap: isDesktop ? 16 : undefined,
+              }}
+            >
+              {activeMissions.map((m, i) => (
+                <div
+                  key={m.id}
+                  style={{
+                    animation: "fadeSlideIn 0.35s ease forwards",
+                    animationDelay: `${i * 0.06}s`,
+                    opacity: 0,
+                  }}
+                >
+                  <MissionCard mission={m} onClaim={handleClaim} claiming={claiming} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

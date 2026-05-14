@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -17,11 +18,11 @@ interface SettingsSheetProps {
 /*  Styles                                                              */
 /* ------------------------------------------------------------------ */
 const BG = "#0d0d14";
-const ROW_BG = "#111118";
+const ROW_BG = "#0d0d14";
 const BORDER = "rgba(255,255,255,0.05)";
-const MUTED = "#9CA3AF";
-const PURPLE = "#9945FF";
-const TOGGLE_OFF = "#2a2a3a";
+const MUTED = "#8a8a99";
+const PURPLE = "#00FF88";
+const TOGGLE_OFF = "#1a1a24";
 const FONT =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 const TRANSITION = "0.35s cubic-bezier(0.32, 0.72, 0, 1)";
@@ -199,7 +200,8 @@ function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
           position: "absolute",
           top: 2,
           left: on ? 20 : 2,
-          transition: "left 0.2s",
+          transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
         }}
       />
     </button>
@@ -250,27 +252,32 @@ function NavRow({
   onClick?: () => void;
 }) {
   const router = useRouter();
+  const [pressed, setPressed] = useState(false);
   return (
     <button
       onClick={onClick || (href ? () => router.push(href) : undefined)}
+      onPointerDown={() => setPressed(true)}
+      onPointerUp={() => setPressed(false)}
+      onPointerLeave={() => setPressed(false)}
       style={{
         display: "flex",
         alignItems: "center",
         gap: 12,
         height: 56,
         padding: "0 20px",
-        background: ROW_BG,
+        background: pressed ? "rgba(255,255,255,0.06)" : ROW_BG,
         border: "none",
         borderBottom: isLast ? "none" : `1px solid ${BORDER}`,
         cursor: "pointer",
         width: "100%",
         textAlign: "left",
         fontFamily: FONT,
+        transition: "background 0.15s ease",
       }}
     >
       <IconBox color={iconColor}>{icon}</IconBox>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: "#F9FAFB" }}>{title}</div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: "#FFFFFF" }}>{title}</div>
         {subtitle && (
           <div style={{ fontSize: 12, color: MUTED, marginTop: 1 }}>{subtitle}</div>
         )}
@@ -308,7 +315,7 @@ function ToggleRow({
       }}
     >
       <IconBox color={iconColor}>{icon}</IconBox>
-      <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: "#F9FAFB" }}>
+      <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: "#FFFFFF" }}>
         {title}
       </div>
       <Toggle on={on} onChange={onChange} />
@@ -345,7 +352,7 @@ function InfoRow({
     >
       <IconBox color={iconColor}>{icon}</IconBox>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: "#F9FAFB" }}>{title}</div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: "#FFFFFF" }}>{title}</div>
         {subtitle && (
           <div style={{ fontSize: 12, color: MUTED, marginTop: 1 }}>{subtitle}</div>
         )}
@@ -377,14 +384,15 @@ function SectionHeader({ label }: { label: string }) {
   );
 }
 
-function SectionContainer({ children }: { children: React.ReactNode }) {
+function SectionContainer({ isDesktop, children }: { isDesktop?: boolean; children: React.ReactNode }) {
   return (
     <div
       style={{
         background: ROW_BG,
-        borderRadius: 16,
+        borderRadius: isDesktop ? 18 : 16,
         overflow: "hidden",
         margin: "0 16px",
+        border: isDesktop ? "1px solid rgba(255,255,255,0.06)" : "none",
       }}
     >
       {children}
@@ -399,7 +407,15 @@ export default function SettingsSheet({ isOpen, onClose }: SettingsSheetProps) {
   const router = useRouter();
   const { user, signOut } = useAuth();
 
-  /* Toggle states */
+  const { isDesktop } = useIsDesktop();
+
+  /* Close button hover */
+  const [closeBtnHover, setCloseBtnHover] = useState(false);
+
+  /* Log out press state */
+  const [logoutPressed, setLogoutPressed] = useState(false);
+
+  /* Toggle states -- persisted to localStorage */
   const [messageRequests, setMessageRequests] = useState(true);
   const [readReceipts, setReadReceipts] = useState(false);
   const [openDMs, setOpenDMs] = useState(false);
@@ -407,6 +423,30 @@ export default function SettingsSheet({ isOpen, onClose }: SettingsSheetProps) {
   const [hapticFeedback, setHapticFeedback] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(true);
   const [distanceMiles, setDistanceMiles] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("mm_settings");
+      if (saved) {
+        const s = JSON.parse(saved);
+        if (typeof s.messageRequests === "boolean") setMessageRequests(s.messageRequests);
+        if (typeof s.readReceipts === "boolean") setReadReceipts(s.readReceipts);
+        if (typeof s.openDMs === "boolean") setOpenDMs(s.openDMs);
+        if (typeof s.soundEffects === "boolean") setSoundEffects(s.soundEffects);
+        if (typeof s.hapticFeedback === "boolean") setHapticFeedback(s.hapticFeedback);
+        if (typeof s.pushNotifications === "boolean") setPushNotifications(s.pushNotifications);
+        if (typeof s.distanceMiles === "boolean") setDistanceMiles(s.distanceMiles);
+      }
+    } catch { /* noop */ }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("mm_settings", JSON.stringify({
+        messageRequests, readReceipts, openDMs, soundEffects, hapticFeedback, pushNotifications, distanceMiles,
+      }));
+    } catch { /* noop */ }
+  }, [messageRequests, readReceipts, openDMs, soundEffects, hapticFeedback, pushNotifications, distanceMiles]);
 
   const initials = user?.email
     ? user.email.slice(0, 2).toUpperCase()
@@ -422,51 +462,25 @@ export default function SettingsSheet({ isOpen, onClose }: SettingsSheetProps) {
     router.push(path);
   };
 
-  return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(0,0,0,0.6)",
-          opacity: isOpen ? 1 : 0,
-          pointerEvents: isOpen ? "auto" : "none",
-          transition: `opacity ${TRANSITION}`,
-          zIndex: 9998,
-        }}
-      />
+  /* Close button size based on desktop */
+  const closeBtnSize = isDesktop ? 40 : 32;
 
-      {/* Sheet */}
+  /* Scrollable content -- shared between mobile and desktop */
+  const settingsContent = (
+    <>
+      {/* Header */}
       <div
         style={{
-          position: "fixed",
-          left: 0,
-          right: 0,
-          bottom: 0,
+          position: "sticky",
           top: 0,
           background: BG,
-          transform: isOpen ? "translateY(0)" : "translateY(100%)",
-          transition: `transform ${TRANSITION}`,
-          zIndex: 9999,
-          overflowY: "auto",
-          WebkitOverflowScrolling: "touch",
-          fontFamily: FONT,
+          zIndex: 1,
+          paddingTop: isDesktop ? 4 : 10,
+          paddingBottom: 12,
         }}
       >
-        {/* Header */}
-        <div
-          style={{
-            position: "sticky",
-            top: 0,
-            background: BG,
-            zIndex: 1,
-            paddingTop: 10,
-            paddingBottom: 12,
-          }}
-        >
-          {/* Drag handle */}
+        {/* Drag handle -- mobile only */}
+        {!isDesktop && (
           <div
             style={{
               width: 40,
@@ -476,240 +490,320 @@ export default function SettingsSheet({ isOpen, onClose }: SettingsSheetProps) {
               margin: "0 auto 12px",
             }}
           />
-          {/* Title + close */}
-          <div
+        )}
+        {/* Title + close */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            position: "relative",
+            padding: isDesktop ? "12px 20px 0" : "0 16px",
+          }}
+        >
+          <span
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              position: "relative",
-              padding: "0 16px",
+              fontSize: isDesktop ? 19 : 17,
+              fontWeight: 700,
+              color: "#FFFFFF",
             }}
           >
-            <span
-              style={{
-                fontSize: 17,
-                fontWeight: 700,
-                color: "#F9FAFB",
-              }}
-            >
-              Settings
-            </span>
-            <button
-              onClick={onClose}
-              style={{
-                position: "absolute",
-                right: 16,
-                width: 32,
-                height: 32,
-                borderRadius: "50%",
-                background: "rgba(255,255,255,0.08)",
-                border: "none",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <XIcon />
-            </button>
-          </div>
-        </div>
-
-        {/* ============================================================ */}
-        {/*  WALLET                                                       */}
-        {/* ============================================================ */}
-        <SectionHeader label="Wallet" />
-        <SectionContainer>
-          <NavRow
-            icon={<WalletIcon />}
-            iconColor={PURPLE}
-            title="Your Wallet"
-            subtitle="3 chains · active"
-            onClick={() => handleNav("/wallet")}
-            isLast
-          />
-        </SectionContainer>
-
-        {/* ============================================================ */}
-        {/*  PRIVACY                                                      */}
-        {/* ============================================================ */}
-        <div style={{ height: 8 }} />
-        <SectionHeader label="Privacy" />
-        <SectionContainer>
-          <NavRow
-            icon={<ShieldIcon />}
-            iconColor="#3B82F6"
-            title="Privacy Center"
-            subtitle="Ghost Mode · 85/100"
-            onClick={() => handleNav("/privacy")}
-            isLast
-          />
-        </SectionContainer>
-
-        {/* ============================================================ */}
-        {/*  MESSAGES                                                      */}
-        {/* ============================================================ */}
-        <div style={{ height: 8 }} />
-        <SectionHeader label="Messages" />
-        <SectionContainer>
-          <ToggleRow
-            icon={<MessageIcon />}
-            iconColor="#6366F1"
-            title="Message Requests"
-            on={messageRequests}
-            onChange={() => setMessageRequests((p) => !p)}
-          />
-          <ToggleRow
-            icon={<EyeIcon />}
-            iconColor="#6366F1"
-            title="Read Receipts"
-            on={readReceipts}
-            onChange={() => setReadReceipts((p) => !p)}
-          />
-          <ToggleRow
-            icon={<UnlockIcon />}
-            iconColor="#6366F1"
-            title="Open DMs"
-            on={openDMs}
-            onChange={() => setOpenDMs((p) => !p)}
-          />
-          <NavRow
-            icon={<BlockIcon />}
-            iconColor="#6366F1"
-            title="Blocked Users"
-            isLast
-          />
-        </SectionContainer>
-
-        {/* ============================================================ */}
-        {/*  SOUNDS & HAPTICS                                              */}
-        {/* ============================================================ */}
-        <div style={{ height: 8 }} />
-        <SectionHeader label="Sounds & Haptics" />
-        <SectionContainer>
-          <ToggleRow
-            icon={<SpeakerIcon />}
-            iconColor="#F97316"
-            title="Sound Effects"
-            on={soundEffects}
-            onChange={() => setSoundEffects((p) => !p)}
-          />
-          <ToggleRow
-            icon={<VibrateIcon />}
-            iconColor="#F97316"
-            title="Haptic Feedback"
-            on={hapticFeedback}
-            onChange={() => setHapticFeedback((p) => !p)}
-            isLast
-          />
-        </SectionContainer>
-
-        {/* ============================================================ */}
-        {/*  GENERAL                                                       */}
-        {/* ============================================================ */}
-        <div style={{ height: 8 }} />
-        <SectionHeader label="General" />
-        <SectionContainer>
-          <ToggleRow
-            icon={<BellIcon />}
-            iconColor="#22C55E"
-            title="Push Notifications"
-            on={pushNotifications}
-            onChange={() => setPushNotifications((p) => !p)}
-          />
-          <ToggleRow
-            icon={<RulerIcon />}
-            iconColor="#22C55E"
-            title="Distance in Miles"
-            on={distanceMiles}
-            onChange={() => setDistanceMiles((p) => !p)}
-            isLast
-          />
-        </SectionContainer>
-
-        {/* ============================================================ */}
-        {/*  SECURITY                                                      */}
-        {/* ============================================================ */}
-        <div style={{ height: 8 }} />
-        <SectionHeader label="Security" />
-        <SectionContainer>
-          <InfoRow
-            icon={<LockIcon />}
-            iconColor="#EF4444"
-            title="Passcode"
-            subtitle="Required to reveal private key"
-          />
-          <NavRow
-            icon={<KeyIcon />}
-            iconColor="#EF4444"
-            title="Reveal Private Keys"
-            subtitle="Handle with extreme care · Encrypted on-device"
-            onClick={() => handleNav("/security")}
-            isLast
-          />
-        </SectionContainer>
-
-        {/* ============================================================ */}
-        {/*  ABOUT                                                         */}
-        {/* ============================================================ */}
-        <div style={{ height: 8 }} />
-        <SectionHeader label="About" />
-        <SectionContainer>
-          <InfoRow
-            icon={<span style={{ fontSize: 14, color: MUTED }}>v</span>}
-            iconColor={MUTED}
-            title="Version"
-            rightValue="1.0.0"
-          />
-          <NavRow
-            icon={<span style={{ fontSize: 14, color: MUTED }}>T</span>}
-            iconColor={MUTED}
-            title="Terms of Service"
-            onClick={() => handleNav("/terms")}
-          />
-          <NavRow
-            icon={<span style={{ fontSize: 14, color: MUTED }}>P</span>}
-            iconColor={MUTED}
-            title="Privacy Policy"
-            onClick={() => handleNav("/privacy")}
-          />
-          <NavRow
-            icon={<span style={{ fontSize: 14, color: MUTED }}>S</span>}
-            iconColor={MUTED}
-            title="Support"
-            onClick={() => handleNav("/support")}
-            isLast
-          />
-        </SectionContainer>
-
-        {/* ============================================================ */}
-        {/*  LOG OUT                                                       */}
-        {/* ============================================================ */}
-        <div style={{ padding: "24px 16px 48px" }}>
+            Settings
+          </span>
           <button
-            onClick={handleLogOut}
+            onClick={onClose}
+            onPointerEnter={() => setCloseBtnHover(true)}
+            onPointerLeave={() => setCloseBtnHover(false)}
             style={{
-              width: "100%",
-              height: 52,
-              borderRadius: 14,
+              position: "absolute",
+              right: isDesktop ? 20 : 16,
+              width: closeBtnSize,
+              height: closeBtnSize,
+              borderRadius: "50%",
+              background: closeBtnHover
+                ? "rgba(255,255,255,0.14)"
+                : "rgba(255,255,255,0.08)",
               border: "none",
-              background: "rgba(239,68,68,0.12)",
-              color: "#EF4444",
-              fontSize: 16,
-              fontWeight: 700,
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: 8,
-              fontFamily: FONT,
+              transition: "background 0.15s ease",
             }}
           >
-            <LogOutIcon />
-            Log Out
+            <XIcon />
           </button>
         </div>
+      </div>
+
+      {/* ============================================================ */}
+      {/*  WALLET                                                       */}
+      {/* ============================================================ */}
+      <SectionHeader label="Wallet" />
+      <SectionContainer isDesktop={isDesktop}>
+        <NavRow
+          icon={<WalletIcon />}
+          iconColor={PURPLE}
+          title="Your Wallet"
+          subtitle="Integrated on Profile"
+          onClick={() => handleNav("/wallet")}
+          isLast
+        />
+      </SectionContainer>
+
+      {/* ============================================================ */}
+      {/*  PRIVACY                                                      */}
+      {/* ============================================================ */}
+      <div style={{ height: 8 }} />
+      <SectionHeader label="Privacy" />
+      <SectionContainer isDesktop={isDesktop}>
+        <NavRow
+          icon={<ShieldIcon />}
+          iconColor="#88FF00"
+          title="Privacy Center"
+          subtitle="Ghost Mode · 85/100"
+          onClick={() => handleNav("/privacy")}
+          isLast
+        />
+      </SectionContainer>
+
+      {/* ============================================================ */}
+      {/*  MESSAGES                                                      */}
+      {/* ============================================================ */}
+      <div style={{ height: 8 }} />
+      <SectionHeader label="Messages" />
+      <SectionContainer isDesktop={isDesktop}>
+        <ToggleRow
+          icon={<MessageIcon />}
+          iconColor="#00FF88"
+          title="Message Requests"
+          on={messageRequests}
+          onChange={() => setMessageRequests((p) => !p)}
+        />
+        <ToggleRow
+          icon={<EyeIcon />}
+          iconColor="#00FF88"
+          title="Read Receipts"
+          on={readReceipts}
+          onChange={() => setReadReceipts((p) => !p)}
+        />
+        <ToggleRow
+          icon={<UnlockIcon />}
+          iconColor="#00FF88"
+          title="Open DMs"
+          on={openDMs}
+          onChange={() => setOpenDMs((p) => !p)}
+        />
+        <NavRow
+          icon={<BlockIcon />}
+          iconColor="#00FF88"
+          title="Blocked Users"
+          subtitle="Coming soon"
+          isLast
+        />
+      </SectionContainer>
+
+      {/* ============================================================ */}
+      {/*  SOUNDS & HAPTICS                                              */}
+      {/* ============================================================ */}
+      <div style={{ height: 8 }} />
+      <SectionHeader label="Sounds & Haptics" />
+      <SectionContainer isDesktop={isDesktop}>
+        <ToggleRow
+          icon={<SpeakerIcon />}
+          iconColor="#88FF00"
+          title="Sound Effects"
+          on={soundEffects}
+          onChange={() => setSoundEffects((p) => !p)}
+        />
+        <ToggleRow
+          icon={<VibrateIcon />}
+          iconColor="#88FF00"
+          title="Haptic Feedback"
+          on={hapticFeedback}
+          onChange={() => setHapticFeedback((p) => !p)}
+          isLast
+        />
+      </SectionContainer>
+
+      {/* ============================================================ */}
+      {/*  GENERAL                                                       */}
+      {/* ============================================================ */}
+      <div style={{ height: 8 }} />
+      <SectionHeader label="General" />
+      <SectionContainer isDesktop={isDesktop}>
+        <ToggleRow
+          icon={<BellIcon />}
+          iconColor="#00FF88"
+          title="Push Notifications"
+          on={pushNotifications}
+          onChange={() => setPushNotifications((p) => !p)}
+        />
+        <ToggleRow
+          icon={<RulerIcon />}
+          iconColor="#00FF88"
+          title="Distance in Miles"
+          on={distanceMiles}
+          onChange={() => setDistanceMiles((p) => !p)}
+          isLast
+        />
+      </SectionContainer>
+
+      {/* ============================================================ */}
+      {/*  SECURITY                                                      */}
+      {/* ============================================================ */}
+      <div style={{ height: 8 }} />
+      <SectionHeader label="Security" />
+      <SectionContainer isDesktop={isDesktop}>
+        <InfoRow
+          icon={<LockIcon />}
+          iconColor="#EF4444"
+          title="Passcode"
+          subtitle="Required to reveal private key"
+        />
+        <NavRow
+          icon={<KeyIcon />}
+          iconColor="#EF4444"
+          title="Reveal Private Keys"
+          subtitle="Handle with extreme care · Encrypted on-device"
+          onClick={() => handleNav("/security")}
+          isLast
+        />
+      </SectionContainer>
+
+      {/* ============================================================ */}
+      {/*  ABOUT                                                         */}
+      {/* ============================================================ */}
+      <div style={{ height: 8 }} />
+      <SectionHeader label="About" />
+      <SectionContainer isDesktop={isDesktop}>
+        <InfoRow
+          icon={<span style={{ fontSize: 14, color: MUTED }}>v</span>}
+          iconColor={MUTED}
+          title="Version"
+          rightValue="1.0.0"
+        />
+        <NavRow
+          icon={<span style={{ fontSize: 14, color: MUTED }}>T</span>}
+          iconColor={MUTED}
+          title="Terms of Service"
+          onClick={() => handleNav("/terms")}
+        />
+        <NavRow
+          icon={<span style={{ fontSize: 14, color: MUTED }}>P</span>}
+          iconColor={MUTED}
+          title="Privacy Policy"
+          onClick={() => handleNav("/privacy")}
+        />
+        <NavRow
+          icon={<span style={{ fontSize: 14, color: MUTED }}>S</span>}
+          iconColor={MUTED}
+          title="Support"
+          onClick={() => handleNav("/support")}
+          isLast
+        />
+      </SectionContainer>
+
+      {/* ============================================================ */}
+      {/*  LOG OUT                                                       */}
+      {/* ============================================================ */}
+      <div style={{ padding: "24px 16px 48px" }}>
+        <button
+          onClick={handleLogOut}
+          onPointerDown={() => setLogoutPressed(true)}
+          onPointerUp={() => setLogoutPressed(false)}
+          onPointerLeave={() => setLogoutPressed(false)}
+          style={{
+            width: "100%",
+            height: 52,
+            borderRadius: 14,
+            border: "1px solid rgba(239,68,68,0.2)",
+            background: logoutPressed
+              ? "rgba(239,68,68,0.2)"
+              : "rgba(239,68,68,0.12)",
+            color: "#EF4444",
+            fontSize: 16,
+            fontWeight: 700,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            fontFamily: FONT,
+            transform: logoutPressed ? "scale(0.98)" : "scale(1)",
+            transition: "background 0.15s ease, transform 0.15s ease",
+          }}
+        >
+          <LogOutIcon />
+          Log Out
+        </button>
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.6)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          opacity: isOpen ? 1 : 0,
+          pointerEvents: isOpen ? "auto" : "none",
+          transition: `opacity ${TRANSITION}`,
+          zIndex: 9998,
+        }}
+      />
+
+      {/* Sheet / Modal */}
+      <div
+        style={
+          isDesktop
+            ? {
+                /* Desktop: centered modal */
+                position: "fixed",
+                top: "50%",
+                left: "calc(50% + 36px)" /* offset for 72px AppShell sidebar */,
+                maxWidth: 480,
+                width: "calc(100% - 120px)",
+                maxHeight: "85vh",
+                background: BG,
+                borderRadius: 24,
+                border: "1px solid rgba(255,255,255,0.08)",
+                boxShadow: "0 32px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04)",
+                transform: isOpen
+                  ? "translate(-50%, -50%) scale(1)"
+                  : "translate(-50%, -50%) scale(0.92)",
+                opacity: isOpen ? 1 : 0,
+                transition: `transform ${TRANSITION}, opacity ${TRANSITION}`,
+                zIndex: 9999,
+                overflowY: "auto",
+                WebkitOverflowScrolling: "touch",
+                fontFamily: FONT,
+                pointerEvents: isOpen ? "auto" : "none",
+              }
+            : {
+                /* Mobile: full-screen slide-up */
+                position: "fixed",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                top: 0,
+                background: BG,
+                transform: isOpen ? "translateY(0)" : "translateY(100%)",
+                transition: `transform ${TRANSITION}`,
+                zIndex: 9999,
+                overflowY: "auto",
+                WebkitOverflowScrolling: "touch",
+                fontFamily: FONT,
+              }
+        }
+      >
+        {settingsContent}
       </div>
     </>
   );

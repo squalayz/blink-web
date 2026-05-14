@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { C } from '@/lib/theme';
 import { useAuth } from '@/components/providers';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 interface OrbEntry {
   clue_text: string;
@@ -20,7 +21,8 @@ const CREATE_CSS = `
 }
 `;
 
-const CURRENCIES = ['SOL', 'ETH', 'BTC'];
+// BLINK: ETH-only — Solana/Bitcoin currency options hidden.
+const CURRENCIES = ['ETH'];
 
 function emptyOrb(): OrbEntry {
   return { clue_text: '', amount: '', latitude: '', longitude: '', hint_image_url: '' };
@@ -29,6 +31,7 @@ function emptyOrb(): OrbEntry {
 export default function CreateTrailPage() {
   const router = useRouter();
   const { user, session } = useAuth();
+  const { isDesktop } = useIsDesktop();
 
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -38,7 +41,7 @@ export default function CreateTrailPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [coverImageUrl, setCoverImageUrl] = useState('');
-  const [currency, setCurrency] = useState('SOL');
+  const [currency, setCurrency] = useState('ETH');
   const [hasTimeLimit, setHasTimeLimit] = useState(false);
   const [timeLimitHours, setTimeLimitHours] = useState('24');
   const [isPublic, setIsPublic] = useState(true);
@@ -130,7 +133,7 @@ export default function CreateTrailPage() {
       <style>{CREATE_CSS}</style>
 
       {/* Header */}
-      <div style={{ padding: '56px 20px 16px' }}>
+      <div style={{ padding: '56px 20px 16px', ...(isDesktop ? { maxWidth: 600, margin: '0 auto' } : {}) }}>
         <button
           onClick={() => router.push('/trails')}
           style={{ color: C.muted, background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, marginBottom: 12 }}
@@ -141,7 +144,7 @@ export default function CreateTrailPage() {
       </div>
 
       {/* Stepper */}
-      <div style={{ display: 'flex', padding: '0 20px 24px', gap: 8 }}>
+      <div style={{ display: 'flex', padding: '0 20px 24px', gap: 8, ...(isDesktop ? { maxWidth: 600, margin: '0 auto' } : {}) }}>
         {[1, 2, 3].map((s) => (
           <div key={s} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
             <div style={{
@@ -162,13 +165,13 @@ export default function CreateTrailPage() {
               ) : s}
             </div>
             <span style={{ fontSize: 11, color: step >= s ? C.text : C.muted }}>
-              {s === 1 ? 'Basics' : s === 2 ? 'Add Orbs' : 'Preview'}
+              {s === 1 ? 'Basics' : s === 2 ? 'Add Creatures' : 'Preview'}
             </span>
           </div>
         ))}
       </div>
 
-      <div style={{ padding: '0 20px', animation: 'createFadeIn 0.3s ease-out' }}>
+      <div style={{ padding: '0 20px', animation: 'createFadeIn 0.3s ease-out', ...(isDesktop ? { maxWidth: 600, margin: '0 auto' } : {}) }}>
         {/* Step 1: Basics */}
         {step === 1 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -196,7 +199,7 @@ export default function CreateTrailPage() {
                       padding: '10px 0',
                       borderRadius: 10,
                       border: `1.5px solid ${currency === c ? C.indigo : C.border}`,
-                      background: currency === c ? 'rgba(99,102,241,0.12)' : 'transparent',
+                      background: currency === c ? 'rgba(0,255,136,0.12)' : 'transparent',
                       color: currency === c ? C.indigo : C.muted,
                       fontSize: 14,
                       fontWeight: 600,
@@ -284,7 +287,7 @@ export default function CreateTrailPage() {
                 marginTop: 8,
               }}
             >
-              Next: Add Orbs
+              Next: Add Creatures
             </button>
           </div>
         )}
@@ -305,7 +308,7 @@ export default function CreateTrailPage() {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <span style={{ fontSize: 14, fontWeight: 700 }}>
-                    Orb {idx + 1} {idx === orbs.length - 1 ? '(Finale)' : ''}
+                    Creature {idx + 1} {idx === orbs.length - 1 ? '(Finale)' : ''}
                   </span>
                   {orbs.length > 2 && (
                     <button
@@ -330,7 +333,7 @@ export default function CreateTrailPage() {
                     <textarea
                       value={orb.clue_text}
                       onChange={(e) => updateOrb(idx, 'clue_text', e.target.value)}
-                      placeholder="Write a clue for hunters..."
+                      placeholder="Write a clue for watchers..."
                       maxLength={280}
                       style={{ ...inputStyle, minHeight: 60, resize: 'vertical' }}
                     />
@@ -372,7 +375,7 @@ export default function CreateTrailPage() {
                   cursor: 'pointer',
                 }}
               >
-                + Add Orb ({orbs.length}/10)
+                + Add Creature ({orbs.length}/10)
               </button>
             )}
 
@@ -396,7 +399,7 @@ export default function CreateTrailPage() {
               <button
                 onClick={() => {
                   const valid = orbs.every((o) => o.clue_text.trim() && parseFloat(o.amount) > 0 && o.latitude && o.longitude);
-                  if (!valid) { setError('Fill in all orb fields'); return; }
+                  if (!valid) { setError('Fill in all creature fields'); return; }
                   setError(null);
                   setStep(3);
                 }}
@@ -453,7 +456,7 @@ export default function CreateTrailPage() {
                   }}>
                     {totalValue.toFixed(2)} {currency}
                   </span>
-                  <span style={{ fontSize: 12, color: C.muted }}>{orbs.length} orbs</span>
+                  <span style={{ fontSize: 12, color: C.muted }}>{orbs.length} creatures</span>
                 </div>
               </div>
             </div>
@@ -474,7 +477,7 @@ export default function CreateTrailPage() {
                   padding: '6px 0',
                   borderBottom: idx < orbs.length - 1 ? `1px solid ${C.border}` : 'none',
                 }}>
-                  <span style={{ fontSize: 13 }}>Orb {idx + 1} {idx === orbs.length - 1 ? '(Finale)' : ''}</span>
+                  <span style={{ fontSize: 13 }}>Creature {idx + 1} {idx === orbs.length - 1 ? '(Finale)' : ''}</span>
                   <span style={{ fontSize: 13, color: C.gold }}>{parseFloat(orb.amount) || 0} {currency}</span>
                 </div>
               ))}

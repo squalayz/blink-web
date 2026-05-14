@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!isPositiveFinite(amount)) {
+  if (type !== "nft" && !isPositiveFinite(amount)) {
     return NextResponse.json({ error: "amount must be a positive number" }, { status: 400 });
   }
 
@@ -42,31 +42,58 @@ export async function POST(req: NextRequest) {
   // 4. Sanitize text fields
   const message = sanitizeText(body.message, 500);
 
-  // 5. Insert into orbs table
+  // 5. Build insert payload — only include fields that exist in the table
+  const insertPayload: Record<string, unknown> = {
+    type,
+    currency,
+    amount,
+    claim_fee_usd: typeof body.claim_fee_usd === "number" && isFinite(body.claim_fee_usd) ? body.claim_fee_usd : 0,
+    message: message || null,
+    lat: latitude,
+    lng: longitude,
+    dropper_id,
+    dropper_name: sanitizeText(body.dropper_name, 50) || null,
+    dropper_handle: sanitizeText(body.dropper_handle, 50) || null,
+    dropper_pic: typeof body.dropper_pic === "string" ? body.dropper_pic.slice(0, 500) : null,
+    rarity: body.rarity ?? "common",
+    status: "pending",
+    expires_at: body.expires_at ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    chain: body.chain ?? null,
+    fee_wallet: body.fee_wallet ?? null,
+    fee_percent: body.fee_percent ?? 0.1,
+    dropper_wallet: typeof body.dropper_wallet === "string" ? body.dropper_wallet.slice(0, 100) : null,
+    radius_meters: typeof body.radius_meters === "number" ? Math.min(Math.max(body.radius_meters, 10), 500) : 100,
+  };
+
+  // NFT-specific fields
+  if (type === "nft") {
+    const nft_name = sanitizeText(body.nft_name, 50) || "";
+    const nft_description = sanitizeText(body.nft_description, 200) || "";
+    insertPayload.message = `[NFT] ${nft_name}: ${nft_description}`;
+    if (typeof body.nft_image_url === "string") {
+      insertPayload.media_url = body.nft_image_url.slice(0, 500);
+    }
+    insertPayload.media_type = "image";
+    insertPayload.nft_mint_status = "pending";
+    insertPayload.nft_reward = true;
+    if (!isPositiveFinite(amount)) {
+      insertPayload.amount = 0;
+      insertPayload.amount_usd = 0;
+    }
+  }
+
+  // Optional fields from drop page
+  if (typeof body.amount_usd === "number" && isFinite(body.amount_usd as number)) insertPayload.amount_usd = body.amount_usd;
+  if (type !== "nft" && body.media_url) insertPayload.media_url = body.media_url;
+  if (type !== "nft" && body.media_type) insertPayload.media_type = body.media_type;
+  if (typeof body.fling_origin_lat === "number") insertPayload.fling_origin_lat = body.fling_origin_lat;
+  if (typeof body.fling_origin_lng === "number") insertPayload.fling_origin_lng = body.fling_origin_lng;
+  if (typeof body.fling_force === "number") insertPayload.fling_force = body.fling_force;
+  if (typeof body.fling_direction === "number") insertPayload.fling_direction = body.fling_direction;
+
   const { data: insertedOrb, error: insertError } = await supabaseAdmin
     .from("orbs")
-    .insert({
-      type,
-      currency,
-      amount,
-      claim_fee_usd: typeof body.claim_fee_usd === "number" && isFinite(body.claim_fee_usd) ? body.claim_fee_usd : 0,
-      message: message || null,
-      lat: latitude,
-      lng: longitude,
-      dropper_id,
-      dropper_name: sanitizeText(body.dropper_name, 50) || null,
-      dropper_handle: sanitizeText(body.dropper_handle, 50) || null,
-      dropper_pic: typeof body.dropper_pic === "string" ? body.dropper_pic.slice(0, 500) : null,
-      rarity: body.rarity ?? "common",
-      status: "pending",
-      expires_at: body.expires_at ?? null,
-      chain: body.chain ?? null,
-      fee_wallet: body.fee_wallet ?? null,
-      fee_percent: body.fee_percent ?? 0.1,
-      dropper_wallet: typeof body.dropper_wallet === "string" ? body.dropper_wallet.slice(0, 100) : null,
-      radius_meters: typeof body.radius_meters === "number" ? Math.min(Math.max(body.radius_meters, 10), 500) : 100,
-      dropped_at: droppedAt,
-    })
+    .insert(insertPayload)
     .select()
     .single();
 
@@ -78,7 +105,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 6. Create wallet_lock
-  await supabaseAdmin.from("wallet_locks").insert({
+  const { error: lockError } = await supabaseAdmin.from("wallet_locks").insert({
     user_id: dropper_id,
     orb_id: insertedOrb.id,
     amount,
@@ -87,18 +114,27 @@ export async function POST(req: NextRequest) {
     created_at: droppedAt,
   });
 
+  if (lockError) {
+    console.error("Failed to create wallet_lock:", lockError.message);
+  }
+
   // 7. Insert activity
-  await supabaseAdmin.from("activity").insert({
+  const { error: activityError } = await supabaseAdmin.from("activity").insert({
     user_id: dropper_id,
     type: "drop",
     title: "Orb Dropped",
-    description: `You dropped an orb containing ${amount} ${currency}`,
+    subtitle: `You dropped an orb containing ${amount} ${currency}`,
+    amount_text: `${amount} ${currency}`,
     orb_id: insertedOrb.id,
     amount,
     currency,
     chain: body.chain ?? null,
     created_at: droppedAt,
   });
+
+  if (activityError) {
+    console.error("Failed to insert activity:", activityError.message);
+  }
 
   return NextResponse.json({ success: true, orb: insertedOrb }, { status: 201 });
 }

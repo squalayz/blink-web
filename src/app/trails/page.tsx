@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { C } from '@/lib/theme';
 import { useAuth } from '@/components/providers';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 interface TrailCreator {
   id: string;
@@ -51,6 +52,7 @@ const TRAIL_CSS = `
 export default function TrailsPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { isDesktop } = useIsDesktop();
   const [trails, setTrails] = useState<Trail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,13 +105,13 @@ export default function TrailsPage() {
       <style>{TRAIL_CSS}</style>
 
       {/* Header */}
-      <div style={{ padding: '56px 20px 16px', textAlign: 'center' }}>
-        <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>Orb Trails</h1>
+      <div style={{ padding: isDesktop ? '32px 32px 16px' : '56px 20px 16px', textAlign: 'center' }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>Creature Trails</h1>
         <p style={{ color: C.muted, fontSize: 14, marginTop: 6 }}>Follow the clues. Claim the prize.</p>
       </div>
 
       {/* Filter tabs */}
-      <div style={{ display: 'flex', gap: 8, padding: '0 20px 16px', overflowX: 'auto' }}>
+      <div style={{ display: 'flex', gap: 8, padding: isDesktop ? '0 32px 16px' : '0 20px 16px', overflowX: 'auto', ...(isDesktop ? { maxWidth: 960, margin: '0 auto' } : {}) }}>
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -119,7 +121,7 @@ export default function TrailsPage() {
               padding: '8px 18px',
               borderRadius: 20,
               border: `1.5px solid ${filter === t.key ? C.indigo : C.border}`,
-              background: filter === t.key ? 'rgba(99,102,241,0.15)' : 'rgba(10,10,15,0.65)',
+              background: filter === t.key ? 'rgba(0,255,136,0.15)' : 'rgba(10,10,15,0.65)',
               color: filter === t.key ? C.indigo : C.muted,
               fontSize: 13,
               fontWeight: filter === t.key ? 700 : 500,
@@ -136,7 +138,7 @@ export default function TrailsPage() {
 
       {/* Create trail button */}
       {user && (
-        <div style={{ padding: '0 20px 16px' }}>
+        <div style={{ padding: isDesktop ? '0 32px 16px' : '0 20px 16px', ...(isDesktop ? { maxWidth: 960, margin: '0 auto' } : {}) }}>
           <button
             onClick={() => router.push('/trails/create')}
             style={{
@@ -168,13 +170,13 @@ export default function TrailsPage() {
 
       {/* Empty */}
       {!loading && !error && trails.length === 0 && (
-        <div style={{ textAlign: 'center', padding: 60, color: C.muted, fontSize: 15 }}>
+        <div style={{ textAlign: 'center', padding: 60, color: C.muted, fontSize: 15, ...(isDesktop ? { maxWidth: 480, margin: '0 auto' } : {}) }}>
           No active trails right now. Check back soon!
         </div>
       )}
 
       {/* Trail cards */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '0 20px' }}>
+      <div style={isDesktop ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16, maxWidth: 960, margin: '0 auto', padding: '0 32px' } : { display: 'flex', flexDirection: 'column', gap: 16, padding: '0 20px' }}>
         {trails.map((trail, idx) => {
           const remaining = timeRemaining(trail.expires_at);
           const creator = trail.creator as TrailCreator | null;
@@ -278,18 +280,18 @@ export default function TrailsPage() {
                         opacity: 0.7,
                       }} />
                     ))}
-                    <span style={{ fontSize: 11, color: C.muted, marginLeft: 4 }}>{trail.orb_count} orbs</span>
+                    <span style={{ fontSize: 11, color: C.muted, marginLeft: 4 }}>{trail.orb_count} creatures</span>
                   </div>
 
-                  {/* Hunters */}
+                  {/* Watchers */}
                   <span style={{ fontSize: 12, color: C.muted }}>
-                    {trail.started_count} hunter{trail.started_count !== 1 ? 's' : ''} racing
+                    {trail.started_count} watcher{trail.started_count !== 1 ? 's' : ''} racing
                   </span>
                 </div>
 
                 {/* Time remaining */}
                 {remaining && (
-                  <div style={{ marginTop: 8, fontSize: 12, color: '#F59E0B' }}>{remaining}</div>
+                  <div style={{ marginTop: 8, fontSize: 12, color: '#88FF00' }}>{remaining}</div>
                 )}
 
                 {/* Start button */}

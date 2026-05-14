@@ -27,10 +27,10 @@ interface GiftOrb {
 }
 
 const RARITY_COLORS: Record<GiftRarity, string> = {
-  Common: "#9ca3af",
-  Rare: "#6366f1",
-  Epic: "#06b6d4",
-  Legendary: "#F59E0B",
+  Common: "#8a8a99",
+  Rare: "#00FF88",
+  Epic: "#00FF88",
+  Legendary: "#88FF00",
 };
 
 const KEYFRAMES = `
@@ -154,7 +154,7 @@ export default function GiftOrbLandingPage() {
       setClaimed(true);
       setOrb({ ...orb, claimed: true, claimed_by: user.id });
     } catch (e: any) {
-      alert(e?.message || "Failed to claim orb");
+      alert(e?.message || "Failed to claim creature");
     } finally {
       setClaiming(false);
     }
@@ -203,7 +203,7 @@ export default function GiftOrbLandingPage() {
         </svg>
         <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Gift Not Found</div>
         <div style={{ fontSize: 14, color: C.muted, marginBottom: 24 }}>
-          This orb link is invalid or has been removed.
+          This creature link is invalid or has been removed.
         </div>
         <button
           onClick={() => router.push("/")}
@@ -328,7 +328,7 @@ export default function GiftOrbLandingPage() {
             {orb.sender_avatar_url ? (
               <img
                 src={orb.sender_avatar_url}
-                alt=""
+                alt="Creature sender avatar"
                 style={{ width: 32, height: 32, borderRadius: 10, objectFit: "cover" }}
               />
             ) : (
@@ -358,7 +358,7 @@ export default function GiftOrbLandingPage() {
         {/* Value */}
         {isMystery ? (
           <div style={{ textAlign: "center", marginBottom: 16 }}>
-            <div style={{ fontSize: 28, fontWeight: 800, color: glowColor }}>Mystery Orb</div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: glowColor }}>Mystery Creature</div>
             <div style={{ fontSize: 14, color: C.muted, marginTop: 6 }}>Claim to reveal the value inside</div>
           </div>
         ) : (
@@ -425,7 +425,7 @@ export default function GiftOrbLandingPage() {
               <circle cx="12" cy="12" r="10" />
               <path d="M12 6v6l4 2" />
             </svg>
-            <div style={{ fontSize: 16, fontWeight: 600, color: C.danger }}>This orb has expired</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: C.danger }}>This creature has expired</div>
             <div style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>
               It was not claimed in time and has been returned to the sender.
             </div>
@@ -449,7 +449,7 @@ export default function GiftOrbLandingPage() {
               <path d="M22 4L12 14.01l-3-3" />
             </svg>
             <div style={{ fontSize: 16, fontWeight: 600, color: C.indigo }}>
-              {orb?.claimed_by === user?.id ? "You claimed this orb!" : "This orb has been claimed"}
+              {orb?.claimed_by === user?.id ? "You caught this creature!" : "This creature has been caught"}
             </div>
             {orb?.claimed_by === user?.id && !isMystery && (
               <div style={{ fontSize: 14, color: C.muted, marginTop: 6 }}>
@@ -479,7 +479,7 @@ export default function GiftOrbLandingPage() {
               boxShadow: `0 4px 24px ${glowColor}44`,
             }}
           >
-            {claiming ? "Claiming..." : user ? "Claim This Orb" : "Claim This Orb"}
+            {claiming ? "Catching..." : user ? "Catch This Creature" : "Catch This Creature"}
           </button>
         )}
 
@@ -502,7 +502,7 @@ export default function GiftOrbLandingPage() {
             padding: 0,
           }}
         >
-          What is MishMesh?
+          What is BLINK?
         </button>
       </div>
     </div>

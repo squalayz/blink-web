@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { C } from '@/lib/theme';
 import { useAuth } from '@/components/providers';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { supabase } from '@/lib/supabase';
 
 interface TrailCreator {
@@ -76,6 +77,7 @@ export default function TrailDetailPage() {
   const router = useRouter();
   const trailId = params.id as string;
   const { user, session } = useAuth();
+  const { isDesktop } = useIsDesktop();
 
   const [trail, setTrail] = useState<Trail | null>(null);
   const [orbs, setOrbs] = useState<TrailOrb[]>([]);
@@ -177,7 +179,7 @@ export default function TrailDetailPage() {
 
       {/* Cover image */}
       <div style={{
-        height: 260,
+        height: isDesktop ? 340 : 260,
         background: trail.cover_image_url
           ? `url(${trail.cover_image_url}) center/cover`
           : `linear-gradient(135deg, ${C.indigo}66, ${C.primary}66)`,
@@ -212,7 +214,7 @@ export default function TrailDetailPage() {
       </div>
 
       {/* Content */}
-      <div style={{ padding: '0 20px 100px', marginTop: -60, position: 'relative', zIndex: 5, animation: 'detailFadeIn 0.5s ease-out' }}>
+      <div style={{ padding: '0 20px 100px', marginTop: -60, position: 'relative', zIndex: 5, animation: 'detailFadeIn 0.5s ease-out', ...(isDesktop ? { maxWidth: 720, margin: '-60px auto 0' } : {}) }}>
         {/* Title */}
         <h1 style={{ fontSize: 26, fontWeight: 800, margin: '0 0 8px', letterSpacing: '-0.02em' }}>{trail.title}</h1>
 
@@ -234,7 +236,7 @@ export default function TrailDetailPage() {
           <div style={{
             padding: '10px 14px',
             borderRadius: 12,
-            background: trail.brand_color ? `${trail.brand_color}18` : 'rgba(99,102,241,0.1)',
+            background: trail.brand_color ? `${trail.brand_color}18` : 'rgba(0,255,136,0.1)',
             border: `1px solid ${trail.brand_color || C.indigo}44`,
             marginBottom: 16,
             display: 'flex',
@@ -275,7 +277,7 @@ export default function TrailDetailPage() {
               borderBottom: idx < orbs.length - 1 ? `1px solid ${C.border}` : 'none',
             }}>
               <span style={{ fontSize: 13, color: C.text }}>
-                Orb {orb.position} {orb.is_finale ? '(Finale)' : ''}
+                Creature {orb.position} {orb.is_finale ? '(Finale)' : ''}
               </span>
               <span style={{ fontSize: 13, color: orb.position === 1 || hasStarted ? C.text : C.muted }}>
                 {orb.position === 1 || hasStarted ? orb.clue_text : '???'}
@@ -317,7 +319,7 @@ export default function TrailDetailPage() {
             textAlign: 'center',
           }}>
             <div style={{ fontSize: 20, fontWeight: 700 }}>{trail.started_count}</div>
-            <div style={{ fontSize: 11, color: C.muted }}>Hunters</div>
+            <div style={{ fontSize: 11, color: C.muted }}>Watchers</div>
           </div>
           <div style={{
             flex: 1,
@@ -341,7 +343,7 @@ export default function TrailDetailPage() {
             textAlign: 'center',
           }}>
             <div style={{ fontSize: 20, fontWeight: 700 }}>{trail.orb_count}</div>
-            <div style={{ fontSize: 11, color: C.muted }}>Orbs</div>
+            <div style={{ fontSize: 11, color: C.muted }}>Creatures</div>
           </div>
         </div>
 
@@ -409,7 +411,7 @@ export default function TrailDetailPage() {
             transition: 'opacity 0.2s',
           }}
         >
-          {starting ? 'Starting...' : isCompleted ? 'View Passport' : hasStarted ? 'Continue Hunt' : 'Start the Hunt'}
+          {starting ? 'Starting...' : isCompleted ? 'View Passport' : hasStarted ? 'Continue Watch' : 'Start the Watch'}
         </button>
       </div>
     </div>

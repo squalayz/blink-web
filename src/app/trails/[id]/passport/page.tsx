@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { C } from '@/lib/theme';
 import { useAuth } from '@/components/providers';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { supabase } from '@/lib/supabase';
 
 interface TrailInfo {
@@ -30,16 +31,16 @@ const PASSPORT_CSS = `
   100% { opacity: 1; transform: scale(1); }
 }
 @keyframes stampGlow {
-  0%, 100% { box-shadow: 0 0 8px rgba(20,241,149,0.3); }
-  50% { box-shadow: 0 0 20px rgba(20,241,149,0.6); }
+  0%, 100% { box-shadow: 0 0 8px rgba(0,255,136,0.3); }
+  50% { box-shadow: 0 0 20px rgba(0,255,136,0.6); }
 }
 @keyframes confettiFall {
   0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
   100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
 }
 @keyframes completeGlow {
-  0%, 100% { text-shadow: 0 0 10px rgba(20,241,149,0.5); }
-  50% { text-shadow: 0 0 30px rgba(20,241,149,0.8); }
+  0%, 100% { text-shadow: 0 0 10px rgba(0,255,136,0.5); }
+  50% { text-shadow: 0 0 30px rgba(0,255,136,0.8); }
 }
 `;
 
@@ -80,6 +81,7 @@ export default function TrailPassportPage() {
   const router = useRouter();
   const trailId = params.id as string;
   const { user } = useAuth();
+  const { isDesktop } = useIsDesktop();
 
   const [trail, setTrail] = useState<TrailInfo | null>(null);
   const [progress, setProgress] = useState<TrailProgress | null>(null);
@@ -162,7 +164,7 @@ export default function TrailPassportPage() {
 
       {isCompleted && <ConfettiOverlay />}
 
-      <div style={{ padding: '56px 20px 40px', animation: 'passportFadeIn 0.6s ease-out' }}>
+      <div style={{ padding: '56px 20px 40px', animation: 'passportFadeIn 0.6s ease-out', ...(isDesktop ? { maxWidth: 560, margin: '0 auto' } : {}) }}>
         {/* Back button */}
         <button
           onClick={() => router.push(`/trails/${trailId}/hunt`)}
@@ -177,7 +179,7 @@ export default function TrailPassportPage() {
             cursor: 'pointer',
           }}
         >
-          Back to Hunt
+          Back to Watch
         </button>
 
         {/* Header */}
@@ -213,7 +215,7 @@ export default function TrailPassportPage() {
                   width: 52,
                   height: 52,
                   borderRadius: '50%',
-                  background: cracked ? 'rgba(20,241,149,0.15)' : 'rgba(255,255,255,0.04)',
+                  background: cracked ? 'rgba(0,255,136,0.15)' : 'rgba(255,255,255,0.04)',
                   border: `2px solid ${cracked ? C.accent : 'rgba(255,255,255,0.1)'}`,
                   display: 'flex',
                   alignItems: 'center',
@@ -303,7 +305,7 @@ export default function TrailPassportPage() {
             onClick={() => {
               if (navigator.share) {
                 navigator.share({
-                  title: `I completed the "${trail.title}" trail on MishMesh!`,
+                  title: `I completed the "${trail.title}" trail on BLINK!`,
                   text: `Finished rank #${progress.finish_rank} in ${formatTime(progress.completion_time_seconds)}`,
                   url: window.location.href,
                 });
