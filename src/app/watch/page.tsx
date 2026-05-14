@@ -9,6 +9,7 @@ import OrbDetailSheet from '@/components/OrbDetailSheet';
 import AuroraOverlay from '@/components/AuroraOverlay';
 import OnboardingWalkthrough from '@/components/OnboardingWalkthrough';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { YourBestiary } from '@/components/YourBestiary';
 
 // Dynamically import the map so Leaflet never runs on the server
 const HuntMap = dynamic(() => import('@/components/HuntMap'), { ssr: false });
@@ -937,6 +938,19 @@ export default function HuntPage() {
         background: 'linear-gradient(to top, rgba(10,10,15,0.45) 0%, transparent 40%)',
         pointerEvents: 'none',
       }} />
+
+      {/* Your Bestiary compact chip (Phase 3) — only renders if holder */}
+      {!showLoading && (
+        <div style={{
+          position: 'absolute',
+          top: 12,
+          left: 14,
+          zIndex: 510,
+          animation: 'huntFadeIn 0.4s ease-out',
+        }}>
+          <YourBestiary variant="compact" />
+        </div>
+      )}
 
       {/* Trails glowing button */}
       {!showLoading && (
