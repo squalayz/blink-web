@@ -1,14 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { sounds } from "@/lib/sounds";
 
 const GREEN = "#00FF88";
 const GRAY = "#5a5a6a";
 
+// Routes where the sound toggle would collide with existing controls.
+// On these routes the toggle is suppressed entirely — the map page exposes its
+// own controls and the auth/onboarding screens are intentionally minimal.
+const HIDDEN_ON_ROUTES = [
+  "/map",
+  "/auth/signin",
+  "/auth/signup",
+];
+
 export default function SoundToggle() {
   const [enabled, setEnabled] = useState<boolean>(true);
   const [mounted, setMounted] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     setMounted(true);
@@ -16,6 +27,9 @@ export default function SoundToggle() {
   }, []);
 
   if (!mounted) return null;
+  if (pathname && HIDDEN_ON_ROUTES.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+    return null;
+  }
 
   const toggle = () => {
     const next = !enabled;
@@ -34,11 +48,11 @@ export default function SoundToggle() {
       title={enabled ? "Sounds on" : "Sounds off"}
       style={{
         position: "fixed",
-        top: 14,
-        right: 14,
+        bottom: 18,
+        right: 18,
         zIndex: 1500,
-        width: 36,
-        height: 36,
+        width: 38,
+        height: 38,
         borderRadius: 999,
         background: "rgba(13,13,20,0.78)",
         border: `1px solid ${enabled ? "rgba(0,255,136,0.35)" : "rgba(255,255,255,0.10)"}`,
