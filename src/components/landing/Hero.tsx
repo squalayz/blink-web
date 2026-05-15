@@ -78,8 +78,8 @@ export function Hero() {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        justifyContent: "center",
-        padding: "48px 24px 140px",
+        justifyContent: "flex-start",
+        padding: "32px 24px 140px",
         textAlign: "center",
         overflow: "hidden",
         background: BG,
@@ -87,9 +87,20 @@ export function Hero() {
     >
       <style>{KEYFRAMES}</style>
 
-      <HeroMapPreview />
+      {/* Hero map: contained at the TOP, copy reads cleanly BELOW it */}
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          maxWidth: 720,
+          height: "clamp(220px, 36vh, 360px)",
+          marginBottom: "clamp(20px, 4vh, 36px)",
+        }}
+      >
+        <HeroMapPreview />
+      </div>
 
-      {/* All copy sits above the animated layer */}
+      {/* All copy sits clearly below the animated map */}
       <div
         style={{
           position: "relative",
@@ -127,8 +138,8 @@ export function Hero() {
           style={{
             fontFamily: "Space Grotesk, Inter, sans-serif",
             fontWeight: 900,
-            fontSize: "clamp(44px, 11vw, 128px)",
-            lineHeight: 0.92,
+            fontSize: "clamp(38px, 9vw, 104px)",
+            lineHeight: 0.96,
             letterSpacing: "-0.045em",
             margin: 0,
             color: WHITE,
