@@ -13,6 +13,7 @@ import { BlinkTokenStrip } from "@/components/BlinkTokenStrip";
 import { Hero } from "@/components/landing/Hero";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { TwoWaysToEarn } from "@/components/landing/TwoWaysToEarn";
+import { MintFoundersCTA } from "@/components/landing/MintFoundersCTA";
 
 // Below-fold sections — code-split so the landing chunk stays lean.
 const BestiarySection = dynamic(
@@ -223,14 +224,19 @@ export default function HomePage() {
         <TwoWaysToEarn />
       </RevealOnScroll>
 
-      {/* ─── $BLINK TOKEN STRIP ─── */}
+      {/* ─── MINT YOUR FIRST BLINK — recruiter card ─── */}
       <RevealOnScroll>
-        <BlinkTokenStrip />
+        <MintFoundersCTA />
       </RevealOnScroll>
 
       {/* ─── BESTIARY ─── */}
       <RevealOnScroll>
         <BestiarySection />
+      </RevealOnScroll>
+
+      {/* ─── $BLINK TOKEN STRIP ─── */}
+      <RevealOnScroll>
+        <BlinkTokenStrip />
       </RevealOnScroll>
 
       {/* ─── THE MYTHICS ─── */}

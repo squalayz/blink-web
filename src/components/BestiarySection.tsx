@@ -56,7 +56,7 @@ export function BestiarySection() {
             fontWeight: 700,
           }}
         >
-          The Bestiary
+          Meet the 20 Founders
         </span>
         <h2
           style={{
