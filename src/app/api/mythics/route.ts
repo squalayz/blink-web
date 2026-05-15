@@ -16,6 +16,7 @@ import { mainnet } from "viem/chains";
 
 export const runtime = "nodejs";
 export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 const MYTHICS_CONTRACT = (
   process.env.NEXT_PUBLIC_BLINK_MYTHICS_CONTRACT ||
