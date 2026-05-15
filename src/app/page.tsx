@@ -10,9 +10,8 @@ import { useAuth } from "@/components/providers";
 import { CinematicLoad } from "@/components/CinematicLoad";
 import { RevealOnScroll } from "@/components/RevealOnScroll";
 import { BlinkTokenStrip } from "@/components/BlinkTokenStrip";
+import { Hero } from "@/components/landing/Hero";
 
-const HeroEye = dynamic(() => import("@/components/HeroEye"), { ssr: false });
-const FloatingCreatures = dynamic(() => import("@/components/FloatingCreatures").then(m => m.FloatingCreatures), { ssr: false });
 // Below-fold sections — code-split so the landing chunk stays lean.
 const BestiarySection = dynamic(
   () => import("@/components/BestiarySection").then((m) => m.BestiarySection),
@@ -121,7 +120,6 @@ export default function HomePage() {
     >
       <style>{KEYFRAMES}</style>
       <CinematicLoad />
-      <FloatingCreatures />
 
       {/* ─── Top Nav ─── */}
       <nav
@@ -211,169 +209,7 @@ export default function HomePage() {
       </nav>
 
       {/* ─── HERO SECTION ─── */}
-      <section
-        style={{
-          minHeight: "calc(100vh - 64px)",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "48px 24px 64px",
-          position: "relative",
-          textAlign: "center",
-        }}
-      >
-        {/* Background grid + green ambient */}
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "radial-gradient(circle at 50% 30%, rgba(0,255,136,0.10), transparent 55%), radial-gradient(circle at 80% 80%, rgba(136,255,0,0.05), transparent 60%)",
-            pointerEvents: "none",
-          }}
-        />
-
-        <div style={{ animation: "blinkFadeUp 0.9s ease-out 0.05s both", marginBottom: 32 }}>
-          <HeroEye size={220} orbitRadius={170} creatureSize={72} />
-        </div>
-
-        <h1
-          style={{
-            fontFamily: "Space Grotesk, Inter, sans-serif",
-            fontWeight: 900,
-            fontSize: "clamp(56px, 12vw, 128px)",
-            lineHeight: 0.95,
-            letterSpacing: "-0.04em",
-            margin: 0,
-            background: `linear-gradient(180deg, #FFFFFF 0%, ${BLINK.green} 100%)`,
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-            animation: "blinkFadeUp 0.9s ease-out 0.2s both",
-          }}
-        >
-          Don&apos;t blink.
-        </h1>
-        <p
-          style={{
-            fontSize: "clamp(16px, 2.4vw, 22px)",
-            color: BLINK.white,
-            opacity: 0.85,
-            margin: "20px 0 0",
-            maxWidth: 620,
-            lineHeight: 1.5,
-            animation: "blinkFadeUp 0.9s ease-out 0.35s both",
-          }}
-        >
-          The Eye is open. Catch what others can&apos;t see.
-        </p>
-
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 14,
-            marginTop: 36,
-            justifyContent: "center",
-            animation: "blinkFadeUp 0.9s ease-out 0.5s both",
-          }}
-        >
-          <button
-            onClick={() => router.push("/watch")}
-            style={{
-              fontFamily: "Space Grotesk, Inter, sans-serif",
-              padding: "16px 32px",
-              borderRadius: 999,
-              border: "none",
-              background: `linear-gradient(135deg, ${BLINK.green}, ${BLINK.green2})`,
-              color: BLINK.bg,
-              fontSize: 15,
-              fontWeight: 800,
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              cursor: "pointer",
-              animation: "blinkButtonGlow 3s ease-in-out infinite",
-            }}
-          >
-            Enter The Eye
-          </button>
-          <a
-            href={TG_GROUP}
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              fontFamily: "Space Grotesk, Inter, sans-serif",
-              padding: "16px 32px",
-              borderRadius: 999,
-              border: `1px solid ${BLINK.green}`,
-              background: "transparent",
-              color: BLINK.green,
-              fontSize: 15,
-              fontWeight: 800,
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              cursor: "pointer",
-              textDecoration: "none",
-              display: "inline-block",
-            }}
-          >
-            Join The Council
-          </a>
-        </div>
-
-        <p
-          style={{
-            fontSize: 12,
-            color: BLINK.muted,
-            marginTop: 28,
-            letterSpacing: "0.3em",
-            textTransform: "uppercase",
-            animation: "blinkFadeUp 0.9s ease-out 0.65s both",
-          }}
-        >
-          Sightings every minute · Worldwide
-        </p>
-      </section>
-
-      {/* ─── LIVE TICKER ─── */}
-      <section
-        style={{
-          background: BLINK.surface,
-          borderTop: `1px solid ${BLINK.border}`,
-          borderBottom: `1px solid ${BLINK.border}`,
-          padding: "18px 0",
-          overflow: "hidden",
-          position: "relative",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            gap: 48,
-            whiteSpace: "nowrap",
-            animation: "blinkTicker 50s linear infinite",
-            width: "max-content",
-          }}
-        >
-          {[...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
-            <span
-              key={i}
-              style={{
-                fontSize: 13,
-                color: BLINK.muted,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                fontWeight: 600,
-              }}
-            >
-              <span style={{ color: BLINK.green, marginRight: 14 }}>·</span>
-              {item}
-            </span>
-          ))}
-        </div>
-      </section>
+      <Hero />
 
       {/* ─── $BLINK TOKEN STRIP ─── */}
       <RevealOnScroll>
