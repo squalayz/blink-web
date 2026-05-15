@@ -4,15 +4,20 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/providers";
-import { BestiarySection } from "@/components/BestiarySection";
 import { CinematicLoad } from "@/components/CinematicLoad";
 import { RevealOnScroll } from "@/components/RevealOnScroll";
 import { BlinkTokenStrip } from "@/components/BlinkTokenStrip";
 
 const HeroEye = dynamic(() => import("@/components/HeroEye"), { ssr: false });
 const FloatingCreatures = dynamic(() => import("@/components/FloatingCreatures").then(m => m.FloatingCreatures), { ssr: false });
+// Below-fold sections — code-split so the landing chunk stays lean.
+const BestiarySection = dynamic(
+  () => import("@/components/BestiarySection").then((m) => m.BestiarySection),
+  { ssr: false },
+);
 const MythicsSection = dynamic(
   () => import("@/components/MythicsSection").then((m) => m.MythicsSection),
   { ssr: false },
@@ -144,13 +149,13 @@ export default function HomePage() {
             color: BLINK.white,
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src="/blink-logo.png"
             alt="BLINK"
+            width={32}
+            height={32}
+            priority
             style={{
-              width: 32,
-              height: 32,
               objectFit: "contain",
               filter: "drop-shadow(0 0 8px rgba(0,255,136,0.7))",
             }}
@@ -765,11 +770,12 @@ export default function HomePage() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src="/blink-logo.png"
               alt="BLINK"
-              style={{ width: 28, height: 28, objectFit: "contain" }}
+              width={28}
+              height={28}
+              style={{ objectFit: "contain" }}
             />
             <span
               style={{

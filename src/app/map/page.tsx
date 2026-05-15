@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -627,24 +627,46 @@ export default function MapPage() {
       <div
         style={{ flex: 1, position: "relative", overflow: "hidden" }}
       >
-        <HuntMap
-          orbs={orbsWithDistance.map((o) => ({
-            ...o,
-            latitude: o.lat,
-            longitude: o.lng,
-            tier: o.tier,
-            distanceM: o.distance,
-            bearingDeg: o.bearing,
-            creatureImage: o.creatureImage,
-          })) as unknown as ThemeOrb[]}
-          userPosition={position}
-          onSelectOrb={(orb: ThemeOrb) => {
-            const local = orbsWithDistance.find((o) => o.id === orb.id);
-            if (local) setSelectedOrb(local);
-            wakeFab();
-          }}
-          mapRef={leafletMapRef}
-        />
+        <Suspense
+          fallback={
+            <div
+              aria-hidden
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: COLORS.bg,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: COLORS.textMuted,
+                fontSize: 12,
+                letterSpacing: "0.24em",
+                textTransform: "uppercase",
+              }}
+            >
+              Opening the Eye…
+            </div>
+          }
+        >
+          <HuntMap
+            orbs={orbsWithDistance.map((o) => ({
+              ...o,
+              latitude: o.lat,
+              longitude: o.lng,
+              tier: o.tier,
+              distanceM: o.distance,
+              bearingDeg: o.bearing,
+              creatureImage: o.creatureImage,
+            })) as unknown as ThemeOrb[]}
+            userPosition={position}
+            onSelectOrb={(orb: ThemeOrb) => {
+              const local = orbsWithDistance.find((o) => o.id === orb.id);
+              if (local) setSelectedOrb(local);
+              wakeFab();
+            }}
+            mapRef={leafletMapRef}
+          />
+        </Suspense>
 
         {/* ---- Location banner ---- */}
         {showLocationBanner && (
