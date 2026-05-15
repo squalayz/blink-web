@@ -1,6 +1,27 @@
 import { getDefaultConfig, type Theme } from "@rainbow-me/rainbowkit";
 import { base, mainnet, polygon, arbitrum } from "wagmi/chains";
 
+// Server-only no-op localStorage so RainbowKit's SSR pass (which reads
+// "recent wallet ids" on init) doesn't crash. Node 20 exposes a stub
+// `localStorage` object that is missing `.getItem`, so we always overwrite it
+// when running outside a browser. Vercel's runtime already polyfills `window`.
+if (
+  typeof globalThis !== "undefined" &&
+  typeof (globalThis as { window?: unknown }).window === "undefined"
+) {
+  const g = globalThis as { localStorage?: Storage };
+  if (!g.localStorage || typeof g.localStorage.getItem !== "function") {
+    g.localStorage = {
+      length: 0,
+      clear: () => {},
+      getItem: () => null,
+      key: () => null,
+      removeItem: () => {},
+      setItem: () => {},
+    } as Storage;
+  }
+}
+
 export const wagmiConfig = getDefaultConfig({
   appName: "BLINK",
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "blink-default",
