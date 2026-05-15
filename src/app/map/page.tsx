@@ -105,22 +105,23 @@ function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(1)}km`;
 }
 
-const mapZoomBtn: React.CSSProperties = {
+const toolRailBtn: React.CSSProperties = {
   width: 36,
   height: 36,
   borderRadius: 10,
-  background: "rgba(10,10,15,0.7)",
+  background: "rgba(10,10,15,0.55)",
   backdropFilter: "blur(14px)",
   WebkitBackdropFilter: "blur(14px)",
-  border: "1px solid rgba(0,255,136,0.30)",
+  border: "1px solid rgba(0,255,136,0.32)",
   color: "#00FF88",
-  fontSize: 18,
+  fontSize: 16,
   fontWeight: 700,
   cursor: "pointer",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   fontFamily: "inherit",
+  padding: 0,
 };
 
 // Dev-only mock spawns so the map visual design is easy to verify locally.
@@ -176,8 +177,25 @@ export default function MapPage() {
   const [profileCardUserId, setProfileCardUserId] = useState<string | null>(null);
   const [cameraGranted, setCameraGranted] = useState(true); // assume granted until checked
   const [cameraToast, setCameraToast] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [fabDim, setFabDim] = useState(false);
   const leafletMapRef = useRef<any>(null);
   const watchIdRef = useRef<number | null>(null);
+  const fabIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /* ---- FAB idle fade ---- */
+  const wakeFab = useCallback(() => {
+    setFabDim(false);
+    if (fabIdleTimerRef.current) clearTimeout(fabIdleTimerRef.current);
+    fabIdleTimerRef.current = setTimeout(() => setFabDim(true), 3000);
+  }, []);
+
+  useEffect(() => {
+    wakeFab();
+    return () => {
+      if (fabIdleTimerRef.current) clearTimeout(fabIdleTimerRef.current);
+    };
+  }, [wakeFab]);
 
   /* ---- Auth redirect ---- */
   useEffect(() => {
@@ -456,47 +474,87 @@ export default function MapPage() {
         </Link>
       </div>
 
-      {/* ========== FILTER PILLS ========== */}
+      {/* ========== FILTER ROW (collapsed by default — single chip) ========== */}
       <div
         style={{
           display: "flex",
           gap: 8,
-          padding: "10px 16px",
+          padding: "8px 16px",
           background: COLORS.bg,
           zIndex: 19,
           overflowX: "auto",
+          alignItems: "center",
         }}
       >
-        {FILTER_OPTIONS.map((f) => {
-          const active = activeFilter === f;
-          const chainColor = CHAIN_PILL_COLORS[f];
-          return (
-            <button
-              key={f}
-              onClick={() => setActiveFilter(f)}
-              style={{
-                padding: "6px 16px",
-                borderRadius: 20,
-                border: active
-                  ? chainColor ? `1px solid ${chainColor}` : "none"
-                  : `1px solid ${COLORS.border}`,
-                background: active
-                  ? chainColor ? `${chainColor}22` : COLORS.primary
-                  : "transparent",
-                color: active
-                  ? chainColor ? chainColor : "#fff"
-                  : COLORS.textMuted,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
-            >
-              {f}
-            </button>
-          );
-        })}
+        <button
+          onClick={() => setFiltersOpen((v) => !v)}
+          aria-expanded={filtersOpen}
+          aria-controls="map-filter-pills"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "6px 14px",
+            borderRadius: 999,
+            border: `1px solid ${activeFilter !== "All" ? COLORS.primary : COLORS.border}`,
+            background: activeFilter !== "All" ? `${COLORS.primary}18` : "transparent",
+            color: activeFilter !== "All" ? COLORS.primary : COLORS.textMuted,
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: "pointer",
+            flexShrink: 0,
+          }}
+        >
+          <Filter size={13} />
+          {activeFilter === "All" ? "Filter" : activeFilter}
+        </button>
+
+        {filtersOpen && (
+          <div
+            id="map-filter-pills"
+            style={{
+              display: "flex",
+              gap: 8,
+              overflowX: "auto",
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            {FILTER_OPTIONS.map((f) => {
+              const active = activeFilter === f;
+              const chainColor = CHAIN_PILL_COLORS[f];
+              return (
+                <button
+                  key={f}
+                  onClick={() => {
+                    setActiveFilter(f);
+                    if (f === "All") setFiltersOpen(false);
+                  }}
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: 999,
+                    border: active
+                      ? chainColor ? `1px solid ${chainColor}` : "none"
+                      : `1px solid ${COLORS.border}`,
+                    background: active
+                      ? chainColor ? `${chainColor}22` : COLORS.primary
+                      : "transparent",
+                    color: active
+                      ? chainColor ? chainColor : "#fff"
+                      : COLORS.textMuted,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    flexShrink: 0,
+                  }}
+                >
+                  {f}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ========== MAP AREA ========== */}
@@ -567,87 +625,66 @@ export default function MapPage() {
           </div>
         )}
 
-        {/* ---- Recenter button ---- */}
-        <button
-          onClick={() => {
-            if (leafletMapRef.current && position) {
-              leafletMapRef.current.flyTo({ center: [position.lng, position.lat], zoom: 16, duration: 800 });
-            } else {
-              requestLocation();
-            }
-          }}
-          style={{
-            position: "absolute",
-            top: 16,
-            right: 16,
-            width: 40,
-            height: 40,
-            borderRadius: 12,
-            background: "rgba(10,10,15,0.7)",
-            backdropFilter: "blur(14px)",
-            WebkitBackdropFilter: "blur(14px)",
-            border: `1px solid ${position ? "rgba(0,255,136,0.45)" : "rgba(255,255,255,0.10)"}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            zIndex: 15,
-            boxShadow: position ? "0 0 14px rgba(0,255,136,0.25)" : "none",
-          }}
-          aria-label="Recenter on me"
-        >
-          <Crosshair size={18} color={position ? "#00FF88" : COLORS.textMuted} />
-        </button>
+        {/* ---- Tool rail (top-right) ---- */}
         <div
           style={{
             position: "absolute",
-            top: 64,
-            right: 16,
+            top: 16,
+            right: 12,
             display: "flex",
             flexDirection: "column",
             gap: 8,
             zIndex: 15,
+            padding: 4,
+            background: "rgba(10,10,15,0.4)",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
+            borderRadius: 14,
+            border: `1px solid ${COLORS.border}`,
           }}
         >
           <button
-            onClick={() => leafletMapRef.current?.zoomIn?.()}
+            onClick={() => {
+              if (leafletMapRef.current && position) {
+                leafletMapRef.current.flyTo({ center: [position.lng, position.lat], zoom: 16, duration: 800 });
+              } else {
+                requestLocation();
+              }
+              wakeFab();
+            }}
+            aria-label="Recenter on me"
+            style={{
+              ...toolRailBtn,
+              border: `1px solid ${position ? "rgba(0,255,136,0.45)" : "rgba(255,255,255,0.10)"}`,
+              boxShadow: position ? "0 0 10px rgba(0,255,136,0.22)" : "none",
+            }}
+          >
+            <Crosshair size={16} color={position ? "#00FF88" : COLORS.textMuted} />
+          </button>
+          <button
+            onClick={() => { leafletMapRef.current?.zoomIn?.(); wakeFab(); }}
             aria-label="Zoom in"
-            style={mapZoomBtn}
+            style={toolRailBtn}
           >
             +
           </button>
           <button
-            onClick={() => leafletMapRef.current?.zoomOut?.()}
+            onClick={() => { leafletMapRef.current?.zoomOut?.(); wakeFab(); }}
             aria-label="Zoom out"
-            style={mapZoomBtn}
+            style={toolRailBtn}
           >
             −
           </button>
+          {!cameraGranted && (
+            <button
+              onClick={handleCameraRequest}
+              aria-label="Enable camera"
+              style={toolRailBtn}
+            >
+              <Camera size={16} color={COLORS.textMuted} />
+            </button>
+          )}
         </div>
-
-        {/* ---- Camera permission button ---- */}
-        {!cameraGranted && (
-          <button
-            onClick={handleCameraRequest}
-            style={{
-              position: "absolute",
-              top: 16,
-              right: 16,
-              width: 44,
-              height: 44,
-              borderRadius: 12,
-              background: "rgba(13,13,20,0.9)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              zIndex: 15,
-            }}
-          >
-            <Camera size={20} color={COLORS.textMuted} />
-          </button>
-        )}
       </div>
 
       {/* ========== CAMERA TOAST ========== */}
@@ -661,7 +698,7 @@ export default function MapPage() {
             transition={{ type: "spring", damping: 22, stiffness: 300 }}
             style={{
               position: "absolute",
-              bottom: 200,
+              bottom: 132,
               left: "50%",
               transform: "translateX(-50%)",
               background: COLORS.card,
@@ -682,7 +719,7 @@ export default function MapPage() {
 
       {/* ========== BOTTOM SHEET ========== */}
       <motion.div
-        animate={{ height: sheetExpanded ? "60dvh" : 160 }}
+        animate={{ height: sheetExpanded ? "60dvh" : 88 }}
         transition={{ type: "spring", damping: 28, stiffness: 300 }}
         style={{
           position: "absolute",
@@ -699,16 +736,19 @@ export default function MapPage() {
           overflow: "hidden",
         }}
       >
-        {/* Sheet handle */}
+        {/* Sheet handle (peek) */}
         <div
           onClick={() => setSheetExpanded(!sheetExpanded)}
+          role="button"
+          aria-expanded={sheetExpanded}
+          aria-label={sheetExpanded ? "Collapse nearby creatures" : "Expand nearby creatures"}
           style={{
-            padding: "12px 16px 8px",
+            padding: "10px 16px 8px",
             cursor: "pointer",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 8,
+            gap: 6,
             flexShrink: 0,
           }}
         >
@@ -730,28 +770,17 @@ export default function MapPage() {
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span
-                style={{ color: COLORS.text, fontSize: 16, fontWeight: 700 }}
+                style={{ color: COLORS.text, fontSize: 14, fontWeight: 700, letterSpacing: "0.02em" }}
               >
-                Nearby Creatures
-              </span>
-              <span
-                style={{
-                  background: COLORS.card,
-                  color: COLORS.textMuted,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  padding: "2px 8px",
-                  borderRadius: 10,
-                }}
-              >
-                {sortedOrbs.length}
+                {sortedOrbs.length} BLINK{sortedOrbs.length !== 1 ? "S" : ""} nearby
               </span>
             </div>
             <motion.div
               animate={{ rotate: sheetExpanded ? 180 : 0 }}
               transition={{ duration: 0.25 }}
+              style={{ display: "flex", alignItems: "center", gap: 6 }}
             >
-              <ChevronUp size={20} color={COLORS.textMuted} />
+              <ChevronUp size={18} color={COLORS.primary} />
             </motion.div>
           </div>
         </div>
@@ -926,28 +955,42 @@ export default function MapPage() {
         </div>
       </motion.div>
 
-      {/* ========== FAB ========== */}
-      <Link href="/spawn" style={{ textDecoration: "none" }}>
+      {/* ========== SPAWN FAB (bottom-left, idle-fade) ========== */}
+      <Link
+        href="/spawn"
+        aria-label="Spawn a creature"
+        style={{ textDecoration: "none" }}
+        onClick={wakeFab}
+      >
         <motion.div
+          onMouseEnter={wakeFab}
+          onFocus={wakeFab}
+          onTouchStart={wakeFab}
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
+          animate={{
+            opacity: fabDim ? 0.45 : 0.95,
+            width: fabDim ? 44 : 50,
+            height: fabDim ? 44 : 50,
+          }}
+          transition={{ duration: 0.35, ease: "easeOut" }}
           style={{
             position: "absolute",
-            bottom: 176,
-            right: 16,
-            width: 56,
-            height: 56,
+            bottom: 104,
+            left: 14,
             borderRadius: "50%",
-            background: COLORS.primary,
+            background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.gold})`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
             zIndex: 35,
-            boxShadow: `0 0 24px 6px ${COLORS.primary}50`,
+            boxShadow: `0 0 18px 4px ${COLORS.primary}40`,
+            border: `1px solid ${COLORS.primary}aa`,
+            color: COLORS.bg,
           }}
         >
-          <Plus size={24} color="#fff" />
+          <Plus size={22} color={COLORS.bg} />
         </motion.div>
       </Link>
 
