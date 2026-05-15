@@ -206,7 +206,7 @@ export default function HomePage() {
               boxShadow: "0 0 18px rgba(0,255,136,0.4)",
             }}
           >
-            Enter The Eye
+            Enter the World
           </button>
         </div>
       </nav>
@@ -224,6 +224,11 @@ export default function HomePage() {
         <TwoWaysToEarn />
       </RevealOnScroll>
 
+      {/* ─── $BLINK TOKEN STRIP — anchors the contract claim above ─── */}
+      <RevealOnScroll>
+        <BlinkTokenStrip />
+      </RevealOnScroll>
+
       {/* ─── MINT YOUR FIRST BLINK — recruiter card ─── */}
       <RevealOnScroll>
         <MintFoundersCTA />
@@ -234,116 +239,9 @@ export default function HomePage() {
         <BestiarySection />
       </RevealOnScroll>
 
-      {/* ─── $BLINK TOKEN STRIP ─── */}
-      <RevealOnScroll>
-        <BlinkTokenStrip />
-      </RevealOnScroll>
-
       {/* ─── THE MYTHICS ─── */}
       <RevealOnScroll>
         <MythicsSection />
-      </RevealOnScroll>
-
-      {/* ─── HOW IT WORKS ─── */}
-      <RevealOnScroll>
-      <section
-        style={{
-          padding: "96px 24px",
-          background: BLINK.surface,
-          borderTop: `1px solid ${BLINK.border}`,
-          borderBottom: `1px solid ${BLINK.border}`,
-        }}
-      >
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: 56 }}>
-            <span
-              style={{
-                fontSize: 12,
-                letterSpacing: "0.4em",
-                color: BLINK.green,
-                textTransform: "uppercase",
-                fontWeight: 700,
-              }}
-            >
-              How it works
-            </span>
-            <h2
-              style={{
-                fontFamily: "Space Grotesk, Inter, sans-serif",
-                fontSize: "clamp(36px, 6vw, 56px)",
-                fontWeight: 900,
-                letterSpacing: "-0.03em",
-                margin: "12px 0 0",
-              }}
-            >
-              Three steps. One Eye.
-            </h2>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-              gap: 20,
-            }}
-          >
-            {[
-              {
-                step: "01",
-                title: "Watch",
-                copy: "Open the map. Creatures spawn around you in real time. The Eye sees what you can't yet.",
-              },
-              {
-                step: "02",
-                title: "Approach",
-                copy: "Walk closer — real-world or virtual. The closer you get, the stronger the signal.",
-              },
-              {
-                step: "03",
-                title: "Witness",
-                copy: "Catch the creature. Add it to your collection. Earn rewards. $BLINK token coming.",
-              },
-            ].map((s) => (
-              <div
-                key={s.step}
-                style={{
-                  background: BLINK.surface2,
-                  border: `1px solid ${BLINK.border}`,
-                  borderRadius: 20,
-                  padding: "32px 26px",
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: "Space Grotesk, Inter, sans-serif",
-                    fontWeight: 900,
-                    fontSize: 14,
-                    letterSpacing: "0.3em",
-                    color: BLINK.green,
-                  }}
-                >
-                  {s.step}
-                </div>
-                <div
-                  style={{
-                    fontFamily: "Space Grotesk, Inter, sans-serif",
-                    fontWeight: 800,
-                    fontSize: 30,
-                    letterSpacing: "-0.02em",
-                    marginTop: 14,
-                  }}
-                >
-                  {s.title}
-                </div>
-                <p style={{ color: BLINK.muted, marginTop: 10, fontSize: 15, lineHeight: 1.6 }}>
-                  {s.copy}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       </RevealOnScroll>
 
       {/* ─── THE COUNCIL ─── */}
@@ -545,13 +443,13 @@ export default function HomePage() {
 
       </RevealOnScroll>
 
-      {/* ─── FINAL CTA ─── */}
+      {/* ─── FINAL CTA — mirrors the hero ─── */}
       <RevealOnScroll>
       <section
         style={{
           padding: "120px 24px",
           textAlign: "center",
-          maxWidth: 760,
+          maxWidth: 820,
           margin: "0 auto",
         }}
       >
@@ -565,7 +463,7 @@ export default function HomePage() {
             lineHeight: 1,
           }}
         >
-          The Eye sees you.
+          The world is full of creatures.
         </h2>
         <h2
           style={{
@@ -579,7 +477,7 @@ export default function HomePage() {
             textShadow: "0 0 32px rgba(0,255,136,0.5)",
           }}
         >
-          Now see back.
+          Go catch one.
         </h2>
         <button
           onClick={() => router.push("/watch")}
@@ -591,14 +489,14 @@ export default function HomePage() {
             background: `linear-gradient(135deg, ${BLINK.green}, ${BLINK.green2})`,
             color: BLINK.bg,
             fontSize: 16,
-            fontWeight: 800,
+            fontWeight: 900,
             letterSpacing: "0.14em",
             textTransform: "uppercase",
             cursor: "pointer",
             animation: "blinkButtonGlow 3s ease-in-out infinite",
           }}
         >
-          Enter The Eye
+          🌍 Enter the World →
         </button>
       </section>
 
@@ -641,7 +539,7 @@ export default function HomePage() {
               BLINK
             </span>
             <span style={{ color: BLINK.muted, fontSize: 13, marginLeft: 12 }}>
-              Don&apos;t blink. The Eye is open.
+              Your BLINKS live with your wallet — forever.
             </span>
           </div>
           <nav style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
