@@ -12,7 +12,65 @@ import { MapPin, Filter, Plus, X, ChevronUp, User, Crosshair, Camera } from "luc
 import UserAvatar from "@/components/UserAvatar";
 import UserProfileCard from "@/components/UserProfileCard";
 
+import { BlinkCompass, type CompassReading, type CompassTier } from "@/components/BlinkCompass";
+import { getOrGenerateSpawns, type BlinkSpawn } from "@/lib/blink-spawns";
+import { BESTIARY } from "@/lib/bestiary";
+
 const HuntMap = dynamic(() => import("@/components/HuntMap"), { ssr: false });
+
+type Tier = "far" | "medium" | "close" | "catchable";
+
+function tierFromDistance(m: number): Tier {
+  if (m < 30) return "catchable";
+  if (m < 100) return "close";
+  if (m < 500) return "medium";
+  return "far";
+}
+
+// 0° = north, clockwise (bearing in degrees)
+function bearingDeg(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δλ = ((lng2 - lng1) * Math.PI) / 180;
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x =
+    Math.cos(φ1) * Math.sin(φ2) -
+    Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  const θ = Math.atan2(y, x);
+  return ((θ * 180) / Math.PI + 360) % 360;
+}
+
+function spawnsToOrbs(spawns: BlinkSpawn[]): Orb[] {
+  return spawns.map((s) => {
+    const creature = BESTIARY.find((c) => c.id === s.creatureId);
+    return {
+      id: s.id,
+      lat: s.lat,
+      lng: s.lng,
+      currency: "ETH",
+      amount: 0.005,
+      // legacy Orb rarity is common/rare/legendary; map mythic→legendary, uncommon→common
+      rarity:
+        s.rarity === "legendary" || s.rarity === "mythic"
+          ? "legendary"
+          : s.rarity === "rare"
+            ? "rare"
+            : "common",
+      category: "creature",
+      status: "pending",
+      claim_fee_usd: 0.5,
+      dropper_id: null,
+      dropper_name: creature?.name ?? "BLINK",
+      dropper_handle: "blink",
+      dropper_pic: null,
+      dropper_wallet: null,
+      message:
+        creature?.lore ?? "A creature stirs in the dark.",
+      expires_at: new Date(s.expiresAt).toISOString(),
+      created_at: new Date(s.spawnedAt).toISOString(),
+    };
+  });
+}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -124,34 +182,10 @@ const toolRailBtn: React.CSSProperties = {
   padding: 0,
 };
 
-// Dev-only mock spawns so the map visual design is easy to verify locally.
+// Mock spawn fallback delegates to the Phase 4 spawns helper — 6–12 weighted
+// rarities, persisted per session anchor so refresh doesn't move them.
 function mockSpawnsAround(pos: Position): Orb[] {
-  const rarities: Orb["rarity"][] = ["legendary", "rare", "rare", "common"];
-  const angles = [30, 110, 200, 320];
-  return rarities.map((r, idx) => {
-    const angle = (angles[idx] * Math.PI) / 180;
-    const dx = Math.cos(angle) * 0.0018; // ~200m
-    const dy = Math.sin(angle) * 0.0018;
-    return {
-      id: `mock-${idx}`,
-      lat: pos.lat + dy,
-      lng: pos.lng + dx,
-      currency: "ETH",
-      amount: 0.005,
-      rarity: r,
-      category: "creature",
-      status: "pending",
-      claim_fee_usd: 0.5,
-      dropper_id: null,
-      dropper_name: "BLINK",
-      dropper_handle: "blink",
-      dropper_pic: null,
-      dropper_wallet: null,
-      message: "A creature stirs in the dark.",
-      expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-      created_at: new Date().toISOString(),
-    };
-  });
+  return spawnsToOrbs(getOrGenerateSpawns(pos.lat, pos.lng));
 }
 
 /* ------------------------------------------------------------------ */
@@ -276,12 +310,11 @@ export default function MapPage() {
   }, [user, fetchOrbs]);
 
   /* ---- Derived ---- */
-  // Dev-only: inject 4 mock creatures around the user so the visual design is
-  // easy to verify locally without spawning real orbs. Skipped in production.
+  // Phase 4 mock-spawn fallback: when no real spawns are in the DB, hand the
+  // user 6–12 generated spawns around them so the visibility-tier system is
+  // verifiable end-to-end. Real geo-spatial queries land in Phase 5.
   const orbsForRender: Orb[] =
-    process.env.NODE_ENV !== "production" && position && orbs.length === 0
-      ? mockSpawnsAround(position)
-      : orbs;
+    position && orbs.length === 0 ? mockSpawnsAround(position) : orbs;
 
   const filteredOrbs =
     activeFilter === "All"
@@ -290,14 +323,42 @@ export default function MapPage() {
         ? orbsForRender.filter((o) => (o as any).chain === CHAIN_FILTER_MAP[activeFilter] || o.currency === activeFilter)
         : orbsForRender.filter((o) => o.category?.toLowerCase() === activeFilter.toLowerCase());
 
-  const orbsWithDistance = filteredOrbs.map((o) => ({
-    ...o,
-    distance: position ? haversine(position.lat, position.lng, o.lat, o.lng) : Infinity,
-  }));
+  const orbsWithDistance = filteredOrbs.map((o) => {
+    const distance = position ? haversine(position.lat, position.lng, o.lat, o.lng) : Infinity;
+    const bearing = position ? bearingDeg(position.lat, position.lng, o.lat, o.lng) : 0;
+    const tier: Tier = position ? tierFromDistance(distance) : "far";
+    // Look up the matching creature image from the bestiary using the spawn id.
+    // Spawn IDs from blink-spawns encode creatureId in the id pattern, but we
+    // also have the rarity → BESTIARY lookup via dropper_name above.
+    const creatureName = (o as { dropper_name?: string }).dropper_name;
+    const creature = BESTIARY.find((c) => c.name === creatureName);
+    return {
+      ...o,
+      distance,
+      bearing,
+      tier,
+      creatureImage: creature?.image ?? null,
+    };
+  });
 
   const sortedOrbs = [...orbsWithDistance].sort((a, b) => a.distance - b.distance);
 
-  const nearbyCount = orbsWithDistance.filter((o) => o.distance < 5000).length;
+  const nearbyCount = orbsWithDistance.filter((o) => o.distance < 500).length;
+
+  /* ---- Compass reading ---- */
+  const compassReading: CompassReading = (() => {
+    if (!position || orbsWithDistance.length === 0) {
+      return { tier: "none", distanceM: Infinity, bearingDeg: 0 };
+    }
+    const nearest = orbsWithDistance.reduce((a, b) =>
+      a.distance < b.distance ? a : b,
+    );
+    return {
+      tier: nearest.tier as CompassTier,
+      distanceM: nearest.distance,
+      bearingDeg: nearest.bearing,
+    };
+  })();
 
   /* ---- Claim flow ---- */
   const [crackError, setCrackError] = useState<string | null>(null);
@@ -453,7 +514,9 @@ export default function MapPage() {
         </Link>
 
         <span style={{ color: COLORS.textMuted, fontSize: 13, fontWeight: 500 }}>
-          Nearby: {nearbyCount} creature{nearbyCount !== 1 ? "s" : ""}
+          {nearbyCount > 0
+            ? `${nearbyCount} BLINK${nearbyCount !== 1 ? "S" : ""} sensed`
+            : "The Eye is quiet"}
         </span>
 
         <Link href="/profile" style={{ textDecoration: "none" }}>
@@ -557,20 +620,28 @@ export default function MapPage() {
         )}
       </div>
 
+      {/* ========== HOT/COLD COMPASS ========== */}
+      <BlinkCompass reading={compassReading} />
+
       {/* ========== MAP AREA ========== */}
       <div
         style={{ flex: 1, position: "relative", overflow: "hidden" }}
       >
         <HuntMap
-          orbs={filteredOrbs.map((o) => ({
+          orbs={orbsWithDistance.map((o) => ({
             ...o,
             latitude: o.lat,
             longitude: o.lng,
+            tier: o.tier,
+            distanceM: o.distance,
+            bearingDeg: o.bearing,
+            creatureImage: o.creatureImage,
           })) as unknown as ThemeOrb[]}
           userPosition={position}
           onSelectOrb={(orb: ThemeOrb) => {
-            const local = filteredOrbs.find((o) => o.id === orb.id);
+            const local = orbsWithDistance.find((o) => o.id === orb.id);
             if (local) setSelectedOrb(local);
+            wakeFab();
           }}
           mapRef={leafletMapRef}
         />

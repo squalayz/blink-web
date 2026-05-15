@@ -4,6 +4,7 @@ export type BlinkSound =
   | "awaken"
   | "reveal"
   | "spotted"
+  | "nearby"
   | "catchCommon"
   | "catchRare"
   | "catchMythic"
@@ -15,6 +16,7 @@ const SOUND_FILES: Record<BlinkSound, string> = {
   awaken: "/sounds/awaken.mp3",
   reveal: "/sounds/reveal.mp3",
   spotted: "/sounds/spotted.mp3",
+  nearby: "/sounds/nearby.mp3",
   catchCommon: "/sounds/catchCommon.mp3",
   catchRare: "/sounds/catchRare.mp3",
   catchMythic: "/sounds/catchMythic.mp3",
@@ -25,6 +27,7 @@ const FALLBACK_VOLUME: Record<BlinkSound, number> = {
   awaken: 0.55,
   reveal: 0.45,
   spotted: 0.4,
+  nearby: 0.35,
   catchCommon: 0.55,
   catchRare: 0.6,
   catchMythic: 0.75,
@@ -180,6 +183,13 @@ function playSynthetic(name: BlinkSound, volume: number): void {
     case "spotted":
       tone(1244.51, 0.0, 0.18, "sine", 0.55);
       tone(1864.66, 0.06, 0.2, "triangle", 0.3);
+      break;
+    case "nearby":
+      // heart-beat: two soft thumps
+      tone(110.0, 0.0, 0.12, "sine", 0.9);
+      tone(73.42, 0.0, 0.16, "triangle", 0.55);
+      tone(110.0, 0.22, 0.1, "sine", 0.7);
+      tone(73.42, 0.22, 0.14, "triangle", 0.45);
       break;
     case "catchCommon":
       tone(523.25, 0.0, 0.25, "sine", 0.6);
