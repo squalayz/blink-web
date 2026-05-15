@@ -11,6 +11,7 @@ import { CinematicLoad } from "@/components/CinematicLoad";
 import { RevealOnScroll } from "@/components/RevealOnScroll";
 import { BlinkTokenStrip } from "@/components/BlinkTokenStrip";
 import { Hero } from "@/components/landing/Hero";
+import { HowItWorks } from "@/components/landing/HowItWorks";
 
 // Below-fold sections — code-split so the landing chunk stays lean.
 const BestiarySection = dynamic(
@@ -210,6 +211,11 @@ export default function HomePage() {
 
       {/* ─── HERO SECTION ─── */}
       <Hero />
+
+      {/* ─── HOW IT WORKS (3 steps) ─── */}
+      <RevealOnScroll>
+        <HowItWorks />
+      </RevealOnScroll>
 
       {/* ─── $BLINK TOKEN STRIP ─── */}
       <RevealOnScroll>
