@@ -39,7 +39,7 @@ export function BestiarySection() {
     <section
       id="bestiary"
       style={{
-        padding: "96px 24px",
+        padding: "96px clamp(16px, 5vw, 24px)",
         maxWidth: 1320,
         margin: "0 auto",
         position: "relative",
@@ -89,6 +89,9 @@ export function BestiarySection() {
           display: "grid",
           gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
           gap: 18,
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
         }}
       >
         {BESTIARY.map((c) => {
@@ -282,7 +285,7 @@ export function BestiarySection() {
         @media (max-width: 480px) {
           .blink-bestiary-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 12px !important;
+            gap: 10px !important;
           }
         }
       `}</style>

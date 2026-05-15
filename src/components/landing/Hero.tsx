@@ -209,7 +209,9 @@ export function Hero() {
               textTransform: "uppercase",
               cursor: "pointer",
               animation: "heroBlinkButtonGlow 2.6s ease-in-out infinite",
-              minWidth: 280,
+              // Stay inside 320px viewport: never wider than parent.
+              minWidth: "min(280px, 100%)",
+              maxWidth: "100%",
             }}
           >
             🌍 Enter the world →
@@ -221,7 +223,7 @@ export function Hero() {
             rel="noreferrer"
             style={{
               fontFamily: "Space Grotesk, Inter, sans-serif",
-              padding: "12px 26px",
+              padding: "12px 22px",
               borderRadius: 999,
               border: `1px solid ${GREEN}66`,
               background: "rgba(0,255,136,0.05)",
@@ -233,7 +235,10 @@ export function Hero() {
               textDecoration: "none",
               display: "inline-flex",
               alignItems: "center",
+              justifyContent: "center",
               gap: 8,
+              maxWidth: "100%",
+              textAlign: "center",
             }}
           >
             Mint your first BLINK · 0.25 ETH

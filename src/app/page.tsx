@@ -294,10 +294,13 @@ export default function HomePage() {
               key={row.rank}
               style={{
                 display: "grid",
-                gridTemplateColumns: "60px 1fr auto auto",
+                // Two named tracks so the region/caught can wrap to a second
+                // line on phones instead of forcing horizontal overflow.
+                gridTemplateColumns: "44px minmax(0, 1fr) auto",
                 alignItems: "center",
-                gap: 16,
-                padding: "16px 20px",
+                columnGap: 12,
+                rowGap: 4,
+                padding: "14px 16px",
                 borderBottom: `1px solid ${BLINK.border}`,
               }}
             >
@@ -306,16 +309,34 @@ export default function HomePage() {
                   fontFamily: "Space Grotesk, Inter, sans-serif",
                   fontWeight: 900,
                   color: BLINK.green,
-                  fontSize: 22,
+                  fontSize: 20,
                 }}
               >
                 {String(row.rank).padStart(2, "0")}
               </span>
-              <span style={{ fontWeight: 700, fontSize: 16 }}>@{row.name}</span>
-              <span style={{ fontSize: 12, color: BLINK.muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+              <span
+                style={{
+                  fontWeight: 700,
+                  fontSize: 15,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  minWidth: 0,
+                }}
+              >
+                @{row.name}
+              </span>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: BLINK.muted,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {row.region}
               </span>
-              <span style={{ fontSize: 12, color: BLINK.muted }}>{row.caught}</span>
             </div>
           ))}
           <div style={{ padding: 18, textAlign: "center" }}>
@@ -353,7 +374,9 @@ export default function HomePage() {
             maxWidth: 980,
             margin: "0 auto",
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            // min(...) lets the col shrink below 280 on tiny viewports so the
+            // grid never blows past 100vw.
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))",
             gap: 36,
             alignItems: "center",
           }}

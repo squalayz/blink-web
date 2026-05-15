@@ -51,7 +51,7 @@ export function MintFoundersCTA() {
     <section
       id="mint-founders"
       style={{
-        padding: "72px 24px",
+        padding: "72px clamp(16px, 5vw, 24px)",
         maxWidth: 1100,
         margin: "0 auto",
       }}
@@ -64,7 +64,7 @@ export function MintFoundersCTA() {
           background: `linear-gradient(135deg, ${SURFACE2}, rgba(0,255,136,0.06))`,
           border: `1px solid ${BORDER}`,
           borderRadius: 28,
-          padding: "44px 36px",
+          padding: "clamp(28px, 6vw, 44px) clamp(20px, 5vw, 36px)",
           overflow: "hidden",
           animation: "mintRecruiterPulse 4s ease-in-out infinite",
         }}
@@ -269,8 +269,14 @@ export function MintFoundersCTA() {
         }
         @media (max-width: 480px) {
           .mint-recruiter-portraits :global(.mint-recruiter-portrait) {
-            width: 96px !important;
-            height: 96px !important;
+            width: 88px !important;
+            height: 88px !important;
+          }
+        }
+        @media (max-width: 360px) {
+          .mint-recruiter-portraits :global(.mint-recruiter-portrait) {
+            width: 72px !important;
+            height: 72px !important;
           }
         }
       `}</style>

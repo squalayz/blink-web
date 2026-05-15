@@ -69,12 +69,53 @@ imported from the landing page — it's still on disk for other surfaces.
 
 - All headlines use `clamp()` so they scale 44px → 128px without overflow.
 - Cards collapse to single-column at 720–820px breakpoints.
-- Primary CTA `minWidth: 280px` so it doesn't shrink awkwardly.
+- Primary CTA caps at `min(280px, 100%)` so it never overflows a 320px viewport.
 - Hero CTA group has bottom padding so it never collides with the
   bottom-right SoundToggle from Phase 5b.
 - Mini-map sizes via `vmin` units, so orbiters scale with the screen.
 - `prefers-reduced-motion` collapses every animation in the new components
   (Hero, HeroMapPreview, HowItWorks, TwoWaysToEarn, MintFoundersCTA).
+
+### Phase-6 mobile audit (post-release sweep)
+
+A second pass — driven by `BLINK_PHASE6_MOBILE_AUDIT.md` after a user
+reported the Bestiary cards hanging off the right edge on iPhone Safari —
+killed every remaining source of horizontal overflow at 320 / 390 / 430 /
+768 / 1440. Detection runs via headless Chromium (Playwright-core, system
+binary) using `scripts/mobile-overflow-check.mjs`, which whitelists
+decorative-only ancestors (hero ticker, orbit rings) and flags anything
+whose layout rect overshoots `clientWidth`.
+
+| Component | Before | After |
+|---|---|---|
+| `Hero.tsx` | Primary CTA pinned at `minWidth: 280px`; broke 320 viewport | `minWidth: min(280px, 100%); maxWidth: 100%`. Secondary mint pill also `maxWidth: 100%`, centered. |
+| `BlinkTokenStrip.tsx` | `grid-template-columns: 1fr auto 1fr` — the nowrap contract pill forced the column wider than viewport | `minmax(0, ...)` across all three columns; pill is `flex-wrap: wrap`; mobile media query also `minmax(0, 1fr)` |
+| `src/app/page.tsx` (The Council) | Ranking rows used `60px 1fr auto auto` — Lisbon column pushed past viewport at 320 | Now `44px minmax(0, 1fr) auto` with name truncated via `text-overflow: ellipsis`. Dead "caught" column dropped (was always `—`). |
+| `src/app/page.tsx` (The Eye Speaks) | `repeat(auto-fit, minmax(280px, 1fr))` forced a 280px column at 320 viewport (272 inner) | `minmax(min(280px, 100%), 1fr)` — column shrinks instead of overflowing |
+| `BestiarySection.tsx` / `MythicsSection.tsx` | Already `minmax(0, 1fr)` but section padding fixed at 24px | Padding now `clamp(16px, 5vw, 24px)`; grids gain explicit `width: 100%; minWidth: 0` belt-and-braces |
+| `MintFoundersCTA.tsx` | Floating portrait tiles 130px stayed 96px below 480 | Now 88px below 480, 72px below 360; card padding also clamps so the recruiter card never blows past the viewport |
+
+Detector summary on the post-fix build:
+
+```
+OK    iphone-se     320    body=320     offenders=0
+OK    iphone-13     390    body=390     offenders=0
+OK    iphone-plus   430    body=430     offenders=0
+OK    ipad          768    body=768     offenders=0
+OK    desktop       1440   body=1440    offenders=0
+```
+
+Mainnet contracts were NOT touched. Production routes `/map` and `/auth`
+were NOT touched.
+
+#### Mobile audit screenshots
+
+| Viewport | Before | After |
+|---|---|---|
+| iPhone SE 320 (Bestiary) | `docs/phase6-screenshots/iphone-se-bestiary-before.png` | `docs/phase6-screenshots/mobile-iphone-se-fixed.png` |
+| iPhone 13 390 (Bestiary) | `docs/phase6-screenshots/iphone-13-bestiary-before.png` | `docs/phase6-screenshots/mobile-iphone-13-fixed.png` |
+| iPhone SE 320 (Token strip) | `docs/phase6-screenshots/iphone-se-token-before.png` | `docs/phase6-screenshots/iphone-se-token-fixed.png` |
+| iPhone SE 320 (Council) | (broken) | `docs/phase6-screenshots/iphone-se-council-fixed.png` |
 
 ---
 

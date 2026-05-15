@@ -72,7 +72,9 @@ export function BlinkTokenStrip() {
           style={{
             position: "relative",
             display: "grid",
-            gridTemplateColumns: "1fr auto 1fr",
+            // minmax(0, ...) lets each column shrink below its content's
+            // min-width so the long contract pill can't blow horizontal layout.
+            gridTemplateColumns: "minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr)",
             alignItems: "center",
             gap: 18,
           }}
@@ -133,8 +135,11 @@ export function BlinkTokenStrip() {
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
+              justifySelf: "center",
               gap: 8,
-              whiteSpace: "nowrap",
+              flexWrap: "wrap",
+              justifyContent: "center",
+              maxWidth: "100%",
             }}
           >
             <span style={{ color: GREEN, fontWeight: 700 }}>
@@ -166,6 +171,8 @@ export function BlinkTokenStrip() {
               justifyContent: "flex-end",
               alignItems: "center",
               gap: 10,
+              flexWrap: "wrap",
+              minWidth: 0,
             }}
           >
             {TRADING_ACTIVE ? (
@@ -257,9 +264,10 @@ export function BlinkTokenStrip() {
       <style>{`
         @media (max-width: 768px) {
           .blink-token-strip-row {
-            grid-template-columns: 1fr !important;
+            grid-template-columns: minmax(0, 1fr) !important;
             gap: 14px !important;
             text-align: center;
+            justify-items: center;
           }
           .blink-token-strip-row > div:last-child {
             justify-content: center !important;

@@ -66,7 +66,7 @@ export function MythicsSection() {
     <section
       id="mythics"
       style={{
-        padding: "96px 24px",
+        padding: "96px clamp(16px, 5vw, 24px)",
         maxWidth: 1320,
         margin: "0 auto",
         position: "relative",
@@ -115,6 +115,9 @@ export function MythicsSection() {
           display: "grid",
           gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
           gap: 18,
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
         }}
       >
         {mythics === null
