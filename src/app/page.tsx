@@ -7,9 +7,16 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/providers";
 import { BestiarySection } from "@/components/BestiarySection";
+import { CinematicLoad } from "@/components/CinematicLoad";
+import { RevealOnScroll } from "@/components/RevealOnScroll";
+import { BlinkTokenStrip } from "@/components/BlinkTokenStrip";
 
 const HeroEye = dynamic(() => import("@/components/HeroEye"), { ssr: false });
 const FloatingCreatures = dynamic(() => import("@/components/FloatingCreatures").then(m => m.FloatingCreatures), { ssr: false });
+const MythicsSection = dynamic(
+  () => import("@/components/MythicsSection").then((m) => m.MythicsSection),
+  { ssr: false },
+);
 
 const TG_GROUP = "https://t.me/+7Xj6CKZs9iVmMDhh";
 
@@ -24,15 +31,17 @@ const BLINK = {
   border: "rgba(0,255,136,0.10)",
 };
 
+// Poetic non-numeric ticker — replaces the old fake stat lines. No fabricated
+// counts. Real telemetry can swap in once `/api/activity/live` ships.
 const TICKER_ITEMS = [
-  "@watcher_x caught a Cyclops in NYC",
-  "Sprite spawning in Tokyo",
-  "1,243 active watchers worldwide",
-  "@blink_oracle witnessed a Legendary Serpent in Seoul",
-  "Cat sighting reported in Berlin",
-  "@theseer joined The Council",
   "The Eye opens over Lagos",
-  "New species detected: rarity unknown",
+  "Sprites stirring in Tokyo",
+  "A Cyclops blinks in Brooklyn",
+  "The Council membership awakens",
+  "Sightings every minute · Worldwide",
+  "Phoenix tail trail · Lisbon",
+  "Hushlings detected in Berlin",
+  "The First Eye is always watching",
 ];
 
 const KEYFRAMES = `
@@ -106,6 +115,7 @@ export default function HomePage() {
       }}
     >
       <style>{KEYFRAMES}</style>
+      <CinematicLoad />
       <FloatingCreatures />
 
       {/* ─── Top Nav ─── */}
@@ -360,10 +370,23 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ─── $BLINK TOKEN STRIP ─── */}
+      <RevealOnScroll>
+        <BlinkTokenStrip />
+      </RevealOnScroll>
+
       {/* ─── BESTIARY ─── */}
-      <BestiarySection />
+      <RevealOnScroll>
+        <BestiarySection />
+      </RevealOnScroll>
+
+      {/* ─── THE MYTHICS ─── */}
+      <RevealOnScroll>
+        <MythicsSection />
+      </RevealOnScroll>
 
       {/* ─── HOW IT WORKS ─── */}
+      <RevealOnScroll>
       <section
         style={{
           padding: "96px 24px",
@@ -462,7 +485,10 @@ export default function HomePage() {
         </div>
       </section>
 
+      </RevealOnScroll>
+
       {/* ─── THE COUNCIL ─── */}
+      <RevealOnScroll>
       <section style={{ padding: "96px 24px", maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           <span
@@ -553,7 +579,10 @@ export default function HomePage() {
         </div>
       </section>
 
+      </RevealOnScroll>
+
       {/* ─── THE EYE SPEAKS ─── */}
+      <RevealOnScroll>
       <section
         style={{
           padding: "96px 24px",
@@ -655,7 +684,10 @@ export default function HomePage() {
         </div>
       </section>
 
+      </RevealOnScroll>
+
       {/* ─── FINAL CTA ─── */}
+      <RevealOnScroll>
       <section
         style={{
           padding: "120px 24px",
@@ -710,6 +742,8 @@ export default function HomePage() {
           Enter The Eye
         </button>
       </section>
+
+      </RevealOnScroll>
 
       {/* ─── FOOTER ─── */}
       <footer
