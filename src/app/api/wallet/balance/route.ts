@@ -1,12 +1,17 @@
-// ETH-only balance lookup.
+// ETH + BLINK balance lookup.
 // Accepts ?address=0x... or legacy ?eth_address=0x... query params.
-// Returns native ETH balance as a number.
+// Returns native ETH balance plus BLINK ERC-20 balance.
 
 import { NextRequest, NextResponse } from "next/server";
 import { ethers } from "ethers";
 import { isValidAddress } from "@/lib/production";
 
 const RPC_URL = (process.env.ETH_RPC_URL || "https://ethereum-rpc.publicnode.com").trim();
+const BLINK_TOKEN_CONTRACT = "0xe7BF94959b0bfa8CB9e61149de5BFb387B40761B";
+const ERC20_ABI = [
+  "function balanceOf(address) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+];
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -21,11 +26,19 @@ export async function GET(req: NextRequest) {
 
   try {
     const provider = new ethers.JsonRpcProvider(RPC_URL);
-    const wei = await provider.getBalance(address);
+    const erc20 = new ethers.Contract(BLINK_TOKEN_CONTRACT, ERC20_ABI, provider);
+
+    // Fetch ETH + BLINK in parallel. Treat BLINK failure as soft (return 0).
+    const [wei, blinkRaw] = await Promise.all([
+      provider.getBalance(address),
+      erc20.balanceOf(address).catch(() => 0n) as Promise<bigint>,
+    ]);
+
     const eth = Number(ethers.formatEther(wei));
+    const blink = Number(ethers.formatUnits(blinkRaw, 18));
 
     return NextResponse.json(
-      { address, eth, balance: eth },
+      { address, eth, blink, balance: eth },
       {
         headers: {
           "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
