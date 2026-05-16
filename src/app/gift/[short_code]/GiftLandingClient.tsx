@@ -11,6 +11,18 @@ import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/theme";
 
+const IN_APP_WEBVIEW_HINTS = ["Telegram", "FBAN", "FBAV", "Instagram", "Twitter", "Line"];
+
+type GeoStep =
+  | { kind: "checking" }
+  | { kind: "prompt" }
+  | { kind: "requesting" }
+  | { kind: "denied" }
+  | { kind: "timeout" }
+  | { kind: "unavailable" }
+  | { kind: "unsupported" }
+  | { kind: "navigating" };
+
 interface GiftPreview {
   short_code: string;
   asset_type: "eth" | "blink" | "nft";
@@ -48,8 +60,11 @@ export default function GiftLandingClient() {
   const [authBusy, setAuthBusy] = useState(false);
   const [authErr, setAuthErr] = useState("");
 
-  const [opening, setOpening] = useState(false);
-  const [openErr, setOpenErr] = useState("");
+  const [geoStep, setGeoStep] = useState<GeoStep>({ kind: "checking" });
+  const [isIOS, setIsIOS] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(false);
+  const [isInAppWebView, setIsInAppWebView] = useState(false);
+  const [copyHint, setCopyHint] = useState("");
 
   const fetchPreview = useCallback(async () => {
     setLoading(true);
@@ -103,20 +118,78 @@ export default function GiftLandingClient() {
     }
   }
 
-  async function acceptHunt() {
-    if (!user) return;
-    setOpenErr("");
-    setOpening(true);
-    try {
-      // Defer location prompt + spawn creation to the hunt page so the user
-      // only sees one geolocation dialog and one transition.
-      router.push(`/gift/${code}/hunt`);
-    } catch (err) {
-      setOpenErr(err instanceof Error ? err.message : "Failed");
-    } finally {
-      setOpening(false);
+  // UA sniff — runs once on mount.
+  useEffect(() => {
+    if (typeof navigator === "undefined") return;
+    const ua = navigator.userAgent || "";
+    setIsIOS(/iPad|iPhone|iPod/.test(ua));
+    setIsAndroid(/Android/.test(ua));
+    setIsInAppWebView(IN_APP_WEBVIEW_HINTS.some((hint) => ua.includes(hint)));
+  }, []);
+
+  const requestLocation = useCallback(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setGeoStep({ kind: "unsupported" });
+      return;
     }
-  }
+    setGeoStep({ kind: "requesting" });
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        setGeoStep({ kind: "navigating" });
+        router.push(`/gift/${code}/hunt?geo_ok=1`);
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) setGeoStep({ kind: "denied" });
+        else if (err.code === err.TIMEOUT) setGeoStep({ kind: "timeout" });
+        else if (err.code === err.POSITION_UNAVAILABLE) setGeoStep({ kind: "unavailable" });
+        else setGeoStep({ kind: "denied" });
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+    );
+  }, [code, router]);
+
+  // Pre-check permission state once auth is settled.
+  useEffect(() => {
+    if (!user) return;
+    if (typeof navigator === "undefined") return;
+
+    let cancelled = false;
+
+    async function check() {
+      const perms = (navigator as Navigator & { permissions?: { query: (q: { name: PermissionName }) => Promise<PermissionStatus> } }).permissions;
+      if (!perms || typeof perms.query !== "function") {
+        if (!cancelled) setGeoStep({ kind: "prompt" });
+        return;
+      }
+      try {
+        const status = await perms.query({ name: "geolocation" as PermissionName });
+        if (cancelled) return;
+        if (status.state === "granted") {
+          requestLocation();
+        } else if (status.state === "denied") {
+          setGeoStep({ kind: "denied" });
+        } else {
+          setGeoStep({ kind: "prompt" });
+        }
+      } catch {
+        if (!cancelled) setGeoStep({ kind: "prompt" });
+      }
+    }
+
+    check();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, requestLocation]);
+
+  const copyLinkToClipboard = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopyHint("Link copied — paste it in Safari or Chrome.");
+    } catch {
+      setCopyHint("Couldn't copy. Long-press the address bar to copy this URL.");
+    }
+  }, []);
 
   if (loading || authLoading) {
     return (
@@ -328,22 +401,16 @@ export default function GiftLandingClient() {
             </div>
           </form>
         ) : (
-          <div style={{ marginTop: 22 }}>
-            <button
-              type="button"
-              onClick={acceptHunt}
-              disabled={opening}
-              style={{ ...primaryBtn, width: "100%", height: 56, fontSize: 15, opacity: opening ? 0.6 : 1 }}
-            >
-              {opening ? "Spawning your gift…" : "Accept the Hunt"}
-            </button>
-            {openErr && (
-              <div style={{ color: C.danger, fontSize: 13, marginTop: 10, textAlign: "center" }}>{openErr}</div>
-            )}
-            <div style={{ fontSize: 12, color: C.muted, textAlign: "center", marginTop: 12 }}>
-              We'll ask for location once. Then you walk to your gift.
-            </div>
-          </div>
+          <GeoStepPanel
+            step={geoStep}
+            isIOS={isIOS}
+            isAndroid={isAndroid}
+            isInAppWebView={isInAppWebView}
+            copyHint={copyHint}
+            onRequestLocation={requestLocation}
+            onCopyLink={copyLinkToClipboard}
+            onReload={() => window.location.reload()}
+          />
         )}
       </div>
     </div>
@@ -444,6 +511,183 @@ function AssetCard({ gift }: { gift: GiftPreview }) {
   );
 }
 
+function GeoStepPanel({
+  step,
+  isIOS,
+  isAndroid,
+  isInAppWebView,
+  copyHint,
+  onRequestLocation,
+  onCopyLink,
+  onReload,
+}: {
+  step: GeoStep;
+  isIOS: boolean;
+  isAndroid: boolean;
+  isInAppWebView: boolean;
+  copyHint: string;
+  onRequestLocation: () => void;
+  onCopyLink: () => void;
+  onReload: () => void;
+}) {
+  if (step.kind === "checking" || step.kind === "navigating") {
+    return (
+      <div style={{ marginTop: 22, textAlign: "center", color: C.muted, fontSize: 13 }}>
+        {step.kind === "navigating" ? "Finding your gift…" : "Checking location access…"}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 22 }}>
+      {isInAppWebView && (
+        <div style={geoWebviewBanner}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 }}>
+            Tip: open this in your browser
+          </div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 10, lineHeight: 1.45 }}>
+            Chat-app browsers often block location. Tap the menu (top right) and choose
+            &ldquo;Open in Browser&rdquo; — Safari on iPhone, Chrome on Android.
+          </div>
+          <button type="button" onClick={onCopyLink} style={geoSecondaryBtn}>
+            Copy Link
+          </button>
+          {copyHint && (
+            <div style={{ fontSize: 11, color: C.primary, marginTop: 8 }}>{copyHint}</div>
+          )}
+        </div>
+      )}
+
+      {step.kind === "prompt" && (
+        <>
+          <div style={geoHeading}>One more step</div>
+          <div style={geoSubheading}>We need your location</div>
+          <p style={geoBody}>
+            Your gift spawned somewhere near you. Tap below to find out where.
+          </p>
+          <button
+            type="button"
+            onClick={onRequestLocation}
+            style={geoBigBtn}
+          >
+            Allow Location & Find Gift
+          </button>
+        </>
+      )}
+
+      {step.kind === "requesting" && (
+        <>
+          <div style={geoHeading}>One more step</div>
+          <div style={geoSubheading}>We need your location</div>
+          <p style={geoBody}>
+            Approve the location prompt to find your gift.
+          </p>
+          <button
+            type="button"
+            disabled
+            style={{ ...geoBigBtn, opacity: 0.7, cursor: "wait" }}
+          >
+            Waiting for permission…
+          </button>
+        </>
+      )}
+
+      {step.kind === "denied" && (
+        <div style={geoRecoveryCard}>
+          <div style={geoRecoveryEyebrow}>Action needed</div>
+          <div style={geoRecoveryTitle}>Location is blocked for this site</div>
+          <p style={geoRecoveryBody}>
+            {isIOS
+              ? "Safari has blocked location access for blinkworld.xyz. To unlock your gift:"
+              : isAndroid
+              ? "Chrome has blocked location access for blinkworld.xyz. To unlock your gift:"
+              : "Your browser has blocked location access for blinkworld.xyz. To unlock your gift:"}
+          </p>
+          <ol style={geoStepsList}>
+            {isAndroid ? (
+              <>
+                <li style={geoStepItem}>
+                  Tap the <strong style={geoStrong}>lock icon</strong> in the address bar
+                </li>
+                <li style={geoStepItem}>
+                  Tap <strong style={geoStrong}>Permissions</strong>
+                </li>
+                <li style={geoStepItem}>
+                  Set <strong style={geoStrong}>Location</strong> to <strong style={geoStrong}>Allow</strong>
+                </li>
+              </>
+            ) : (
+              <>
+                <li style={geoStepItem}>
+                  Tap <strong style={geoStrong}>AA</strong> in the Safari address bar (top-left)
+                </li>
+                <li style={geoStepItem}>
+                  Tap <strong style={geoStrong}>Website Settings</strong>
+                </li>
+                <li style={geoStepItem}>
+                  Set <strong style={geoStrong}>Location</strong> to <strong style={geoStrong}>Allow</strong>
+                </li>
+              </>
+            )}
+          </ol>
+          <button type="button" onClick={onRequestLocation} style={geoBigBtn}>
+            Try Again
+          </button>
+          <button
+            type="button"
+            onClick={onReload}
+            style={{ ...geoSecondaryBtn, width: "100%", marginTop: 10 }}
+          >
+            Reload Page
+          </button>
+        </div>
+      )}
+
+      {step.kind === "timeout" && (
+        <div style={geoRecoveryCard}>
+          <div style={geoRecoveryEyebrow}>Action needed</div>
+          <div style={geoRecoveryTitle}>Couldn&rsquo;t lock onto your location</div>
+          <p style={geoRecoveryBody}>Step outside or near a window and try again.</p>
+          <button type="button" onClick={onRequestLocation} style={geoBigBtn}>
+            Try Again
+          </button>
+        </div>
+      )}
+
+      {step.kind === "unavailable" && (
+        <div style={geoRecoveryCard}>
+          <div style={geoRecoveryEyebrow}>Action needed</div>
+          <div style={geoRecoveryTitle}>Your phone can&rsquo;t determine your location</div>
+          <p style={geoRecoveryBody}>
+            Check Settings → Privacy → Location Services and make sure it&rsquo;s on.
+          </p>
+          <button type="button" onClick={onRequestLocation} style={geoBigBtn}>
+            Try Again
+          </button>
+        </div>
+      )}
+
+      {step.kind === "unsupported" && (
+        <div style={geoRecoveryCard}>
+          <div style={geoRecoveryEyebrow}>Action needed</div>
+          <div style={geoRecoveryTitle}>Location not supported</div>
+          <p style={geoRecoveryBody}>
+            This browser doesn&rsquo;t support location. Open the link in Safari or Chrome.
+          </p>
+          <button type="button" onClick={onCopyLink} style={{ ...geoSecondaryBtn, width: "100%" }}>
+            Copy Link
+          </button>
+          {copyHint && (
+            <div style={{ fontSize: 12, color: C.primary, marginTop: 10, textAlign: "center" }}>
+              {copyHint}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Glyph({ muted = false }: { muted?: boolean }) {
   const color = muted ? C.muted : C.primary;
   return (
@@ -513,4 +757,120 @@ const primaryAnchor: React.CSSProperties = {
   alignItems: "center",
   textDecoration: "none",
   height: 46,
+};
+
+const geoHeading: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 800,
+  letterSpacing: "0.28em",
+  color: C.primary,
+  textTransform: "uppercase",
+  textShadow: "0 0 12px rgba(0,255,136,0.45)",
+  marginBottom: 6,
+};
+
+const geoSubheading: React.CSSProperties = {
+  fontSize: 20,
+  fontWeight: 800,
+  color: C.text,
+  letterSpacing: "-0.3px",
+  marginBottom: 6,
+  lineHeight: 1.2,
+};
+
+const geoBody: React.CSSProperties = {
+  fontSize: 14,
+  color: C.muted,
+  lineHeight: 1.55,
+  margin: "0 0 18px",
+};
+
+const geoBigBtn: React.CSSProperties = {
+  width: "100%",
+  height: 56,
+  borderRadius: 28,
+  border: "none",
+  background: `linear-gradient(135deg, ${C.primary} 0%, ${C.primary2} 100%)`,
+  color: "#0a0a0f",
+  fontWeight: 800,
+  fontSize: 15,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  boxShadow: "0 6px 24px rgba(0,255,136,0.35)",
+};
+
+const geoSecondaryBtn: React.CSSProperties = {
+  height: 42,
+  borderRadius: 21,
+  background: "transparent",
+  color: C.primary,
+  border: `1px solid ${C.primary}66`,
+  fontWeight: 700,
+  fontSize: 12,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  padding: "0 16px",
+};
+
+const geoRecoveryCard: React.CSSProperties = {
+  padding: "18px 16px",
+  borderRadius: 16,
+  background: C.surface,
+  border: `1px solid ${C.danger}55`,
+  boxShadow: "0 8px 28px rgba(0,0,0,0.45)",
+};
+
+const geoRecoveryEyebrow: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 800,
+  letterSpacing: "0.28em",
+  color: C.danger,
+  textTransform: "uppercase",
+  marginBottom: 8,
+};
+
+const geoRecoveryTitle: React.CSSProperties = {
+  fontSize: 18,
+  fontWeight: 800,
+  color: C.text,
+  letterSpacing: "-0.3px",
+  marginBottom: 8,
+  lineHeight: 1.25,
+};
+
+const geoRecoveryBody: React.CSSProperties = {
+  fontSize: 13,
+  color: C.muted,
+  lineHeight: 1.55,
+  margin: "0 0 12px",
+};
+
+const geoStepsList: React.CSSProperties = {
+  listStyle: "decimal",
+  paddingLeft: 22,
+  margin: "0 0 16px",
+  color: C.text,
+  fontSize: 13,
+  lineHeight: 1.6,
+};
+
+const geoStepItem: React.CSSProperties = {
+  marginBottom: 4,
+};
+
+const geoStrong: React.CSSProperties = {
+  color: C.primary,
+  fontWeight: 800,
+};
+
+const geoWebviewBanner: React.CSSProperties = {
+  padding: "14px 14px 16px",
+  border: `1px solid ${C.primary}44`,
+  borderRadius: 14,
+  background: "rgba(0,255,136,0.05)",
+  marginBottom: 16,
 };

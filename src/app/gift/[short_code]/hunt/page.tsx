@@ -74,6 +74,13 @@ export default function HuntPage() {
   const router = useRouter();
   const code = String(params.short_code || "").toLowerCase();
   const { user, loading: authLoading } = useAuth();
+  const autoStartedRef = useRef(false);
+  const [geoOk, setGeoOk] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setGeoOk(new URLSearchParams(window.location.search).get("geo_ok") === "1");
+  }, []);
 
   const [state, setState] = useState<OpenedState | null>(null);
   const [step, setStep] = useState<Step>({ kind: "preview-loading" });
@@ -194,6 +201,14 @@ export default function HuntPage() {
     },
     [code]
   );
+
+  useEffect(() => {
+    if (!geoOk) return;
+    if (autoStartedRef.current) return;
+    if (step.kind !== "welcome") return;
+    autoStartedRef.current = true;
+    startHunt(step.preview);
+  }, [geoOk, step, startHunt]);
 
   const copyLinkToClipboard = useCallback(async () => {
     try {
