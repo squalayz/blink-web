@@ -29,6 +29,24 @@ const PlacementMap = dynamic(() => import("./PlacementMap"), { ssr: false });
 
 type OrbKind = "Crypto" | "NFT" | "Task" | "Stealth";
 
+type CreaturePath = "own" | "burn" | null;
+type BurnTierKey = "common" | "uncommon" | "rare" | "legendary" | "mythic";
+interface OwnedCreature {
+  contract: string;
+  tokenId: string;
+  name: string;
+  image: string | null;
+  collection: "genesis" | "mythics";
+}
+
+const BURN_TIERS: { key: BurnTierKey; label: string; cost: number; color: string }[] = [
+  { key: "common",    label: "Common",    cost: 50_000,     color: "#FFFFFF" },
+  { key: "uncommon",  label: "Uncommon",  cost: 250_000,    color: "#66E3FF" },
+  { key: "rare",      label: "Rare",      cost: 1_000_000,  color: "#6BB5FF" },
+  { key: "legendary", label: "Legendary", cost: 5_000_000,  color: "#FFD773" },
+  { key: "mythic",    label: "Mythic",    cost: 20_000_000, color: "#FF6BD6" },
+];
+
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
@@ -66,8 +84,8 @@ const ORB_TYPES: {
   },
   {
     kind: "NFT",
-    title: "NFT Creature",
-    desc: "Hide an NFT on The Eye Map for someone to find. Digital treasure watching.",
+    title: "Place a BLINK Creature",
+    desc: "Use a BLINK NFT you own or burn $BLINK to summon a fresh one. Whoever catches it walks away with it.",
     borderColor: C.gold,
     glowColor: C.gold,
   },
@@ -509,14 +527,15 @@ export default function DropOrbPage() {
   const [submitError, setSubmitError] = useState("");
   const [isSigning, setIsSigning] = useState(false);
 
-  /* step 2 (NFT) */
-  const [nftImage, setNftImage] = useState<string | null>(null);
-  const [nftImageFile, setNftImageFile] = useState<File | null>(null);
-  const [nftName, setNftName] = useState("");
-  const [nftDescription, setNftDescription] = useState("");
-  const [nftChain, setNftChain] = useState<"ETH" | "SOL">("ETH");
-  const [nftRarity, setNftRarity] = useState<"Common" | "Rare" | "Legendary">("Common");
-  const [nftUploading, setNftUploading] = useState(false);
+  /* step 2 (Creature path) */
+  const [creaturePath, setCreaturePath] = useState<CreaturePath>(null);
+  const [ownedCreatures, setOwnedCreatures] = useState<OwnedCreature[]>([]);
+  const [ownedLoading, setOwnedLoading] = useState(false);
+  const [selectedCreature, setSelectedCreature] = useState<OwnedCreature | null>(null);
+  const [salePriceEth, setSalePriceEth] = useState("");
+  const [blinkBalance, setBlinkBalance] = useState<number | null>(null);
+  const [blinkBalanceLoading, setBlinkBalanceLoading] = useState(false);
+  const [burnTier, setBurnTier] = useState<BurnTierKey | null>(null);
 
   /* derived */
   const amountNum = parseFloat(amount) || 0;
@@ -601,15 +620,9 @@ export default function DropOrbPage() {
   }, [step, currency, user]);
 
   /* ---- navigation ---- */
-  const goNext = () => setStep((s) => {
-    // NFT orbs skip step 3 (media) — go from step 2 directly to step 4 (location)
-    if (orbType === "NFT" && s === 2) return 4;
-    return Math.min(s + 1, TOTAL_STEPS);
-  });
+  const goNext = () => setStep((s) => Math.min(s + 1, TOTAL_STEPS));
   const goBack = () => {
     if (step === 1) router.push("/watch");
-    // NFT orbs skip step 3 on the way back too
-    else if (orbType === "NFT" && step === 4) setStep(2);
     else setStep((s) => s - 1);
   };
 
@@ -620,12 +633,23 @@ export default function DropOrbPage() {
       ? amountNum + gasBuffer <= walletBalance
       : true; // don't block if balance unknown
 
-  const nftClaimFees: Record<string, number> = { Common: 0, Rare: 1, Legendary: 5 };
+  const burnTierCost = burnTier
+    ? BURN_TIERS.find((t) => t.key === burnTier)?.cost ?? 0
+    : 0;
 
   const canAdvance = (() => {
     if (step === 1) return orbType !== null;
     if (step === 2) {
-      if (orbType === "NFT") return !!nftImage && !nftUploading && nftName.trim().length > 0;
+      if (orbType === "NFT") {
+        if (creaturePath === null) return false;
+        if (creaturePath === "own") return selectedCreature !== null;
+        if (creaturePath === "burn") {
+          if (!burnTier) return false;
+          if (blinkBalance === null) return false;
+          return blinkBalance >= burnTierCost;
+        }
+        return false;
+      }
       return amountNum > 0 && amountUsd >= 0.01 && hasSufficientFunds;
     }
     if (step === 3) return true; // media step is always skippable
@@ -672,25 +696,57 @@ export default function DropOrbPage() {
       if (!session?.access_token) throw new Error("Not authenticated");
 
       const isNft = orbType === "NFT";
-      const payload: Record<string, unknown> = isNft ? {
+
+      // Path B: burn-to-mint via dedicated endpoint.
+      if (isNft && creaturePath === "burn" && burnTier) {
+        const res = await fetch("/api/spawn/burn-mint", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            tier: burnTier,
+            lat,
+            lng,
+            message: message.trim() || null,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Burn-mint failed");
+        }
+        setSubmitting(false);
+        setLaunched(true);
+        return;
+      }
+
+      // Path A (own) and Crypto: existing /api/orbs/drop flow.
+      const payload: Record<string, unknown> = isNft && creaturePath === "own" && selectedCreature ? {
         type: "nft",
-        currency: nftChain,
-        chain: CURRENCY_CHAIN[nftChain as OrbCurrency],
+        currency: "ETH",
+        chain: "ethereum",
         amount: 0,
         amount_usd: 0,
-        claim_fee_usd: nftClaimFees[nftRarity],
-        message: nftName,
-        media_url: nftImage || null,
+        claim_fee_usd: 0,
+        message: message.trim() || `[NFT] ${selectedCreature.name}`,
+        media_url: selectedCreature.image || null,
         media_type: "image",
-        nft_name: nftName,
-        nft_description: nftDescription,
+        nft_name: selectedCreature.name,
         latitude: lat,
         longitude: lng,
-        rarity: nftRarity.toLowerCase(),
-        fee_wallet: FEE_WALLETS[nftChain as OrbCurrency],
+        rarity: selectedCreature.collection === "mythics" ? "legendary" : "rare",
+        fee_wallet: FEE_WALLETS.ETH,
         fee_percent: 0.1,
         radius_meters: 100,
         expires_at: expiresAt(168),
+        asset_type: "nft",
+        asset_payload: {
+          contract: selectedCreature.contract,
+          tokenId: selectedCreature.tokenId,
+          salePrice: parseFloat(salePriceEth) || 0,
+          mintedFromBurn: false,
+        },
       } : {
         type: orbType?.toLowerCase() ?? "crypto",
         currency,
@@ -742,7 +798,7 @@ export default function DropOrbPage() {
     user, orbType, currency, amountNum, amountUsd, claimFee,
     message, mediaUrl, mediaType, lat, lng, rarity, platformFeeWallet,
     locationMode, userLat, userLng, flingDistance, flingHeading,
-    nftImage, nftName, nftDescription, nftChain, nftRarity, nftClaimFees,
+    creaturePath, selectedCreature, salePriceEth, burnTier,
   ]);
 
   /* ---------------------------------------------------------------- */
@@ -774,7 +830,7 @@ export default function DropOrbPage() {
         amountNum={amountNum}
         currency={currency}
         orbType={orbType}
-        nftName={nftName}
+        nftName={selectedCreature?.name ?? ""}
         onDone={() => router.push("/watch")}
       />
     );
@@ -896,15 +952,25 @@ export default function DropOrbPage() {
           />
         )}
         {step === 2 && orbType === "NFT" && (
-          <Step2NFT
-            nftImage={nftImage} setNftImage={setNftImage}
-            nftImageFile={nftImageFile} setNftImageFile={setNftImageFile}
-            nftName={nftName} setNftName={setNftName}
-            nftDescription={nftDescription} setNftDescription={setNftDescription}
-            nftChain={nftChain} setNftChain={setNftChain}
-            nftRarity={nftRarity} setNftRarity={setNftRarity}
-            nftUploading={nftUploading} setNftUploading={setNftUploading}
-            userId={user.id}
+          <Step2Creature
+            path={creaturePath}
+            setPath={setCreaturePath}
+            ownedCreatures={ownedCreatures}
+            setOwnedCreatures={setOwnedCreatures}
+            ownedLoading={ownedLoading}
+            setOwnedLoading={setOwnedLoading}
+            selectedCreature={selectedCreature}
+            setSelectedCreature={setSelectedCreature}
+            salePriceEth={salePriceEth}
+            setSalePriceEth={setSalePriceEth}
+            blinkBalance={blinkBalance}
+            setBlinkBalance={setBlinkBalance}
+            blinkBalanceLoading={blinkBalanceLoading}
+            setBlinkBalanceLoading={setBlinkBalanceLoading}
+            burnTier={burnTier}
+            setBurnTier={setBurnTier}
+            userEthAddress={null}
+            isDesktop={isDesktop}
           />
         )}
         {step === 2 && orbType !== "NFT" && (
@@ -981,22 +1047,21 @@ export default function DropOrbPage() {
             currency={currency}
             amountNum={amountNum}
             amountUsd={amountUsd}
-            rarity={orbType === "NFT" ? nftRarity : rarity}
-            rarityCol={orbType === "NFT" ? rarityColor(nftRarity) : rarityCol}
-            claimFee={orbType === "NFT" ? nftClaimFees[nftRarity] : claimFee}
-            ownerEarns={orbType === "NFT" ? nftClaimFees[nftRarity] * 0.9 : ownerEarns}
-            platformEarns={orbType === "NFT" ? nftClaimFees[nftRarity] * 0.1 : platformEarns}
+            rarity={rarity}
+            rarityCol={rarityCol}
+            claimFee={claimFee}
+            ownerEarns={ownerEarns}
+            platformEarns={platformEarns}
             lat={lat}
             lng={lng}
             message={message}
             submitting={submitting}
             submitError={submitError}
             onLaunch={handleLaunch}
-            nftImage={nftImage}
-            nftName={nftName}
-            nftDescription={nftDescription}
-            nftChain={nftChain}
-            nftRarity={nftRarity}
+            creaturePath={creaturePath}
+            selectedCreature={selectedCreature}
+            salePriceEth={salePriceEth}
+            burnTier={burnTier}
           />
         )}
       </div>
@@ -1046,10 +1111,10 @@ export default function DropOrbPage() {
         currency={currency}
         amount={amount}
         amountUsd={amountUsd}
-        rarity={orbType === "NFT" ? nftRarity : rarity}
-        rarityCol={orbType === "NFT" ? rarityColor(nftRarity) : rarityCol}
-        nftName={nftName}
-        nftImage={nftImage}
+        rarity={rarity}
+        rarityCol={rarityCol}
+        nftName={selectedCreature?.name ?? ""}
+        nftImage={selectedCreature?.image ?? ""}
         step={step}
       />
     )}
@@ -1629,99 +1694,359 @@ function Step2Value({
 }
 
 /* ================================================================== */
-/*  Step 2 NFT -- Image, Name, Chain, Rarity                           */
+/*  Step 2 Creature -- Path picker + Own-NFT picker + Burn-tier picker */
 /* ================================================================== */
 
-function Step2NFT({
-  nftImage, setNftImage, nftImageFile, setNftImageFile,
-  nftName, setNftName, nftDescription, setNftDescription,
-  nftChain, setNftChain, nftRarity, setNftRarity,
-  nftUploading, setNftUploading, userId,
+function Step2Creature({
+  path, setPath,
+  ownedCreatures, setOwnedCreatures,
+  ownedLoading, setOwnedLoading,
+  selectedCreature, setSelectedCreature,
+  salePriceEth, setSalePriceEth,
+  blinkBalance, setBlinkBalance,
+  blinkBalanceLoading, setBlinkBalanceLoading,
+  burnTier, setBurnTier,
+  isDesktop,
 }: {
-  nftImage: string | null; setNftImage: (v: string | null) => void;
-  nftImageFile: File | null; setNftImageFile: (v: File | null) => void;
-  nftName: string; setNftName: (v: string) => void;
-  nftDescription: string; setNftDescription: (v: string) => void;
-  nftChain: "ETH" | "SOL"; setNftChain: (v: "ETH" | "SOL") => void;
-  nftRarity: "Common" | "Rare" | "Legendary"; setNftRarity: (v: "Common" | "Rare" | "Legendary") => void;
-  nftUploading: boolean; setNftUploading: (v: boolean) => void;
-  userId: string;
+  path: CreaturePath; setPath: (v: CreaturePath) => void;
+  ownedCreatures: OwnedCreature[]; setOwnedCreatures: (v: OwnedCreature[]) => void;
+  ownedLoading: boolean; setOwnedLoading: (v: boolean) => void;
+  selectedCreature: OwnedCreature | null; setSelectedCreature: (v: OwnedCreature | null) => void;
+  salePriceEth: string; setSalePriceEth: (v: string) => void;
+  blinkBalance: number | null; setBlinkBalance: (v: number | null) => void;
+  blinkBalanceLoading: boolean; setBlinkBalanceLoading: (v: boolean) => void;
+  burnTier: BurnTierKey | null; setBurnTier: (v: BurnTierKey | null) => void;
+  userEthAddress: string | null;
+  isDesktop?: boolean;
 }) {
-  const fileRef = useRef<HTMLInputElement>(null);
+  // Fetch owned creatures when sliding into Path A.
+  useEffect(() => {
+    if (path !== "own") return;
+    if (ownedCreatures.length > 0 || ownedLoading) return;
+    let cancelled = false;
+    (async () => {
+      setOwnedLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          if (!cancelled) setOwnedLoading(false);
+          return;
+        }
+        const res = await fetch("/api/wallet/blink-nfts", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const json = await res.json();
+        if (!cancelled) {
+          const nfts: OwnedCreature[] = Array.isArray(json?.nfts) ? json.nfts : [];
+          setOwnedCreatures(nfts);
+        }
+      } catch {
+        /* swallow — empty state will render */
+      } finally {
+        if (!cancelled) setOwnedLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [path, ownedCreatures.length, ownedLoading, setOwnedCreatures, setOwnedLoading]);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { alert("Image must be under 10 MB"); return; }
+  // Fetch BLINK balance when sliding into Path B.
+  useEffect(() => {
+    if (path !== "burn") return;
+    if (blinkBalance !== null || blinkBalanceLoading) return;
+    let cancelled = false;
+    (async () => {
+      setBlinkBalanceLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        const userId = session.user.id;
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("eth_address")
+          .eq("user_id", userId)
+          .single();
+        if (!profile?.eth_address || cancelled) return;
+        const res = await fetch(`/api/wallet/balance?address=${profile.eth_address}`);
+        const json = await res.json();
+        if (!cancelled) {
+          const b = typeof json?.blink === "number" ? json.blink : 0;
+          setBlinkBalance(b);
+        }
+      } catch {
+        if (!cancelled) setBlinkBalance(0);
+      } finally {
+        if (!cancelled) setBlinkBalanceLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [path, blinkBalance, blinkBalanceLoading, setBlinkBalance, setBlinkBalanceLoading]);
 
-    const reader = new FileReader();
-    reader.onload = (ev) => setNftImage(ev.target?.result as string);
-    reader.readAsDataURL(file);
-    setNftImageFile(file);
+  // 2A — path picker
+  if (path === null) {
+    return (
+      <div style={{ paddingBottom: 80 }}>
+        <h2 style={{ color: C.text, fontSize: 26, fontWeight: 800, margin: "0 0 6px", letterSpacing: "-0.02em" }}>
+          Choose how to spawn
+        </h2>
+        <p style={{ color: C.muted, fontSize: 14, margin: "0 0 24px", lineHeight: 1.5 }}>
+          Place a BLINK Creature on the map two ways.
+        </p>
 
-    setNftUploading(true);
-    const ext = file.name.split(".").pop() || "png";
-    const path = `${userId}/nft/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("orb-media").upload(path, file, { contentType: file.type, upsert: true });
-    if (error) { setNftUploading(false); return; }
-    const { data: urlData } = supabase.storage.from("orb-media").getPublicUrl(path);
-    setNftImage(urlData.publicUrl);
-    setNftUploading(false);
-  };
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {[
+            {
+              key: "own" as const,
+              title: "Use a Creature You Own",
+              desc: "Pick a BLINK Creature from your wallet and place it on the map. Whoever catches it gets the NFT.",
+            },
+            {
+              key: "burn" as const,
+              title: "Burn BLINK to Mint",
+              desc: "Burn $BLINK to summon a fresh creature from the BLINK Bestiary. Higher burns unlock rarer creatures.",
+            },
+          ].map((opt) => (
+            <button
+              key={opt.key}
+              onClick={() => setPath(opt.key)}
+              style={{
+                textAlign: "left",
+                padding: isDesktop ? "22px 22px" : "20px 18px",
+                borderRadius: 18,
+                border: `1px solid ${C.glassBorder}`,
+                background: C.glass,
+                color: C.text,
+                cursor: "pointer",
+                display: "flex", flexDirection: "column", gap: 6,
+                transition: "all 0.2s",
+              }}
+            >
+              <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em" }}>{opt.title}</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>{opt.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
-  const nftClaimFees: Record<string, number> = { Common: 0, Rare: 1, Legendary: 5 };
+  // 2B — own-creature picker
+  if (path === "own") {
+    return (
+      <div style={{ paddingBottom: 80 }}>
+        <button
+          onClick={() => { setPath(null); setSelectedCreature(null); }}
+          style={{
+            background: "none", border: "none", color: C.muted,
+            cursor: "pointer", padding: 0, fontSize: 12, fontWeight: 600,
+            marginBottom: 8, letterSpacing: "0.04em",
+          }}
+        >
+          {"<-"} Change path
+        </button>
+        <h2 style={{ color: C.text, fontSize: 26, fontWeight: 800, margin: "0 0 6px", letterSpacing: "-0.02em" }}>
+          Pick a creature
+        </h2>
+        <p style={{ color: C.muted, fontSize: 14, margin: "0 0 20px", lineHeight: 1.5 }}>
+          Choose from BLINK Genesis or Mythics in your wallet. The catcher walks away with it.
+        </p>
 
+        {ownedLoading ? (
+          <div style={{ color: C.muted, fontSize: 14, padding: "40px 0", textAlign: "center" }}>
+            Loading your creatures...
+          </div>
+        ) : ownedCreatures.length === 0 ? (
+          <div style={{
+            padding: "32px 20px", borderRadius: 18,
+            border: `1px dashed ${C.glassBorder}`,
+            background: C.glass, textAlign: "center",
+          }}>
+            <div style={{ color: C.text, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
+              No BLINK Creatures in your wallet yet
+            </div>
+            <div style={{ color: C.muted, fontSize: 12, lineHeight: 1.5, marginBottom: 14 }}>
+              Switch to Burn-to-Mint to summon a fresh one from the Bestiary.
+            </div>
+            <button
+              onClick={() => setPath("burn")}
+              style={{
+                padding: "10px 18px", borderRadius: 50, border: `1px solid ${C.accent}55`,
+                background: `${C.accent}18`, color: C.accent,
+                fontSize: 13, fontWeight: 700, cursor: "pointer",
+              }}
+            >
+              Burn BLINK instead
+            </button>
+          </div>
+        ) : (
+          <>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: isDesktop ? "1fr 1fr 1fr" : "1fr 1fr",
+              gap: 10,
+              marginBottom: 20,
+            }}>
+              {ownedCreatures.map((c) => {
+                const isSel = selectedCreature?.contract === c.contract && selectedCreature?.tokenId === c.tokenId;
+                return (
+                  <button
+                    key={`${c.contract}-${c.tokenId}`}
+                    onClick={() => setSelectedCreature(c)}
+                    style={{
+                      padding: 8,
+                      borderRadius: 14,
+                      border: isSel ? `2px solid ${C.accent}` : `1px solid ${C.glassBorder}`,
+                      background: isSel ? `${C.accent}10` : C.glass,
+                      cursor: "pointer", textAlign: "left",
+                      display: "flex", flexDirection: "column", gap: 6,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    <div style={{
+                      width: "100%", aspectRatio: "1 / 1",
+                      borderRadius: 10, overflow: "hidden",
+                      background: "#0a0a0f",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      {c.image ? (
+                        <img src={c.image} alt={c.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        <span style={{ color: C.muted, fontSize: 11 }}>No image</span>
+                      )}
+                    </div>
+                    <div style={{ color: C.text, fontSize: 13, fontWeight: 700, lineHeight: 1.2 }}>
+                      {c.name}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, letterSpacing: "0.04em",
+                        padding: "2px 6px", borderRadius: 20,
+                        color: c.collection === "mythics" ? "#FFD773" : C.accent,
+                        background: c.collection === "mythics" ? "#FFD77318" : `${C.accent}15`,
+                      }}>
+                        {c.collection === "mythics" ? "MYTHIC" : "GENESIS"}
+                      </span>
+                      <span style={{ color: C.muted, fontSize: 10 }}>#{c.tokenId}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <p style={{ color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, margin: "0 0 8px" }}>
+              Sale price (optional)
+            </p>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                type="number"
+                inputMode="decimal"
+                placeholder="0"
+                value={salePriceEth}
+                onChange={(e) => setSalePriceEth(e.target.value)}
+                style={{
+                  flex: 1, boxSizing: "border-box",
+                  background: C.glass, border: `1px solid ${C.glassBorder}`,
+                  borderRadius: 12, color: C.text, fontSize: 16, fontWeight: 600,
+                  padding: "12px 14px", outline: "none",
+                  fontFamily: "system-ui, sans-serif",
+                }}
+              />
+              <span style={{ color: C.muted, fontSize: 14, fontWeight: 700 }}>ETH</span>
+            </div>
+            <p style={{ color: C.muted, fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
+              Leave at 0 for a free catch. The catcher pays this in ETH at catch time.
+            </p>
+            {parseFloat(salePriceEth) > 1 && (
+              <p style={{ color: "#FFD773", fontSize: 11, marginTop: 6, fontWeight: 600 }}>
+                Heads up: sale prices over 1 ETH may discourage catches.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // 2C — burn-tier picker
   return (
-    <div style={{ paddingBottom: 80, display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <h2 style={{ color: C.text, fontSize: 26, fontWeight: 800, margin: "0 0 6px", alignSelf: "flex-start", letterSpacing: "-0.02em" }}>
-        Create your NFT
+    <div style={{ paddingBottom: 80 }}>
+      <button
+        onClick={() => { setPath(null); setBurnTier(null); }}
+        style={{
+          background: "none", border: "none", color: C.muted,
+          cursor: "pointer", padding: 0, fontSize: 12, fontWeight: 600,
+          marginBottom: 8, letterSpacing: "0.04em",
+        }}
+      >
+        {"<-"} Change path
+      </button>
+      <h2 style={{ color: C.text, fontSize: 26, fontWeight: 800, margin: "0 0 6px", letterSpacing: "-0.02em" }}>
+        Burn BLINK to summon
       </h2>
-      <p style={{ color: C.muted, fontSize: 14, margin: "0 0 28px", alignSelf: "flex-start" }}>
-        Upload an image and set your NFT details.
+      <p style={{ color: C.muted, fontSize: 14, margin: "0 0 14px", lineHeight: 1.5 }}>
+        Pick a tier. We burn the cost and mint a fresh Bestiary creature into your wallet.
       </p>
 
-      <input ref={fileRef} type="file" accept="image/png,image/jpg,image/jpeg,image/gif,image/webp" style={{ display: "none" }} onChange={handleImageUpload} />
-
-      {nftImage ? (
-        <div style={{ width: "100%", marginBottom: 24, position: "relative" }}>
-          <img src={nftImage} alt="NFT preview" style={{ width: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 18, border: `1px solid ${C.glassBorder}` }} />
-          <button onClick={() => { setNftImage(null); setNftImageFile(null); }} style={{ position: "absolute", top: 10, right: 10, width: 32, height: 32, borderRadius: 16, background: "rgba(0,0,0,0.7)", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>x</button>
-          {nftUploading && <div style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.7)", padding: "6px 16px", borderRadius: 20, color: C.text, fontSize: 12 }}>Uploading...</div>}
-        </div>
-      ) : (
-        <button onClick={() => fileRef.current?.click()} disabled={nftUploading} style={{ width: "100%", height: 200, borderRadius: 18, border: `2px dashed ${C.glassBorder}`, background: C.glass, color: C.muted, fontSize: 15, fontWeight: 600, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 24 }}>
-          <svg width={36} height={36} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={1.5}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
-          {nftUploading ? "Uploading..." : "Upload Image"}
-          <span style={{ fontSize: 11, color: C.muted, opacity: 0.6 }}>PNG, JPG, GIF, WEBP (max 10 MB)</span>
-        </button>
-      )}
-
-      <input value={nftName} onChange={(e) => { if (e.target.value.length <= 50) setNftName(e.target.value); }} placeholder="NFT Name" style={{ width: "100%", boxSizing: "border-box", background: C.glass, border: `1px solid ${C.glassBorder}`, borderRadius: 14, color: C.text, fontSize: 16, fontWeight: 600, padding: "14px 16px", outline: "none", fontFamily: "system-ui, sans-serif", marginBottom: 12 }} />
-
-      <textarea value={nftDescription} onChange={(e) => { if (e.target.value.length <= 200) setNftDescription(e.target.value); }} placeholder="Description (optional)" rows={3} style={{ width: "100%", boxSizing: "border-box", background: C.glass, border: `1px solid ${C.glassBorder}`, borderRadius: 14, color: C.text, fontSize: 14, padding: "14px 16px", outline: "none", fontFamily: "system-ui, sans-serif", resize: "none", marginBottom: 20 }} />
-
-      <p style={{ color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, alignSelf: "flex-start", margin: "0 0 10px" }}>Chain</p>
-      {/* BLINK: ETH-only — Solana NFT chain option hidden. setNftChain still used internally; locked to ETH. */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 24, width: "100%" }}>
-        {(["ETH"] as const).map((ch) => {
-          const active = nftChain === ch;
-          const color = "#00FF88";
-          return (
-            <button key={ch} onClick={() => setNftChain(ch)} style={{ flex: 1, padding: "12px 0", borderRadius: 50, border: active ? `2px solid ${color}` : `1px solid ${C.glassBorder}`, background: active ? `${color}18` : C.glass, color: active ? color : C.muted, fontSize: 15, fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }}>Ethereum</button>
-          );
-        })}
+      <div style={{
+        padding: "10px 14px", marginBottom: 18,
+        borderRadius: 12, background: C.glass,
+        border: `1px solid ${C.glassBorder}`,
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+      }}>
+        <span style={{ color: C.muted, fontSize: 12, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" as const }}>
+          Your balance
+        </span>
+        <span style={{ color: C.text, fontSize: 14, fontWeight: 700 }}>
+          {blinkBalanceLoading
+            ? "Loading..."
+            : blinkBalance === null
+              ? "—"
+              : `${Math.floor(blinkBalance).toLocaleString()} BLINK`}
+        </span>
       </div>
 
-      <p style={{ color: C.muted, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, alignSelf: "flex-start", margin: "0 0 10px" }}>Rarity Tier</p>
-      <div style={{ display: "flex", gap: 8, width: "100%" }}>
-        {(["Common", "Rare", "Legendary"] as const).map((r) => {
-          const active = nftRarity === r;
-          const col = r === "Legendary" ? C.gold : r === "Rare" ? C.rareBlue : C.text;
-          const fee = nftClaimFees[r];
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {BURN_TIERS.map((t) => {
+          const isSel = burnTier === t.key;
+          const affordable = blinkBalance !== null && blinkBalance >= t.cost;
+          const shortfall = blinkBalance !== null && blinkBalance < t.cost ? t.cost - blinkBalance : 0;
           return (
-            <button key={r} onClick={() => setNftRarity(r)} style={{ flex: 1, padding: "14px 0", borderRadius: 14, border: active ? `2px solid ${col}` : `1px solid ${C.glassBorder}`, background: active ? `${col}15` : C.glass, color: active ? col : C.muted, fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              <span>{r}</span>
-              <span style={{ fontSize: 11, opacity: 0.7 }}>{fee === 0 ? "Free" : `$${fee} fee`}</span>
+            <button
+              key={t.key}
+              onClick={() => { if (affordable) setBurnTier(t.key); }}
+              disabled={!affordable}
+              style={{
+                padding: "16px 18px",
+                borderRadius: 14,
+                border: isSel ? `2px solid ${t.color}` : `1px solid ${C.glassBorder}`,
+                background: isSel ? `${t.color}15` : C.glass,
+                color: C.text,
+                cursor: affordable ? "pointer" : "not-allowed",
+                textAlign: "left",
+                opacity: affordable ? 1 : 0.5,
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                gap: 12,
+                transition: "all 0.15s",
+              }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <span style={{ color: t.color, fontSize: 15, fontWeight: 800, letterSpacing: "-0.01em" }}>
+                  {t.label}
+                </span>
+                <span style={{ color: C.muted, fontSize: 12 }}>
+                  {t.cost.toLocaleString()} BLINK
+                </span>
+              </div>
+              <div style={{
+                fontSize: 11, fontWeight: 700, letterSpacing: "0.04em",
+                color: affordable ? C.accent : "#FF6B6B",
+                whiteSpace: "nowrap",
+              }}>
+                {affordable
+                  ? "Available"
+                  : blinkBalance === null
+                    ? "—"
+                    : `Need ${Math.ceil(shortfall).toLocaleString()} more`}
+              </div>
             </button>
           );
         })}
@@ -2750,7 +3075,7 @@ function Step4Review({
   claimFee, ownerEarns, platformEarns,
   lat, lng, message,
   submitting, submitError, onLaunch,
-  nftImage, nftName, nftDescription, nftChain, nftRarity,
+  creaturePath, selectedCreature, salePriceEth, burnTier,
 }: {
   orbType: OrbKind;
   currency: OrbCurrency;
@@ -2767,13 +3092,17 @@ function Step4Review({
   submitting: boolean;
   submitError: string;
   onLaunch: () => void;
-  nftImage?: string | null;
-  nftName?: string;
-  nftDescription?: string;
-  nftChain?: "ETH" | "SOL";
-  nftRarity?: "Common" | "Rare" | "Legendary";
+  creaturePath?: CreaturePath;
+  selectedCreature?: OwnedCreature | null;
+  salePriceEth?: string;
+  burnTier?: BurnTierKey | null;
 }) {
   const isNft = orbType === "NFT";
+  const isBurnPath = isNft && creaturePath === "burn";
+  const isOwnPath = isNft && creaturePath === "own";
+  const burnTierMeta = burnTier ? BURN_TIERS.find((t) => t.key === burnTier) : null;
+  const salePriceNum = parseFloat(salePriceEth || "0") || 0;
+
   return (
     <div style={{ paddingBottom: 180 }}>
       <h2 style={{
@@ -2791,8 +3120,8 @@ function Step4Review({
         display: "flex", justifyContent: "center",
         marginBottom: 28, position: "relative",
       }}>
-        {isNft && nftImage ? (
-          <img src={nftImage} alt="NFT preview" style={{ maxHeight: 200, borderRadius: 18, border: `1px solid ${C.glassBorder}`, objectFit: "cover" }} />
+        {isOwnPath && selectedCreature?.image ? (
+          <img src={selectedCreature.image} alt="Creature" style={{ maxHeight: 200, borderRadius: 18, border: `1px solid ${C.glassBorder}`, objectFit: "cover" }} />
         ) : (
           <OrbVisual rarity={rarity} size={120} />
         )}
@@ -2806,14 +3135,21 @@ function Step4Review({
         padding: "20px 20px", marginBottom: 14,
         display: "flex", flexDirection: "column", gap: 16,
       }}>
-        <ReviewRow label="Type" value={`${orbType} Creature`} />
-        {isNft ? (
+        <ReviewRow label="Type" value={isNft ? "BLINK Creature" : `${orbType} Creature`} />
+        {isOwnPath && selectedCreature ? (
           <>
-            <ReviewRow label="Name" value={nftName || "--"} />
-            {nftDescription && <ReviewRow label="Description" value={nftDescription} />}
-            <ReviewRow label="Chain" value="Ethereum" />
-            <ReviewRow label="Rarity" value={nftRarity || "Common"} valueStyle={{ color: rarityCol, fontWeight: 700 }} />
-            <ReviewRow label="Claim Fee" value={claimFee === 0 ? "Free" : `$${claimFee}`} />
+            <ReviewRow label="Path" value="Use Creature You Own" />
+            <ReviewRow label="Creature" value={selectedCreature.name} />
+            <ReviewRow label="Collection" value={selectedCreature.collection === "mythics" ? "BLINK Mythics" : "BLINK Genesis"} />
+            <ReviewRow label="Token ID" value={`#${selectedCreature.tokenId}`} />
+            <ReviewRow label="Sale Price" value={salePriceNum > 0 ? `${salePriceNum} ETH` : "Free catch"} />
+          </>
+        ) : isBurnPath && burnTierMeta ? (
+          <>
+            <ReviewRow label="Path" value="Burn BLINK to Mint" />
+            <ReviewRow label="Tier" value={burnTierMeta.label} valueStyle={{ color: burnTierMeta.color, fontWeight: 700 }} />
+            <ReviewRow label="Burn Cost" value={`${burnTierMeta.cost.toLocaleString()} BLINK`} />
+            <ReviewRow label="Sale Price" value="Free catch" />
           </>
         ) : (
           <>
@@ -2829,32 +3165,34 @@ function Step4Review({
           label="Location"
           value={lat !== null && lng !== null ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : "--"}
         />
-        {!isNft && message && <ReviewRow label="Message" value={message} />}
+        {message && <ReviewRow label="Message" value={message} />}
       </div>
 
-      {/* Fee breakdown */}
-      <div style={{
-        background: C.glass,
-        border: `1px solid ${C.glassBorder}`,
-        borderRadius: 18,
-        padding: "18px 20px", marginBottom: 14,
-      }}>
-        <p style={{
-          color: C.muted, fontSize: 11, fontWeight: 700,
-          letterSpacing: "0.08em", textTransform: "uppercase",
-          margin: "0 0 14px",
-        }}>
-          Fee Breakdown
-        </p>
-        <FeeRow label="To catcher (90%)" value={`$${ownerEarns.toFixed(2)}`} color={C.accent} />
-        <FeeRow label="Platform (10%)" value={`$${platformEarns.toFixed(2)}`} color={C.muted} />
+      {/* Fee breakdown (crypto only) */}
+      {!isNft && (
         <div style={{
-          borderTop: `1px solid ${C.glassBorder}`,
-          paddingTop: 10, marginTop: 6,
+          background: C.glass,
+          border: `1px solid ${C.glassBorder}`,
+          borderRadius: 18,
+          padding: "18px 20px", marginBottom: 14,
         }}>
-          <FeeRow label="Total claim fee" value={`$${claimFee.toFixed(2)}`} color={C.text} bold />
+          <p style={{
+            color: C.muted, fontSize: 11, fontWeight: 700,
+            letterSpacing: "0.08em", textTransform: "uppercase",
+            margin: "0 0 14px",
+          }}>
+            Fee Breakdown
+          </p>
+          <FeeRow label="To catcher (90%)" value={`$${ownerEarns.toFixed(2)}`} color={C.accent} />
+          <FeeRow label="Platform (10%)" value={`$${platformEarns.toFixed(2)}`} color={C.muted} />
+          <div style={{
+            borderTop: `1px solid ${C.glassBorder}`,
+            paddingTop: 10, marginTop: 6,
+          }}>
+            <FeeRow label="Total claim fee" value={`$${claimFee.toFixed(2)}`} color={C.text} bold />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Security note */}
       <div style={{
@@ -2866,7 +3204,11 @@ function Step4Review({
       }}>
         <ShieldIcon size={16} color={C.primary} />
         <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.6, margin: 0 }}>
-          Your crypto stays in your wallet until caught. The creature uses a pre-signed transaction that only executes when a watcher claims it within range.
+          {isBurnPath
+            ? "Confirm to burn BLINK and mint a fresh Bestiary creature directly into your wallet. The new NFT will be placed at this location."
+            : isOwnPath
+              ? "Your NFT stays in your wallet until someone catches it. The catcher pays the sale price (if any) and receives the NFT."
+              : "Your crypto stays in your wallet until caught. The creature uses a pre-signed transaction that only executes when a watcher claims it within range."}
         </p>
       </div>
 
