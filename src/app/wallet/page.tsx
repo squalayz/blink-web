@@ -833,17 +833,37 @@ export default function WalletPage() {
             change24h={change24h}
             badge={null}
           />
-          {blinkBalance > 0 && (
-            <AssetRow
-              symbol="BLINK"
-              name="BLINK Token"
-              balance={blinkBalance}
-              balanceText={`${blinkBalance.toLocaleString("en-US", { maximumFractionDigits: 2 })} BLINK`}
-              usd={undefined}
-              change24h={null}
-              badge="Native"
-            />
-          )}
+          <AssetRow
+            symbol="BLINK"
+            name="BLINK Token"
+            balance={blinkBalance}
+            balanceText={`${blinkBalance.toLocaleString("en-US", { maximumFractionDigits: 2 })} BLINK`}
+            usd={undefined}
+            change24h={null}
+            badge="Native"
+            dimmed={blinkBalance === 0}
+            cta={
+              blinkBalance === 0 ? (
+                <Link
+                  href="/spawn?mode=launch"
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: C.primary,
+                    background: "rgba(0,255,136,0.10)",
+                    border: `1px solid ${C.primary}40`,
+                    padding: "5px 10px",
+                    borderRadius: 8,
+                    textDecoration: "none",
+                    letterSpacing: "0.02em",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Get BLINK
+                </Link>
+              ) : undefined
+            }
+          />
           {otherTokens.map((t) => (
             <AssetRow
               key={t.symbol}
@@ -1332,6 +1352,105 @@ function ActionButton({
   );
 }
 
+function EthDiamond() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 256 417"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path fill="#343434" d="M127.961 0l-2.795 9.5v275.668l2.795 2.79 127.962-75.638z" />
+      <path fill="#8C8C8C" d="M127.962 0L0 212.32l127.962 75.639V154.158z" />
+      <path fill="#3C3C3D" d="M127.961 312.187l-1.575 1.92v98.199l1.575 4.6L256 236.587z" />
+      <path fill="#8C8C8C" d="M127.962 416.905v-104.72L0 236.585z" />
+      <path fill="#141414" d="M127.961 287.958l127.96-75.637-127.96-58.162z" />
+      <path fill="#393939" d="M0 212.32l127.96 75.638v-133.8z" />
+    </svg>
+  );
+}
+
+function IconRing({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        width: 40,
+        height: 40,
+        borderRadius: "50%",
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.10)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        overflow: "hidden",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function BlinkLogo() {
+  return (
+    <IconRing>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/blink-logo.webp"
+        alt="BLINK"
+        loading="lazy"
+        width={40}
+        height={40}
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          display: "block",
+        }}
+      />
+    </IconRing>
+  );
+}
+
+function SymbolTextCircle({ symbol }: { symbol: string }) {
+  return (
+    <div
+      style={{
+        width: 40,
+        height: 40,
+        borderRadius: "50%",
+        background:
+          "linear-gradient(135deg, rgba(0,255,136,0.20), rgba(136,255,0,0.06))",
+        border: `1px solid ${C.primary}30`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+      }}
+    >
+      <span
+        style={{
+          fontSize: 13,
+          fontWeight: 800,
+          color: C.primary,
+          letterSpacing: "-0.4px",
+        }}
+      >
+        {symbol.slice(0, 3)}
+      </span>
+    </div>
+  );
+}
+
+function AssetIcon({ symbol }: { symbol: string }) {
+  if (symbol === "ETH" || symbol === "WETH") {
+    return <IconRing><EthDiamond /></IconRing>;
+  }
+  if (symbol === "BLINK") return <BlinkLogo />;
+  return <SymbolTextCircle symbol={symbol} />;
+}
+
 function AssetRow({
   symbol,
   name,
@@ -1339,6 +1458,8 @@ function AssetRow({
   usd,
   change24h,
   badge,
+  dimmed,
+  cta,
 }: {
   symbol: string;
   name: string;
@@ -1347,6 +1468,8 @@ function AssetRow({
   usd?: number;
   change24h: number | null;
   badge?: string | null;
+  dimmed?: boolean;
+  cta?: React.ReactNode;
 }) {
   const changeColor =
     change24h === null ? C.muted : change24h >= 0 ? C.primary : C.danger;
@@ -1362,34 +1485,11 @@ function AssetRow({
         alignItems: "center",
         justifyContent: "space-between",
         gap: 12,
+        opacity: dimmed ? 0.65 : 1,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: "50%",
-            background:
-              "linear-gradient(135deg, rgba(0,255,136,0.20), rgba(136,255,0,0.06))",
-            border: `1px solid ${C.primary}30`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          <span
-            style={{
-              fontSize: 13,
-              fontWeight: 800,
-              color: C.primary,
-              letterSpacing: "-0.4px",
-            }}
-          >
-            {symbol.slice(0, 3)}
-          </span>
-        </div>
+        <AssetIcon symbol={symbol} />
         <div style={{ minWidth: 0 }}>
           <div
             style={{
@@ -1451,6 +1551,8 @@ function AssetRow({
               </div>
             )}
           </>
+        ) : cta ? (
+          cta
         ) : (
           <div style={{ fontSize: 11, color: C.muted }}>—</div>
         )}
