@@ -12,6 +12,7 @@ import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
 import { C, truncateAddress } from "@/lib/theme";
 import { usePrices } from "@/hooks/usePrices";
+import { RARITY_COLOR, RARITY_LABEL, type Rarity } from "@/lib/bestiary";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -39,6 +40,16 @@ interface ERC20Token {
   balance: number;
   usd?: number;
   change24h?: number;
+}
+
+interface WalletNFT {
+  tokenId: number;
+  name: string;
+  image: string;
+  tier: Rarity;
+  traits: { trait_type: string; value: string }[];
+  contract: string;
+  collection: "genesis" | "mythics";
 }
 
 /* ------------------------------------------------------------------ */
@@ -160,6 +171,12 @@ export default function WalletPage() {
   const [exportError, setExportError] = useState("");
   const [exportedKey, setExportedKey] = useState("");
 
+  // NFTs
+  const [nfts, setNfts] = useState<WalletNFT[]>([]);
+  const [loadingNfts, setLoadingNfts] = useState(false);
+  const [nftDetail, setNftDetail] = useState<WalletNFT | null>(null);
+  const [nftRefreshLockedUntil, setNftRefreshLockedUntil] = useState(0);
+
   /* ---- redirect if unauthenticated ---- */
   useEffect(() => {
     if (!authLoading && !user) router.replace("/");
@@ -247,6 +264,78 @@ export default function WalletPage() {
   useEffect(() => {
     if (tab === "activity") fetchActivity();
   }, [tab, fetchActivity]);
+
+  /* ---- fetch NFT holdings ---- */
+  const fetchNfts = useCallback(async () => {
+    const addr = profile?.eth_address;
+    if (!addr) return;
+    setLoadingNfts(true);
+    try {
+      const res = await fetch(
+        `/api/wallet/holdings?wallet=${encodeURIComponent(addr)}`,
+      );
+      if (!res.ok) {
+        setNfts([]);
+        return;
+      }
+      const data = await res.json();
+      const genesis = Array.isArray(data.genesis) ? data.genesis : [];
+      const mythics = Array.isArray(data.mythics) ? data.mythics : [];
+      type RawSnap = {
+        tokenId: number;
+        name: string;
+        image: string;
+        tier: Rarity;
+        traits?: { trait_type: string; value: string }[];
+        contract?: string;
+      };
+      const genesisContract = (
+        process.env.NEXT_PUBLIC_BLINK_GENESIS_CONTRACT || ""
+      ).toLowerCase();
+      const mythicsContract = (
+        process.env.NEXT_PUBLIC_BLINK_MYTHICS_CONTRACT || ""
+      ).toLowerCase();
+      const all: WalletNFT[] = [
+        ...genesis.map(
+          (s: RawSnap): WalletNFT => ({
+            tokenId: s.tokenId,
+            name: s.name,
+            image: s.image,
+            tier: s.tier,
+            traits: s.traits ?? [],
+            contract: (s.contract ?? genesisContract).toLowerCase(),
+            collection: "genesis",
+          }),
+        ),
+        ...mythics.map(
+          (s: RawSnap): WalletNFT => ({
+            tokenId: s.tokenId,
+            name: s.name,
+            image: s.image,
+            tier: s.tier,
+            traits: s.traits ?? [],
+            contract: (s.contract ?? mythicsContract).toLowerCase(),
+            collection: "mythics",
+          }),
+        ),
+      ];
+      setNfts(all);
+    } catch {
+      setNfts([]);
+    } finally {
+      setLoadingNfts(false);
+    }
+  }, [profile?.eth_address]);
+
+  useEffect(() => {
+    fetchNfts();
+  }, [fetchNfts]);
+
+  const refreshNfts = useCallback(() => {
+    if (Date.now() < nftRefreshLockedUntil) return;
+    setNftRefreshLockedUntil(Date.now() + 10_000);
+    fetchNfts();
+  }, [fetchNfts, nftRefreshLockedUntil]);
 
   /* ---- pending received gifts count ---- */
   useEffect(() => {
@@ -956,20 +1045,14 @@ export default function WalletPage() {
       )}
 
       {tab === "nfts" && (
-        <div
-          style={{
-            padding: 32,
-            textAlign: "center",
-            color: C.muted,
-            fontSize: 13,
-            border: `1px dashed ${C.glassBorder}`,
-            borderRadius: 14,
-          }}
-        >
-          {ethAddress
-            ? "No NFTs detected yet. BLINK Genesis & Mythics will appear here."
-            : "Connect your wallet to view NFTs."}
-        </div>
+        <NftGallery
+          ethAddress={ethAddress}
+          nfts={nfts}
+          loading={loadingNfts}
+          onOpen={(n) => setNftDetail(n)}
+          onRefresh={refreshNfts}
+          refreshLocked={Date.now() < nftRefreshLockedUntil}
+        />
       )}
 
       {balanceError && (
@@ -1280,6 +1363,13 @@ export default function WalletPage() {
               </PrimaryButton>
             </>
           )}
+        </Modal>
+      )}
+
+      {/* ============ NFT DETAIL MODAL ============ */}
+      {nftDetail && (
+        <Modal title={nftDetail.name} onClose={() => setNftDetail(null)}>
+          <NftDetail nft={nftDetail} onClose={() => setNftDetail(null)} />
         </Modal>
       )}
 
@@ -1904,6 +1994,521 @@ function SendSuccess({
         {txHash}
       </a>
       <PrimaryButton onClick={onDone}>Done</PrimaryButton>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  NFT Gallery                                                          */
+/* ------------------------------------------------------------------ */
+function NftGallery({
+  ethAddress,
+  nfts,
+  loading,
+  onOpen,
+  onRefresh,
+  refreshLocked,
+}: {
+  ethAddress: string;
+  nfts: WalletNFT[];
+  loading: boolean;
+  onOpen: (n: WalletNFT) => void;
+  onRefresh: () => void;
+  refreshLocked: boolean;
+}) {
+  if (!ethAddress) {
+    return (
+      <div
+        style={{
+          padding: 32,
+          textAlign: "center",
+          color: C.muted,
+          fontSize: 13,
+          border: `1px dashed ${C.glassBorder}`,
+          borderRadius: 14,
+        }}
+      >
+        Connect your wallet to view NFTs.
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 10,
+          padding: "0 2px",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 700,
+            color: C.text,
+            letterSpacing: "0.02em",
+          }}
+        >
+          Your BLINK Creatures
+          {nfts.length > 0 && (
+            <span
+              style={{
+                fontSize: 11,
+                color: C.muted,
+                fontWeight: 600,
+                marginLeft: 8,
+              }}
+            >
+              {nfts.length}
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={refreshLocked || loading}
+          aria-label="Refresh NFTs"
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: `1px solid ${C.glassBorder}`,
+            borderRadius: 8,
+            width: 30,
+            height: 30,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: refreshLocked || loading ? "not-allowed" : "pointer",
+            opacity: refreshLocked || loading ? 0.5 : 1,
+            padding: 0,
+          }}
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={C.muted}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+              transform: loading ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform 0.6s",
+            }}
+          >
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+        </button>
+      </div>
+
+      {loading && nfts.length === 0 ? (
+        <div
+          style={{
+            padding: 32,
+            textAlign: "center",
+            color: C.muted,
+            fontSize: 13,
+          }}
+        >
+          Loading creatures…
+        </div>
+      ) : nfts.length === 0 ? (
+        <div
+          style={{
+            padding: 28,
+            textAlign: "center",
+            border: `1px dashed ${C.glassBorder}`,
+            borderRadius: 14,
+            background: "rgba(255,255,255,0.02)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: C.text,
+              marginBottom: 6,
+            }}
+          >
+            No creatures in your wallet yet.
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              color: C.muted,
+              marginBottom: 14,
+              lineHeight: 1.5,
+            }}
+          >
+            Spawn one or burn BLINK to mint a new creature.
+          </div>
+          <Link
+            href="/spawn"
+            style={{
+              display: "inline-block",
+              padding: "9px 18px",
+              borderRadius: 999,
+              background: C.primary,
+              color: "#0a0a0f",
+              fontSize: 12,
+              fontWeight: 800,
+              letterSpacing: "0.04em",
+              textDecoration: "none",
+            }}
+          >
+            Get a Creature
+          </Link>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: 10,
+          }}
+        >
+          {nfts.map((n) => (
+            <NftCard key={`${n.contract}-${n.tokenId}`} nft={n} onOpen={onOpen} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NftCard({
+  nft,
+  onOpen,
+}: {
+  nft: WalletNFT;
+  onOpen: (n: WalletNFT) => void;
+}) {
+  const tierColor = RARITY_COLOR[nft.tier] || C.primary;
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(nft)}
+      style={{
+        background: C.surface,
+        border: `1px solid ${C.glassBorder}`,
+        borderRadius: 14,
+        padding: 0,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        textAlign: "left",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          aspectRatio: "1/1",
+          background: "rgba(0,0,0,0.35)",
+          overflow: "hidden",
+        }}
+      >
+        {nft.image && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={nft.image}
+            alt={nft.name}
+            loading="lazy"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
+        )}
+        <span
+          style={{
+            position: "absolute",
+            top: 8,
+            left: 8,
+            background: "rgba(0,255,136,0.18)",
+            border: `1px solid ${C.primary}55`,
+            color: C.primary,
+            fontSize: 10,
+            fontWeight: 800,
+            padding: "3px 8px",
+            borderRadius: 999,
+            letterSpacing: "0.04em",
+          }}
+        >
+          #{nft.tokenId}
+        </span>
+        <span
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            background: "rgba(0,0,0,0.6)",
+            border: `1px solid ${tierColor}55`,
+            color: tierColor,
+            fontSize: 9,
+            fontWeight: 800,
+            padding: "3px 7px",
+            borderRadius: 999,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+          }}
+        >
+          {RARITY_LABEL[nft.tier] || nft.tier}
+        </span>
+      </div>
+      <div style={{ padding: "10px 12px 12px" }}>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 800,
+            color: C.text,
+            letterSpacing: "-0.2px",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {nft.name}
+        </div>
+        <div
+          style={{
+            fontSize: 10,
+            color: C.muted,
+            marginTop: 3,
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+            fontWeight: 600,
+          }}
+        >
+          {nft.collection === "mythics" ? "Mythics" : "Genesis"}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function NftDetail({
+  nft,
+  onClose,
+}: {
+  nft: WalletNFT;
+  onClose: () => void;
+}) {
+  const tierColor = RARITY_COLOR[nft.tier] || C.primary;
+  const giftHref = `/gift/new?asset=nft&contract=${encodeURIComponent(nft.contract)}&tokenId=${encodeURIComponent(String(nft.tokenId))}`;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div
+        style={{
+          width: "100%",
+          aspectRatio: "1/1",
+          background: "rgba(0,0,0,0.35)",
+          borderRadius: 14,
+          overflow: "hidden",
+          border: `1px solid ${C.glassBorder}`,
+        }}
+      >
+        {nft.image && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={nft.image}
+            alt={nft.name}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
+        )}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        <span
+          style={{
+            background: "rgba(0,255,136,0.14)",
+            border: `1px solid ${C.primary}55`,
+            color: C.primary,
+            fontSize: 11,
+            fontWeight: 800,
+            padding: "4px 10px",
+            borderRadius: 999,
+            letterSpacing: "0.04em",
+          }}
+        >
+          #{nft.tokenId}
+        </span>
+        <span
+          style={{
+            background: "rgba(0,0,0,0.5)",
+            border: `1px solid ${tierColor}55`,
+            color: tierColor,
+            fontSize: 10,
+            fontWeight: 800,
+            padding: "4px 10px",
+            borderRadius: 999,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+          }}
+        >
+          {RARITY_LABEL[nft.tier] || nft.tier}
+        </span>
+        <span
+          style={{
+            background: "rgba(255,255,255,0.05)",
+            border: `1px solid ${C.glassBorder}`,
+            color: C.muted,
+            fontSize: 10,
+            fontWeight: 700,
+            padding: "4px 10px",
+            borderRadius: 999,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+          }}
+        >
+          {nft.collection === "mythics" ? "Mythics" : "Genesis"}
+        </span>
+      </div>
+
+      {nft.traits.length > 0 && (
+        <div>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: C.muted,
+              letterSpacing: "0.5px",
+              marginBottom: 8,
+              textTransform: "uppercase",
+            }}
+          >
+            Attributes
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: 6,
+            }}
+          >
+            {nft.traits.map((t, i) => (
+              <div
+                key={`${t.trait_type}-${i}`}
+                style={{
+                  background: C.surface,
+                  border: `1px solid ${C.glassBorder}`,
+                  borderRadius: 10,
+                  padding: "8px 10px",
+                  minWidth: 0,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    color: C.muted,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    marginBottom: 2,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {t.trait_type || "—"}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: C.text,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {t.value || "—"}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div
+        style={{
+          fontSize: 11,
+          color: C.muted,
+          fontFamily: "monospace",
+          wordBreak: "break-all",
+          background: C.surface,
+          border: `1px solid ${C.glassBorder}`,
+          borderRadius: 10,
+          padding: "8px 10px",
+        }}
+      >
+        Contract: {nft.contract}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <a
+          href={`https://etherscan.io/nft/${nft.contract}/${nft.tokenId}`}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: 46,
+            borderRadius: 23,
+            background: "transparent",
+            border: `1.5px solid ${C.primary}`,
+            color: C.primary,
+            fontSize: 13,
+            fontWeight: 800,
+            textDecoration: "none",
+            letterSpacing: "0.02em",
+          }}
+        >
+          View on Etherscan
+        </a>
+        <Link
+          href={giftHref}
+          onClick={onClose}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: 46,
+            borderRadius: 23,
+            background: C.primary,
+            color: "#0a0a0f",
+            fontSize: 13,
+            fontWeight: 800,
+            textDecoration: "none",
+            letterSpacing: "0.02em",
+            boxShadow: `0 4px 18px ${C.primary}40`,
+          }}
+        >
+          Gift as Spirit Gift
+        </Link>
+      </div>
     </div>
   );
 }
