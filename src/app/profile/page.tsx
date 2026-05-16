@@ -571,6 +571,8 @@ export default function ProfilePage() {
   const [droppedOrbs, setDroppedOrbs] = useState<Orb[]>([]);
   const [claimedOrbs, setClaimedOrbs] = useState<Orb[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [freeCatchesRemaining, setFreeCatchesRemaining] = useState<number | null>(null);
+  const [wildCatchTotal, setWildCatchTotal] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"drops" | "claims" | "moments">(
     "drops"
   );
@@ -691,6 +693,21 @@ export default function ProfilePage() {
       .limit(30);
 
     if (claims) setClaimedOrbs(claims as Orb[]);
+
+    // Wild-catch stats: free catches remaining + total catches all-time.
+    const { data: catchProf } = await supabase
+      .from("profiles")
+      .select("free_catches_remaining")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (catchProf && typeof catchProf.free_catches_remaining === "number") {
+      setFreeCatchesRemaining(catchProf.free_catches_remaining);
+    }
+    const { count: catchCount } = await supabase
+      .from("wild_spawns")
+      .select("id", { count: "exact", head: true })
+      .eq("caught_by", user.id);
+    if (typeof catchCount === "number") setWildCatchTotal(catchCount);
 
     setLoadingData(false);
   }, [user]);
@@ -951,6 +968,73 @@ export default function ProfilePage() {
           accent={C.accent}
           delay={0.24}
         />
+      </div>
+
+      {/* Wild catches row */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 10,
+          marginBottom: 14,
+        }}
+      >
+        <div
+          style={{
+            borderRadius: 16,
+            padding: "14px 16px",
+            background: C.glass,
+            border: `1px solid ${C.glassBorder}`,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              color: C.muted,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              fontWeight: 600,
+              marginBottom: 4,
+            }}
+          >
+            Free catches
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: C.accent, lineHeight: 1.1 }}>
+            {freeCatchesRemaining ?? "—"}
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+            {freeCatchesRemaining === 0
+              ? "0.1 ETH per catch"
+              : `${freeCatchesRemaining ?? 0} left before fees`}
+          </div>
+        </div>
+        <div
+          style={{
+            borderRadius: 16,
+            padding: "14px 16px",
+            background: C.glass,
+            border: `1px solid ${C.glassBorder}`,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              color: C.muted,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              fontWeight: 600,
+              marginBottom: 4,
+            }}
+          >
+            Wild catches
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: C.primary, lineHeight: 1.1 }}>
+            {wildCatchTotal ?? "—"}
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+            NFTs minted from the wild
+          </div>
+        </div>
       </div>
 
       {/* Embedded Wallet */}

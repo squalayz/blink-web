@@ -17,11 +17,49 @@ export type HuntOrb = Orb & {
   creatureImage?: string | null;
 };
 
+export type NearbyPlayer = {
+  user_id: string;
+  handle: string | null;
+  avatar_url: string | null;
+  fuzzy_lat: number;
+  fuzzy_lng: number;
+  fuzzy_radius_m: number;
+  is_friend?: boolean;
+  last_seen?: string;
+};
+
+export type WildSpawn = {
+  id: string;
+  species: string;
+  rarity: "common" | "uncommon" | "rare" | "legendary" | "mythic" | string;
+  fuzzy_lat: number;
+  fuzzy_lng: number;
+  fuzzy_radius_m: number;
+  expires_at?: string;
+};
+
+export type CatchableSpawn = {
+  id: string;
+  lat: number;
+  lng: number;
+  tier: "common" | "uncommon" | "rare" | "legendary" | "mythic" | string;
+  tier_color: string;
+  name: string;
+  image_url: string;
+  expires_at: string;
+};
+
 interface HuntMapProps {
   orbs: HuntOrb[];
   userPosition: { lat: number; lng: number } | null;
   onSelectOrb: (orb: HuntOrb) => void;
   mapRef?: React.MutableRefObject<mapboxgl.Map | null>;
+  players?: NearbyPlayer[];
+  wildSpawns?: WildSpawn[];
+  catchableSpawns?: CatchableSpawn[];
+  onSelectPlayer?: (player: NearbyPlayer) => void;
+  onSelectWildSpawn?: (spawn: WildSpawn) => void;
+  onSelectCatchable?: (spawn: CatchableSpawn) => void;
 }
 
 function orbMarkerConfig(rarity: string) {
@@ -63,6 +101,18 @@ const HUNT_CSS = `
 @keyframes mmEdgePulse {
   0%, 100% { opacity: 0.35; transform: translate(0,0) scale(1); }
   50% { opacity: 0.85; transform: translate(0,0) scale(1.08); }
+}
+@keyframes mmPlayerPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,255,136,0.6); }
+  50% { transform: scale(1.12); box-shadow: 0 0 18px 4px rgba(0,255,136,0.35); }
+}
+@keyframes mmFuzzyBreath {
+  0%, 100% { opacity: 0.22; transform: scale(1); }
+  50% { opacity: 0.36; transform: scale(1.04); }
+}
+@keyframes mmWildPulse {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 8px var(--wild-color)); }
+  50% { transform: scale(1.06); filter: drop-shadow(0 0 22px var(--wild-color)); }
 }
 .mm-orb-marker {
   border-radius: 50%;
@@ -148,6 +198,24 @@ const HUNT_CSS = `
 .mapboxgl-ctrl-group { display: none !important; }
 `;
 
+function wildRarityColor(rarity: string): string {
+  const r = rarity.toLowerCase();
+  if (r === "mythic") return "#ff8ae0";
+  if (r === "legendary") return "#ffd166";
+  if (r === "rare") return "#88FF00";
+  if (r === "uncommon") return "#00FF88";
+  return "#ffffff";
+}
+
+// Approximate meters → on-screen pixels at the current zoom level + latitude
+// (Web Mercator). Used to size privacy circles so they shrink/grow with zoom.
+function metersToPxAtZoom(meters: number, lat: number, zoom: number): number {
+  const metersPerPx = (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom);
+  if (!isFinite(metersPerPx) || metersPerPx <= 0) return 80;
+  const px = meters / metersPerPx;
+  return Math.min(280, Math.max(36, Math.round(px * 2))); // diameter
+}
+
 function silhouetteSvg(rColor: string): string {
   return `
     <svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
@@ -158,10 +226,24 @@ function silhouetteSvg(rColor: string): string {
   `;
 }
 
-export default function HuntMap({ orbs, userPosition, onSelectOrb, mapRef: externalMapRef }: HuntMapProps) {
+export default function HuntMap({
+  orbs,
+  userPosition,
+  onSelectOrb,
+  mapRef: externalMapRef,
+  players,
+  wildSpawns,
+  catchableSpawns,
+  onSelectPlayer,
+  onSelectWildSpawn,
+  onSelectCatchable,
+}: HuntMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const playerMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const wildMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const catchableMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const hasInitialView = useRef(false);
   const spottedIdsRef = useRef<Set<string>>(new Set());
@@ -390,11 +472,241 @@ export default function HuntMap({ orbs, userPosition, onSelectOrb, mapRef: exter
     });
   }, [orbs, onSelectOrb]);
 
+  /* ── Player markers (other hunters, fuzzy) ── */
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    const list = players ?? [];
+    const currentIds = new Set(list.map((p) => p.user_id));
+
+    playerMarkersRef.current.forEach((marker, id) => {
+      if (!currentIds.has(id)) {
+        marker.remove();
+        playerMarkersRef.current.delete(id);
+      }
+    });
+
+    list.forEach((p) => {
+      const tone = p.is_friend ? "#88FF00" : "#00FF88";
+      const initial = (p.handle ?? "?").slice(0, 1).toUpperCase();
+
+      // Fuzzy circle as a separate marker behind the dot.
+      const fuzzyId = `fuzzy:${p.user_id}`;
+      const dotId = `dot:${p.user_id}`;
+
+      const fuzzyEl = document.createElement("div");
+      const pxRadius = metersToPxAtZoom(p.fuzzy_radius_m, p.fuzzy_lat, map.getZoom());
+      fuzzyEl.style.cssText = `
+        width:${pxRadius}px;height:${pxRadius}px;border-radius:50%;
+        background:radial-gradient(circle, ${tone}26 0%, ${tone}10 60%, transparent 75%);
+        border:1px solid ${tone}55;
+        animation:mmFuzzyBreath 4.2s ease-in-out infinite;
+        pointer-events:none;
+      `;
+
+      const dotEl = document.createElement("div");
+      dotEl.style.cssText = `
+        position:relative;
+        width:24px;height:24px;border-radius:50%;
+        background:linear-gradient(135deg, ${tone}, #0a0a0f);
+        border:2px solid ${tone};
+        box-shadow:0 0 12px ${tone}aa;
+        display:flex;align-items:center;justify-content:center;
+        color:#0a0a0f;font-weight:800;font-size:11px;
+        animation:mmPlayerPulse 2.4s ease-in-out infinite;
+        cursor:pointer;
+        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+      `;
+      if (p.avatar_url) {
+        dotEl.innerHTML = `<img src="${p.avatar_url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`;
+      } else {
+        dotEl.textContent = initial;
+      }
+      dotEl.setAttribute("role", "button");
+      dotEl.setAttribute("aria-label", `Hunter ${p.handle ?? "anon"}`);
+      dotEl.addEventListener("click", () => onSelectPlayer?.(p));
+
+      const existingFuzzy = playerMarkersRef.current.get(fuzzyId);
+      if (existingFuzzy) {
+        existingFuzzy.setLngLat([p.fuzzy_lng, p.fuzzy_lat]);
+        existingFuzzy.getElement().style.width = `${pxRadius}px`;
+        existingFuzzy.getElement().style.height = `${pxRadius}px`;
+      } else {
+        const m = new mapboxgl.Marker({ element: fuzzyEl, anchor: "center" })
+          .setLngLat([p.fuzzy_lng, p.fuzzy_lat])
+          .addTo(map);
+        playerMarkersRef.current.set(fuzzyId, m);
+      }
+
+      const existingDot = playerMarkersRef.current.get(dotId);
+      if (existingDot) {
+        existingDot.setLngLat([p.fuzzy_lng, p.fuzzy_lat]);
+        const el = existingDot.getElement();
+        el.replaceWith(dotEl);
+        // Re-create marker because Mapbox doesn't expose element swap cleanly.
+        existingDot.remove();
+        const m2 = new mapboxgl.Marker({ element: dotEl, anchor: "center" })
+          .setLngLat([p.fuzzy_lng, p.fuzzy_lat])
+          .addTo(map);
+        playerMarkersRef.current.set(dotId, m2);
+      } else {
+        const m2 = new mapboxgl.Marker({ element: dotEl, anchor: "center" })
+          .setLngLat([p.fuzzy_lng, p.fuzzy_lat])
+          .addTo(map);
+        playerMarkersRef.current.set(dotId, m2);
+      }
+    });
+  }, [players, onSelectPlayer]);
+
+  /* ── Wild creature markers ── */
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    const list = wildSpawns ?? [];
+    const currentIds = new Set(list.map((s) => `wild:${s.id}`));
+    const fuzzyIds = new Set(list.map((s) => `wild-fuzzy:${s.id}`));
+
+    wildMarkersRef.current.forEach((marker, id) => {
+      if (!currentIds.has(id) && !fuzzyIds.has(id)) {
+        marker.remove();
+        wildMarkersRef.current.delete(id);
+      }
+    });
+
+    list.forEach((s) => {
+      const color = wildRarityColor(s.rarity);
+
+      const fuzzyEl = document.createElement("div");
+      const pxRadius = metersToPxAtZoom(s.fuzzy_radius_m, s.fuzzy_lat, map.getZoom());
+      fuzzyEl.style.cssText = `
+        width:${pxRadius}px;height:${pxRadius}px;border-radius:50%;
+        background:radial-gradient(circle, ${color}33 0%, ${color}14 55%, transparent 75%);
+        border:1px dashed ${color}88;
+        animation:mmFuzzyBreath 5s ease-in-out infinite;
+        pointer-events:none;
+      `;
+
+      const wildEl = document.createElement("div");
+      wildEl.style.cssText = `
+        width:38px;height:38px;border-radius:50%;
+        background:radial-gradient(circle at 35% 35%, ${color}, #0a0a0f);
+        border:2px solid ${color};
+        --wild-color:${color};
+        animation:mmWildPulse 1.9s ease-in-out infinite;
+        cursor:pointer;
+        display:flex;align-items:center;justify-content:center;
+        overflow:hidden;
+      `;
+      wildEl.setAttribute("role", "button");
+      wildEl.setAttribute("aria-label", `Wild ${s.species}`);
+      wildEl.innerHTML = `
+        <svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" width="70%" height="70%">
+          <ellipse cx="14" cy="14" rx="10" ry="6" fill="#0a0a0f" opacity="0.75"/>
+          <circle cx="14" cy="13" r="3.2" fill="${color}"/>
+          <circle cx="14" cy="13" r="1.4" fill="#FFFFFF"/>
+        </svg>
+      `;
+      wildEl.addEventListener("click", () => onSelectWildSpawn?.(s));
+
+      const fId = `wild-fuzzy:${s.id}`;
+      const wId = `wild:${s.id}`;
+
+      const existingF = wildMarkersRef.current.get(fId);
+      if (existingF) {
+        existingF.setLngLat([s.fuzzy_lng, s.fuzzy_lat]);
+        existingF.getElement().style.width = `${pxRadius}px`;
+        existingF.getElement().style.height = `${pxRadius}px`;
+      } else {
+        const m = new mapboxgl.Marker({ element: fuzzyEl, anchor: "center" })
+          .setLngLat([s.fuzzy_lng, s.fuzzy_lat])
+          .addTo(map);
+        wildMarkersRef.current.set(fId, m);
+      }
+
+      const existingW = wildMarkersRef.current.get(wId);
+      if (existingW) {
+        existingW.setLngLat([s.fuzzy_lng, s.fuzzy_lat]);
+        existingW.remove();
+        const m2 = new mapboxgl.Marker({ element: wildEl, anchor: "center" })
+          .setLngLat([s.fuzzy_lng, s.fuzzy_lat])
+          .addTo(map);
+        wildMarkersRef.current.set(wId, m2);
+      } else {
+        const m2 = new mapboxgl.Marker({ element: wildEl, anchor: "center" })
+          .setLngLat([s.fuzzy_lng, s.fuzzy_lat])
+          .addTo(map);
+        wildMarkersRef.current.set(wId, m2);
+      }
+    });
+  }, [wildSpawns, onSelectWildSpawn]);
+
+  /* ── Catchable wild spawns (catch-to-mint, exact GPS) ── */
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    const list = catchableSpawns ?? [];
+    const currentIds = new Set(list.map((s) => `catch:${s.id}`));
+
+    catchableMarkersRef.current.forEach((marker, id) => {
+      if (!currentIds.has(id)) {
+        marker.remove();
+        catchableMarkersRef.current.delete(id);
+      }
+    });
+
+    list.forEach((s) => {
+      const color = s.tier_color || "#00FF88";
+      const key = `catch:${s.id}`;
+
+      const el = document.createElement("div");
+      el.style.cssText = `
+        position:relative;
+        width:36px;height:36px;border-radius:50%;
+        background:radial-gradient(circle at 35% 35%, ${color}, #0a0a0f);
+        border:2px solid ${color};
+        --wild-color:${color};
+        animation:mmWildPulse 2.0s ease-in-out infinite;
+        cursor:pointer;
+        display:flex;align-items:center;justify-content:center;
+        overflow:hidden;
+      `;
+      el.setAttribute("role", "button");
+      el.setAttribute("aria-label", `Wild ${s.tier} ${s.name}`);
+      if (s.image_url) {
+        el.innerHTML = `<img src="${s.image_url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" />`;
+      } else {
+        el.innerHTML = `
+          <svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" width="60%" height="60%">
+            <circle cx="14" cy="14" r="6" fill="${color}" opacity="0.85"/>
+            <circle cx="14" cy="14" r="2" fill="#0a0a0f"/>
+          </svg>
+        `;
+      }
+      el.addEventListener("click", () => onSelectCatchable?.(s));
+
+      const existing = catchableMarkersRef.current.get(key);
+      if (existing) {
+        existing.setLngLat([s.lng, s.lat]);
+        existing.remove();
+      }
+      const m = new mapboxgl.Marker({ element: el, anchor: "center" })
+        .setLngLat([s.lng, s.lat])
+        .addTo(map);
+      catchableMarkersRef.current.set(key, m);
+    });
+  }, [catchableSpawns, onSelectCatchable]);
+
   /* ── Cleanup ── */
   useEffect(() => {
     return () => {
       markersRef.current.forEach((m) => m.remove());
       markersRef.current.clear();
+      playerMarkersRef.current.forEach((m) => m.remove());
+      playerMarkersRef.current.clear();
+      wildMarkersRef.current.forEach((m) => m.remove());
+      wildMarkersRef.current.clear();
+      catchableMarkersRef.current.forEach((m) => m.remove());
+      catchableMarkersRef.current.clear();
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;

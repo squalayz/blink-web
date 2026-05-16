@@ -15,10 +15,38 @@ import UserProfileCard from "@/components/UserProfileCard";
 import { BlinkCompass, type CompassReading, type CompassTier } from "@/components/BlinkCompass";
 import { BESTIARY } from "@/lib/bestiary";
 import { usePresence } from "@/lib/use-presence";
-import type { NearbyPlayer, WildSpawn } from "@/components/HuntMap";
+import type { NearbyPlayer, WildSpawn, CatchableSpawn } from "@/components/HuntMap";
 import PrivacyIntroModal from "@/components/PrivacyIntroModal";
 import PresenceLegend from "@/components/PresenceLegend";
 import PlayerSheet from "@/components/PlayerSheet";
+
+const CATCH_PROXIMITY_M = 50;
+const AMBIENT_POLL_MS = 60_000;
+
+const TIER_LABELS: Record<string, string> = {
+  common: "Common",
+  uncommon: "Uncommon",
+  rare: "Rare",
+  legendary: "Legendary",
+  mythic: "Mythic",
+};
+
+interface CatchResult {
+  spawnId: string;
+  tier: string;
+  tierLabel: string;
+  name: string;
+  image_url: string;
+  tokenId: string | null;
+  mintTxHash: string;
+  feeToDeployerTxHash: string | null;
+  feeToTreasuryTxHash: string | null;
+  blinkRewardTxHash: string | null;
+  blinkRewarded: number;
+  wasFreeCatch: boolean;
+  freeCatchesRemaining: number;
+  openseaUrl: string | null;
+}
 
 const HuntMap = dynamic(() => import("@/components/HuntMap"), { ssr: false });
 
@@ -182,6 +210,11 @@ export default function MapPage() {
   const [selectedPlayer, setSelectedPlayer] = useState<NearbyPlayer | null>(null);
   const [selectedWild, setSelectedWild] = useState<WildSpawn | null>(null);
   const [privacyForceOpen, setPrivacyForceOpen] = useState(false);
+  const [catchableSpawns, setCatchableSpawns] = useState<CatchableSpawn[]>([]);
+  const [selectedCatchable, setSelectedCatchable] = useState<CatchableSpawn | null>(null);
+  const [catching, setCatching] = useState(false);
+  const [catchError, setCatchError] = useState<string | null>(null);
+  const [catchResult, setCatchResult] = useState<CatchResult | null>(null);
   const leafletMapRef = useRef<any>(null);
   const watchIdRef = useRef<number | null>(null);
   const fabIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -277,6 +310,72 @@ export default function MapPage() {
   useEffect(() => {
     if (user) fetchOrbs();
   }, [user, fetchOrbs]);
+
+  /* ---- Ambient wild spawn polling (catch-to-mint) ---- */
+  const fetchCatchableSpawns = useCallback(async () => {
+    if (!position) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch(
+        `/api/spawns/ambient?lat=${position.lat}&lng=${position.lng}`,
+        { headers: { Authorization: `Bearer ${session.access_token}` } },
+      );
+      if (!res.ok) return;
+      const json = await res.json();
+      setCatchableSpawns((json.spawns ?? []) as CatchableSpawn[]);
+    } catch {
+      /* silent */
+    }
+  }, [position?.lat, position?.lng]);
+
+  useEffect(() => {
+    if (!user || !position) return;
+    fetchCatchableSpawns();
+    const id = setInterval(fetchCatchableSpawns, AMBIENT_POLL_MS);
+    return () => clearInterval(id);
+  }, [user, position?.lat, position?.lng, fetchCatchableSpawns]);
+
+  /* ---- Catch flow ---- */
+  const performCatch = useCallback(async () => {
+    if (!selectedCatchable || !position) return;
+    setCatching(true);
+    setCatchError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setCatchError("Not authenticated.");
+        setCatching(false);
+        return;
+      }
+      const res = await fetch("/api/spawns/catch", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          spawnId: selectedCatchable.id,
+          lat: position.lat,
+          lng: position.lng,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setCatchError(json.error || "Catch failed.");
+        setCatching(false);
+        return;
+      }
+      setCatchResult(json as CatchResult);
+      setSelectedCatchable(null);
+      // Re-poll immediately so the caught spawn drops off.
+      await fetchCatchableSpawns();
+    } catch (err) {
+      setCatchError(err instanceof Error ? err.message : "Catch failed.");
+    } finally {
+      setCatching(false);
+    }
+  }, [selectedCatchable, position, fetchCatchableSpawns]);
 
   /* ---- Derived ---- */
   // Render real spawns only — no mock fallback in production.
@@ -636,8 +735,10 @@ export default function MapPage() {
             mapRef={leafletMapRef}
             players={players}
             wildSpawns={wildSpawns}
+            catchableSpawns={catchableSpawns}
             onSelectPlayer={(p) => { setSelectedPlayer(p); wakeFab(); }}
             onSelectWildSpawn={(s) => { setSelectedWild(s); wakeFab(); }}
+            onSelectCatchable={(s) => { setSelectedCatchable(s); setCatchError(null); wakeFab(); }}
           />
         </Suspense>
 
@@ -1484,6 +1585,323 @@ export default function MapPage() {
           }}
         />
       )}
+
+      {/* ========== CATCHABLE WILD SPAWN SHEET ========== */}
+      <AnimatePresence>
+        {selectedCatchable && (() => {
+          const dist = position
+            ? haversine(position.lat, position.lng, selectedCatchable.lat, selectedCatchable.lng)
+            : Infinity;
+          const inRange = dist <= CATCH_PROXIMITY_M;
+          const tierLabel = TIER_LABELS[selectedCatchable.tier] ?? selectedCatchable.tier;
+          const accent = selectedCatchable.tier_color || "#00FF88";
+          return (
+            <motion.div
+              key="catch-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { if (!catching) setSelectedCatchable(null); }}
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(0,0,0,0.7)",
+                zIndex: 80,
+                display: "flex",
+                alignItems: "flex-end",
+                justifyContent: "center",
+              }}
+            >
+              <motion.div
+                key="catch-sheet"
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 28, stiffness: 300 }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  width: "100%",
+                  maxWidth: 480,
+                  background: COLORS.surface,
+                  borderTopLeftRadius: 22,
+                  borderTopRightRadius: 22,
+                  padding: "22px 22px 28px",
+                  color: COLORS.text,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div
+                    style={{
+                      width: 64,
+                      height: 64,
+                      borderRadius: 16,
+                      background: `radial-gradient(circle at 35% 35%, ${accent}, #0a0a0f)`,
+                      border: `2px solid ${accent}`,
+                      overflow: "hidden",
+                      flexShrink: 0,
+                      boxShadow: `0 0 18px ${accent}66`,
+                    }}
+                  >
+                    {selectedCatchable.image_url && (
+                      <img
+                        src={selectedCatchable.image_url}
+                        alt=""
+                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                      />
+                    )}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.01em" }}>
+                      Wild {selectedCatchable.name}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                      <span
+                        style={{
+                          background: `${accent}22`,
+                          color: accent,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          padding: "3px 10px",
+                          borderRadius: 8,
+                          textTransform: "capitalize",
+                        }}
+                      >
+                        {tierLabel}
+                      </span>
+                      <span style={{ color: COLORS.textMuted, fontSize: 12 }}>
+                        {inRange ? "In range" : `${Math.round(dist)}m away`}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { if (!catching) setSelectedCatchable(null); }}
+                    aria-label="Close"
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: COLORS.textMuted,
+                      fontSize: 22,
+                      cursor: catching ? "default" : "pointer",
+                      lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <p style={{ color: "#cfd3dd", fontSize: 13, lineHeight: 1.55, margin: "14px 0 18px" }}>
+                  {inRange
+                    ? "You're close enough. Catch this creature to mint a real NFT to your wallet."
+                    : `Walk closer to catch — ${Math.round(dist)}m away. You need to be within ${CATCH_PROXIMITY_M}m.`}
+                </p>
+
+                {catchError && (
+                  <p
+                    style={{
+                      color: "#F87171",
+                      fontSize: 13,
+                      margin: "0 0 12px",
+                      background: "rgba(248,113,113,0.08)",
+                      border: "1px solid rgba(248,113,113,0.25)",
+                      borderRadius: 10,
+                      padding: "10px 12px",
+                    }}
+                  >
+                    {catchError}
+                  </p>
+                )}
+
+                <button
+                  onClick={performCatch}
+                  disabled={!inRange || catching}
+                  style={{
+                    width: "100%",
+                    padding: "14px 0",
+                    borderRadius: 14,
+                    border: "none",
+                    background: inRange ? COLORS.accent : COLORS.card,
+                    color: inRange ? COLORS.bg : COLORS.textMuted,
+                    fontSize: 15,
+                    fontWeight: 800,
+                    cursor: inRange && !catching ? "pointer" : "default",
+                    opacity: catching ? 0.6 : 1,
+                  }}
+                >
+                  {catching
+                    ? "Minting..."
+                    : inRange
+                      ? "Catch"
+                      : `Walk closer — ${Math.round(dist)}m away`}
+                </button>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
+
+      {/* ========== CATCH SUCCESS MODAL ========== */}
+      <AnimatePresence>
+        {catchResult && (() => {
+          const accent = (() => {
+            const map: Record<string, string> = {
+              common: "#FFFFFF",
+              uncommon: "#66E3FF",
+              rare: "#6BB5FF",
+              legendary: "#FFD773",
+              mythic: "#FF66CC",
+            };
+            return map[catchResult.tier] || COLORS.accent;
+          })();
+          return (
+            <motion.div
+              key="catch-success-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setCatchResult(null)}
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(0,0,0,0.78)",
+                zIndex: 85,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 24,
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.92, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.92, opacity: 0 }}
+                transition={{ type: "spring", damping: 24, stiffness: 280 }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  width: "100%",
+                  maxWidth: 380,
+                  background: COLORS.surface,
+                  borderRadius: 22,
+                  padding: "24px 22px 26px",
+                  textAlign: "center",
+                  border: `1px solid ${accent}55`,
+                  boxShadow: `0 0 32px ${accent}33`,
+                }}
+              >
+                <div
+                  style={{
+                    width: 112,
+                    height: 112,
+                    borderRadius: "50%",
+                    background: `radial-gradient(circle at 35% 35%, ${accent}, #0a0a0f)`,
+                    border: `3px solid ${accent}`,
+                    margin: "0 auto 16px",
+                    overflow: "hidden",
+                    boxShadow: `0 0 28px ${accent}88`,
+                  }}
+                >
+                  {catchResult.image_url && (
+                    <img
+                      src={catchResult.image_url}
+                      alt=""
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    />
+                  )}
+                </div>
+                <h3 style={{ color: COLORS.text, fontSize: 20, fontWeight: 800, margin: "0 0 6px" }}>
+                  Caught {catchResult.name}
+                </h3>
+                <div style={{ color: accent, fontSize: 13, fontWeight: 700, margin: "0 0 14px" }}>
+                  {catchResult.tierLabel} · NFT minted to your wallet
+                </div>
+                <div
+                  style={{
+                    background: COLORS.bg,
+                    borderRadius: 12,
+                    padding: "12px 14px",
+                    marginBottom: 14,
+                    textAlign: "left",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                    <span style={{ color: COLORS.textMuted, fontSize: 13 }}>BLINK reward</span>
+                    <span style={{ color: COLORS.accent, fontSize: 13, fontWeight: 700 }}>
+                      {catchResult.blinkRewarded.toLocaleString()} BLINK
+                    </span>
+                  </div>
+                  {catchResult.tokenId && (
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ color: COLORS.textMuted, fontSize: 13 }}>Token ID</span>
+                      <span style={{ color: COLORS.text, fontSize: 13, fontFamily: "monospace" }}>
+                        #{catchResult.tokenId}
+                      </span>
+                    </div>
+                  )}
+                  {catchResult.wasFreeCatch && (
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: COLORS.textMuted, fontSize: 13 }}>Free catches left</span>
+                      <span style={{ color: COLORS.text, fontSize: 13 }}>
+                        {catchResult.freeCatchesRemaining}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {catchResult.openseaUrl && (
+                    <a
+                      href={catchResult.openseaUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: "block",
+                        padding: "12px 0",
+                        borderRadius: 12,
+                        background: COLORS.card,
+                        color: COLORS.text,
+                        fontSize: 14,
+                        fontWeight: 700,
+                        textDecoration: "none",
+                        border: `1px solid ${COLORS.border}`,
+                      }}
+                    >
+                      View on OpenSea
+                    </a>
+                  )}
+                  <a
+                    href={`https://etherscan.io/tx/${catchResult.mintTxHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "block",
+                      padding: "10px 0",
+                      color: COLORS.textMuted,
+                      fontSize: 12,
+                      textDecoration: "none",
+                    }}
+                  >
+                    View mint transaction
+                  </a>
+                  <button
+                    onClick={() => setCatchResult(null)}
+                    style={{
+                      width: "100%",
+                      padding: "12px 0",
+                      borderRadius: 12,
+                      border: "none",
+                      background: COLORS.accent,
+                      color: COLORS.bg,
+                      fontSize: 14,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Done
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
 
       {/* ========== WILD CREATURE SHEET ========== */}
       <AnimatePresence>
