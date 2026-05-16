@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { decryptAES } from "@/lib/production";
-import { requireAuth, rateLimitByUser } from "@/lib/api-auth";
+import { requireAuth, rateLimitByUser, verifyUserPassword } from "@/lib/api-auth";
 import { ethers } from "ethers";
 
 const supabaseAdmin = createClient(
@@ -17,9 +17,19 @@ export async function POST(req: NextRequest) {
     const rlError = rateLimitByUser(user!.id, "send-eth", 5, 60_000);
     if (rlError) return rlError;
 
-    const { to_address, amount } = await req.json();
+    const { to_address, amount, password } = await req.json();
     if (!to_address || !amount || amount <= 0) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+    if (!password) {
+      return NextResponse.json({ error: "Password required to send" }, { status: 400 });
+    }
+    if (!user!.email) {
+      return NextResponse.json({ error: "User has no email" }, { status: 400 });
+    }
+    const validPw = await verifyUserPassword(user!.email, password);
+    if (!validPw) {
+      return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
     }
 
     const { data: profile } = await supabaseAdmin
@@ -36,7 +46,7 @@ export async function POST(req: NextRequest) {
     const privateKeyRaw = decryptAES(profile.eth_encrypted_key);
     const privateKey = privateKeyRaw.startsWith("0x") ? privateKeyRaw : `0x${privateKeyRaw}`;
 
-    const provider = new ethers.JsonRpcProvider("https://cloudflare-eth.com");
+    const provider = new ethers.JsonRpcProvider((process.env.ETH_RPC_URL || "https://ethereum-rpc.publicnode.com").trim());
     const wallet = new ethers.Wallet(privateKey, provider);
 
     const { data: locks } = await supabaseAdmin.from('wallet_locks').select('amount').eq('user_id', user.id).eq('status', 'locked').eq('currency', 'ETH');

@@ -33,14 +33,15 @@ export type BlinkHoldings = {
 
 const GENESIS_CONTRACT = (
   process.env.NEXT_PUBLIC_BLINK_GENESIS_CONTRACT || BLINK_GENESIS_CONTRACT
-).toLowerCase();
+).trim().toLowerCase();
 
 const MYTHICS_CONTRACT = (
   process.env.NEXT_PUBLIC_BLINK_MYTHICS_CONTRACT || ""
-).toLowerCase();
+).trim().toLowerCase();
 
-const ETH_RPC_URL =
-  process.env.ETH_RPC_URL || "https://ethereum-rpc.publicnode.com";
+const ETH_RPC_URL = (
+  process.env.ETH_RPC_URL || "https://ethereum-rpc.publicnode.com"
+).trim();
 
 const TRANSFER_TOPIC =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";

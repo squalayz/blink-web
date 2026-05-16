@@ -1,96 +1,39 @@
+// ETH-only balance lookup.
+// Accepts ?address=0x... or legacy ?eth_address=0x... query params.
+// Returns native ETH balance as a number.
+
 import { NextRequest, NextResponse } from "next/server";
+import { ethers } from "ethers";
+import { isValidAddress } from "@/lib/production";
 
-async function getSolBalance(address: string): Promise<number> {
-  const res = await fetch("https://api.mainnet-beta.solana.com", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "getBalance",
-      params: [address],
-    }),
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  return (data.result?.value ?? 0) / 1e9; // lamports to SOL
-}
-
-async function getEthBalance(address: string): Promise<number> {
-  const res = await fetch("https://cloudflare-eth.com", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "eth_getBalance",
-      params: [address, "latest"],
-    }),
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  return parseInt(data.result, 16) / 1e18; // hex wei to ETH
-}
-
-async function getBtcBalance(address: string): Promise<number> {
-  const res = await fetch(`https://mempool.space/api/address/${address}`);
-  if (!res.ok) throw new Error("mempool.space fetch failed");
-  const data = await res.json();
-  const funded: number = data.chain_stats?.funded_txo_sum ?? 0;
-  const spent: number = data.chain_stats?.spent_txo_sum ?? 0;
-  return (funded - spent) / 1e8; // satoshis to BTC
-}
+const RPC_URL = (process.env.ETH_RPC_URL || "https://ethereum-rpc.publicnode.com").trim();
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const solAddress = searchParams.get("sol_address");
-  const ethAddress = searchParams.get("eth_address");
-  const btcAddress = searchParams.get("btc_address");
+  const address = searchParams.get("address") || searchParams.get("eth_address");
 
-  if (!solAddress && !ethAddress && !btcAddress) {
-    return NextResponse.json(
-      {
-        error:
-          "At least one address param required: sol_address, eth_address, btc_address",
-      },
-      { status: 400 }
-    );
+  if (!address) {
+    return NextResponse.json({ error: "address query param required" }, { status: 400 });
+  }
+  if (!isValidAddress(address)) {
+    return NextResponse.json({ error: "Invalid ETH address" }, { status: 400 });
   }
 
-  const results: { sol: number; eth: number; btc: number } = {
-    sol: 0,
-    eth: 0,
-    btc: 0,
-  };
+  try {
+    const provider = new ethers.JsonRpcProvider(RPC_URL);
+    const wei = await provider.getBalance(address);
+    const eth = Number(ethers.formatEther(wei));
 
-  const errors: string[] = [];
-
-  await Promise.all([
-    solAddress
-      ? getSolBalance(solAddress)
-          .then((v) => (results.sol = v))
-          .catch((e) => errors.push(`SOL: ${e.message}`))
-      : Promise.resolve(),
-
-    ethAddress
-      ? getEthBalance(ethAddress)
-          .then((v) => (results.eth = v))
-          .catch((e) => errors.push(`ETH: ${e.message}`))
-      : Promise.resolve(),
-
-    btcAddress
-      ? getBtcBalance(btcAddress)
-          .then((v) => (results.btc = v))
-          .catch((e) => errors.push(`BTC: ${e.message}`))
-      : Promise.resolve(),
-  ]);
-
-  return NextResponse.json(
-    { ...results, ...(errors.length ? { errors } : {}) },
-    {
-      headers: {
-        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
-      },
-    }
-  );
+    return NextResponse.json(
+      { address, eth, balance: eth },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+        },
+      }
+    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Balance fetch failed";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
