@@ -15,7 +15,13 @@ import UserProfileCard from "@/components/UserProfileCard";
 import { BlinkCompass, type CompassReading, type CompassTier } from "@/components/BlinkCompass";
 import { BESTIARY } from "@/lib/bestiary";
 import { usePresence } from "@/lib/use-presence";
-import type { NearbyPlayer, WildSpawn, CatchableSpawn } from "@/components/HuntMap";
+import type {
+  NearbyPlayer,
+  WildSpawn,
+  CatchableSpawn,
+  NearbyWatcher,
+  NearbyRecentCatch,
+} from "@/components/HuntMap";
 import PrivacyIntroModal from "@/components/PrivacyIntroModal";
 import PresenceLegend from "@/components/PresenceLegend";
 import PlayerSheet from "@/components/PlayerSheet";
@@ -413,6 +419,93 @@ export default function MapPage() {
   /* ---- Presence + wild spawns (privacy-blurred) ---- */
   const { players, wildSpawns } = usePresence(position);
 
+  /* ---- Activity feed: ambient social proof ---- */
+  const [watchers, setWatchers] = useState<NearbyWatcher[]>([]);
+  const [recentCatchesList, setRecentCatchesList] = useState<NearbyRecentCatch[]>([]);
+  const [watchersOpen, setWatchersOpen] = useState(false);
+
+  // Heartbeat: while the /map page is foreground + we have a position, ping
+  // /api/activity/heartbeat every 30s. Page Visibility gates this so background
+  // tabs don't hammer the endpoint.
+  useEffect(() => {
+    if (!user || !position) return;
+    let cancelled = false;
+    let tokenCache: string | null = null;
+
+    const send = async () => {
+      if (document.visibilityState !== "visible") return;
+      if (!tokenCache) {
+        const { data: { session } } = await supabase.auth.getSession();
+        tokenCache = session?.access_token ?? null;
+      }
+      if (!tokenCache) return;
+      try {
+        await fetch("/api/activity/heartbeat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenCache}` },
+          body: JSON.stringify({ lat: position.lat, lng: position.lng }),
+        });
+      } catch {
+        /* silent */
+      }
+    };
+
+    send();
+    const id = setInterval(() => {
+      if (!cancelled) send();
+    }, 30_000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") send();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [user, position?.lat, position?.lng]);
+
+  // Nearby watcher + recent-catch polling (every 30s while visible).
+  useEffect(() => {
+    if (!user || !position) return;
+    let cancelled = false;
+    let tokenCache: string | null = null;
+
+    const fetchNearby = async () => {
+      if (document.visibilityState !== "visible") return;
+      if (!tokenCache) {
+        const { data: { session } } = await supabase.auth.getSession();
+        tokenCache = session?.access_token ?? null;
+      }
+      if (!tokenCache) return;
+      try {
+        const res = await fetch(
+          `/api/activity/nearby?lat=${position.lat}&lng=${position.lng}&radiusKm=2`,
+          { headers: { Authorization: `Bearer ${tokenCache}` } },
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+        setWatchers((json.activeWatchers ?? []) as NearbyWatcher[]);
+        setRecentCatchesList((json.recentCatches ?? []) as NearbyRecentCatch[]);
+      } catch {
+        /* silent */
+      }
+    };
+
+    fetchNearby();
+    const id = setInterval(fetchNearby, 30_000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") fetchNearby();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [user, position?.lat, position?.lng]);
+
   /* ---- Compass reading ---- */
   const compassReading: CompassReading = (() => {
     if (!position || orbsWithDistance.length === 0) {
@@ -736,6 +829,8 @@ export default function MapPage() {
             players={players}
             wildSpawns={wildSpawns}
             catchableSpawns={catchableSpawns}
+            watchers={watchers}
+            recentCatches={recentCatchesList}
             onSelectPlayer={(p) => { setSelectedPlayer(p); wakeFab(); }}
             onSelectWildSpawn={(s) => { setSelectedWild(s); wakeFab(); }}
             onSelectCatchable={(s) => { setSelectedCatchable(s); setCatchError(null); wakeFab(); }}
@@ -788,6 +883,116 @@ export default function MapPage() {
               >
                 Enable
               </button>
+            )}
+          </div>
+        )}
+
+        {/* ---- Watchers nearby chip ---- */}
+        {(watchers.length > 0 || recentCatchesList.length > 0) && (
+          <div
+            style={{
+              position: "absolute",
+              top: showLocationBanner ? 56 : 12,
+              left: 12,
+              zIndex: 18,
+              maxWidth: "calc(100% - 80px)",
+            }}
+          >
+            <button
+              onClick={() => setWatchersOpen((v) => !v)}
+              aria-expanded={watchersOpen}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 12px",
+                borderRadius: 999,
+                background: "rgba(10,10,15,0.85)",
+                border: "1px solid rgba(0,255,136,0.45)",
+                color: "#00FF88",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                boxShadow: "0 0 14px rgba(0,255,136,0.18)",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 5C7 5 3 12 3 12s4 7 9 7 9-7 9-7-4-7-9-7Z" stroke="#00FF88" strokeWidth="1.8"/>
+                <circle cx="12" cy="12" r="3" fill="#00FF88"/>
+              </svg>
+              <span>
+                {watchers.length} Watcher{watchers.length !== 1 ? "s" : ""} nearby
+                {recentCatchesList.length > 0
+                  ? ` · ${recentCatchesList.length} recent catch${recentCatchesList.length !== 1 ? "es" : ""}`
+                  : ""}
+              </span>
+            </button>
+
+            {watchersOpen && recentCatchesList.length > 0 && (
+              <div
+                style={{
+                  marginTop: 8,
+                  width: 260,
+                  maxHeight: 240,
+                  overflowY: "auto",
+                  background: "rgba(10,10,15,0.95)",
+                  border: "1px solid rgba(0,255,136,0.32)",
+                  borderRadius: 12,
+                  padding: 8,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.55)",
+                  backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)",
+                }}
+              >
+                <div
+                  style={{
+                    color: "#8a8a99",
+                    fontSize: 10,
+                    letterSpacing: "0.16em",
+                    textTransform: "uppercase",
+                    marginBottom: 6,
+                    padding: "0 4px",
+                  }}
+                >
+                  Recent catches
+                </div>
+                {recentCatchesList.map((rc) => {
+                  const ageMin = Math.max(0, Math.floor((Date.now() - new Date(rc.caughtAt).getTime()) / 60000));
+                  const ageLabel = ageMin === 0 ? "just now" : `${ageMin} min ago`;
+                  return (
+                    <div
+                      key={rc.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "6px 4px",
+                        borderBottom: "1px solid rgba(255,255,255,0.04)",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: "#00FF88",
+                          boxShadow: "0 0 6px rgba(0,255,136,0.6)",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ color: "#FFFFFF", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {rc.catcherHandle} · {rc.tier}
+                        </div>
+                        <div style={{ color: "#8a8a99", fontSize: 11 }}>{ageLabel}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}

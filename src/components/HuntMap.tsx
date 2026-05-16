@@ -5,6 +5,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Orb, rarityColor } from '@/lib/theme';
 import { sounds } from '@/lib/sounds';
+import { applyBlinkMapStyle } from '@/lib/blink-map-style';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
@@ -49,6 +50,24 @@ export type CatchableSpawn = {
   expires_at: string;
 };
 
+export type NearbyWatcher = {
+  user_id: string;
+  handle: string | null;
+  lat: number;
+  lng: number;
+  lastSeenAt: string;
+};
+
+export type NearbyRecentCatch = {
+  id: string;
+  lat: number;
+  lng: number;
+  tier: string;
+  name: string;
+  caughtAt: string;
+  catcherHandle: string;
+};
+
 interface HuntMapProps {
   orbs: HuntOrb[];
   userPosition: { lat: number; lng: number } | null;
@@ -57,9 +76,62 @@ interface HuntMapProps {
   players?: NearbyPlayer[];
   wildSpawns?: WildSpawn[];
   catchableSpawns?: CatchableSpawn[];
+  watchers?: NearbyWatcher[];
+  recentCatches?: NearbyRecentCatch[];
   onSelectPlayer?: (player: NearbyPlayer) => void;
   onSelectWildSpawn?: (spawn: WildSpawn) => void;
   onSelectCatchable?: (spawn: CatchableSpawn) => void;
+}
+
+const RARITY_TONE: Record<string, string> = {
+  Common: '#9aa3b2',
+  Uncommon: '#00FF88',
+  Rare: '#88FF00',
+  Legendary: '#ffd166',
+  Mythic: '#ff8ae0',
+  common: '#9aa3b2',
+  uncommon: '#00FF88',
+  rare: '#88FF00',
+  legendary: '#ffd166',
+  mythic: '#ff8ae0',
+};
+
+function normalRarity(r: string): string {
+  return (r || '').toLowerCase();
+}
+
+function tierGlowProfile(rarity: string): {
+  bob: boolean;
+  particles: number;
+  haloRotate: boolean;
+  scaleBreath: boolean;
+  sonarRings: number;
+  shadowPx: number;
+} {
+  const r = normalRarity(rarity);
+  if (r === 'mythic') return { bob: true, particles: 8, haloRotate: true, scaleBreath: true, sonarRings: 2, shadowPx: 36 };
+  if (r === 'legendary') return { bob: true, particles: 5, haloRotate: false, scaleBreath: true, sonarRings: 2, shadowPx: 28 };
+  if (r === 'rare') return { bob: true, particles: 0, haloRotate: false, scaleBreath: false, sonarRings: 2, shadowPx: 22 };
+  if (r === 'uncommon') return { bob: true, particles: 0, haloRotate: false, scaleBreath: false, sonarRings: 1, shadowPx: 16 };
+  return { bob: false, particles: 0, haloRotate: false, scaleBreath: false, sonarRings: 1, shadowPx: 10 };
+}
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function particleHTML(count: number, color: string, idSeed: string): string {
+  if (count <= 0) return '';
+  let html = '';
+  for (let i = 0; i < count; i++) {
+    const left = 15 + Math.floor((i * 73 + idSeed.charCodeAt(i % idSeed.length)) % 70);
+    const delay = ((i * 0.27) % 2.6).toFixed(2);
+    const dur = (2.2 + ((i * 0.41) % 2.0)).toFixed(2);
+    const size = 2 + (i % 3);
+    html += `<span class="mm-particle" style="left:${left}%;width:${size}px;height:${size}px;background:${color};animation-delay:${delay}s;animation-duration:${dur}s;"></span>`;
+  }
+  return `<div class="mm-particle-aura">${html}</div>`;
 }
 
 function orbMarkerConfig(rarity: string) {
@@ -193,6 +265,174 @@ const HUNT_CSS = `
   animation: mmCatchablePulse 1.4s ease-in-out infinite;
   pointer-events: none;
 }
+@keyframes mmOrbBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes mmScaleBreath {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+@keyframes mmHaloSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes mmParticleFloat {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  20% { opacity: 0.9; }
+  100% { transform: translateY(-32px) scale(1.1); opacity: 0; }
+}
+@keyframes mmGhostBob {
+  0%, 100% { transform: translateY(0); opacity: 0.55; }
+  50% { transform: translateY(-3px); opacity: 0.85; }
+}
+@keyframes mmGhostFadeIn {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes mmWatcherPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 6px rgba(0,255,136,0.6); }
+  50% { transform: scale(1.25); box-shadow: 0 0 12px rgba(0,255,136,0.9); }
+}
+@keyframes mmCatchPill {
+  0%, 100% { transform: translate(-50%,-2px); }
+  50% { transform: translate(-50%,-7px); }
+}
+@keyframes mmCatchWindup {
+  0% { transform: scale(1); filter: brightness(1) drop-shadow(0 0 0 transparent); }
+  60% { transform: scale(1.35); filter: brightness(1.6) drop-shadow(0 0 28px rgba(0,255,136,0.95)); }
+  100% { transform: scale(1.15); filter: brightness(1.2) drop-shadow(0 0 12px rgba(0,255,136,0.6)); }
+}
+.mm-orb-bob { animation: mmOrbBob 2s ease-in-out infinite; will-change: transform; }
+.mm-orb-breath { animation: mmScaleBreath 3s ease-in-out infinite; }
+.mm-orb-halo {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, rgba(0,255,136,0.9), rgba(136,255,0,0.5), rgba(255,138,224,0.7), rgba(0,255,136,0.9));
+  filter: blur(4px);
+  opacity: 0.55;
+  animation: mmHaloSpin 6s linear infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+.mm-particle-aura {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 8;
+}
+.mm-particle {
+  position: absolute;
+  bottom: 50%;
+  border-radius: 50%;
+  opacity: 0;
+  animation: mmParticleFloat 2.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px currentColor);
+  pointer-events: none;
+}
+.mm-catch-pill {
+  position: absolute;
+  left: 50%;
+  bottom: 110%;
+  transform: translate(-50%, 0);
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(10,10,15,0.85);
+  border: 1px solid rgba(0,255,136,0.6);
+  color: #00FF88;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  animation: mmCatchPill 1.4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 12;
+  box-shadow: 0 0 10px rgba(0,255,136,0.45);
+}
+.mm-windup { animation: mmCatchWindup 200ms ease-out forwards !important; }
+.mm-watcher-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ccffe6, #00FF88 70%);
+  box-shadow: 0 0 8px rgba(0,255,136,0.75);
+  animation: mmWatcherPulse 1.2s ease-in-out infinite;
+  cursor: pointer;
+}
+.mm-watcher-dot::after {
+  content: attr(data-handle);
+  position: absolute;
+  left: 50%;
+  bottom: 130%;
+  transform: translateX(-50%);
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: rgba(10,10,15,0.9);
+  border: 1px solid rgba(0,255,136,0.4);
+  color: #00FF88;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+.mm-watcher-dot:hover::after { opacity: 1; }
+.mm-ghost-catch {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: mmGhostFadeIn 320ms ease-out, mmGhostBob 3s ease-in-out 320ms infinite;
+}
+.mm-ghost-catch svg { filter: drop-shadow(0 0 6px rgba(0,255,136,0.85)); }
+.mm-ghost-catch::after {
+  content: attr(data-label);
+  position: absolute;
+  left: 50%;
+  bottom: 110%;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(10,10,15,0.92);
+  border: 1px solid rgba(0,255,136,0.4);
+  color: #00FF88;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 140ms ease;
+  pointer-events: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+.mm-ghost-catch:hover::after { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .mm-orb-bob,
+  .mm-orb-breath,
+  .mm-orb-halo,
+  .mm-particle,
+  .mm-orb-sonar,
+  .mm-watcher-dot,
+  .mm-ghost-catch,
+  .mm-orb-marker,
+  .mm-catchable-ring,
+  .mm-user-bolt,
+  .mm-user-sonar,
+  .mm-medium,
+  .mm-orb-iris,
+  .mm-catch-pill { animation: none !important; }
+  .mm-particle-aura { display: none !important; }
+  .mm-orb-halo { display: none !important; }
+}
 .mapboxgl-ctrl-logo { display: none !important; }
 .mapboxgl-ctrl-attrib { display: none !important; }
 .mapboxgl-ctrl-group { display: none !important; }
@@ -234,6 +474,8 @@ export default function HuntMap({
   players,
   wildSpawns,
   catchableSpawns,
+  watchers,
+  recentCatches,
   onSelectPlayer,
   onSelectWildSpawn,
   onSelectCatchable,
@@ -244,12 +486,20 @@ export default function HuntMap({
   const playerMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const wildMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const catchableMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const watcherMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const ghostMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const hasInitialView = useRef(false);
   const spottedIdsRef = useRef<Set<string>>(new Set());
   const lastSpottedAtRef = useRef<number>(0);
   const nearbyIdsRef = useRef<Set<string>>(new Set());
   const lastNearbyAtRef = useRef<number>(0);
+  const reducedMotionRef = useRef<boolean>(false);
+
+  // Cache reduced-motion preference on first render.
+  useEffect(() => {
+    reducedMotionRef.current = prefersReducedMotion();
+  }, []);
 
   /* ── Inject CSS ── */
   useEffect(() => {
@@ -271,7 +521,7 @@ export default function HuntMap({
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: 'mapbox://styles/mapbox/standard',
+      style: 'mapbox://styles/mapbox/dark-v11',
       pitch: 45,
       bearing: 0,
       center,
@@ -280,17 +530,14 @@ export default function HuntMap({
       logoPosition: 'bottom-left',
     });
 
-    map.on('style.load', () => {
-      try {
-        map.setConfigProperty('basemap', 'lightPreset', 'night');
-        map.setConfigProperty('basemap', 'showPointOfInterestLabels', false);
-        map.setConfigProperty('basemap', 'showTransitLabels', false);
-        map.setConfigProperty('basemap', 'showRoadLabels', false);
-        map.setConfigProperty('basemap', 'showPlaceLabels', true);
-      } catch {
-        /* style not active — fall back */
-      }
-    });
+    const applyStyleNow = () => applyBlinkMapStyle(map, { hour: new Date().getHours() });
+    map.on('style.load', applyStyleNow);
+
+    // Re-apply each hour so the time-of-day shading stays correct.
+    const hourInterval = setInterval(() => {
+      if (map.isStyleLoaded()) applyBlinkMapStyle(map, { hour: new Date().getHours() });
+    }, 60 * 60 * 1000);
+    (map as unknown as { _mmHourTimer?: ReturnType<typeof setInterval> })._mmHourTimer = hourInterval;
 
     mapRef.current = map;
     if (externalMapRef) externalMapRef.current = map;
@@ -372,6 +619,10 @@ export default function HuntMap({
       el.style.cssText = 'position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;';
       el.setAttribute('data-tier', tier);
 
+      const profile = tierGlowProfile(orb.rarity);
+      const reduce = reducedMotionRef.current;
+      const rTone = RARITY_TONE[orb.rarity] || rColor;
+
       if (tier === 'medium') {
         el.style.width = '34px';
         el.style.height = '34px';
@@ -384,19 +635,23 @@ export default function HuntMap({
         const cfg = orbMarkerConfig(orb.rarity);
         el.style.width = `${cfg.ring}px`;
         el.style.height = `${cfg.ring}px`;
+        const img = orb.creatureImage;
+        const innerImg = img
+          ? `<img src="${img}" alt="" style="width:60%;height:60%;object-fit:cover;border-radius:50%;display:block;box-shadow:inset 0 0 6px ${rTone}cc;" />`
+          : silhouetteSvg(rColor);
         el.innerHTML = `
           <div
-            class="mm-orb-marker${claimedClass}"
+            class="mm-orb-marker${claimedClass}${!isClaimed && profile.bob && !reduce ? ' mm-orb-bob' : ''}"
             style="
               width:${cfg.size}px;
               height:${cfg.size}px;
               background:radial-gradient(circle at 35% 35%, ${rColor}cc, ${rColor}33);
               border:2px solid ${rColor};
-              box-shadow: 0 0 14px ${rColor}88, inset 0 0 6px ${rColor}55;
+              box-shadow: 0 0 ${profile.shadowPx * 0.6}px ${rColor}88, inset 0 0 6px ${rColor}55;
               --orb-color:${rColor};
             "
           >
-            ${silhouetteSvg(rColor)}
+            ${innerImg}
           </div>
           ${!isClaimed ? `<div class="mm-orb-sonar" style="width:${cfg.ring}px;height:${cfg.ring}px;--orb-color:${rColor};"></div>` : ''}
         `;
@@ -404,33 +659,55 @@ export default function HuntMap({
         // catchable
         const cfg = orbMarkerConfig(orb.rarity);
         const img = orb.creatureImage;
-        el.style.width = `${cfg.ring}px`;
-        el.style.height = `${cfg.ring}px`;
+        el.style.width = `${cfg.ring + 12}px`;
+        el.style.height = `${cfg.ring + 12}px`;
+        const breathClass = !isClaimed && profile.scaleBreath && !reduce ? ' mm-orb-breath' : '';
+        const bobClass = !isClaimed && profile.bob && !reduce ? ' mm-orb-bob' : '';
+        const halo = !isClaimed && profile.haloRotate && !reduce ? '<div class="mm-orb-halo"></div>' : '';
+        const particles = !isClaimed && !reduce ? particleHTML(profile.particles, rTone, orb.id) : '';
+        const sonarRings = !isClaimed
+          ? Array.from({ length: profile.sonarRings }, (_, i) => `<div class="mm-orb-sonar" style="width:${cfg.ring + 12}px;height:${cfg.ring + 12}px;--orb-color:${rColor};animation-delay:${i * 0.45}s;"></div>`).join('')
+          : '';
+        const catchPill = !isClaimed ? '<div class="mm-catch-pill">Catch</div>' : '';
+        const innerImg = img
+          ? `<img src="${img}" alt="" style="width:78%;height:78%;object-fit:cover;border-radius:50%;display:block;" />`
+          : `<div class="mm-orb-iris"></div>`;
         el.innerHTML = `
+          ${halo}
+          ${particles}
           <div class="mm-catchable-ring"></div>
           <div
-            class="mm-orb-marker${claimedClass}"
+            class="mm-orb-marker${claimedClass}${breathClass}${bobClass}"
+            data-tier-mark="catchable"
             style="
-              width:${cfg.size + 6}px;
-              height:${cfg.size + 6}px;
+              width:${cfg.size + 10}px;
+              height:${cfg.size + 10}px;
               background:radial-gradient(circle at 35% 35%, ${rColor}ee, ${rColor}55);
               border:2px solid ${rColor};
-              box-shadow: 0 0 24px ${rColor}aa, 0 0 56px ${rColor}55, inset 0 0 8px ${rColor}aa;
+              box-shadow: 0 0 ${profile.shadowPx}px ${rColor}aa, 0 0 ${profile.shadowPx * 2}px ${rColor}55, inset 0 0 8px ${rColor}aa;
               --orb-color:${rColor};
               overflow:hidden;
+              display:flex;align-items:center;justify-content:center;
             "
           >
-            ${
-              img
-                ? `<img src="${img}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" />`
-                : `<div class="mm-orb-iris"></div>`
-            }
+            ${innerImg}
           </div>
-          ${!isClaimed ? `<div class="mm-orb-sonar" style="width:${cfg.ring}px;height:${cfg.ring}px;--orb-color:${rColor};"></div>` : ''}
+          ${sonarRings}
+          ${catchPill}
         `;
       }
 
-      el.addEventListener('click', () => onSelectOrb(orb));
+      el.addEventListener('click', () => {
+        if (tier === 'catchable' && !isClaimed) {
+          const inner = el.querySelector('[data-tier-mark="catchable"]') as HTMLElement | null;
+          if (inner && !reduce) {
+            inner.classList.add('mm-windup');
+            setTimeout(() => onSelectOrb(orb), 210);
+            return;
+          }
+        }
+        onSelectOrb(orb);
+      });
 
       if (markersRef.current.has(orb.id)) {
         // Update DOM if tier changed: remove old, add new.
@@ -655,46 +932,156 @@ export default function HuntMap({
     });
 
     list.forEach((s) => {
-      const color = s.tier_color || "#00FF88";
+      const color = s.tier_color || RARITY_TONE[s.tier] || "#00FF88";
       const key = `catch:${s.id}`;
+      const profile = tierGlowProfile(s.tier);
+      const reduce = reducedMotionRef.current;
 
-      const el = document.createElement("div");
-      el.style.cssText = `
-        position:relative;
-        width:36px;height:36px;border-radius:50%;
-        background:radial-gradient(circle at 35% 35%, ${color}, #0a0a0f);
-        border:2px solid ${color};
-        --wild-color:${color};
-        animation:mmWildPulse 2.0s ease-in-out infinite;
-        cursor:pointer;
-        display:flex;align-items:center;justify-content:center;
-        overflow:hidden;
+      const wrap = document.createElement("div");
+      wrap.style.cssText = `position:relative;width:48px;height:48px;display:flex;align-items:center;justify-content:center;`;
+      const halo = profile.haloRotate && !reduce ? '<div class="mm-orb-halo"></div>' : '';
+      const particles = !reduce ? particleHTML(profile.particles, color, s.id) : '';
+      const breathClass = profile.scaleBreath && !reduce ? ' mm-orb-breath' : '';
+      const bobClass = profile.bob && !reduce ? ' mm-orb-bob' : '';
+      const sonar = Array.from({ length: profile.sonarRings }, (_, i) =>
+        `<div class="mm-orb-sonar" style="width:48px;height:48px;--orb-color:${color};animation-delay:${i * 0.45}s;"></div>`,
+      ).join('');
+      const inner = s.image_url
+        ? `<img src="${s.image_url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" />`
+        : `<svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" width="60%" height="60%">
+             <circle cx="14" cy="14" r="6" fill="${color}" opacity="0.85"/>
+             <circle cx="14" cy="14" r="2" fill="#0a0a0f"/>
+           </svg>`;
+
+      wrap.innerHTML = `
+        ${halo}
+        ${particles}
+        <div class="mm-catchable-ring"></div>
+        <div
+          class="mm-orb-marker${breathClass}${bobClass}"
+          data-tier-mark="catchable"
+          style="
+            position:relative;
+            width:38px;height:38px;border-radius:50%;
+            background:radial-gradient(circle at 35% 35%, ${color}ee, #0a0a0f);
+            border:2px solid ${color};
+            --orb-color:${color};
+            box-shadow: 0 0 ${profile.shadowPx}px ${color}aa, 0 0 ${profile.shadowPx * 2}px ${color}55, inset 0 0 8px ${color}aa;
+            cursor:pointer;
+            display:flex;align-items:center;justify-content:center;
+            overflow:hidden;
+          "
+        >
+          ${inner}
+        </div>
+        ${sonar}
+        <div class="mm-catch-pill">Catch</div>
       `;
-      el.setAttribute("role", "button");
-      el.setAttribute("aria-label", `Wild ${s.tier} ${s.name}`);
-      if (s.image_url) {
-        el.innerHTML = `<img src="${s.image_url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" />`;
-      } else {
-        el.innerHTML = `
-          <svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" width="60%" height="60%">
-            <circle cx="14" cy="14" r="6" fill="${color}" opacity="0.85"/>
-            <circle cx="14" cy="14" r="2" fill="#0a0a0f"/>
-          </svg>
-        `;
-      }
-      el.addEventListener("click", () => onSelectCatchable?.(s));
+      wrap.setAttribute("role", "button");
+      wrap.setAttribute("aria-label", `Wild ${s.tier} ${s.name}`);
+      wrap.addEventListener("click", () => {
+        const innerEl = wrap.querySelector('[data-tier-mark="catchable"]') as HTMLElement | null;
+        if (innerEl && !reduce) {
+          innerEl.classList.add('mm-windup');
+          setTimeout(() => onSelectCatchable?.(s), 210);
+          return;
+        }
+        onSelectCatchable?.(s);
+      });
 
       const existing = catchableMarkersRef.current.get(key);
       if (existing) {
         existing.setLngLat([s.lng, s.lat]);
         existing.remove();
       }
-      const m = new mapboxgl.Marker({ element: el, anchor: "center" })
+      const m = new mapboxgl.Marker({ element: wrap, anchor: "center" })
         .setLngLat([s.lng, s.lat])
         .addTo(map);
       catchableMarkersRef.current.set(key, m);
     });
   }, [catchableSpawns, onSelectCatchable]);
+
+  /* ── Watcher dots (social proof) ── */
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    const list = watchers ?? [];
+    const currentIds = new Set(list.map((w) => `watcher:${w.user_id}`));
+
+    watcherMarkersRef.current.forEach((marker, id) => {
+      if (!currentIds.has(id)) {
+        marker.remove();
+        watcherMarkersRef.current.delete(id);
+      }
+    });
+
+    list.forEach((w) => {
+      const key = `watcher:${w.user_id}`;
+      const wrap = document.createElement("div");
+      wrap.style.cssText = `width:16px;height:16px;display:flex;align-items:center;justify-content:center;`;
+      const dot = document.createElement("div");
+      dot.className = "mm-watcher-dot";
+      dot.setAttribute("data-handle", w.handle ? `@${w.handle}` : "A Watcher");
+      wrap.appendChild(dot);
+
+      const existing = watcherMarkersRef.current.get(key);
+      if (existing) {
+        existing.setLngLat([w.lng, w.lat]);
+        existing.remove();
+      }
+      const m = new mapboxgl.Marker({ element: wrap, anchor: "center" })
+        .setLngLat([w.lng, w.lat])
+        .addTo(map);
+      watcherMarkersRef.current.set(key, m);
+    });
+  }, [watchers]);
+
+  /* ── Recent catch ghosts (5-min fade window) ── */
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    const list = recentCatches ?? [];
+    const currentIds = new Set(list.map((g) => `ghost:${g.id}`));
+
+    ghostMarkersRef.current.forEach((marker, id) => {
+      if (!currentIds.has(id)) {
+        marker.remove();
+        ghostMarkersRef.current.delete(id);
+      }
+    });
+
+    list.forEach((g) => {
+      const key = `ghost:${g.id}`;
+      const ageMin = Math.max(0, Math.floor((Date.now() - new Date(g.caughtAt).getTime()) / 60000));
+      const ageLabel = ageMin === 0 ? "just now" : `${ageMin} min ago`;
+      const handle = g.catcherHandle || "A Watcher";
+      const isHandled = handle !== "A Watcher" && !handle.startsWith("@");
+      const display = handle === "A Watcher" ? handle : isHandled ? `@${handle}` : handle;
+      const tierColor = RARITY_TONE[g.tier] || "#00FF88";
+
+      const wrap = document.createElement("div");
+      wrap.className = "mm-ghost-catch";
+      wrap.setAttribute("data-label", `${display} caught a ${g.tier} ${ageLabel}`);
+      wrap.innerHTML = `
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M11 2 C7 2 4 5 4 9 V19 L7 17 L9 19 L11 17 L13 19 L15 17 L18 19 V9 C18 5 15 2 11 2 Z"
+            fill="${tierColor}22" stroke="${tierColor}" stroke-width="1.4" stroke-linejoin="round"/>
+          <circle cx="8.5" cy="9" r="1" fill="${tierColor}"/>
+          <circle cx="13.5" cy="9" r="1" fill="${tierColor}"/>
+        </svg>
+      `;
+
+      const existing = ghostMarkersRef.current.get(key);
+      if (existing) {
+        existing.setLngLat([g.lng, g.lat]);
+        existing.remove();
+      }
+      const m = new mapboxgl.Marker({ element: wrap, anchor: "center" })
+        .setLngLat([g.lng, g.lat])
+        .addTo(map);
+      ghostMarkersRef.current.set(key, m);
+    });
+  }, [recentCatches]);
 
   /* ── Cleanup ── */
   useEffect(() => {
@@ -707,7 +1094,13 @@ export default function HuntMap({
       wildMarkersRef.current.clear();
       catchableMarkersRef.current.forEach((m) => m.remove());
       catchableMarkersRef.current.clear();
+      watcherMarkersRef.current.forEach((m) => m.remove());
+      watcherMarkersRef.current.clear();
+      ghostMarkersRef.current.forEach((m) => m.remove());
+      ghostMarkersRef.current.clear();
       if (mapRef.current) {
+        const timer = (mapRef.current as unknown as { _mmHourTimer?: ReturnType<typeof setInterval> })._mmHourTimer;
+        if (timer) clearInterval(timer);
         mapRef.current.remove();
         mapRef.current = null;
         if (externalMapRef) externalMapRef.current = null;
@@ -735,8 +1128,7 @@ export default function HuntMap({
           inset: 0,
           width: '100%',
           height: '100%',
-          background: '#0a0a0f',
-          filter: 'saturate(0.55) brightness(0.7) contrast(1.15) hue-rotate(95deg)',
+          background: '#000000',
         }}
       />
       <div
