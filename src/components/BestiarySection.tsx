@@ -228,7 +228,7 @@ export function BestiarySection() {
             fontWeight: 700,
           }}
         >
-          Encounter the Bestiary
+          The 20 Rarest
         </span>
         <h2
           style={{
@@ -241,7 +241,7 @@ export function BestiarySection() {
             lineHeight: 1.02,
           }}
         >
-          20 SPIRITS. ONE WORLD.
+          20 LEGENDS. HUNDREDS IN THE WILD.
         </h2>
         <p
           style={{
@@ -252,8 +252,9 @@ export function BestiarySection() {
             margin: "0 auto",
           }}
         >
-          Each creature is 1-of-1, minted forever on Ethereum. Catch them in the
-          wild, gift them to friends, or watch them appear on the map near you.
+          The 20 below are the rarest spirits — each 1-of-1, minted forever on Ethereum.
+          Hundreds more roam the wild, waiting to be caught. Every catch mints a fresh creature
+          straight to your wallet.
         </p>
       </div>
 
