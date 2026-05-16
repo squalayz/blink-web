@@ -560,101 +560,84 @@ function BottomOverlay({ nearbyCount }: { nearbyCount: number }) {
 // Empty state overlay when no orbs match filter
 // ──────────────────────────────────────────────────────────────────────────────
 
+// Tight labels — keep each under ~26 chars so the pill stays single-line.
 const EMPTY_SUBTITLES: Record<FilterKey, string> = {
-  'All Creatures': 'Be the first to spawn a creature in this area',
-  'Nearby': 'No creatures within 500m — try expanding your search',
-  'Stealth': 'No stealth creatures detected nearby',
-  'In Flight': 'No recently spawned creatures',
+  'All Creatures': 'No creatures here yet',
+  'Nearby': 'None within 500m',
+  'Stealth': 'No stealth nearby',
+  'In Flight': 'Nothing in flight',
 };
 
 function EmptyStateOverlay({ activeFilter }: { activeFilter: FilterKey }) {
+  const { isDesktop } = useIsDesktop();
   return (
-    <div style={{
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      zIndex: 600,
-      animation: 'emptyStateFadeIn 0.4s ease-out forwards',
-      pointerEvents: 'auto',
-    }}>
-      <div style={{
-        background: 'rgba(13,13,20,0.85)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        borderRadius: 20,
-        border: `1px solid ${GLASS_BORDER}`,
-        padding: '32px 28px',
-        display: 'flex',
-        flexDirection: 'column',
+    <a
+      href="/spawn?mode=launch"
+      style={{
+        position: 'absolute',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        // Sit just above the BottomOverlay stack (Launch BLINK + Nearby pill).
+        bottom: isDesktop
+          ? 130
+          : 'calc(env(safe-area-inset-bottom, 16px) + 210px)',
+        zIndex: 600,
+        animation: 'emptyStateFadeIn 0.4s ease-out forwards',
+        pointerEvents: 'auto',
+        display: 'inline-flex',
         alignItems: 'center',
-        gap: 16,
-        minWidth: 240,
-        maxWidth: 300,
-        textAlign: 'center',
-      }}>
-        {/* Search orb icon */}
-        <div style={{
-          width: 56,
-          height: 56,
-          borderRadius: '50%',
-          background: `radial-gradient(circle at 40% 35%, ${PRIMARY}44, ${PRIMARY}11)`,
-          border: `1.5px solid ${PRIMARY}55`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: `0 0 24px ${PRIMARY}22`,
-        }}>
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            <line x1="8" y1="11" x2="14" y2="11" />
-          </svg>
-        </div>
-
-        <div style={{
-          fontSize: 18,
-          fontWeight: 700,
-          color: TEXT,
-          lineHeight: 1.2,
-        }}>
-          No creatures found
-        </div>
-
-        <div style={{
-          fontSize: 13,
+        gap: 8,
+        height: 36,
+        padding: '0 14px',
+        maxWidth: 200,
+        borderRadius: 18,
+        background: 'rgba(13,13,20,0.78)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: `1px solid ${PRIMARY}33`,
+        boxShadow: `0 4px 18px rgba(0,0,0,0.35)`,
+        textDecoration: 'none',
+        color: TEXT,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+      }}
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={PRIMARY}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ flexShrink: 0 }}
+      >
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      </svg>
+      <span
+        style={{
+          fontSize: 12,
           color: MUTED,
-          lineHeight: 1.5,
-        }}>
-          {EMPTY_SUBTITLES[activeFilter]}
-        </div>
-
-        <a
-          href="/spawn?mode=launch"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            padding: '11px 28px',
-            borderRadius: 20,
-            background: `linear-gradient(135deg, ${ACCENT}, #88FF00)`,
-            color: '#000',
-            fontSize: 14,
-            fontWeight: 700,
-            textDecoration: 'none',
-            cursor: 'pointer',
-            boxShadow: `0 4px 20px ${ACCENT}44`,
-            transition: 'all 0.15s ease',
-            letterSpacing: '0.01em',
-            marginTop: 4,
-          }}
-        >
-          <DropIcon />
-          Spawn Creature
-        </a>
-      </div>
-    </div>
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {EMPTY_SUBTITLES[activeFilter]}
+      </span>
+      <span
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          color: PRIMARY,
+          letterSpacing: '0.02em',
+          flexShrink: 0,
+        }}
+      >
+        Spawn
+      </span>
+    </a>
   );
 }
 

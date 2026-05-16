@@ -171,7 +171,7 @@ export default function TrailsPage() {
       {/* Empty */}
       {!loading && !error && trails.length === 0 && (
         <div style={{ textAlign: 'center', padding: 60, color: C.muted, fontSize: 15, ...(isDesktop ? { maxWidth: 480, margin: '0 auto' } : {}) }}>
-          No active trails right now. Check back soon!
+          No active trails near you. Be the first to lay one.
         </div>
       )}
 

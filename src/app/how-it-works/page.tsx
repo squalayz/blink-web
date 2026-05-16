@@ -89,7 +89,7 @@ export default function HowItWorks() {
           }}
         >
           <Image
-            src="/blink-logo.png"
+            src="/blink-logo.webp"
             alt="BLINK"
             width={38}
             height={38}
@@ -570,7 +570,7 @@ export default function HowItWorks() {
           margin: "0 auto",
         }}
       >
-        <span style={{ color: C.textMuted, fontSize: 14 }}>BLINK 2026</span>
+        <span style={{ color: C.textMuted, fontSize: 14 }}>BLINK {new Date().getFullYear()}</span>
         <div style={{ display: "flex", gap: 24 }}>
           <Link
             href="/privacy"

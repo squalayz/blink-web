@@ -1080,8 +1080,6 @@ export default function ProfilePage() {
             {[
               { label: "Send", icon: <SendIconW />, action: () => { setShowSend(true); setSendStep(1); setSendError(""); setSendSuccess(""); setSendTo(""); setSendAmount(""); } },
               { label: "Receive", icon: <ReceiveIconW />, action: () => setShowReceive(true) },
-              { label: "Buy", icon: <BuyIconW />, action: () => showToast("Buy coming soon") },
-              { label: "Swap", icon: <SwapIconW />, action: () => showToast("Swap coming soon") },
             ].map((item) => (
               <button
                 key={item.label}

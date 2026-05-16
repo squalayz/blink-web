@@ -966,7 +966,7 @@ export default function MissionsPage() {
                   margin: "0 auto 20px",
                 }}
               >
-                New {tab} missions are coming soon. Keep exploring to stay ready.
+                Nothing in {tab} yet. Try another tab — or hunt creatures to unlock new ones.
               </div>
               <button
                 onClick={() => window.history.back()}

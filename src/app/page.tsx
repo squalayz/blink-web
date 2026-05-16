@@ -14,6 +14,7 @@ import { Hero } from "@/components/landing/Hero";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { TwoWaysToEarn } from "@/components/landing/TwoWaysToEarn";
 import { MintFoundersCTA } from "@/components/landing/MintFoundersCTA";
+import AuthModal from "@/components/AuthModal";
 
 // Below-fold sections — code-split so the landing chunk stays lean.
 const BestiarySection = dynamic(
@@ -74,6 +75,18 @@ export default function HomePage() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const [redirecting, setRedirecting] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"signup" | "signin">("signup");
+
+  const handleEnter = () => {
+    if (loading) return;
+    if (user) {
+      router.push("/watch");
+    } else {
+      setAuthMode("signup");
+      setAuthOpen(true);
+    }
+  };
 
   useEffect(() => {
     if (loading) return;
@@ -126,14 +139,16 @@ export default function HomePage() {
 
       {/* ─── Top Nav ─── */}
       <nav
+        className="blink-top-nav"
         style={{
           position: "sticky",
           top: 0,
           zIndex: 50,
-          padding: "16px 24px",
+          padding: "14px clamp(14px, 4vw, 24px)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          gap: 10,
           background: "rgba(10,10,15,0.7)",
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
@@ -148,10 +163,11 @@ export default function HomePage() {
             gap: 10,
             textDecoration: "none",
             color: BLINK.white,
+            minWidth: 0,
           }}
         >
           <Image
-            src="/blink-logo.png"
+            src="/blink-logo.webp"
             alt="BLINK"
             width={32}
             height={32}
@@ -159,6 +175,7 @@ export default function HomePage() {
             style={{
               objectFit: "contain",
               filter: "drop-shadow(0 0 8px rgba(0,255,136,0.7))",
+              flexShrink: 0,
             }}
           />
           <span
@@ -173,8 +190,12 @@ export default function HomePage() {
           </span>
         </Link>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div
+          className="blink-top-nav-actions"
+          style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}
+        >
           <a
+            className="blink-top-nav-council"
             href={TG_GROUP}
             target="_blank"
             rel="noreferrer"
@@ -187,28 +208,99 @@ export default function HomePage() {
               borderRadius: 999,
               fontWeight: 600,
               letterSpacing: "0.02em",
+              whiteSpace: "nowrap",
             }}
           >
             The Council
           </a>
-          <button
-            onClick={() => router.push("/watch")}
-            style={{
-              fontSize: 13,
-              color: BLINK.bg,
-              background: `linear-gradient(135deg, ${BLINK.green}, ${BLINK.green2})`,
-              border: "none",
-              padding: "9px 18px",
-              borderRadius: 999,
-              fontWeight: 800,
-              letterSpacing: "0.04em",
-              cursor: "pointer",
-              boxShadow: "0 0 18px rgba(0,255,136,0.4)",
-            }}
-          >
-            Enter the World
-          </button>
+          {!loading && user ? (
+            <button
+              onClick={() => router.push("/wallet")}
+              aria-label="Open wallet"
+              style={{
+                fontSize: 13,
+                color: BLINK.green,
+                background: "rgba(0,255,136,0.08)",
+                border: `1px solid ${BLINK.green}55`,
+                padding: "9px 14px",
+                borderRadius: 999,
+                fontWeight: 800,
+                letterSpacing: "0.04em",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
+                <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
+                <path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
+              </svg>
+              <span className="blink-top-nav-cta-long">My Wallet</span>
+              <span className="blink-top-nav-cta-short">Wallet</span>
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => { setAuthMode("signin"); setAuthOpen(true); }}
+                style={{
+                  fontSize: 13,
+                  color: BLINK.muted,
+                  background: "transparent",
+                  border: `1px solid ${BLINK.border}`,
+                  padding: "9px 14px",
+                  borderRadius: 999,
+                  fontWeight: 700,
+                  letterSpacing: "0.04em",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Sign In
+              </button>
+              <button
+                onClick={handleEnter}
+                style={{
+                  fontSize: 13,
+                  color: BLINK.bg,
+                  background: `linear-gradient(135deg, ${BLINK.green}, ${BLINK.green2})`,
+                  border: "none",
+                  padding: "9px 16px",
+                  borderRadius: 999,
+                  fontWeight: 800,
+                  letterSpacing: "0.04em",
+                  cursor: "pointer",
+                  boxShadow: "0 0 18px rgba(0,255,136,0.4)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span className="blink-top-nav-cta-long">Enter the World</span>
+                <span className="blink-top-nav-cta-short">Enter</span>
+              </button>
+            </>
+          )}
         </div>
+
+        <style jsx>{`
+          .blink-top-nav-cta-short {
+            display: none;
+          }
+          @media (max-width: 480px) {
+            .blink-top-nav-council {
+              display: none;
+            }
+          }
+          @media (max-width: 360px) {
+            .blink-top-nav-cta-long {
+              display: none;
+            }
+            .blink-top-nav-cta-short {
+              display: inline;
+            }
+          }
+        `}</style>
       </nav>
 
       {/* ─── HERO SECTION ─── */}
@@ -280,80 +372,37 @@ export default function HomePage() {
             background: BLINK.surface2,
             border: `1px solid ${BLINK.border}`,
             borderRadius: 20,
-            padding: "8px 8px",
+            padding: "32px 24px",
             maxWidth: 720,
             margin: "0 auto",
+            textAlign: "center",
           }}
         >
-          {[
-            { rank: 1, name: "the_oracle", caught: "—", region: "Tokyo" },
-            { rank: 2, name: "watcher_x", caught: "—", region: "NYC" },
-            { rank: 3, name: "blink_eyemate", caught: "—", region: "Lisbon" },
-          ].map((row) => (
-            <div
-              key={row.rank}
-              style={{
-                display: "grid",
-                // Two named tracks so the region/caught can wrap to a second
-                // line on phones instead of forcing horizontal overflow.
-                gridTemplateColumns: "44px minmax(0, 1fr) auto",
-                alignItems: "center",
-                columnGap: 12,
-                rowGap: 4,
-                padding: "14px 16px",
-                borderBottom: `1px solid ${BLINK.border}`,
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: "Space Grotesk, Inter, sans-serif",
-                  fontWeight: 900,
-                  color: BLINK.green,
-                  fontSize: 20,
-                }}
-              >
-                {String(row.rank).padStart(2, "0")}
-              </span>
-              <span
-                style={{
-                  fontWeight: 700,
-                  fontSize: 15,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  minWidth: 0,
-                }}
-              >
-                @{row.name}
-              </span>
-              <span
-                style={{
-                  fontSize: 11,
-                  color: BLINK.muted,
-                  letterSpacing: "0.1em",
-                  textTransform: "uppercase",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {row.region}
-              </span>
-            </div>
-          ))}
-          <div style={{ padding: 18, textAlign: "center" }}>
-            <Link
-              href="/council"
-              style={{
-                color: BLINK.green,
-                fontSize: 13,
-                fontWeight: 700,
-                textDecoration: "none",
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-              }}
-            >
-              See The Council →
-            </Link>
+          <div
+            style={{
+              fontSize: 14,
+              color: BLINK.muted,
+              lineHeight: 1.6,
+              maxWidth: 480,
+              margin: "0 auto 20px",
+            }}
+          >
+            The Council awakens at launch. The first Watchers earn their seat by
+            catching the rarest creatures and laying the longest trails.
           </div>
+          <Link
+            href="/council"
+            style={{
+              color: BLINK.green,
+              fontSize: 13,
+              fontWeight: 700,
+              textDecoration: "none",
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+            }}
+          >
+            See The Council →
+          </Link>
         </div>
       </section>
 
@@ -503,23 +552,24 @@ export default function HomePage() {
           Go catch one.
         </h2>
         <button
-          onClick={() => router.push("/watch")}
+          onClick={handleEnter}
           style={{
             fontFamily: "Space Grotesk, Inter, sans-serif",
-            padding: "18px 40px",
+            padding: "18px clamp(24px, 6vw, 40px)",
             borderRadius: 999,
             border: "none",
             background: `linear-gradient(135deg, ${BLINK.green}, ${BLINK.green2})`,
             color: BLINK.bg,
-            fontSize: 16,
+            fontSize: "clamp(14px, 2.4vw, 16px)",
             fontWeight: 900,
             letterSpacing: "0.14em",
             textTransform: "uppercase",
             cursor: "pointer",
             animation: "blinkButtonGlow 3s ease-in-out infinite",
+            maxWidth: "100%",
           }}
         >
-          🌍 Enter the World →
+          Enter the World →
         </button>
       </section>
 
@@ -546,7 +596,7 @@ export default function HomePage() {
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <Image
-              src="/blink-logo.png"
+              src="/blink-logo.webp"
               alt="BLINK"
               width={28}
               height={28}
@@ -617,6 +667,13 @@ export default function HomePage() {
           © BLINK · The Eye is always watching
         </div>
       </footer>
+
+      <AuthModal
+        open={authOpen}
+        initialMode={authMode}
+        onClose={() => setAuthOpen(false)}
+        onSuccess={() => router.push("/watch")}
+      />
     </main>
   );
 }

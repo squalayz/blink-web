@@ -13,8 +13,12 @@ import UserAvatar from "@/components/UserAvatar";
 import UserProfileCard from "@/components/UserProfileCard";
 
 import { BlinkCompass, type CompassReading, type CompassTier } from "@/components/BlinkCompass";
-import { getOrGenerateSpawns, type BlinkSpawn } from "@/lib/blink-spawns";
 import { BESTIARY } from "@/lib/bestiary";
+import { usePresence } from "@/lib/use-presence";
+import type { NearbyPlayer, WildSpawn } from "@/components/HuntMap";
+import PrivacyIntroModal from "@/components/PrivacyIntroModal";
+import PresenceLegend from "@/components/PresenceLegend";
+import PlayerSheet from "@/components/PlayerSheet";
 
 const HuntMap = dynamic(() => import("@/components/HuntMap"), { ssr: false });
 
@@ -38,38 +42,6 @@ function bearingDeg(lat1: number, lng1: number, lat2: number, lng2: number): num
     Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
   const θ = Math.atan2(y, x);
   return ((θ * 180) / Math.PI + 360) % 360;
-}
-
-function spawnsToOrbs(spawns: BlinkSpawn[]): Orb[] {
-  return spawns.map((s) => {
-    const creature = BESTIARY.find((c) => c.id === s.creatureId);
-    return {
-      id: s.id,
-      lat: s.lat,
-      lng: s.lng,
-      currency: "ETH",
-      amount: 0.005,
-      // legacy Orb rarity is common/rare/legendary; map mythic→legendary, uncommon→common
-      rarity:
-        s.rarity === "legendary" || s.rarity === "mythic"
-          ? "legendary"
-          : s.rarity === "rare"
-            ? "rare"
-            : "common",
-      category: "creature",
-      status: "pending",
-      claim_fee_usd: 0.5,
-      dropper_id: null,
-      dropper_name: creature?.name ?? "BLINK",
-      dropper_handle: "blink",
-      dropper_pic: null,
-      dropper_wallet: null,
-      message:
-        creature?.lore ?? "A creature stirs in the dark.",
-      expires_at: new Date(s.expiresAt).toISOString(),
-      created_at: new Date(s.spawnedAt).toISOString(),
-    };
-  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -182,12 +154,6 @@ const toolRailBtn: React.CSSProperties = {
   padding: 0,
 };
 
-// Mock spawn fallback delegates to the Phase 4 spawns helper — 6–12 weighted
-// rarities, persisted per session anchor so refresh doesn't move them.
-function mockSpawnsAround(pos: Position): Orb[] {
-  return spawnsToOrbs(getOrGenerateSpawns(pos.lat, pos.lng));
-}
-
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
@@ -213,6 +179,9 @@ export default function MapPage() {
   const [cameraToast, setCameraToast] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [fabDim, setFabDim] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<NearbyPlayer | null>(null);
+  const [selectedWild, setSelectedWild] = useState<WildSpawn | null>(null);
+  const [privacyForceOpen, setPrivacyForceOpen] = useState(false);
   const leafletMapRef = useRef<any>(null);
   const watchIdRef = useRef<number | null>(null);
   const fabIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -310,11 +279,8 @@ export default function MapPage() {
   }, [user, fetchOrbs]);
 
   /* ---- Derived ---- */
-  // Phase 4 mock-spawn fallback: when no real spawns are in the DB, hand the
-  // user 6–12 generated spawns around them so the visibility-tier system is
-  // verifiable end-to-end. Real geo-spatial queries land in Phase 5.
-  const orbsForRender: Orb[] =
-    position && orbs.length === 0 ? mockSpawnsAround(position) : orbs;
+  // Render real spawns only — no mock fallback in production.
+  const orbsForRender: Orb[] = orbs;
 
   const filteredOrbs =
     activeFilter === "All"
@@ -344,6 +310,9 @@ export default function MapPage() {
   const sortedOrbs = [...orbsWithDistance].sort((a, b) => a.distance - b.distance);
 
   const nearbyCount = orbsWithDistance.filter((o) => o.distance < 500).length;
+
+  /* ---- Presence + wild spawns (privacy-blurred) ---- */
+  const { players, wildSpawns } = usePresence(position);
 
   /* ---- Compass reading ---- */
   const compassReading: CompassReading = (() => {
@@ -665,6 +634,10 @@ export default function MapPage() {
               wakeFab();
             }}
             mapRef={leafletMapRef}
+            players={players}
+            wildSpawns={wildSpawns}
+            onSelectPlayer={(p) => { setSelectedPlayer(p); wakeFab(); }}
+            onSelectWildSpawn={(s) => { setSelectedWild(s); wakeFab(); }}
           />
         </Suspense>
 
@@ -933,7 +906,7 @@ export default function MapPage() {
                   textDecoration: "none",
                 }}
               >
-                Spawn a Creature
+                Find Creatures Near You
               </Link>
             </div>
           )}
@@ -1051,7 +1024,7 @@ export default function MapPage() {
       {/* ========== SPAWN FAB (bottom-left, idle-fade) ========== */}
       <Link
         href="/spawn"
-        aria-label="Spawn a creature"
+        aria-label="Find creatures near you"
         style={{ textDecoration: "none" }}
         onClick={wakeFab}
       >
@@ -1494,6 +1467,128 @@ export default function MapPage() {
           onClose={() => setProfileCardUserId(null)}
         />
       )}
+
+      {/* ========== LIVE PRESENCE / SOCIAL ========== */}
+      <PresenceLegend onOpenPrivacy={() => setPrivacyForceOpen(true)} />
+      <PrivacyIntroModal
+        forceOpen={privacyForceOpen}
+        onClose={() => setPrivacyForceOpen(false)}
+      />
+      {selectedPlayer && (
+        <PlayerSheet
+          player={selectedPlayer}
+          onClose={() => setSelectedPlayer(null)}
+          onMessage={(uid, handle) => {
+            setSelectedPlayer(null);
+            router.push(`/messages?user=${uid}${handle ? `&handle=${encodeURIComponent(handle)}` : ""}`);
+          }}
+        />
+      )}
+
+      {/* ========== WILD CREATURE SHEET ========== */}
+      <AnimatePresence>
+        {selectedWild && (
+          <motion.div
+            key="wild-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedWild(null)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.65)",
+              zIndex: 75,
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "center",
+            }}
+          >
+            <motion.div
+              key="wild-sheet"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "100%",
+                maxWidth: 480,
+                background: COLORS.surface,
+                borderTopLeftRadius: 22,
+                borderTopRightRadius: 22,
+                padding: "22px 22px 28px",
+                color: COLORS.text,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 14,
+                    background: `radial-gradient(circle at 35% 35%, #00FF88, #0a0a0f)`,
+                    border: "1px solid rgba(0,255,136,0.35)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00FF88" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" />
+                  </svg>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: "-0.01em" }}>
+                    Wild {selectedWild.species}
+                  </div>
+                  <div style={{ color: COLORS.textMuted, fontSize: 12, textTransform: "capitalize" }}>
+                    {selectedWild.rarity} · ~{selectedWild.fuzzy_radius_m}m search zone
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedWild(null)}
+                  aria-label="Close"
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: COLORS.textMuted,
+                    fontSize: 22,
+                    cursor: "pointer",
+                    lineHeight: 1,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              <p style={{ color: "#cfd3dd", fontSize: 13, lineHeight: 1.55, margin: "14px 0 18px" }}>
+                Walk into the highlighted zone to reveal the exact point. The
+                Eye won't tell you where it is — only that it's near.
+              </p>
+              <button
+                onClick={() => {
+                  setSelectedWild(null);
+                  router.push("/map");
+                }}
+                style={{
+                  width: "100%",
+                  padding: "14px 0",
+                  borderRadius: 14,
+                  border: "none",
+                  background: COLORS.accent,
+                  color: COLORS.bg,
+                  fontSize: 15,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                Hunt
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
