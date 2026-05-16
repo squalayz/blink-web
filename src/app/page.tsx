@@ -306,6 +306,11 @@ export default function HomePage() {
       {/* ─── HERO SECTION ─── */}
       <Hero />
 
+      {/* ─── BESTIARY (moved up — the rarest 20 + clear "hundreds in the wild" story) ─── */}
+      <RevealOnScroll>
+        <BestiarySection />
+      </RevealOnScroll>
+
       {/* ─── HOW IT WORKS (3 steps) ─── */}
       <RevealOnScroll>
         <HowItWorks />
@@ -324,11 +329,6 @@ export default function HomePage() {
       {/* ─── MINT YOUR FIRST BLINK — recruiter card ─── */}
       <RevealOnScroll>
         <MintFoundersCTA />
-      </RevealOnScroll>
-
-      {/* ─── BESTIARY ─── */}
-      <RevealOnScroll>
-        <BestiarySection />
       </RevealOnScroll>
 
       {/* ─── THE MYTHICS ─── */}
