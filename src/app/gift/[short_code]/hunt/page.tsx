@@ -354,6 +354,10 @@ export default function HuntPage() {
       showDeniedTips = false;
     }
 
+    // Walk-mode fallback offered for everything except timeout (timeout means
+    // GPS is working but slow — they should retry, not fall back).
+    const offerWalkFallback = errorKind !== "timeout";
+
     return (
       <div style={pageStyle}>
         <div style={preCenterWrap}>
@@ -388,6 +392,20 @@ export default function HuntPage() {
               <div style={{ fontSize: 12, color: C.primary, marginTop: 10, textAlign: "center" }}>
                 {copyHint}
               </div>
+            )}
+            {offerWalkFallback && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/gift/${code}/walk`)}
+                  style={{ ...tertiaryBtn, width: "100%", marginTop: 10 }}
+                >
+                  Pick on Map Instead
+                </button>
+                <div style={tertiaryHint}>
+                  Your gift will appear on a map for you to walk to. No GPS required — but it&apos;ll take a moment to reach.
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -697,6 +715,29 @@ const secondaryBtn: React.CSSProperties = {
   cursor: "pointer",
   fontFamily: "inherit",
   padding: "0 18px",
+};
+
+const tertiaryBtn: React.CSSProperties = {
+  height: 44,
+  borderRadius: 22,
+  background: "transparent",
+  color: C.text,
+  border: `1px dashed ${C.primary}99`,
+  fontWeight: 700,
+  fontSize: 12,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  padding: "0 16px",
+};
+
+const tertiaryHint: React.CSSProperties = {
+  fontSize: 11,
+  color: C.muted,
+  marginTop: 8,
+  textAlign: "center",
+  lineHeight: 1.5,
 };
 
 const preCenterWrap: React.CSSProperties = {

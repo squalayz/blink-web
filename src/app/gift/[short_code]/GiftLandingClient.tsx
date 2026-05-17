@@ -410,6 +410,7 @@ export default function GiftLandingClient() {
             onRequestLocation={requestLocation}
             onCopyLink={copyLinkToClipboard}
             onReload={() => window.location.reload()}
+            onPickOnMap={() => router.push(`/gift/${code}/walk`)}
           />
         )}
       </div>
@@ -520,6 +521,7 @@ function GeoStepPanel({
   onRequestLocation,
   onCopyLink,
   onReload,
+  onPickOnMap,
 }: {
   step: GeoStep;
   isIOS: boolean;
@@ -529,7 +531,22 @@ function GeoStepPanel({
   onRequestLocation: () => void;
   onCopyLink: () => void;
   onReload: () => void;
+  onPickOnMap: () => void;
 }) {
+  const pickOnMapBlock = (
+    <>
+      <button
+        type="button"
+        onClick={onPickOnMap}
+        style={{ ...geoTertiaryBtn, width: "100%", marginTop: 10 }}
+      >
+        Pick on Map Instead
+      </button>
+      <div style={geoTertiaryHint}>
+        Your gift will appear on a map for you to walk to. No GPS required — but it&apos;ll take a moment to reach.
+      </div>
+    </>
+  );
   if (step.kind === "checking" || step.kind === "navigating") {
     return (
       <div style={{ marginTop: 22, textAlign: "center", color: C.muted, fontSize: 13 }}>
@@ -640,6 +657,7 @@ function GeoStepPanel({
           >
             Reload Page
           </button>
+          {pickOnMapBlock}
         </div>
       )}
 
@@ -664,6 +682,7 @@ function GeoStepPanel({
           <button type="button" onClick={onRequestLocation} style={geoBigBtn}>
             Try Again
           </button>
+          {pickOnMapBlock}
         </div>
       )}
 
@@ -682,6 +701,7 @@ function GeoStepPanel({
               {copyHint}
             </div>
           )}
+          {pickOnMapBlock}
         </div>
       )}
     </div>
@@ -814,6 +834,29 @@ const geoSecondaryBtn: React.CSSProperties = {
   cursor: "pointer",
   fontFamily: "inherit",
   padding: "0 16px",
+};
+
+const geoTertiaryBtn: React.CSSProperties = {
+  height: 44,
+  borderRadius: 22,
+  background: "transparent",
+  color: C.text,
+  border: `1px dashed ${C.primary}99`,
+  fontWeight: 700,
+  fontSize: 12,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  padding: "0 16px",
+};
+
+const geoTertiaryHint: React.CSSProperties = {
+  fontSize: 11,
+  color: C.muted,
+  marginTop: 8,
+  textAlign: "center",
+  lineHeight: 1.5,
 };
 
 const geoRecoveryCard: React.CSSProperties = {
