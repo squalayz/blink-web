@@ -199,19 +199,28 @@ export default function HomePage() {
             href={TG_GROUP}
             target="_blank"
             rel="noreferrer"
+            aria-label="Join BLINK on Telegram"
             style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
               fontSize: 13,
-              color: BLINK.muted,
+              color: BLINK.green,
               textDecoration: "none",
               padding: "8px 14px",
-              border: `1px solid ${BLINK.border}`,
+              border: `1px solid ${BLINK.green}55`,
+              background: "rgba(0,255,136,0.06)",
               borderRadius: 999,
-              fontWeight: 600,
+              fontWeight: 700,
               letterSpacing: "0.02em",
               whiteSpace: "nowrap",
+              boxShadow: "0 0 14px rgba(0,255,136,0.25)",
             }}
           >
-            The Council
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M21.5 3.5 2.5 10.8c-.9.3-.9 1.6 0 1.9l4.7 1.6 2 6.2c.2.7 1.1.9 1.6.3l2.5-2.6 4.6 3.4c.6.5 1.6.2 1.8-.6L22.5 4.7c.2-.8-.6-1.5-1-1.2Z" fill={BLINK.green}/>
+            </svg>
+            Telegram
           </a>
           {!loading && user ? (
             <button
@@ -619,7 +628,6 @@ export default function HomePage() {
           <nav style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
             {[
               { href: "/how-it-works", label: "How it works" },
-              { href: "/council", label: "The Council" },
               { href: TG_GROUP, label: "Telegram", external: true },
               { href: "/terms", label: "Terms" },
               { href: "/privacy", label: "Privacy" },
