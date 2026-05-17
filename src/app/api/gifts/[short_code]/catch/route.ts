@@ -158,7 +158,11 @@ export async function POST(req: NextRequest, { params }: { params: { short_code:
     claimed_via: viaToggle ? "toggle" : "gps",
   };
 
-  await supabaseAdmin
+  // Conditional update — if the gift was cancelled by the sender between
+  // the catch start and now, the row is no longer 'spawned' and this update
+  // matches 0 rows. The on-chain transfer has already confirmed, so we
+  // surface the inconsistency loudly rather than silently lose state.
+  const { data: claimedRow } = await supabaseAdmin
     .from("gifts")
     .update({
       status: "claimed",
@@ -167,7 +171,20 @@ export async function POST(req: NextRequest, { params }: { params: { short_code:
       tx_status: "confirmed",
       payload_metadata: claimedMetadata,
     })
-    .eq("id", gift.id);
+    .eq("id", gift.id)
+    .eq("status", "spawned")
+    .select("id")
+    .maybeSingle();
+
+  if (!claimedRow) {
+    console.error(
+      `[gift-catch] tx ${result.txHash} confirmed on-chain but gift ${gift.id} was cancelled mid-catch — manual review required`
+    );
+    return NextResponse.json(
+      { error: "Gift was canceled — please contact support", tx_hash: result.txHash },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
     ok: true,
