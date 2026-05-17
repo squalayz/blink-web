@@ -49,7 +49,7 @@ type Step =
   | { kind: "catching"; preview: PreviewState; spawn: SpawnState }
   | { kind: "claimed"; preview: PreviewState; tx: string | null };
 
-const OPENING_CINEMATIC_MS = 1100;
+const OPENING_CINEMATIC_MS = 1500;
 const BREADCRUMB_LIFE_MS = 8000;
 const BREADCRUMB_MAX = 20;
 const BREADCRUMB_DROP_M = 5;
@@ -181,19 +181,47 @@ const WALK_CSS = `
   from { opacity: 1; }
   to { opacity: 0; }
 }
-@keyframes walkEyePulse {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 22px rgba(0,255,136,0.55)) drop-shadow(0 0 60px rgba(0,255,136,0.22)); }
-  50% { transform: scale(1.06); filter: drop-shadow(0 0 38px rgba(0,255,136,0.95)) drop-shadow(0 0 100px rgba(0,255,136,0.35)); }
+@keyframes walkCaptureCreature {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.55); filter: drop-shadow(0 0 18px rgba(0,255,136,0.45)) brightness(1); }
+  10%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  40%  { opacity: 1; transform: translate(-50%, calc(-50% - 4px)) scale(1); }
+  53%  { opacity: 1; transform: translate(-50%, -50%) scale(1.1); filter: drop-shadow(0 0 36px rgba(255,255,255,0.95)) brightness(2.2); }
+  60%  { opacity: 0.8; transform: translate(-50%, -50%) scale(0.5); filter: drop-shadow(0 0 14px rgba(0,255,136,0.6)) brightness(1.6); }
+  68%  { opacity: 0; transform: translate(-50%, -50%) scale(0.05); filter: drop-shadow(0 0 6px rgba(0,255,136,0.4)) brightness(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0); }
 }
-@keyframes walkEyeIris {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
+@keyframes walkCaptureStreak {
+  0%   { opacity: 0; transform: rotate(-50deg) scaleX(0); }
+  30%  { opacity: 1; transform: rotate(-50deg) scaleX(1); }
+  70%  { opacity: 1; transform: rotate(-50deg) scaleX(1); }
+  100% { opacity: 0; transform: rotate(-50deg) scaleX(1.05); }
 }
-@keyframes walkRadarSweep {
-  0% { transform: translateX(-110%); opacity: 0; }
-  15% { opacity: 1; }
-  85% { opacity: 1; }
-  100% { transform: translateX(110%); opacity: 0; }
+@keyframes walkCaptureOrb {
+  0%   { opacity: 0; transform: translate(28vw, -34vh) rotate(0deg) scale(0.28); }
+  6%   { opacity: 1; }
+  28%  { opacity: 1; transform: translate(0, 0) rotate(720deg) scale(1.06); filter: drop-shadow(0 0 22px rgba(0,255,136,0.9)); }
+  36%  { transform: translate(0, 0) rotate(740deg) scale(1.0); }
+  46%  { transform: translate(-4px, 0) rotate(740deg) scale(1.05); }
+  54%  { transform: translate(4px, 0) rotate(740deg) scale(1.05); }
+  62%  { transform: translate(-4px, 0) rotate(740deg) scale(1.05); }
+  70%  { transform: translate(4px, 0) rotate(740deg) scale(1.05); }
+  78%  { transform: translate(0, 0) rotate(740deg) scale(1.0); filter: drop-shadow(0 0 30px rgba(0,255,136,1)); }
+  92%  { opacity: 1; transform: translate(0, 0) rotate(740deg) scale(1.0); }
+  100% { opacity: 0; transform: translate(0, 0) rotate(740deg) scale(1.18); filter: drop-shadow(0 0 50px rgba(0,255,136,0.6)); }
+}
+@keyframes walkCapturePlasma {
+  0%   { opacity: 0; transform: translate(-50%, -100%) rotate(var(--ang, 0deg)) scaleY(0); }
+  30%  { opacity: 1; transform: translate(-50%, -100%) rotate(var(--ang, 0deg)) scaleY(1); }
+  100% { opacity: 0; transform: translate(-50%, -100%) rotate(var(--ang, 0deg)) scaleY(1.4); }
+}
+@keyframes walkCaptureFlash {
+  0%   { opacity: 0; }
+  40%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes walkCaptureDust {
+  0%, 100% { transform: translateY(0); opacity: 0.35; }
+  50%      { transform: translateY(-14px); opacity: 0.85; }
 }
 @keyframes walkBreadcrumbFade {
   0% { opacity: 0.75; transform: scale(1); }
@@ -1034,6 +1062,73 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
 // ───────────── Sub-components ─────────────
 
 function OpeningCinematic({ fadingOut }: { fadingOut: boolean }) {
+  const reduce = prefersReducedMotion();
+  // Reduced-motion fallback: static centered orb with a soft fade — no spin,
+  // no flash, no particle dust. Still leaves a calm beat before the map shows.
+  if (reduce) {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 80,
+          background: "#0a0a0f",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          animation: fadingOut
+            ? "walkOverlayFadeOut 320ms ease forwards"
+            : "walkOverlayFadeIn 600ms ease",
+          pointerEvents: "none",
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/blink-orb.png"
+          alt=""
+          width={140}
+          height={140}
+          style={{
+            width: 140,
+            height: 140,
+            borderRadius: "50%",
+            filter: "drop-shadow(0 0 30px rgba(0,255,136,0.7))",
+          }}
+        />
+      </div>
+    );
+  }
+
+  // 16 dust dots scattered across the field — CSS-only loop.
+  const dust = Array.from({ length: 16 }).map((_, i) => {
+    const left = (i * 73 + 11) % 100;
+    const top = (i * 41 + 7) % 100;
+    const delay = (i % 8) * 0.12;
+    const dur = 2.4 + ((i * 0.13) % 1.6);
+    const sz = 2 + (i % 3);
+    return (
+      <div
+        key={i}
+        aria-hidden
+        style={{
+          position: "absolute",
+          left: `${left}%`,
+          top: `${top}%`,
+          width: sz,
+          height: sz,
+          borderRadius: "50%",
+          background: "#00FF88",
+          boxShadow: "0 0 6px rgba(0,255,136,0.7)",
+          animation: `walkCaptureDust ${dur}s ${delay}s ease-in-out infinite`,
+          pointerEvents: "none",
+        }}
+      />
+    );
+  });
+
+  // 6 plasma rays at burst time — radiating out from the orb impact point.
+  const rayAngles = [0, 60, 120, 180, 240, 300];
+
   return (
     <div
       style={{
@@ -1041,108 +1136,142 @@ function OpeningCinematic({ fadingOut }: { fadingOut: boolean }) {
         inset: 0,
         zIndex: 80,
         background: "#0a0a0f",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 26,
-        padding: 24,
+        overflow: "hidden",
         animation: fadingOut
           ? "walkOverlayFadeOut 320ms ease forwards"
           : "walkOverlayFadeIn 220ms ease",
         pointerEvents: "none",
       }}
     >
+      {/* Particle dust */}
+      {dust}
+
+      {/* Soft ambient glow behind the action — keeps black bg from feeling flat. */}
       <div
+        aria-hidden
         style={{
-          width: 140,
-          height: 140,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          position: "relative",
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(circle at 50% 50%, rgba(0,255,136,0.10) 0%, rgba(0,255,136,0) 55%)",
+        }}
+      />
+
+      {/* Creature — appears at 0.1s, sucked into the orb at ~0.8s. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          width: 86,
+          height: 86,
+          marginLeft: 0,
+          marginTop: 0,
+          transformOrigin: "center",
+          animation: "walkCaptureCreature 1100ms 100ms ease-in-out both",
         }}
       >
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: -28,
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(0,255,136,0.42) 0%, rgba(0,255,136,0) 65%)",
-            filter: "blur(8px)",
-          }}
-        />
-        <svg
-          width="120"
-          height="120"
-          viewBox="0 0 200 200"
-          fill="none"
-          style={{ position: "relative", animation: "walkEyePulse 1.8s ease-in-out infinite" }}
-          aria-hidden
-        >
+        <svg width="86" height="86" viewBox="0 0 100 100" fill="none">
           <defs>
-            <radialGradient id="walk-blink-iris" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#88FF00" />
-              <stop offset="60%" stopColor="#00FF88" />
-              <stop offset="100%" stopColor="#003a1f" />
-            </radialGradient>
-            <radialGradient id="walk-blink-core" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="100%" stopColor="#000000" />
+            <radialGradient id="walk-capture-spirit" cx="50%" cy="45%" r="55%">
+              <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" />
+              <stop offset="35%" stopColor="#88FF00" stopOpacity="0.85" />
+              <stop offset="75%" stopColor="#00FF88" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="#00FF88" stopOpacity="0" />
             </radialGradient>
           </defs>
-          <ellipse cx="100" cy="100" rx="92" ry="48" stroke="#00FF88" strokeWidth="3" />
-          <circle
-            cx="100"
-            cy="100"
-            r="38"
-            fill="url(#walk-blink-iris)"
-            style={{ animation: "walkEyeIris 1.8s ease-in-out infinite", transformOrigin: "100px 100px" }}
-          />
-          <circle cx="100" cy="100" r="14" fill="url(#walk-blink-core)" />
-          <circle cx="92" cy="92" r="5" fill="rgba(255,255,255,0.85)" />
+          <circle cx="50" cy="50" r="46" fill="url(#walk-capture-spirit)" />
+          <circle cx="50" cy="48" r="14" fill="#0a0a0f" />
+          <circle cx="50" cy="48" r="6" fill="#FFFFFF" />
+          <circle cx="46" cy="44" r="2.5" fill="#FFFFFF" opacity="0.9" />
         </svg>
       </div>
+
+      {/* Diagonal light streak — flashes in along the orb's flight path
+          (center → upper-right). Grows outward from the impact point. */}
       <div
-        style={{
-          fontSize: 15,
-          fontWeight: 800,
-          letterSpacing: "0.22em",
-          color: "#00FF88",
-          textTransform: "uppercase",
-          textShadow: "0 0 16px rgba(0,255,136,0.7)",
-          textAlign: "center",
-        }}
-      >
-        Tracking the spirit&apos;s signal…
-      </div>
-      <div
-        style={{
-          width: 220,
-          height: 2,
-          position: "relative",
-          overflow: "hidden",
-          borderRadius: 1,
-          background: "rgba(0,255,136,0.12)",
-        }}
         aria-hidden
-      >
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          width: "50vmax",
+          height: 3,
+          marginTop: -1,
+          transformOrigin: "0% 50%",
+          background:
+            "linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(0,255,136,0.85) 30%, rgba(136,255,0,0.55) 60%, rgba(0,255,136,0) 100%)",
+          boxShadow: "0 0 14px rgba(0,255,136,0.9), 0 0 28px rgba(136,255,0,0.5)",
+          animation: "walkCaptureStreak 350ms 400ms ease-out both",
+          filter: "blur(0.6px)",
+        }}
+      />
+
+      {/* Plasma burst rays at impact (0.8s). */}
+      {rayAngles.map((ang) => (
         <div
+          key={ang}
+          aria-hidden
           style={{
             position: "absolute",
-            top: 0,
-            left: 0,
-            width: "55%",
-            height: "100%",
+            top: "50%",
+            left: "50%",
+            width: 4,
+            height: 120,
             background:
-              "linear-gradient(90deg, rgba(0,255,136,0) 0%, #00FF88 50%, rgba(0,255,136,0) 100%)",
-            boxShadow: "0 0 12px rgba(0,255,136,0.85)",
-            animation: "walkRadarSweep 1.6s ease-in-out infinite",
+              "linear-gradient(180deg, rgba(0,255,136,0) 0%, rgba(0,255,136,0.95) 45%, rgba(255,255,255,1) 75%, rgba(0,255,136,0) 100%)",
+            boxShadow: "0 0 10px rgba(0,255,136,0.85)",
+            transformOrigin: "50% 100%",
+            transform: `translate(-50%, -100%) rotate(${ang}deg)`,
+            animation: `walkCapturePlasma 320ms 780ms cubic-bezier(0.22, 1, 0.36, 1) both`,
+            // CSS variable lets the keyframe preserve the per-ray rotation.
+            ["--ang" as never]: `${ang}deg`,
+          }}
+        />
+      ))}
+
+      {/* The Eye Orb — flies in, contacts, wiggles 3x, fades out. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          width: 110,
+          height: 110,
+          marginLeft: -55,
+          marginTop: -55,
+          animation: "walkCaptureOrb 1000ms 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both",
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/blink-orb.png"
+          alt=""
+          width={110}
+          height={110}
+          style={{
+            width: 110,
+            height: 110,
+            display: "block",
+            borderRadius: "50%",
           }}
         />
       </div>
+
+      {/* Final green flash → handoff to map. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(circle at 50% 50%, rgba(0,255,136,0.85) 0%, rgba(0,255,136,0.55) 25%, rgba(0,255,136,0) 60%)",
+          animation: "walkCaptureFlash 220ms 1280ms ease-out both",
+          pointerEvents: "none",
+        }}
+      />
     </div>
   );
 }
