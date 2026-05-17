@@ -235,6 +235,10 @@ export async function executeETHClaim(
       chainId: network.chainId,
       type: 2,
     });
+    const receipt = await tx.wait(1);
+    if (!receipt || receipt.status !== 1) {
+      return { ok: false, error: "ETH transfer reverted on-chain", txHash: tx.hash };
+    }
     return { ok: true, txHash: tx.hash };
   } catch (err: unknown) {
     return { ok: false, error: err instanceof Error ? err.message : "ETH claim failed" };
@@ -266,7 +270,12 @@ export async function executeBlinkClaim(
       return { ok: false, error: "Sender no longer holds enough BLINK (clawback)" };
     }
 
-    const tx = await erc20.transfer(recipientAddr, amountWei);
+    const nonce = await provider.getTransactionCount(signer.address, "pending");
+    const tx = await erc20.transfer(recipientAddr, amountWei, { nonce });
+    const receipt = await tx.wait(1);
+    if (!receipt || receipt.status !== 1) {
+      return { ok: false, error: "BLINK transfer reverted on-chain", txHash: tx.hash };
+    }
     return { ok: true, txHash: tx.hash };
   } catch (err: unknown) {
     return { ok: false, error: err instanceof Error ? err.message : "BLINK claim failed" };
@@ -294,7 +303,12 @@ export async function executeNFTClaim(
       return { ok: false, error: "Sender no longer holds this NFT (clawback)" };
     }
 
-    const tx = await nft.safeTransferFrom(signer.address, recipientAddr, tokenId);
+    const nonce = await provider.getTransactionCount(signer.address, "pending");
+    const tx = await nft.safeTransferFrom(signer.address, recipientAddr, tokenId, { nonce });
+    const receipt = await tx.wait(1);
+    if (!receipt || receipt.status !== 1) {
+      return { ok: false, error: "NFT transfer reverted on-chain", txHash: tx.hash };
+    }
     return { ok: true, txHash: tx.hash };
   } catch (err: unknown) {
     return { ok: false, error: err instanceof Error ? err.message : "NFT claim failed" };
