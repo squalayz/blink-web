@@ -344,62 +344,92 @@ export default function GiftLandingClient() {
         </div>
 
         {showAuthPanel ? (
-          <form onSubmit={handleAuth} style={{ marginTop: 22 }}>
-            <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-              {(["signup", "signin"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setAuthMode(m)}
-                  style={{
-                    flex: 1,
-                    padding: "8px 0",
-                    borderRadius: 8,
-                    border: "none",
-                    background: authMode === m ? `${C.primary}22` : "transparent",
-                    color: authMode === m ? C.primary : C.muted,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  {m === "signup" ? "Create Account" : "Sign In"}
-                </button>
-              ))}
+          <>
+            {/* Anon walk path — recipients can virtually walk to the gift
+                without an account. Sign-up is deferred to the catch moment
+                inside /walk so the link never feels like a dead-end. */}
+            <div style={{ marginTop: 22 }}>
+              <WalkThereButton onClick={() => router.push(`/gift/${code}/walk`)} />
+              <div style={{ fontSize: 12, color: C.muted, textAlign: "center", marginTop: 10, lineHeight: 1.55 }}>
+                No account needed to start the walk. You&apos;ll only sign in when you catch the gift.
+              </div>
             </div>
-            <input
-              type="text"
-              placeholder="username"
-              autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value.replace(/\s+/g, ""))}
-              style={inputStyle}
-            />
-            <input
-              type="password"
-              placeholder="password (8+ chars)"
-              autoComplete={authMode === "signup" ? "new-password" : "current-password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={{ ...inputStyle, marginTop: 10 }}
-            />
-            {authErr && (
-              <div style={{ color: C.danger, fontSize: 13, marginTop: 10 }}>{authErr}</div>
-            )}
-            <button
-              type="submit"
-              disabled={authBusy}
-              style={{ ...primaryBtn, width: "100%", marginTop: 12, opacity: authBusy ? 0.6 : 1 }}
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                margin: "22px 0 14px",
+                color: C.muted,
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: "0.24em",
+                textTransform: "uppercase",
+              }}
             >
-              {authBusy ? "…" : authMode === "signup" ? "Create Account & Continue" : "Sign In & Continue"}
-            </button>
-            <div style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 10 }}>
-              Creating an account also creates your wallet (about 10 seconds).
+              <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
+              <span>or sign in</span>
+              <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
             </div>
-          </form>
+
+            <form onSubmit={handleAuth}>
+              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                {(["signup", "signin"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setAuthMode(m)}
+                    style={{
+                      flex: 1,
+                      padding: "8px 0",
+                      borderRadius: 8,
+                      border: "none",
+                      background: authMode === m ? `${C.primary}22` : "transparent",
+                      color: authMode === m ? C.primary : C.muted,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {m === "signup" ? "Create Account" : "Sign In"}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                placeholder="username"
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.replace(/\s+/g, ""))}
+                style={inputStyle}
+              />
+              <input
+                type="password"
+                placeholder="password (8+ chars)"
+                autoComplete={authMode === "signup" ? "new-password" : "current-password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{ ...inputStyle, marginTop: 10 }}
+              />
+              {authErr && (
+                <div style={{ color: C.danger, fontSize: 13, marginTop: 10 }}>{authErr}</div>
+              )}
+              <button
+                type="submit"
+                disabled={authBusy}
+                style={{ ...primaryBtn, width: "100%", marginTop: 12, opacity: authBusy ? 0.6 : 1 }}
+              >
+                {authBusy ? "…" : authMode === "signup" ? "Create Account & Continue" : "Sign In & Continue"}
+              </button>
+              <div style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 10 }}>
+                Creating an account also creates your wallet (about 10 seconds).
+              </div>
+            </form>
+          </>
         ) : (
           <GeoStepPanel
             step={geoStep}

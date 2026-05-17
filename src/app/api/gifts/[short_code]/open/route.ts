@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isValidLat, isValidLng, rateLimitByUser } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { pickSpawnPoint, haversineM } from "@/lib/gift-utils";
+import { pickSpawnPoint, haversineM, seedFromCode } from "@/lib/gift-utils";
 
 export const runtime = "nodejs";
 
@@ -107,8 +107,11 @@ export async function POST(req: NextRequest, { params }: { params: { short_code:
     return NextResponse.json({ error: "Gift was just opened by another hunter" }, { status: 410 });
   }
 
-  // Choose the spawn point near the recipient.
-  const spawn = pickSpawnPoint(body.lat, body.lng);
+  // Choose the spawn point near the recipient. Seeded from the short_code so
+  // the same gift always spawns in the same direction/distance — lets an
+  // anonymous client preview the walk before sign-in and land on the same
+  // creature the server picks at auth time.
+  const spawn = pickSpawnPoint(body.lat, body.lng, seedFromCode(code));
 
   // Pick a species/rarity to match the asset.
   const species =

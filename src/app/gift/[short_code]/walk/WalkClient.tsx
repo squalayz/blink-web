@@ -18,6 +18,8 @@ import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/theme";
 import { applyBlinkMapStyle } from "@/lib/blink-map-style";
 import { startApproachLoop, stopApproach, setApproachVolume, playSound, haptic, HAPTIC, prefersReducedMotion } from "@/lib/game-feel";
+import { pickSpawnPoint, seedFromCode } from "@/lib/gift-utils";
+import AuthModal from "@/components/AuthModal";
 
 const CATCH_RADIUS_M = 5;
 const WALK_SPEED_MPS = 3.0;
@@ -282,10 +284,13 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
 
   const handleRef = useRef<string>("@you");
 
-  // Auth gate.
-  useEffect(() => {
-    if (!authLoading && !user) router.replace(`/gift/${code}`);
-  }, [authLoading, user, router, code]);
+  // Auth modal — opens at the catch moment for anonymous walkers. Sign-in
+  // happens here rather than at page-load so gift recipients can virtually
+  // walk to a gift without an account first.
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  // Once the user signs in at the catch moment we set this so the [user]
+  // effect knows to fire the real /open + /catch sequence automatically.
+  const pendingClaimRef = useRef(false);
 
   // Pull handle for avatar label.
   useEffect(() => {
@@ -323,9 +328,8 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     }
   }, []);
 
-  // Load preview.
+  // Load preview. Public endpoint — runs for anon walkers too.
   useEffect(() => {
-    if (!user) return;
     let cancelled = false;
     (async () => {
       try {
@@ -362,7 +366,7 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     return () => {
       cancelled = true;
     };
-  }, [user, code, router]);
+  }, [code, router]);
 
   // Initialize map.
   useEffect(() => {
@@ -397,21 +401,72 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
 
   // Auto-open: when we enter the "opening" step, fire POST /open after a brief
   // cinematic delay using the IP-geolocated lat/lng as the avatar's anchor.
-  // Zero decisions between sign-in and navigation — it just starts.
+  //
+  // Anonymous walkers (no session yet) skip the API call entirely and use a
+  // client-side preview spawn seeded from the short_code — the server uses the
+  // same seed so the location matches up once the user actually signs in at
+  // the catch moment. This way recipients can virtually walk to a gift link
+  // without an account first.
   useEffect(() => {
     if (step.kind !== "opening") return;
+    if (authLoading) return;
     const preview = step.preview;
     let cancelled = false;
     const startedAt = performance.now();
 
+    const showSpawn = (rawSpawn: { lat: number; lng: number }, rawAnchor: { lat: number; lng: number }) => {
+      let anchorLat = rawAnchor.lat;
+      let anchorLng = rawAnchor.lng;
+      // Safety: if for any reason the anchor and spawn are >1km apart
+      // (network reroute, stale data, edge POP shift), pull the anchor in
+      // to within 200m of the spawn so the walk is playable. Without this
+      // the joystick at 1.4 m/s would feel frozen on a 100km distance.
+      const driftM = haversineM(anchorLat, anchorLng, rawSpawn.lat, rawSpawn.lng);
+      if (driftM > 1000) {
+        const radius = 200;
+        const dLat = anchorLat - rawSpawn.lat;
+        const dLng = anchorLng - rawSpawn.lng;
+        const norm = Math.sqrt(dLat * dLat + dLng * dLng) || 1;
+        const cosLat = Math.cos((rawSpawn.lat * Math.PI) / 180);
+        const dLatM = (radius / 111000) * (dLat / norm);
+        const dLngM = (radius / (111000 * (Math.abs(cosLat) < 1e-6 ? 1e-6 : cosLat))) * (dLng / norm);
+        anchorLat = rawSpawn.lat + dLatM;
+        anchorLng = rawSpawn.lng + dLngM;
+      }
+      const spawn: SpawnState = {
+        spawn: { lat: rawSpawn.lat, lng: rawSpawn.lng },
+        anchor: { lat: anchorLat, lng: anchorLng },
+      };
+      const elapsed = performance.now() - startedAt;
+      const wait = Math.max(0, OPENING_CINEMATIC_MS - elapsed);
+      window.setTimeout(() => {
+        if (cancelled) return;
+        setOverlayFadingOut(true);
+        window.setTimeout(() => {
+          if (cancelled) return;
+          setStep({ kind: "navigating", preview, spawn });
+          setOverlayFadingOut(false);
+        }, 320);
+      }, wait);
+    };
+
     (async () => {
+      const lat = initialCenter.lat;
+      const lng = initialCenter.lng;
+
+      if (!user) {
+        // Anonymous preview — same seed as the server uses in /open, so the
+        // creature ends up in the same spot once they sign in at the catch.
+        const previewSpawn = pickSpawnPoint(lat, lng, seedFromCode(code));
+        showSpawn({ lat: previewSpawn.lat, lng: previewSpawn.lng }, { lat, lng });
+        return;
+      }
+
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (cancelled) return;
         const token = session?.access_token;
         if (!token) throw new Error("Sign in first");
-        const lat = initialCenter.lat;
-        const lng = initialCenter.lng;
         const res = await fetch(`/api/gifts/${code}/open`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -424,41 +479,9 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
         // existing avatar row (anchor). Use that instead of the current IP
         // — the user's IP may have shifted since (different network / POP)
         // and we want the avatar to land near the spawn it was placed beside.
-        let anchorLat = data.avatar?.anchor_lat ?? data.avatar?.lat ?? lat;
-        let anchorLng = data.avatar?.anchor_lng ?? data.avatar?.lng ?? lng;
-        // Safety: if for any reason the anchor and spawn are >1km apart
-        // (network reroute, stale data, edge POP shift), pull the anchor in
-        // to within 200m of the spawn so the walk is playable. Without this
-        // the joystick at 1.4 m/s would feel frozen on a 100km distance.
-        const driftM = haversineM(anchorLat, anchorLng, data.spawn.lat, data.spawn.lng);
-        if (driftM > 1000) {
-          // Move the anchor onto a circle ~200m from the spawn, keeping the
-          // original direction so the compass points the same way.
-          const radius = 200;
-          const dLat = anchorLat - data.spawn.lat;
-          const dLng = anchorLng - data.spawn.lng;
-          const norm = Math.sqrt(dLat * dLat + dLng * dLng) || 1;
-          const cosLat = Math.cos((data.spawn.lat * Math.PI) / 180);
-          const dLatM = (radius / 111000) * (dLat / norm);
-          const dLngM = (radius / (111000 * (Math.abs(cosLat) < 1e-6 ? 1e-6 : cosLat))) * (dLng / norm);
-          anchorLat = data.spawn.lat + dLatM;
-          anchorLng = data.spawn.lng + dLngM;
-        }
-        const spawn: SpawnState = {
-          spawn: { lat: data.spawn.lat, lng: data.spawn.lng },
-          anchor: { lat: anchorLat, lng: anchorLng },
-        };
-        const elapsed = performance.now() - startedAt;
-        const wait = Math.max(0, OPENING_CINEMATIC_MS - elapsed);
-        window.setTimeout(() => {
-          if (cancelled) return;
-          setOverlayFadingOut(true);
-          window.setTimeout(() => {
-            if (cancelled) return;
-            setStep({ kind: "navigating", preview, spawn });
-            setOverlayFadingOut(false);
-          }, 320);
-        }, wait);
+        const anchorLat = data.avatar?.anchor_lat ?? data.avatar?.lat ?? lat;
+        const anchorLng = data.avatar?.anchor_lng ?? data.avatar?.lng ?? lng;
+        showSpawn({ lat: data.spawn.lat, lng: data.spawn.lng }, { lat: anchorLat, lng: anchorLng });
       } catch (err) {
         if (cancelled) return;
         setStep({ kind: "fatal", message: err instanceof Error ? err.message : "Failed" });
@@ -468,7 +491,7 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step.kind]);
+  }, [step.kind, authLoading, user]);
 
   // When navigation begins, render gift + avatar markers, seed virtual position.
   useEffect(() => {
@@ -867,16 +890,43 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     m.easeTo({ center: [a.lng, a.lat], zoom: 18, duration: 400 });
   }, []);
 
-  async function attemptCatch() {
-    if (step.kind !== "navigating") return;
-    const preview = step.preview;
-    const spawn = step.spawn;
+  // Runs the auth-required portion of the catch: /open (which the anon walk
+  // skipped) followed by /catch. For an already-signed-in user who walked the
+  // whole way this is just /catch.
+  const runClaim = useCallback(async () => {
+    if (step.kind !== "navigating" && step.kind !== "catching") return;
+    const preview = step.kind === "navigating" || step.kind === "catching" ? step.preview : null;
+    const spawn = step.kind === "navigating" || step.kind === "catching" ? step.spawn : null;
+    if (!preview || !spawn) return;
     const av = avatarPosRef.current ?? spawn.spawn;
     setStep({ kind: "catching", preview, spawn });
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (!token) throw new Error("Sign in first");
+
+      // If the gift hasn't been opened yet on the server (anon walk path),
+      // /catch will refuse with "Not your gift" because recipient_id is null.
+      // POST /open first — it's idempotent for the same recipient and matches
+      // the previewed spawn thanks to the deterministic seed.
+      const openRes = await fetch(`/api/gifts/${code}/open`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          lat: initialCenter.lat,
+          lng: initialCenter.lng,
+          via_toggle: true,
+        }),
+      });
+      const openData = await openRes.json().catch(() => ({}));
+      if (!openRes.ok) {
+        // 410 with already_open=true means we're already the recipient — fine.
+        const alreadyMine =
+          openData?.already_open === true ||
+          (typeof openData?.error === "string" && /already.*opened|status:\s*spawned/i.test(openData.error));
+        if (!alreadyMine) throw new Error(openData?.error || "Failed to open gift");
+      }
+
       const res = await fetch(`/api/gifts/${code}/catch`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -890,7 +940,30 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     } catch (err) {
       setStep({ kind: "fatal", message: err instanceof Error ? err.message : "Catch failed" });
     }
+  }, [step, code, initialCenter.lat, initialCenter.lng]);
+
+  function attemptCatch() {
+    if (step.kind !== "navigating") return;
+    if (!user) {
+      // Defer auth to the catch moment. Open the inline modal — the
+      // [user, pendingClaimRef] effect below resumes the claim once Supabase
+      // hands us a session.
+      pendingClaimRef.current = true;
+      setAuthModalOpen(true);
+      return;
+    }
+    void runClaim();
   }
+
+  // After the user signs in at the catch moment, resume the claim flow.
+  useEffect(() => {
+    if (!user) return;
+    if (!pendingClaimRef.current) return;
+    if (step.kind !== "navigating") return;
+    pendingClaimRef.current = false;
+    setAuthModalOpen(false);
+    void runClaim();
+  }, [user, step.kind, runClaim]);
 
   // ───────────── Render ─────────────
 
@@ -1051,10 +1124,19 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
               cursor: step.kind === "catching" ? "wait" : "pointer",
             }}
           >
-            {step.kind === "catching" ? "Catching…" : "Catch"}
+            {step.kind === "catching" ? "Catching…" : user ? "Catch" : "Sign in to Catch"}
           </button>
         </div>
       )}
+
+      <AuthModal
+        open={authModalOpen}
+        initialMode="signup"
+        onClose={() => {
+          pendingClaimRef.current = false;
+          setAuthModalOpen(false);
+        }}
+      />
     </div>
   );
 }
