@@ -918,13 +918,11 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
           via_toggle: true,
         }),
       });
-      const openData = await openRes.json().catch(() => ({}));
       if (!openRes.ok) {
-        // 410 with already_open=true means we're already the recipient — fine.
-        const alreadyMine =
-          openData?.already_open === true ||
-          (typeof openData?.error === "string" && /already.*opened|status:\s*spawned/i.test(openData.error));
-        if (!alreadyMine) throw new Error(openData?.error || "Failed to open gift");
+        // The server returns already_open: true ONLY with HTTP 200.
+        // Any non-2xx response is a real terminal — route back to landing.
+        router.replace(`/gift/${code}?status=410`);
+        return;
       }
 
       const res = await fetch(`/api/gifts/${code}/catch`, {

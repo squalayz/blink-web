@@ -5,7 +5,7 @@
 // location prompt, then redirect to /map?gift=[code] where the spawn lives.
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
@@ -49,8 +49,10 @@ interface GiftPreview {
 export default function GiftLandingClient() {
   const params = useParams<{ short_code: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const code = String(params.short_code || "").toLowerCase();
+  const stolenStatus = searchParams?.get("status") === "410";
 
   const [gift, setGift] = useState<GiftPreview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -251,6 +253,30 @@ export default function GiftLandingClient() {
             Spirit Gifts only stay open for 24 hours.
           </div>
           <Link href="/gift/new" style={primaryAnchor}>Send your own Spirit Gift</Link>
+        </div>
+      </div>
+    );
+  }
+
+  // ──── Stolen mid-walk (race) or already-spawned to someone else ────
+  // Walk client redirects here with ?status=410 when /open returns non-2xx.
+  // We also catch the case where the gift transitioned to 'spawned' for a
+  // different recipient between landing render and now.
+  const notOwnerOfSpawned =
+    gift.status === "spawned" && gift.mode === "direct" && !!gift.recipient_username && !user;
+  if (stolenStatus || notOwnerOfSpawned) {
+    return (
+      <div style={pageStyle}>
+        <div style={centerCol}>
+          <Glyph muted />
+          <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 10, textAlign: "center" }}>
+            Another hunter caught this gift
+          </h1>
+          <div style={{ color: C.muted, fontSize: 14, marginBottom: 24, textAlign: "center", maxWidth: 340 }}>
+            This Spirit Gift was just claimed. Want to send one of your own, or hunt for another in the wild?
+          </div>
+          <Link href="/gift/new" style={{ ...primaryAnchor, marginBottom: 12 }}>Send your own Spirit Gift</Link>
+          <Link href="/watch" style={{ ...primaryAnchor, background: "transparent", border: `1px solid ${C.primary}66`, color: C.primary }}>Watch the wild map</Link>
         </div>
       </div>
     );
