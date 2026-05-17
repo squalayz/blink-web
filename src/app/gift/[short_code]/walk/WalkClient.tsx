@@ -248,6 +248,9 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
   const [step, setStep] = useState<Step>({ kind: "loading" });
 
   const containerRef = useRef<HTMLDivElement>(null);
+  // Sync stepKindRef declared further down with each setStep call via an
+  // effect — see useEffect below. Declared early here because submittingRef
+  // and stepKindRef are referenced inside callbacks.
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const avatarMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const giftMarkerRef = useRef<mapboxgl.Marker | null>(null);
@@ -291,6 +294,15 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
   // Once the user signs in at the catch moment we set this so the [user]
   // effect knows to fire the real /open + /catch sequence automatically.
   const pendingClaimRef = useRef(false);
+  // Re-entrancy guard so a fast double-tap on Catch can't fire two claim
+  // sequences in parallel and overwrite the success card with a fatal.
+  const submittingRef = useRef(false);
+  // Mirror of step.kind so async closures can see the latest value without
+  // staleness — needed by the runClaim catch branch.
+  const stepKindRef = useRef<string>("loading");
+  useEffect(() => {
+    stepKindRef.current = step.kind;
+  }, [step.kind]);
 
   // Pull handle for avatar label.
   useEffect(() => {
@@ -936,12 +948,26 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
       haptic(HAPTIC.CATCH_SUCCESS);
       setStep({ kind: "claimed", preview, tx: data.tx_hash ?? null });
     } catch (err) {
-      setStep({ kind: "fatal", message: err instanceof Error ? err.message : "Catch failed" });
+      // Don't clobber a successful claim with a fatal screen if a parallel
+      // attempt raced ahead — possible on fast double-tap before the
+      // submittingRef guard latches.
+      if (stepKindRef.current !== "claimed") {
+        setStep({ kind: "fatal", message: err instanceof Error ? err.message : "Catch failed" });
+      }
     }
   }, [step, code, initialCenter.lat, initialCenter.lng]);
 
-  function attemptCatch() {
+  const attemptCatch = useCallback(async () => {
+    if (submittingRef.current) return;
     if (step.kind !== "navigating") return;
+    // Proximity gate — recomputed here from refs so the guard doesn't depend
+    // on a render-cycle constant (which would create a TDZ issue with the
+    // withinCatch declaration below the callbacks).
+    const av = avatarPosRef.current;
+    const spawnPos = step.kind === "navigating" ? step.spawn.spawn : null;
+    if (!av || !spawnPos) return;
+    const d = haversineM(av.lat, av.lng, spawnPos.lat, spawnPos.lng);
+    if (d > CATCH_RADIUS_M) return;
     if (!user) {
       // Defer auth to the catch moment. Open the inline modal — the
       // [user, pendingClaimRef] effect below resumes the claim once Supabase
@@ -950,8 +976,13 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
       setAuthModalOpen(true);
       return;
     }
-    void runClaim();
-  }
+    submittingRef.current = true;
+    try {
+      await runClaim();
+    } finally {
+      submittingRef.current = false;
+    }
+  }, [step, user, runClaim]);
 
   // After the user signs in at the catch moment, resume the claim flow.
   useEffect(() => {
