@@ -20,11 +20,15 @@ import { applyBlinkMapStyle } from "@/lib/blink-map-style";
 import { startApproachLoop, stopApproach, setApproachVolume, playSound, haptic, HAPTIC, prefersReducedMotion } from "@/lib/game-feel";
 
 const CATCH_RADIUS_M = 5;
-const WALK_SPEED_MPS = 1.4;
+const WALK_SPEED_MPS = 3.0;
 const TICK_MS = 60;
 const JOYSTICK_OUTER_R = 70;
 const JOYSTICK_KNOB_R = 26;
-const JOYSTICK_DEADZONE = 0.08;
+const JOYSTICK_DEADZONE = 0.04;
+const USER_PAN_PAUSE_MS = 3000;
+const INTRO_TIGHT_MS = 500;
+const INTRO_FIT_MS = 1500;
+const INTRO_SETTLE_MS = 800;
 
 interface PreviewState {
   sender_label: string;
@@ -115,6 +119,24 @@ const WALK_CSS = `
   background: #00FF88;
   border: 3px solid #0a0a0f;
   animation: walkAvatarPulse 1.6s ease-in-out infinite;
+}
+@keyframes walkAvatarStep {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,136,0.65); transform: scale(1) translateY(0); }
+  25% { transform: scale(1.06) translateY(-3px); }
+  50% { box-shadow: 0 0 24px 8px rgba(0,255,136,0.45); transform: scale(1.1) translateY(0); }
+  75% { transform: scale(1.06) translateY(-3px); }
+}
+.walk-avatar.walking { animation: walkAvatarStep 0.55s ease-in-out infinite; }
+@keyframes walkEdgeGlow {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 0.6; }
+}
+.walk-edge-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  animation: walkEdgeGlow 1.2s ease-in-out infinite;
 }
 .walk-avatar-label {
   position: absolute;
@@ -226,6 +248,9 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
   const tickHandleRef = useRef<number | null>(null);
   const lastTickTsRef = useRef<number>(0);
   const approachActiveRef = useRef<boolean>(false);
+  const userPanAtRef = useRef<number>(0);
+  const avatarDotRef = useRef<HTMLDivElement | null>(null);
+  const introTimersRef = useRef<number[]>([]);
 
   const handleRef = useRef<string>("@you");
 
@@ -321,12 +346,19 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
       container: containerRef.current,
       style: "mapbox://styles/mapbox/dark-v11",
       center: [initialCenter.lng, initialCenter.lat],
-      zoom: 13,
-      pitch: 0,
+      zoom: 17,
+      pitch: 45,
+      bearing: 0,
       attributionControl: false,
     });
     m.on("style.load", () => {
       applyBlinkMapStyle(m, { hour: new Date().getHours() });
+    });
+    // Track explicit user-initiated pans so the auto-follow loop yields when
+    // the player drags the map to peek around. dragstart only fires on real
+    // user interaction (programmatic easeTo/flyTo does not trigger it).
+    m.on("dragstart", () => {
+      userPanAtRef.current = performance.now();
     });
     mapRef.current = m;
     return () => {
@@ -420,7 +452,7 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
 
     if (!giftMarkerRef.current) {
       const el = document.createElement("div");
-      el.style.cssText = "position:relative;width:56px;height:56px;display:flex;align-items:center;justify-content:center;";
+      el.style.cssText = "position:relative;width:56px;height:56px;display:flex;align-items:center;justify-content:center;z-index:5;";
       el.innerHTML = '<div class="walk-gift"><div class="walk-gift-iris"></div></div>';
       giftMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "center" })
         .setLngLat([spawn.lng, spawn.lat])
@@ -435,9 +467,10 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
 
     if (!avatarMarkerRef.current) {
       const el = document.createElement("div");
-      el.style.cssText = "position:relative;display:flex;align-items:center;justify-content:center;";
+      el.style.cssText = "position:relative;display:flex;align-items:center;justify-content:center;z-index:10;";
       const dot = document.createElement("div");
       dot.className = "walk-avatar";
+      avatarDotRef.current = dot;
       const label = document.createElement("div");
       label.className = "walk-avatar-label";
       label.id = "walk-avatar-label";
@@ -452,10 +485,66 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     }
 
     lastBreadcrumbPosRef.current = { lat: anchor.lat, lng: anchor.lng };
-    lastZoomTargetRef.current = 16;
+    lastZoomTargetRef.current = 18;
     trendSampleRef.current = { t: 0, dist: 0 };
 
-    m.easeTo({ center: [anchor.lng, anchor.lat], zoom: 16, duration: 700 });
+    // Cinematic intro: zoom in tight on avatar → fit-bounds to show gift →
+    // settle to follow. Orients the player and reveals the gift's location.
+    const distAS = haversineM(anchor.lat, anchor.lng, spawn.lat, spawn.lng);
+    introTimersRef.current.forEach((t) => clearTimeout(t));
+    introTimersRef.current = [];
+    if (distAS > 30) {
+      m.easeTo({
+        center: [anchor.lng, anchor.lat],
+        zoom: 18,
+        pitch: 45,
+        duration: 400,
+      });
+      const t1 = window.setTimeout(() => {
+        if (mapRef.current !== m) return;
+        const sw: [number, number] = [
+          Math.min(anchor.lng, spawn.lng),
+          Math.min(anchor.lat, spawn.lat),
+        ];
+        const ne: [number, number] = [
+          Math.max(anchor.lng, spawn.lng),
+          Math.max(anchor.lat, spawn.lat),
+        ];
+        try {
+          m.fitBounds([sw, ne], {
+            padding: { top: 110, bottom: 220, left: 60, right: 60 },
+            duration: INTRO_FIT_MS,
+            pitch: 45,
+            maxZoom: 18,
+          });
+        } catch { /* no-op */ }
+      }, INTRO_TIGHT_MS);
+      const settleZoom = distAS > 80 ? 17.5 : 18;
+      const t2 = window.setTimeout(() => {
+        if (mapRef.current !== m) return;
+        m.easeTo({
+          center: [anchor.lng, anchor.lat],
+          zoom: settleZoom,
+          pitch: 45,
+          duration: INTRO_SETTLE_MS,
+        });
+        lastZoomTargetRef.current = settleZoom;
+      }, INTRO_TIGHT_MS + INTRO_FIT_MS + 400);
+      introTimersRef.current = [t1, t2];
+    } else {
+      m.easeTo({
+        center: [anchor.lng, anchor.lat],
+        zoom: 18.5,
+        pitch: 45,
+        duration: 700,
+      });
+      lastZoomTargetRef.current = 18.5;
+    }
+
+    return () => {
+      introTimersRef.current.forEach((t) => clearTimeout(t));
+      introTimersRef.current = [];
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.kind]);
 
@@ -515,10 +604,12 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     };
 
     const zoomFor = (d: number): number => {
-      if (d > 50) return 16;
-      if (d > 10) return 17 + ((50 - d) / 40) * 1.5;
-      if (d > 5) return 18.5 + ((10 - d) / 5) * 0.5;
-      return 19;
+      if (d > 200) return 17;
+      if (d > 80) return 17.5;
+      if (d > 30) return 18;
+      if (d > 10) return 18.5;
+      if (d > 5) return 19;
+      return 19.5;
     };
 
     const loop = () => {
@@ -528,12 +619,25 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
       lastTickTsRef.current = now;
 
       const k = knobRef.current;
+      const moving = k.mag > JOYSTICK_DEADZONE;
       const vp = virtualPosRef.current;
-      if (vp && k.mag > JOYSTICK_DEADZONE) {
+      if (vp && moving) {
+        // Math convention: angle = 0 → east, angle = π/2 → north (ccw from
+        // east). updateKnob computes atan2(-dy, dx) to match this.
         const dist = WALK_SPEED_MPS * k.mag * dt;
-        const dLat = (dist * Math.cos(k.angle)) / 111000;
-        const dLng = (dist * Math.sin(k.angle)) / (111000 * Math.cos((vp.lat * Math.PI) / 180));
+        const dLat = (dist * Math.sin(k.angle)) / 111000;
+        const dLng =
+          (dist * Math.cos(k.angle)) /
+          (111000 * Math.max(0.01, Math.cos((vp.lat * Math.PI) / 180)));
         virtualPosRef.current = { lat: vp.lat + dLat, lng: vp.lng + dLng };
+      }
+
+      // Toggle the walking animation class so the avatar visibly steps when
+      // the joystick is engaged.
+      if (avatarDotRef.current && !reduceMotion) {
+        const has = avatarDotRef.current.classList.contains("walking");
+        if (moving && !has) avatarDotRef.current.classList.add("walking");
+        else if (!moving && has) avatarDotRef.current.classList.remove("walking");
       }
 
       const vNow = virtualPosRef.current;
@@ -556,14 +660,27 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
 
       const distLeft = haversineM(eff.lat, eff.lng, spawn.lat, spawn.lng);
 
-      // Map: lerp zoom on approach, otherwise just pan-follow.
-      const targetZ = zoomFor(distLeft);
-      const lastZ = lastZoomTargetRef.current;
-      if (Math.abs(targetZ - lastZ) >= 0.2) {
-        lastZoomTargetRef.current = targetZ;
-        m.easeTo({ center: [eff.lng, eff.lat], zoom: targetZ, duration: 600 });
-      } else {
-        m.easeTo({ center: [eff.lng, eff.lat], duration: 240 });
+      // Auto-follow yields for USER_PAN_PAUSE_MS after a manual map drag so
+      // the player can briefly peek at surroundings without being yanked back.
+      const recentlyPanned = now - userPanAtRef.current < USER_PAN_PAUSE_MS;
+      if (!recentlyPanned) {
+        const targetZ = zoomFor(distLeft);
+        const lastZ = lastZoomTargetRef.current;
+        if (Math.abs(targetZ - lastZ) >= 0.25) {
+          lastZoomTargetRef.current = targetZ;
+          m.easeTo({
+            center: [eff.lng, eff.lat],
+            zoom: targetZ,
+            duration: 500,
+            essential: true,
+          });
+        } else {
+          m.easeTo({
+            center: [eff.lng, eff.lat],
+            duration: 100,
+            essential: true,
+          });
+        }
       }
 
       // Breadcrumb trail — drop a dot every BREADCRUMB_DROP_M meters traveled.
@@ -622,6 +739,9 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
       breadcrumbsRef.current = [];
       lastBreadcrumbPosRef.current = null;
       setTrend(null);
+      if (avatarDotRef.current) {
+        avatarDotRef.current.classList.remove("walking");
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.kind]);
@@ -643,9 +763,13 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
       dy *= s;
     }
     const mag = Math.min(1, dist / maxR);
-    // angle: 0 = north (knob pushed up), clockwise.
-    // dx (east), -dy (north): atan2(dx, -dy) gives 0 when straight up.
-    const angle = Math.atan2(dx, -dy);
+    // Math convention: angle is measured ccw from positive x-axis (east).
+    // Screen-y is inverted from math-y, so negate dy. Verifications:
+    //   UP    (dx=0, dy=-r) → atan2(r, 0)  =  π/2 → north
+    //   RIGHT (dx=r, dy=0)  → atan2(0, r)  =  0   → east
+    //   DOWN  (dx=0, dy=r)  → atan2(-r, 0) = -π/2 → south
+    //   LEFT  (dx=-r, dy=0) → atan2(0, -r) =  π   → west
+    const angle = Math.atan2(-dy, dx);
     knobRef.current = { dx, dy, mag, angle };
     setKnob({ x: dx, y: dy });
   }, []);
