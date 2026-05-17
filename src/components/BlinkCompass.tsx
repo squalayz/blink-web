@@ -31,7 +31,8 @@ function tierLabel(tier: CompassTier): string {
   if (tier === "close") return "BLINK · close";
   if (tier === "medium") return "Something stirs";
   if (tier === "far") return "Far signal";
-  return "The Eye is quiet";
+  // tier === "none": top bar already shows "The Eye is quiet" — avoid duplication.
+  return "Searching…";
 }
 
 function tierColor(tier: CompassTier): string {

@@ -355,40 +355,44 @@ function SideButtons({ onRecenter, nearbyCount, hexGridOn, onToggleHex, gpsActiv
         <CameraIcon />
       </button>
 
-      {/* Hex grid toggle */}
-      <button
-        {...hoverProps('hex')}
-        onClick={onToggleHex}
-        style={{
-          ...btnStyle,
-          border: `1px solid ${hexGridOn ? PRIMARY + '66' : GLASS_BORDER}`,
-          background: hexGridOn ? PRIMARY + '22' : btnStyle.background,
-          ...hoverScale('hex'),
-        }}
-        title={hexGridOn ? 'Hide hex grid' : 'Show hex grid'}
-      >
-        <GridIcon />
-      </button>
+      {/* Hex grid toggle — desktop only (niche feature, no thumb-reach use) */}
+      {isDesktop && (
+        <button
+          {...hoverProps('hex')}
+          onClick={onToggleHex}
+          style={{
+            ...btnStyle,
+            border: `1px solid ${hexGridOn ? PRIMARY + '66' : GLASS_BORDER}`,
+            background: hexGridOn ? PRIMARY + '22' : btnStyle.background,
+            ...hoverScale('hex'),
+          }}
+          title={hexGridOn ? 'Hide hex grid' : 'Show hex grid'}
+        >
+          <GridIcon />
+        </button>
+      )}
 
-      {/* Nearby toggle */}
-      <button
-        {...hoverProps('nearby')}
-        onClick={() => onSetFilter(nearbyActive ? 'All Creatures' : 'Nearby')}
-        style={{
-          ...btnStyle,
-          flexDirection: 'column',
-          gap: 2,
-          border: `1px solid ${nearbyActive ? ACCENT + '66' : GLASS_BORDER}`,
-          background: nearbyActive ? ACCENT + '18' : btnStyle.background,
-          ...hoverScale('nearby'),
-        }}
-        title={nearbyActive ? 'Show all creatures' : 'Show nearby only'}
-      >
-        <NearbyIcon />
-        <span style={{ fontSize: 10, fontWeight: 700, color: nearbyActive ? ACCENT : MUTED, lineHeight: 1 }}>
-          {nearbyCount}
-        </span>
-      </button>
+      {/* Nearby toggle — desktop only; mobile users use the Nearby filter pill in the top bar */}
+      {isDesktop && (
+        <button
+          {...hoverProps('nearby')}
+          onClick={() => onSetFilter(nearbyActive ? 'All Creatures' : 'Nearby')}
+          style={{
+            ...btnStyle,
+            flexDirection: 'column',
+            gap: 2,
+            border: `1px solid ${nearbyActive ? ACCENT + '66' : GLASS_BORDER}`,
+            background: nearbyActive ? ACCENT + '18' : btnStyle.background,
+            ...hoverScale('nearby'),
+          }}
+          title={nearbyActive ? 'Show all creatures' : 'Show nearby only'}
+        >
+          <NearbyIcon />
+          <span style={{ fontSize: 10, fontWeight: 700, color: nearbyActive ? ACCENT : MUTED, lineHeight: 1 }}>
+            {nearbyCount}
+          </span>
+        </button>
+      )}
     </div>
   );
 }

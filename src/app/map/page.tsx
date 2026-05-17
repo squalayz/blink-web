@@ -11,6 +11,7 @@ import { Orb as ThemeOrb } from "@/lib/theme";
 import { MapPin, Filter, Plus, X, ChevronUp, User, Crosshair, Camera } from "lucide-react";
 import UserAvatar from "@/components/UserAvatar";
 import UserProfileCard from "@/components/UserProfileCard";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
 
 import { BlinkCompass, type CompassReading, type CompassTier } from "@/components/BlinkCompass";
 import { BESTIARY } from "@/lib/bestiary";
@@ -195,6 +196,7 @@ const toolRailBtn: React.CSSProperties = {
 export default function MapPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { isDesktop } = useIsDesktop();
 
   /* ---- State ---- */
   const [position, setPosition] = useState<Position | null>(null);
@@ -648,21 +650,21 @@ export default function MapPage() {
       {/* ========== TOP BAR ========== */}
       <div
         style={{
-          height: 60,
-          minHeight: 60,
+          height: 44,
+          minHeight: 44,
           background: COLORS.surface,
           borderBottom: `1px solid ${COLORS.border}`,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0 16px",
+          padding: "0 14px",
           zIndex: 20,
         }}
       >
         <Link href="/" style={{ textDecoration: "none" }}>
           <span
             style={{
-              fontSize: 20,
+              fontSize: 16,
               fontWeight: 800,
               letterSpacing: "-0.02em",
               background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.accent})`,
@@ -674,7 +676,7 @@ export default function MapPage() {
           </span>
         </Link>
 
-        <span style={{ color: COLORS.textMuted, fontSize: 13, fontWeight: 500 }}>
+        <span style={{ color: COLORS.textMuted, fontSize: 12, fontWeight: 500, letterSpacing: "0.02em" }}>
           {nearbyCount > 0
             ? `${nearbyCount} BLINK${nearbyCount !== 1 ? "S" : ""} sensed`
             : "The Eye is quiet"}
@@ -683,8 +685,8 @@ export default function MapPage() {
         <Link href="/profile" style={{ textDecoration: "none" }}>
           <div
             style={{
-              width: 36,
-              height: 36,
+              width: 30,
+              height: 30,
               borderRadius: "50%",
               background: COLORS.card,
               display: "flex",
@@ -693,7 +695,7 @@ export default function MapPage() {
               border: `1px solid ${COLORS.border}`,
             }}
           >
-            <User size={18} color={COLORS.textMuted} />
+            <User size={15} color={COLORS.textMuted} />
           </div>
         </Link>
       </div>
@@ -837,54 +839,39 @@ export default function MapPage() {
           />
         </Suspense>
 
-        {/* ---- Location banner ---- */}
+        {/* ---- Location pill (subtle, bottom-centered, single-tap) ---- */}
         {showLocationBanner && (
-          <div
+          <button
+            onClick={!isDenied ? requestLocation : undefined}
+            aria-label={isDenied ? "Location blocked" : "Enable location"}
             style={{
               position: "absolute",
-              top: 12,
+              bottom: 104,
               left: "50%",
               transform: "translateX(-50%)",
               zIndex: 50,
-              background: "rgba(13,13,20,0.95)",
-              border: `1px solid ${isDenied ? "rgba(239,68,68,0.3)" : "rgba(0,255,136,0.3)"}`,
-              borderRadius: 50,
-              padding: "8px 16px",
-              display: "flex",
-              gap: 8,
+              background: "rgba(10,10,15,0.7)",
+              border: `1px solid ${isDenied ? "rgba(239,68,68,0.35)" : "rgba(0,255,136,0.35)"}`,
+              borderRadius: 999,
+              padding: "6px 12px",
+              display: "inline-flex",
+              gap: 6,
               alignItems: "center",
+              cursor: isDenied ? "default" : "pointer",
               whiteSpace: "nowrap",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+              backdropFilter: "blur(14px)",
+              WebkitBackdropFilter: "blur(14px)",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.4)",
+              fontFamily: "inherit",
+              color: isDenied ? "#fca5a5" : "#cfd3dd",
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: "0.01em",
             }}
           >
-            <MapPin size={14} color={isDenied ? "#ef4444" : "#00FF88"} />
-            <span style={{ color: isDenied ? "#fca5a5" : "#8888aa", fontSize: 13 }}>
-              {isDenied
-                ? (() => {
-                    const ua = navigator.userAgent;
-                    if (/iPhone|iPad/.test(ua)) return "Tap the AA icon → Website Settings → Location";
-                    if (/Android/.test(ua)) return "Tap the lock icon → Permissions → Location";
-                    return "Tap the lock icon in your address bar → Allow Location";
-                  })()
-                : "Enable location to find nearby BLINKS"}
-            </span>
-            {!isDenied && (
-              <button
-                onClick={requestLocation}
-                style={{
-                  color: "#00FF88",
-                  fontWeight: 700,
-                  fontSize: 13,
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 0,
-                }}
-              >
-                Enable
-              </button>
-            )}
-          </div>
+            <MapPin size={12} color={isDenied ? "#ef4444" : "#00FF88"} />
+            <span>{isDenied ? "Location blocked — open browser settings" : "Location off — tap to enable"}</span>
+          </button>
         )}
 
         {/* ---- Watchers nearby chip ---- */}
@@ -892,7 +879,7 @@ export default function MapPage() {
           <div
             style={{
               position: "absolute",
-              top: showLocationBanner ? 56 : 12,
+              top: 12,
               left: 12,
               zIndex: 18,
               maxWidth: "calc(100% - 80px)",
@@ -1033,20 +1020,25 @@ export default function MapPage() {
           >
             <Crosshair size={16} color={position ? "#00FF88" : COLORS.textMuted} />
           </button>
-          <button
-            onClick={() => { leafletMapRef.current?.zoomIn?.(); wakeFab(); }}
-            aria-label="Zoom in"
-            style={toolRailBtn}
-          >
-            +
-          </button>
-          <button
-            onClick={() => { leafletMapRef.current?.zoomOut?.(); wakeFab(); }}
-            aria-label="Zoom out"
-            style={toolRailBtn}
-          >
-            −
-          </button>
+          {/* Zoom controls — desktop only; pinch-zoom covers mobile. */}
+          {isDesktop && (
+            <>
+              <button
+                onClick={() => { leafletMapRef.current?.zoomIn?.(); wakeFab(); }}
+                aria-label="Zoom in"
+                style={toolRailBtn}
+              >
+                +
+              </button>
+              <button
+                onClick={() => { leafletMapRef.current?.zoomOut?.(); wakeFab(); }}
+                aria-label="Zoom out"
+                style={toolRailBtn}
+              >
+                −
+              </button>
+            </>
+          )}
           {!cameraGranted && (
             <button
               onClick={handleCameraRequest}
