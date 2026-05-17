@@ -139,9 +139,15 @@ export async function POST(req: NextRequest, { params }: { params: { short_code:
 
   if (!result.ok) {
     // Mark failed. Unclaim the creature so it's clearly visible to the user.
+    // tx_status='failed' lets the sweeper investigate broadcasts that never
+    // confirmed (so it can optionally reset to 'spawned' for re-attempt).
     await supabaseAdmin
       .from("gifts")
-      .update({ status: "failed" })
+      .update({
+        status: "failed",
+        tx_status: "failed",
+        on_chain_claim_tx: result.txHash ?? null,
+      })
       .eq("id", gift.id);
     return NextResponse.json({ error: result.error || "Transfer failed" }, { status: 500 });
   }
@@ -157,6 +163,7 @@ export async function POST(req: NextRequest, { params }: { params: { short_code:
       status: "claimed",
       claimed_at: new Date().toISOString(),
       on_chain_claim_tx: result.txHash,
+      tx_status: "confirmed",
       payload_metadata: claimedMetadata,
     })
     .eq("id", gift.id);
