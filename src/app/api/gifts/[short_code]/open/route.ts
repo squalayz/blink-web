@@ -10,12 +10,11 @@ import { pickSpawnPoint, haversineM } from "@/lib/gift-utils";
 
 export const runtime = "nodejs";
 
-// Pin must be within this many meters of the Vercel edge-IP geolocation when
-// using toggle mode. Vercel edge IPs are datacenter locations (often hundreds
-// of km from the user), so we set this generously: 2000km = continental scale.
-// This still blocks Tokyo->NYC abuse but accepts realistic user-to-edge spread.
-// opening via the no-GPS toggle path. Loose by design — sanity check only.
-const TOGGLE_PIN_RADIUS_M = 2_000_000;
+// Toggle-pin radius check was removed: Vercel edge IPs are datacenter POPs that
+// can be on the other side of the planet from the actual user (e.g. a California
+// request routed via Tokyo or São Paulo), which made the check falsely reject
+// legitimate claims. Anti-cheat is already provided by (1) auth-required catch,
+// (2) one-claim-per-gift, (3) sender-signed transfers.
 
 export async function POST(req: NextRequest, { params }: { params: { short_code: string } }) {
   const { user, error } = await requireAuth(req);
@@ -41,24 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: { short_code:
 
   const viaToggle = body.via_toggle === true;
 
-  // Sanity check: when the user has no GPS and is pinning on a map, make sure
-  // the pin is at least in the same continent as their edge-IP. Skipped when
-  // headers are missing (localhost / non-Vercel runtime) so dev still works.
-  if (viaToggle) {
-    const edgeLatHeader = req.headers.get("x-vercel-ip-latitude");
-    const edgeLngHeader = req.headers.get("x-vercel-ip-longitude");
-    const edgeLat = edgeLatHeader ? Number(edgeLatHeader) : NaN;
-    const edgeLng = edgeLngHeader ? Number(edgeLngHeader) : NaN;
-    if (isFinite(edgeLat) && isFinite(edgeLng)) {
-      const dist = haversineM(edgeLat, edgeLng, body.lat, body.lng);
-      if (dist > TOGGLE_PIN_RADIUS_M) {
-        return NextResponse.json(
-          { error: "Pin must be within 2000km of your region", distance_m: Math.round(dist) },
-          { status: 400 }
-        );
-      }
-    }
-  }
+  // (Toggle-pin radius check removed — see comment above.)
 
   // Load gift, verify state.
   const { data: gift } = await supabaseAdmin
