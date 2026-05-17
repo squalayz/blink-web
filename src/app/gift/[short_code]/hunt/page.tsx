@@ -9,6 +9,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/theme";
+import WalkThereButton from "@/components/WalkThereButton";
 
 const GiftHuntMap = dynamic(() => import("@/components/GiftHuntMap"), { ssr: false });
 
@@ -395,13 +396,9 @@ export default function HuntPage() {
             )}
             {offerWalkFallback && (
               <>
-                <button
-                  type="button"
-                  onClick={() => router.push(`/gift/${code}/walk`)}
-                  style={{ ...tertiaryBtn, width: "100%", marginTop: 10 }}
-                >
-                  Virtually Walk There
-                </button>
+                <div style={{ marginTop: 10 }}>
+                  <WalkThereButton onClick={() => router.push(`/gift/${code}/walk`)} />
+                </div>
                 <div style={tertiaryHint}>
                   Your gift will appear on a map for you to walk to. No GPS required — but it&apos;ll take a moment to reach.
                 </div>
@@ -715,21 +712,6 @@ const secondaryBtn: React.CSSProperties = {
   cursor: "pointer",
   fontFamily: "inherit",
   padding: "0 18px",
-};
-
-const tertiaryBtn: React.CSSProperties = {
-  height: 44,
-  borderRadius: 22,
-  background: "transparent",
-  color: C.text,
-  border: `1px dashed ${C.primary}99`,
-  fontWeight: 700,
-  fontSize: 12,
-  letterSpacing: "0.08em",
-  textTransform: "uppercase",
-  cursor: "pointer",
-  fontFamily: "inherit",
-  padding: "0 16px",
 };
 
 const tertiaryHint: React.CSSProperties = {

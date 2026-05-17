@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/theme";
+import WalkThereButton from "@/components/WalkThereButton";
 
 const IN_APP_WEBVIEW_HINTS = ["Telegram", "FBAN", "FBAV", "Instagram", "Twitter", "Line"];
 
@@ -533,18 +534,12 @@ function GeoStepPanel({
   onPickOnMap: () => void;
 }) {
   const pickOnMapBlock = (
-    <>
-      <button
-        type="button"
-        onClick={onPickOnMap}
-        style={{ ...geoTertiaryBtn, width: "100%", marginTop: 10 }}
-      >
-        Virtually Walk There
-      </button>
+    <div style={{ marginTop: 10 }}>
+      <WalkThereButton onClick={onPickOnMap} />
       <div style={geoTertiaryHint}>
         Walk to your gift on the map. Real human pace — under 5 minutes.
       </div>
-    </>
+    </div>
   );
   if (step.kind === "checking" || step.kind === "navigating") {
     return (
@@ -588,13 +583,9 @@ function GeoStepPanel({
           >
             Allow Location & Walk to It
           </button>
-          <button
-            type="button"
-            onClick={onPickOnMap}
-            style={{ ...geoTertiaryBtn, width: "100%", marginTop: 12 }}
-          >
-            Virtually Walk There
-          </button>
+          <div style={{ marginTop: 12 }}>
+            <WalkThereButton onClick={onPickOnMap} />
+          </div>
           <div style={geoDualHint}>
             Both paths claim the same gift. Real-world walking is instant on arrival — virtually walking takes real human pace.
           </div>
@@ -616,13 +607,9 @@ function GeoStepPanel({
             Allow Location & Walk to It
           </button>
           <div style={geoMutedSubtext}>Already blocked — tap to retry</div>
-          <button
-            type="button"
-            onClick={onPickOnMap}
-            style={{ ...geoTertiaryBtn, width: "100%", marginTop: 12 }}
-          >
-            Virtually Walk There
-          </button>
+          <div style={{ marginTop: 12 }}>
+            <WalkThereButton onClick={onPickOnMap} />
+          </div>
           <div style={geoDualHint}>
             Both paths claim the same gift. Real-world walking is instant on arrival — virtually walking takes real human pace.
           </div>
@@ -899,21 +886,6 @@ const geoSecondaryBtn: React.CSSProperties = {
   fontWeight: 700,
   fontSize: 12,
   letterSpacing: "0.06em",
-  textTransform: "uppercase",
-  cursor: "pointer",
-  fontFamily: "inherit",
-  padding: "0 16px",
-};
-
-const geoTertiaryBtn: React.CSSProperties = {
-  height: 44,
-  borderRadius: 22,
-  background: "transparent",
-  color: C.text,
-  border: `1px dashed ${C.primary}99`,
-  fontWeight: 700,
-  fontSize: 12,
-  letterSpacing: "0.08em",
   textTransform: "uppercase",
   cursor: "pointer",
   fontFamily: "inherit",
