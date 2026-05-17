@@ -15,7 +15,8 @@ const IN_APP_WEBVIEW_HINTS = ["Telegram", "FBAN", "FBAV", "Instagram", "Twitter"
 
 type GeoStep =
   | { kind: "checking" }
-  | { kind: "prompt" }
+  | { kind: "ready" }
+  | { kind: "denied-precheck" }
   | { kind: "requesting" }
   | { kind: "denied" }
   | { kind: "timeout" }
@@ -158,21 +159,19 @@ export default function GiftLandingClient() {
     async function check() {
       const perms = (navigator as Navigator & { permissions?: { query: (q: { name: PermissionName }) => Promise<PermissionStatus> } }).permissions;
       if (!perms || typeof perms.query !== "function") {
-        if (!cancelled) setGeoStep({ kind: "prompt" });
+        if (!cancelled) setGeoStep({ kind: "ready" });
         return;
       }
       try {
         const status = await perms.query({ name: "geolocation" as PermissionName });
         if (cancelled) return;
-        if (status.state === "granted") {
-          requestLocation();
-        } else if (status.state === "denied") {
-          setGeoStep({ kind: "denied" });
+        if (status.state === "denied") {
+          setGeoStep({ kind: "denied-precheck" });
         } else {
-          setGeoStep({ kind: "prompt" });
+          setGeoStep({ kind: "ready" });
         }
       } catch {
-        if (!cancelled) setGeoStep({ kind: "prompt" });
+        if (!cancelled) setGeoStep({ kind: "ready" });
       }
     }
 
@@ -180,7 +179,7 @@ export default function GiftLandingClient() {
     return () => {
       cancelled = true;
     };
-  }, [user, requestLocation]);
+  }, [user]);
 
   const copyLinkToClipboard = useCallback(async () => {
     try {
@@ -543,7 +542,7 @@ function GeoStepPanel({
         Pick on Map Instead
       </button>
       <div style={geoTertiaryHint}>
-        Your gift will appear on a map for you to walk to. No GPS required — but it&apos;ll take a moment to reach.
+        Walk to your gift on the map. Real human pace — under 5 minutes.
       </div>
     </>
   );
@@ -575,20 +574,58 @@ function GeoStepPanel({
         </div>
       )}
 
-      {step.kind === "prompt" && (
+      {step.kind === "ready" && (
         <>
-          <div style={geoHeading}>One more step</div>
-          <div style={geoSubheading}>We need your location</div>
+          <div style={geoHeading}>Two ways to find it</div>
+          <div style={geoSubheading}>Walk to your gift</div>
           <p style={geoBody}>
-            Your gift spawned somewhere near you. Tap below to find out where.
+            Hunt it in the real world with GPS, or pin a starting point and walk to it on the map.
           </p>
           <button
             type="button"
             onClick={onRequestLocation}
             style={geoBigBtn}
           >
-            Allow Location & Find Gift
+            Allow Location & Walk to It
           </button>
+          <button
+            type="button"
+            onClick={onPickOnMap}
+            style={{ ...geoTertiaryBtn, width: "100%", marginTop: 12 }}
+          >
+            Pick on Map (No GPS Needed)
+          </button>
+          <div style={geoDualHint}>
+            Both paths claim the same gift. Walking real-world is instant — the virtual walk takes a few minutes.
+          </div>
+        </>
+      )}
+
+      {step.kind === "denied-precheck" && (
+        <>
+          <div style={geoHeading}>Two ways to find it</div>
+          <div style={geoSubheading}>Walk to your gift</div>
+          <p style={geoBody}>
+            Hunt it in the real world with GPS, or pin a starting point and walk to it on the map.
+          </p>
+          <button
+            type="button"
+            onClick={onRequestLocation}
+            style={geoBigBtnMuted}
+          >
+            Allow Location & Walk to It
+          </button>
+          <div style={geoMutedSubtext}>Already blocked — tap to retry</div>
+          <button
+            type="button"
+            onClick={onPickOnMap}
+            style={{ ...geoTertiaryBtn, width: "100%", marginTop: 12 }}
+          >
+            Pick on Map (No GPS Needed)
+          </button>
+          <div style={geoDualHint}>
+            Both paths claim the same gift. Walking real-world is instant — the virtual walk takes a few minutes.
+          </div>
         </>
       )}
 
@@ -819,6 +856,38 @@ const geoBigBtn: React.CSSProperties = {
   cursor: "pointer",
   fontFamily: "inherit",
   boxShadow: "0 6px 24px rgba(0,255,136,0.35)",
+};
+
+const geoBigBtnMuted: React.CSSProperties = {
+  width: "100%",
+  height: 56,
+  borderRadius: 28,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.06)",
+  color: C.muted,
+  fontWeight: 800,
+  fontSize: 15,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+const geoMutedSubtext: React.CSSProperties = {
+  fontSize: 11,
+  color: C.muted,
+  textAlign: "center",
+  marginTop: 6,
+  letterSpacing: "0.04em",
+};
+
+const geoDualHint: React.CSSProperties = {
+  fontSize: 11,
+  color: C.muted,
+  textAlign: "center",
+  marginTop: 14,
+  lineHeight: 1.55,
+  fontStyle: "italic",
 };
 
 const geoSecondaryBtn: React.CSSProperties = {

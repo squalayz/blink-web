@@ -16,7 +16,7 @@ import { C } from "@/lib/theme";
 import { applyBlinkMapStyle } from "@/lib/blink-map-style";
 
 const CATCH_RADIUS_M = 5;
-const MAX_WALK_SEC = 90;
+const MAX_WALK_SEC = 300;
 const TICK_MS = 100;
 
 interface PreviewState {
@@ -52,15 +52,23 @@ function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): num
 }
 
 function speedForDistance(distM: number): number {
-  if (distM < 200) return 5;
-  if (distM < 500) return 10;
-  return 20;
+  if (distM <= 300) return 1.4;
+  if (distM <= 600) return 2.0;
+  return Math.max(2.0, distM / 300);
 }
 
 function clampWalkMs(distM: number): number {
   const speed = speedForDistance(distM);
   const naturalMs = (distM / speed) * 1000;
   return Math.min(naturalMs, MAX_WALK_SEC * 1000);
+}
+
+function formatEta(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  if (m === 0) return `${s}s`;
+  return `${m}m ${s}s`;
 }
 
 if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_MAPBOX_TOKEN) {
@@ -468,13 +476,13 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     topBanner = "Opening gift…";
     bottomLabel = null;
   } else if (step.kind === "walking") {
-    topBanner = "Walking to your gift…";
+    const remainingMs = Math.max(0, step.totalMs - walkProgressMs);
+    topBanner = `Walking — arrives in ${formatEta(remainingMs)}`;
     const distLeft = avatarPos
       ? haversineM(avatarPos.lat, avatarPos.lng, step.spawn.spawn.lat, step.spawn.spawn.lng)
       : null;
     distanceLabel = distLeft !== null ? `${Math.round(distLeft)}m away` : null;
-    const remainingMs = Math.max(0, step.totalMs - walkProgressMs);
-    etaLabel = `Arriving in ${Math.ceil(remainingMs / 1000)}s`;
+    etaLabel = null;
   } else if (step.kind === "ready") {
     topBanner = "You arrived. Tap Catch.";
     distanceLabel = "0m away";
