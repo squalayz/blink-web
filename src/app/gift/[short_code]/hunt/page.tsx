@@ -400,7 +400,7 @@ export default function HuntPage() {
                   onClick={() => router.push(`/gift/${code}/walk`)}
                   style={{ ...tertiaryBtn, width: "100%", marginTop: 10 }}
                 >
-                  Pick on Map Instead
+                  Virtually Walk There
                 </button>
                 <div style={tertiaryHint}>
                   Your gift will appear on a map for you to walk to. No GPS required — but it&apos;ll take a moment to reach.

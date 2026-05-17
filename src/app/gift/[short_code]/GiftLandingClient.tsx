@@ -539,7 +539,7 @@ function GeoStepPanel({
         onClick={onPickOnMap}
         style={{ ...geoTertiaryBtn, width: "100%", marginTop: 10 }}
       >
-        Pick on Map Instead
+        Virtually Walk There
       </button>
       <div style={geoTertiaryHint}>
         Walk to your gift on the map. Real human pace — under 5 minutes.
@@ -593,10 +593,10 @@ function GeoStepPanel({
             onClick={onPickOnMap}
             style={{ ...geoTertiaryBtn, width: "100%", marginTop: 12 }}
           >
-            Pick on Map (No GPS Needed)
+            Virtually Walk There
           </button>
           <div style={geoDualHint}>
-            Both paths claim the same gift. Walking real-world is instant — the virtual walk takes a few minutes.
+            Both paths claim the same gift. Real-world walking is instant on arrival — virtually walking takes real human pace.
           </div>
         </>
       )}
@@ -621,10 +621,10 @@ function GeoStepPanel({
             onClick={onPickOnMap}
             style={{ ...geoTertiaryBtn, width: "100%", marginTop: 12 }}
           >
-            Pick on Map (No GPS Needed)
+            Virtually Walk There
           </button>
           <div style={geoDualHint}>
-            Both paths claim the same gift. Walking real-world is instant — the virtual walk takes a few minutes.
+            Both paths claim the same gift. Real-world walking is instant on arrival — virtually walking takes real human pace.
           </div>
         </>
       )}
