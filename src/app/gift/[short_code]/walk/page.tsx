@@ -1,8 +1,9 @@
 import { headers } from "next/headers";
 import WalkClient from "./WalkClient";
 
-// Default center when no edge-IP geo is available (NYC). The user moves the
-// map anyway before dropping their pin, so this is just a starting view.
+// Default center when no edge-IP geo is available (NYC). Walk mode auto-starts
+// the user at this position — a fine demo location when geolocation is unknown
+// (localhost, non-Vercel hosts). Real GPS still overrides once it resolves.
 const DEFAULT_CENTER = { lat: 40.7128, lng: -74.006 };
 
 export const dynamic = "force-dynamic";

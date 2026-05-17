@@ -1,10 +1,13 @@
 "use client";
 
 // BLINK Spirit Gift — virtual-joystick navigation mode.
-// User drops a pin anywhere on the map, then steers a green-dot avatar with a
-// thumb joystick (Call-of-Duty style) toward the gift's spawn point. Optional
-// GPS layered in: whichever method (virtual or real) is closer to the spawn
-// wins. Server-side anti-cheat enforces `via_toggle=true` matching on open + catch.
+// The user lands here and the hunt starts automatically: avatar is placed at
+// their IP-geolocated coordinates and the gift's spawn point is chosen by the
+// server during a brief "Tracking the spirit's signal..." cinematic. Then they
+// steer a green-dot avatar with a thumb joystick (Call-of-Duty style) toward
+// the gift's spawn point. Optional GPS layered in: whichever method (virtual
+// or real) is closer to the spawn wins. Server-side anti-cheat enforces
+// `via_toggle=true` matching on open + catch.
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -14,7 +17,7 @@ import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/theme";
 import { applyBlinkMapStyle } from "@/lib/blink-map-style";
-import { startApproachLoop, stopApproach, setApproachVolume, playSound, haptic, HAPTIC } from "@/lib/game-feel";
+import { startApproachLoop, stopApproach, setApproachVolume, playSound, haptic, HAPTIC, prefersReducedMotion } from "@/lib/game-feel";
 
 const CATCH_RADIUS_M = 5;
 const WALK_SPEED_MPS = 1.4;
@@ -37,11 +40,15 @@ interface SpawnState {
 type Step =
   | { kind: "loading" }
   | { kind: "fatal"; message: string }
-  | { kind: "pin"; preview: PreviewState }
   | { kind: "opening"; preview: PreviewState }
   | { kind: "navigating"; preview: PreviewState; spawn: SpawnState }
   | { kind: "catching"; preview: PreviewState; spawn: SpawnState }
   | { kind: "claimed"; preview: PreviewState; tx: string | null };
+
+const OPENING_CINEMATIC_MS = 1100;
+const BREADCRUMB_LIFE_MS = 8000;
+const BREADCRUMB_MAX = 20;
+const BREADCRUMB_DROP_M = 5;
 
 function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371e3;
@@ -144,6 +151,40 @@ const WALK_CSS = `
   border: 2px solid #FFFFFF;
 }
 .mapboxgl-ctrl-logo, .mapboxgl-ctrl-attrib, .mapboxgl-ctrl-group { display: none !important; }
+@keyframes walkOverlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes walkOverlayFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes walkEyePulse {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 22px rgba(0,255,136,0.55)) drop-shadow(0 0 60px rgba(0,255,136,0.22)); }
+  50% { transform: scale(1.06); filter: drop-shadow(0 0 38px rgba(0,255,136,0.95)) drop-shadow(0 0 100px rgba(0,255,136,0.35)); }
+}
+@keyframes walkEyeIris {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+@keyframes walkRadarSweep {
+  0% { transform: translateX(-110%); opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateX(110%); opacity: 0; }
+}
+@keyframes walkBreadcrumbFade {
+  0% { opacity: 0.75; transform: scale(1); }
+  20% { opacity: 0.55; }
+  100% { opacity: 0; transform: scale(0.35); }
+}
+.walk-breadcrumb {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #00FF88;
+  box-shadow: 0 0 6px rgba(0,255,136,0.55);
+  pointer-events: none;
+  animation: walkBreadcrumbFade 8s linear forwards;
+}
 `;
 
 export default function WalkClient({ initialCenter }: { initialCenter: { lat: number; lng: number } }) {
@@ -156,9 +197,15 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
 
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const pinMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const avatarMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const giftMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  type Breadcrumb = { marker: mapboxgl.Marker; cleanupId: number };
+  const breadcrumbsRef = useRef<Breadcrumb[]>([]);
+  const lastBreadcrumbPosRef = useRef<{ lat: number; lng: number } | null>(null);
+  const lastZoomTargetRef = useRef<number>(16);
+  const trendSampleRef = useRef<{ t: number; dist: number }>({ t: 0, dist: 0 });
+  const [trend, setTrend] = useState<"warmer" | "colder" | null>(null);
+  const [overlayFadingOut, setOverlayFadingOut] = useState(false);
 
   // Virtual avatar position — driven by joystick.
   const virtualPosRef = useRef<{ lat: number; lng: number } | null>(null);
@@ -246,7 +293,7 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
           ? `@${data.sender.handle}`
           : "Someone";
         setStep({
-          kind: "pin",
+          kind: "opening",
           preview: {
             sender_label: senderLabel,
             asset_type: data.asset_type,
@@ -288,62 +335,56 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     };
   }, [step.kind, initialCenter.lat, initialCenter.lng]);
 
-  // Pin-drop click handler.
+  // Auto-open: when we enter the "opening" step, fire POST /open after a brief
+  // cinematic delay using the IP-geolocated lat/lng as the avatar's anchor.
+  // Zero decisions between sign-in and navigation — it just starts.
   useEffect(() => {
-    const m = mapRef.current;
-    if (!m) return;
-    if (step.kind !== "pin") return;
+    if (step.kind !== "opening") return;
+    const preview = step.preview;
+    let cancelled = false;
+    const startedAt = performance.now();
 
-    const onClick = (e: mapboxgl.MapMouseEvent) => {
-      void dropPin(e.lngLat.lat, e.lngLat.lng);
-    };
-    m.on("click", onClick);
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (cancelled) return;
+        const token = session?.access_token;
+        if (!token) throw new Error("Sign in first");
+        const lat = initialCenter.lat;
+        const lng = initialCenter.lng;
+        const res = await fetch(`/api/gifts/${code}/open`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ lat, lng, via_toggle: true }),
+        });
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) throw new Error(data.error || "Failed to open");
+        const spawn: SpawnState = {
+          spawn: { lat: data.spawn.lat, lng: data.spawn.lng },
+          anchor: { lat, lng },
+        };
+        const elapsed = performance.now() - startedAt;
+        const wait = Math.max(0, OPENING_CINEMATIC_MS - elapsed);
+        window.setTimeout(() => {
+          if (cancelled) return;
+          setOverlayFadingOut(true);
+          window.setTimeout(() => {
+            if (cancelled) return;
+            setStep({ kind: "navigating", preview, spawn });
+            setOverlayFadingOut(false);
+          }, 320);
+        }, wait);
+      } catch (err) {
+        if (cancelled) return;
+        setStep({ kind: "fatal", message: err instanceof Error ? err.message : "Failed" });
+      }
+    })();
     return () => {
-      m.off("click", onClick);
+      cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.kind]);
-
-  const placePinMarker = useCallback((lat: number, lng: number) => {
-    const m = mapRef.current;
-    if (!m) return;
-    if (pinMarkerRef.current) {
-      pinMarkerRef.current.setLngLat([lng, lat]);
-    } else {
-      const el = document.createElement("div");
-      el.style.cssText = "display:flex;align-items:center;justify-content:center;";
-      el.innerHTML = '<div class="walk-avatar"></div>';
-      pinMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "center" })
-        .setLngLat([lng, lat])
-        .addTo(m);
-    }
-  }, []);
-
-  async function dropPin(lat: number, lng: number) {
-    if (step.kind !== "pin") return;
-    const preview = step.preview;
-    placePinMarker(lat, lng);
-    setStep({ kind: "opening", preview });
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error("Sign in first");
-      const res = await fetch(`/api/gifts/${code}/open`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ lat, lng, via_toggle: true }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to open");
-      const spawn: SpawnState = {
-        spawn: { lat: data.spawn.lat, lng: data.spawn.lng },
-        anchor: { lat, lng },
-      };
-      setStep({ kind: "navigating", preview, spawn });
-    } catch (err) {
-      setStep({ kind: "fatal", message: err instanceof Error ? err.message : "Failed" });
-    }
-  }
 
   // When navigation begins, render gift + avatar markers, seed virtual position.
   useEffect(() => {
@@ -385,12 +426,12 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     } else {
       avatarMarkerRef.current.setLngLat([anchor.lng, anchor.lat]);
     }
-    if (pinMarkerRef.current) {
-      pinMarkerRef.current.remove();
-      pinMarkerRef.current = null;
-    }
 
-    m.easeTo({ center: [anchor.lng, anchor.lat], zoom: 18, duration: 700 });
+    lastBreadcrumbPosRef.current = { lat: anchor.lat, lng: anchor.lng };
+    lastZoomTargetRef.current = 16;
+    trendSampleRef.current = { t: 0, dist: 0 };
+
+    m.easeTo({ center: [anchor.lng, anchor.lat], zoom: 16, duration: 700 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.kind]);
 
@@ -421,9 +462,40 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     const m = mapRef.current;
     if (!m) return;
     const spawn = step.spawn.spawn;
+    const reduceMotion = prefersReducedMotion();
 
     lastTickTsRef.current = performance.now();
     let stopped = false;
+
+    const dropBreadcrumb = (lat: number, lng: number) => {
+      if (reduceMotion) return;
+      const map = mapRef.current;
+      if (!map) return;
+      const el = document.createElement("div");
+      el.className = "walk-breadcrumb";
+      const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
+        .setLngLat([lng, lat])
+        .addTo(map);
+      const cleanupId = window.setTimeout(() => {
+        try { marker.remove(); } catch { /* no-op */ }
+        breadcrumbsRef.current = breadcrumbsRef.current.filter((b) => b.marker !== marker);
+      }, BREADCRUMB_LIFE_MS + 250);
+      breadcrumbsRef.current.push({ marker, cleanupId });
+      while (breadcrumbsRef.current.length > BREADCRUMB_MAX) {
+        const oldest = breadcrumbsRef.current.shift();
+        if (oldest) {
+          clearTimeout(oldest.cleanupId);
+          try { oldest.marker.remove(); } catch { /* no-op */ }
+        }
+      }
+    };
+
+    const zoomFor = (d: number): number => {
+      if (d > 50) return 16;
+      if (d > 10) return 17 + ((50 - d) / 40) * 1.5;
+      if (d > 5) return 18.5 + ((10 - d) / 5) * 0.5;
+      return 19;
+    };
 
     const loop = () => {
       if (stopped) return;
@@ -457,11 +529,44 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
       if (avatarMarkerRef.current) {
         avatarMarkerRef.current.setLngLat([eff.lng, eff.lat]);
       }
-      m.easeTo({ center: [eff.lng, eff.lat], duration: 240 });
 
       const distLeft = haversineM(eff.lat, eff.lng, spawn.lat, spawn.lng);
-      if (distLeft <= 25) {
-        const vol = Math.max(0.05, Math.min(0.55, (25 - distLeft) / 25));
+
+      // Map: lerp zoom on approach, otherwise just pan-follow.
+      const targetZ = zoomFor(distLeft);
+      const lastZ = lastZoomTargetRef.current;
+      if (Math.abs(targetZ - lastZ) >= 0.2) {
+        lastZoomTargetRef.current = targetZ;
+        m.easeTo({ center: [eff.lng, eff.lat], zoom: targetZ, duration: 600 });
+      } else {
+        m.easeTo({ center: [eff.lng, eff.lat], duration: 240 });
+      }
+
+      // Breadcrumb trail — drop a dot every BREADCRUMB_DROP_M meters traveled.
+      const lastBC = lastBreadcrumbPosRef.current;
+      if (!lastBC || haversineM(lastBC.lat, lastBC.lng, eff.lat, eff.lng) > BREADCRUMB_DROP_M) {
+        dropBreadcrumb(eff.lat, eff.lng);
+        lastBreadcrumbPosRef.current = { lat: eff.lat, lng: eff.lng };
+      }
+
+      // Warmer/colder trend — sampled every ~600ms, hidden within 25m.
+      const sample = trendSampleRef.current;
+      if (sample.t === 0) {
+        trendSampleRef.current = { t: now, dist: distLeft };
+      } else if (now - sample.t > 600) {
+        const delta = distLeft - sample.dist;
+        if (delta < -1) setTrend("warmer");
+        else if (delta > 1) setTrend("colder");
+        trendSampleRef.current = { t: now, dist: distLeft };
+      }
+
+      // Audio escalation: start at 100m, ramp through 25m, peak at 5m.
+      if (distLeft <= 100) {
+        let vol: number;
+        if (distLeft <= 5) vol = 0.65;
+        else if (distLeft <= 25) vol = 0.3 + ((25 - distLeft) / 20) * 0.35;
+        else vol = 0.1 + ((100 - distLeft) / 75) * 0.2;
+        vol = Math.max(0.05, Math.min(0.7, vol));
         if (!approachActiveRef.current) {
           startApproachLoop(vol);
           approachActiveRef.current = true;
@@ -486,6 +591,13 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
       }
       stopApproach();
       approachActiveRef.current = false;
+      for (const b of breadcrumbsRef.current) {
+        clearTimeout(b.cleanupId);
+        try { b.marker.remove(); } catch { /* no-op */ }
+      }
+      breadcrumbsRef.current = [];
+      lastBreadcrumbPosRef.current = null;
+      setTrend(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.kind]);
@@ -679,18 +791,8 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
         />
       )}
 
-      {step.kind === "pin" && (
-        <div style={topBannerStyle}>
-          <div style={topBannerEyebrow}>Walk Mode</div>
-          <div style={topBannerBody}>Drop a pin to start the hunt</div>
-          <div style={topBannerMeta}>Tap anywhere on the map</div>
-        </div>
-      )}
-      {step.kind === "opening" && (
-        <div style={topBannerStyle}>
-          <div style={topBannerEyebrow}>Walk Mode</div>
-          <div style={topBannerBody}>Opening gift…</div>
-        </div>
+      {(step.kind === "opening" || overlayFadingOut) && (
+        <OpeningCinematic fadingOut={overlayFadingOut} />
       )}
 
       {isNavigating && spawnNow && (
@@ -700,6 +802,10 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
           gpsActive={gpsActive}
           withinCatch={withinCatch}
         />
+      )}
+
+      {isNavigating && trend && (distLeft ?? Infinity) > 25 && !withinCatch && (
+        <WarmerColderChip trend={trend} />
       )}
 
       <button
@@ -778,6 +884,158 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
 }
 
 // ───────────── Sub-components ─────────────
+
+function OpeningCinematic({ fadingOut }: { fadingOut: boolean }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 80,
+        background: "#0a0a0f",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 26,
+        padding: 24,
+        animation: fadingOut
+          ? "walkOverlayFadeOut 320ms ease forwards"
+          : "walkOverlayFadeIn 220ms ease",
+        pointerEvents: "none",
+      }}
+    >
+      <div
+        style={{
+          width: 140,
+          height: 140,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          position: "relative",
+        }}
+      >
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: -28,
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle, rgba(0,255,136,0.42) 0%, rgba(0,255,136,0) 65%)",
+            filter: "blur(8px)",
+          }}
+        />
+        <svg
+          width="120"
+          height="120"
+          viewBox="0 0 200 200"
+          fill="none"
+          style={{ position: "relative", animation: "walkEyePulse 1.8s ease-in-out infinite" }}
+          aria-hidden
+        >
+          <defs>
+            <radialGradient id="walk-blink-iris" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#88FF00" />
+              <stop offset="60%" stopColor="#00FF88" />
+              <stop offset="100%" stopColor="#003a1f" />
+            </radialGradient>
+            <radialGradient id="walk-blink-core" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="100%" stopColor="#000000" />
+            </radialGradient>
+          </defs>
+          <ellipse cx="100" cy="100" rx="92" ry="48" stroke="#00FF88" strokeWidth="3" />
+          <circle
+            cx="100"
+            cy="100"
+            r="38"
+            fill="url(#walk-blink-iris)"
+            style={{ animation: "walkEyeIris 1.8s ease-in-out infinite", transformOrigin: "100px 100px" }}
+          />
+          <circle cx="100" cy="100" r="14" fill="url(#walk-blink-core)" />
+          <circle cx="92" cy="92" r="5" fill="rgba(255,255,255,0.85)" />
+        </svg>
+      </div>
+      <div
+        style={{
+          fontSize: 15,
+          fontWeight: 800,
+          letterSpacing: "0.22em",
+          color: "#00FF88",
+          textTransform: "uppercase",
+          textShadow: "0 0 16px rgba(0,255,136,0.7)",
+          textAlign: "center",
+        }}
+      >
+        Tracking the spirit&apos;s signal…
+      </div>
+      <div
+        style={{
+          width: 220,
+          height: 2,
+          position: "relative",
+          overflow: "hidden",
+          borderRadius: 1,
+          background: "rgba(0,255,136,0.12)",
+        }}
+        aria-hidden
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "55%",
+            height: "100%",
+            background:
+              "linear-gradient(90deg, rgba(0,255,136,0) 0%, #00FF88 50%, rgba(0,255,136,0) 100%)",
+            boxShadow: "0 0 12px rgba(0,255,136,0.85)",
+            animation: "walkRadarSweep 1.6s ease-in-out infinite",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function WarmerColderChip({ trend }: { trend: "warmer" | "colder" }) {
+  const isWarm = trend === "warmer";
+  const color = isWarm ? "#00FF88" : "#FFD773";
+  const label = isWarm ? "Warmer" : "Colder";
+  const arrow = isWarm ? "↓" : "↑";
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 66,
+        left: "50%",
+        transform: "translateX(-50%)",
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "5px 12px",
+        background: "rgba(10,10,15,0.78)",
+        backdropFilter: "blur(8px)",
+        border: `1px solid ${color}55`,
+        borderRadius: 12,
+        zIndex: 29,
+        fontSize: 11,
+        fontWeight: 800,
+        letterSpacing: "0.2em",
+        color,
+        textTransform: "uppercase",
+        textShadow: `0 0 8px ${color}55`,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+      }}
+      role="status"
+      aria-live="polite"
+    >
+      <span style={{ fontSize: 13, lineHeight: 1 }}>{arrow}</span>
+      <span>{label}</span>
+    </div>
+  );
+}
 
 function CompassHud({
   distM,
@@ -1114,47 +1372,6 @@ const primaryBtn: React.CSSProperties = {
   fontFamily: "inherit",
   padding: "0 22px",
   boxShadow: "0 4px 18px rgba(0,255,136,0.25)",
-};
-
-const topBannerStyle: React.CSSProperties = {
-  position: "absolute",
-  top: 18,
-  left: "50%",
-  transform: "translateX(-50%)",
-  padding: "12px 20px",
-  background: "rgba(0,0,0,0.72)",
-  backdropFilter: "blur(10px)",
-  border: `1px solid ${C.primary}55`,
-  borderRadius: 18,
-  color: C.text,
-  boxShadow: "0 6px 24px rgba(0,0,0,0.5)",
-  zIndex: 30,
-  maxWidth: "calc(100vw - 36px)",
-  textAlign: "center",
-};
-
-const topBannerEyebrow: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 800,
-  letterSpacing: "0.3em",
-  color: C.primary,
-  textTransform: "uppercase",
-  marginBottom: 4,
-};
-
-const topBannerBody: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 700,
-  color: C.text,
-  lineHeight: 1.3,
-};
-
-const topBannerMeta: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: C.muted,
-  marginTop: 4,
-  letterSpacing: "0.05em",
 };
 
 const exitBtnStyle: React.CSSProperties = {
