@@ -8,6 +8,8 @@ import { C, Orb, OrbCurrency, normalizeOrb } from '@/lib/theme';
 import OrbDetailSheet from '@/components/OrbDetailSheet';
 import AuroraOverlay from '@/components/AuroraOverlay';
 import OnboardingWalkthrough from '@/components/OnboardingWalkthrough';
+import { ErrorBoundary } from '@/components/error-boundary';
+import MapDownState from '@/components/MapDownState';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { YourBestiary } from '@/components/YourBestiary';
 
@@ -889,12 +891,14 @@ export default function HuntPage() {
 
       {/* Full-screen satellite map */}
       <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
-        <HuntMap
-          orbs={filteredOrbs}
-          userPosition={userPosition}
-          onSelectOrb={handleSelectOrb}
-          mapRef={leafletMapRef}
-        />
+        <ErrorBoundary fallback={<MapDownState />}>
+          <HuntMap
+            orbs={filteredOrbs}
+            userPosition={userPosition}
+            onSelectOrb={handleSelectOrb}
+            mapRef={leafletMapRef}
+          />
+        </ErrorBoundary>
       </div>
 
       {/* Aurora overlay on top of map */}

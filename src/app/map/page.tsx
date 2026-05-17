@@ -26,6 +26,8 @@ import type {
 import PrivacyIntroModal from "@/components/PrivacyIntroModal";
 import PresenceLegend from "@/components/PresenceLegend";
 import PlayerSheet from "@/components/PlayerSheet";
+import { ErrorBoundary } from "@/components/error-boundary";
+import MapDownState from "@/components/MapDownState";
 
 const CATCH_PROXIMITY_M = 50;
 const AMBIENT_POLL_MS = 60_000;
@@ -811,32 +813,34 @@ export default function MapPage() {
             </div>
           }
         >
-          <HuntMap
-            orbs={orbsWithDistance.map((o) => ({
-              ...o,
-              latitude: o.lat,
-              longitude: o.lng,
-              tier: o.tier,
-              distanceM: o.distance,
-              bearingDeg: o.bearing,
-              creatureImage: o.creatureImage,
-            })) as unknown as ThemeOrb[]}
-            userPosition={position}
-            onSelectOrb={(orb: ThemeOrb) => {
-              const local = orbsWithDistance.find((o) => o.id === orb.id);
-              if (local) setSelectedOrb(local);
-              wakeFab();
-            }}
-            mapRef={leafletMapRef}
-            players={players}
-            wildSpawns={wildSpawns}
-            catchableSpawns={catchableSpawns}
-            watchers={watchers}
-            recentCatches={recentCatchesList}
-            onSelectPlayer={(p) => { setSelectedPlayer(p); wakeFab(); }}
-            onSelectWildSpawn={(s) => { setSelectedWild(s); wakeFab(); }}
-            onSelectCatchable={(s) => { setSelectedCatchable(s); setCatchError(null); wakeFab(); }}
-          />
+          <ErrorBoundary fallback={<MapDownState />}>
+            <HuntMap
+              orbs={orbsWithDistance.map((o) => ({
+                ...o,
+                latitude: o.lat,
+                longitude: o.lng,
+                tier: o.tier,
+                distanceM: o.distance,
+                bearingDeg: o.bearing,
+                creatureImage: o.creatureImage,
+              })) as unknown as ThemeOrb[]}
+              userPosition={position}
+              onSelectOrb={(orb: ThemeOrb) => {
+                const local = orbsWithDistance.find((o) => o.id === orb.id);
+                if (local) setSelectedOrb(local);
+                wakeFab();
+              }}
+              mapRef={leafletMapRef}
+              players={players}
+              wildSpawns={wildSpawns}
+              catchableSpawns={catchableSpawns}
+              watchers={watchers}
+              recentCatches={recentCatchesList}
+              onSelectPlayer={(p) => { setSelectedPlayer(p); wakeFab(); }}
+              onSelectWildSpawn={(s) => { setSelectedWild(s); wakeFab(); }}
+              onSelectCatchable={(s) => { setSelectedCatchable(s); setCatchError(null); wakeFab(); }}
+            />
+          </ErrorBoundary>
         </Suspense>
 
         {/* ---- Location pill (subtle, bottom-centered, single-tap) ---- */}
