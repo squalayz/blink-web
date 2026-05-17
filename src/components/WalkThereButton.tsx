@@ -132,7 +132,7 @@ export default function WalkThereButton({
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/blink-orb.png"
+            src="/blink-orb-32.webp"
             alt=""
             width={18}
             height={18}

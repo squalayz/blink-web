@@ -1084,7 +1084,7 @@ function OpeningCinematic({ fadingOut }: { fadingOut: boolean }) {
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/blink-orb.png"
+          src="/blink-orb-256.webp"
           alt=""
           width={140}
           height={140}
@@ -1247,7 +1247,7 @@ function OpeningCinematic({ fadingOut }: { fadingOut: boolean }) {
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/blink-orb.png"
+          src="/blink-orb-256.webp"
           alt=""
           width={110}
           height={110}
