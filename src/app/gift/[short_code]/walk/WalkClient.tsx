@@ -1,10 +1,10 @@
 "use client";
 
-// BLINK Spirit Gift — interactive walk mode.
-// User drops a pin, then either holds the WALK button to advance virtually at
-// 1.4 m/s along the path to the spawn, or physically walks (GPS watchPosition)
-// — whichever shrinks the remaining distance faster wins. Within 5m the CATCH
-// button reveals. Server enforces `via_toggle=true` matching on open + catch.
+// BLINK Spirit Gift — virtual-joystick navigation mode.
+// User drops a pin anywhere on the map, then steers a green-dot avatar with a
+// thumb joystick (Call-of-Duty style) toward the gift's spawn point. Optional
+// GPS layered in: whichever method (virtual or real) is closer to the spawn
+// wins. Server-side anti-cheat enforces `via_toggle=true` matching on open + catch.
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -14,13 +14,14 @@ import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/theme";
 import { applyBlinkMapStyle } from "@/lib/blink-map-style";
-import { playSound } from "@/lib/game-feel";
+import { startApproachLoop, stopApproach, setApproachVolume, playSound, haptic, HAPTIC } from "@/lib/game-feel";
 
 const CATCH_RADIUS_M = 5;
-const PROXIMITY_M = 25;
 const WALK_SPEED_MPS = 1.4;
-const VIBRATE_INTERVAL_MS = 500;
-const DISPLAY_THROTTLE_MS = 250;
+const TICK_MS = 60;
+const JOYSTICK_OUTER_R = 70;
+const JOYSTICK_KNOB_R = 26;
+const JOYSTICK_DEADZONE = 0.08;
 
 interface PreviewState {
   sender_label: string;
@@ -38,7 +39,7 @@ type Step =
   | { kind: "fatal"; message: string }
   | { kind: "pin"; preview: PreviewState }
   | { kind: "opening"; preview: PreviewState }
-  | { kind: "approach"; preview: PreviewState; spawn: SpawnState; totalDistanceM: number }
+  | { kind: "navigating"; preview: PreviewState; spawn: SpawnState }
   | { kind: "catching"; preview: PreviewState; spawn: SpawnState }
   | { kind: "claimed"; preview: PreviewState; tx: string | null };
 
@@ -53,18 +54,15 @@ function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): num
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-function formatEta(ms: number): string {
-  const total = Math.max(0, Math.ceil(ms / 1000));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  if (m === 0) return `${s}s`;
-  return `${m}m ${s}s`;
-}
-
-function formatDistance(m: number): string {
-  if (m < 1) return "0m";
-  if (m < 1000) return `${Math.round(m)}m`;
-  return `${(m / 1000).toFixed(2)}km`;
+// Bearing in degrees from (lat1,lng1) to (lat2,lng2), 0° = north, clockwise.
+function bearingDeg(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const p = Math.PI / 180;
+  const phi1 = lat1 * p;
+  const phi2 = lat2 * p;
+  const dl = (lng2 - lng1) * p;
+  const y = Math.sin(dl) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dl);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
 if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_MAPBOX_TOKEN) {
@@ -73,20 +71,12 @@ if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_MAPBOX_TOKEN) {
 
 const WALK_CSS = `
 @keyframes walkAvatarPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,136,0.6); }
-  50% { box-shadow: 0 0 22px 6px rgba(0,255,136,0.45); }
-}
-@keyframes walkAvatarBob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,136,0.6); transform: scale(1); }
+  50% { box-shadow: 0 0 22px 6px rgba(0,255,136,0.35); transform: scale(1.08); }
 }
 @keyframes walkGiftPulse {
   0%, 100% { transform: scale(1); filter: drop-shadow(0 0 12px rgba(0,255,136,0.9)) drop-shadow(0 0 30px rgba(136,255,0,0.55)); }
   50% { transform: scale(1.1); filter: drop-shadow(0 0 22px rgba(0,255,136,1)) drop-shadow(0 0 52px rgba(136,255,0,0.85)); }
-}
-@keyframes walkGiftPulseClose {
-  0%, 100% { transform: scale(1.04); filter: drop-shadow(0 0 18px rgba(0,255,136,1)) drop-shadow(0 0 44px rgba(136,255,0,0.95)); }
-  50% { transform: scale(1.22); filter: drop-shadow(0 0 32px rgba(0,255,136,1)) drop-shadow(0 0 72px rgba(136,255,0,1)); }
 }
 @keyframes walkGiftSonar {
   0% { transform: translate(-50%,-50%) scale(0.6); opacity: 0.8; }
@@ -97,29 +87,42 @@ const WALK_CSS = `
   15% { opacity: 1; }
   100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
 }
-@keyframes walkBtnPulse {
-  0%, 100% { box-shadow: 0 0 16px rgba(0,255,136,0.5), 0 0 36px rgba(0,255,136,0.22), 0 8px 26px rgba(0,0,0,0.55); }
-  50% { box-shadow: 0 0 28px rgba(0,255,136,0.8), 0 0 68px rgba(0,255,136,0.42), 0 8px 26px rgba(0,0,0,0.55); }
+@keyframes walkCompassPulse {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(0,255,136,0.55)); }
+  50% { filter: drop-shadow(0 0 14px rgba(0,255,136,1)); }
 }
-@keyframes walkBtnCatchPulse {
-  0%, 100% { box-shadow: 0 0 22px rgba(0,255,136,0.85), 0 0 50px rgba(0,255,136,0.55), 0 8px 26px rgba(0,0,0,0.6); transform: scale(1); }
-  50% { box-shadow: 0 0 42px rgba(0,255,136,1), 0 0 96px rgba(0,255,136,0.75), 0 8px 26px rgba(0,0,0,0.6); transform: scale(1.03); }
+@keyframes walkCatchPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,136,0.7), 0 8px 30px rgba(0,255,136,0.5); }
+  50% { box-shadow: 0 0 0 14px rgba(0,255,136,0), 0 12px 40px rgba(0,255,136,0.65); }
 }
-@keyframes walkBurst {
-  0% { transform: translate(-50%,-50%) scale(0); opacity: 1; }
-  100% { transform: translate(-50%,-50%) scale(6); opacity: 0; }
+@keyframes walkCatchRise {
+  0% { transform: translate(-50%, 40px); opacity: 0; }
+  100% { transform: translate(-50%, 0); opacity: 1; }
 }
-@keyframes walkVignetteIn {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
+@keyframes walkLabelFloat {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, -2px); }
 }
 .walk-avatar {
   width: 22px; height: 22px; border-radius: 50%;
   background: #00FF88;
   border: 3px solid #0a0a0f;
+  animation: walkAvatarPulse 1.6s ease-in-out infinite;
 }
-.walk-avatar-idle { animation: walkAvatarPulse 1.8s ease-in-out infinite; }
-.walk-avatar-walking { animation: walkAvatarPulse 1s ease-in-out infinite, walkAvatarBob 0.55s ease-in-out infinite; }
+.walk-avatar-label {
+  position: absolute;
+  top: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 700;
+  color: #00FF88;
+  text-shadow: 0 0 6px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.8);
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  animation: walkLabelFloat 2.4s ease-in-out infinite;
+}
 .walk-gift {
   width: 56px; height: 56px; border-radius: 50%;
   background: radial-gradient(circle at 50% 35%, #88FF00 0%, #00FF88 60%, rgba(0,255,136,0.0) 100%);
@@ -127,7 +130,6 @@ const WALK_CSS = `
   position: relative;
   animation: walkGiftPulse 1.8s ease-in-out infinite;
 }
-.walk-gift-close { animation: walkGiftPulseClose 0.85s ease-in-out infinite; }
 .walk-gift::after {
   content: "";
   position: absolute; top: 50%; left: 50%;
@@ -136,7 +138,6 @@ const WALK_CSS = `
   animation: walkGiftSonar 2.4s ease-out infinite;
   pointer-events: none;
 }
-.walk-gift-close::after { animation: walkGiftSonar 1.2s ease-out infinite; }
 .walk-gift-iris {
   width: 18px; height: 18px; border-radius: 50%;
   background: #0a0a0f;
@@ -152,43 +153,66 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
   const { user, loading: authLoading } = useAuth();
 
   const [step, setStep] = useState<Step>({ kind: "loading" });
-  const [reducedMotion, setReducedMotion] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const pinMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const avatarMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const avatarElRef = useRef<HTMLDivElement | null>(null);
   const giftMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const giftInnerElRef = useRef<HTMLDivElement | null>(null);
-  const lineSourceIdRef = useRef("walk-line");
 
-  // Progress tracking
-  const virtualProgressRef = useRef(0); // meters walked via button
-  const gpsDistanceToSpawnRef = useRef<number | null>(null);
-  const holdingRef = useRef(false);
-  const lastTickTsRef = useRef<number>(0);
-  const rafRef = useRef<number | null>(null);
-  const vibrateIntervalRef = useRef<number | null>(null);
-  const geoWatchIdRef = useRef<number | null>(null);
-  const burstFiredRef = useRef(false);
-  const totalDistanceMRef = useRef(0);
-  const lineDashIntervalRef = useRef<number | null>(null);
-  const lastDisplayUpdateRef = useRef<number>(0);
-
-  // Display state (throttled)
-  const [holdingUI, setHoldingUI] = useState(false);
-  const [remainingM, setRemainingM] = useState(0);
+  // Virtual avatar position — driven by joystick.
+  const virtualPosRef = useRef<{ lat: number; lng: number } | null>(null);
+  // Real GPS position when available.
+  const gpsPosRef = useRef<{ lat: number; lng: number } | null>(null);
   const [gpsActive, setGpsActive] = useState(false);
-  const [showBurst, setShowBurst] = useState(false);
-  const [showHintGps, setShowHintGps] = useState(false);
 
-  // Auth gate
+  // Effective avatar position (closer of virtual/gps to spawn) — for HUD render.
+  const [avatarPos, setAvatarPos] = useState<{ lat: number; lng: number } | null>(null);
+  const avatarPosRef = useRef<{ lat: number; lng: number } | null>(null);
+
+  // Joystick state.
+  const joystickRef = useRef<HTMLDivElement>(null);
+  const [knob, setKnob] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const activePointerIdRef = useRef<number | null>(null);
+  const knobRef = useRef<{ dx: number; dy: number; mag: number; angle: number }>({ dx: 0, dy: 0, mag: 0, angle: 0 });
+
+  const tickHandleRef = useRef<number | null>(null);
+  const lastTickTsRef = useRef<number>(0);
+  const approachActiveRef = useRef<boolean>(false);
+
+  const handleRef = useRef<string>("@you");
+
+  // Auth gate.
   useEffect(() => {
     if (!authLoading && !user) router.replace(`/gift/${code}`);
   }, [authLoading, user, router, code]);
 
-  // Inject styles
+  // Pull handle for avatar label.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("handle, display_name")
+          .eq("id", user.id)
+          .single();
+        if (cancelled) return;
+        const h = data?.handle || data?.display_name || "you";
+        handleRef.current = `@${String(h).replace(/^@/, "")}`;
+        const el = document.getElementById("walk-avatar-label");
+        if (el) el.textContent = handleRef.current;
+      } catch {
+        /* no-op */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Inject styles once.
   useEffect(() => {
     if (typeof document === "undefined") return;
     if (!document.getElementById("walk-styles")) {
@@ -199,16 +223,7 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     }
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReducedMotion(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
-    mq.addEventListener?.("change", handler);
-    return () => mq.removeEventListener?.("change", handler);
-  }, []);
-
-  // Load preview
+  // Load preview.
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
@@ -249,7 +264,7 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     };
   }, [user, code, router]);
 
-  // Initialize map
+  // Initialize map.
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     if (step.kind === "loading" || step.kind === "fatal") return;
@@ -265,36 +280,6 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     });
     m.on("style.load", () => {
       applyBlinkMapStyle(m, { hour: new Date().getHours() });
-      if (!m.getSource(lineSourceIdRef.current)) {
-        m.addSource(lineSourceIdRef.current, {
-          type: "geojson",
-          data: { type: "Feature", geometry: { type: "LineString", coordinates: [] }, properties: {} },
-        });
-        // Outer glow
-        m.addLayer({
-          id: "walk-line-glow",
-          type: "line",
-          source: lineSourceIdRef.current,
-          paint: {
-            "line-color": "#00FF88",
-            "line-width": 10,
-            "line-opacity": 0.18,
-            "line-blur": 6,
-          },
-        });
-        // Main dashed line
-        m.addLayer({
-          id: "walk-line-layer",
-          type: "line",
-          source: lineSourceIdRef.current,
-          paint: {
-            "line-color": "#00FF88",
-            "line-width": 4,
-            "line-opacity": 0.85,
-            "line-dasharray": [2, 2],
-          },
-        });
-      }
     });
     mapRef.current = m;
     return () => {
@@ -303,50 +288,14 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     };
   }, [step.kind, initialCenter.lat, initialCenter.lng]);
 
-  // Animate dashed line (marching ants) while in approach mode
-  useEffect(() => {
-    if (step.kind !== "approach") return;
-    if (reducedMotion) return;
-    const m = mapRef.current;
-    if (!m) return;
-    const patterns: number[][] = [
-      [2, 2],
-      [2.5, 1.5],
-      [3, 1],
-      [2.5, 1.5],
-      [2, 2],
-      [1.5, 2.5],
-      [1, 3],
-      [1.5, 2.5],
-    ];
-    let i = 0;
-    const id = window.setInterval(() => {
-      i = (i + 1) % patterns.length;
-      try {
-        if (m.getLayer("walk-line-layer")) {
-          m.setPaintProperty("walk-line-layer", "line-dasharray", patterns[i]);
-        }
-      } catch {
-        /* no-op */
-      }
-    }, 110);
-    lineDashIntervalRef.current = id as unknown as number;
-    return () => {
-      clearInterval(id);
-      lineDashIntervalRef.current = null;
-    };
-  }, [step.kind, reducedMotion]);
-
-  // Pin-drop click handler
+  // Pin-drop click handler.
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
     if (step.kind !== "pin") return;
 
     const onClick = (e: mapboxgl.MapMouseEvent) => {
-      const lng = e.lngLat.lng;
-      const lat = e.lngLat.lat;
-      void dropPin(lat, lng);
+      void dropPin(e.lngLat.lat, e.lngLat.lng);
     };
     m.on("click", onClick);
     return () => {
@@ -363,14 +312,13 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     } else {
       const el = document.createElement("div");
       el.style.cssText = "display:flex;align-items:center;justify-content:center;";
-      el.innerHTML = '<div class="walk-avatar walk-avatar-idle"></div>';
+      el.innerHTML = '<div class="walk-avatar"></div>';
       pinMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "center" })
         .setLngLat([lng, lat])
         .addTo(m);
     }
   }, []);
 
-  // Drop pin → call /open, transition to approach
   async function dropPin(lat: number, lng: number) {
     if (step.kind !== "pin") return;
     const preview = step.preview;
@@ -391,21 +339,15 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
         spawn: { lat: data.spawn.lat, lng: data.spawn.lng },
         anchor: { lat, lng },
       };
-      const totalDistanceM = haversineM(lat, lng, spawn.spawn.lat, spawn.spawn.lng);
-      virtualProgressRef.current = 0;
-      gpsDistanceToSpawnRef.current = null;
-      burstFiredRef.current = false;
-      totalDistanceMRef.current = totalDistanceM;
-      setRemainingM(totalDistanceM);
-      setStep({ kind: "approach", preview, spawn, totalDistanceM });
+      setStep({ kind: "navigating", preview, spawn });
     } catch (err) {
       setStep({ kind: "fatal", message: err instanceof Error ? err.message : "Failed" });
     }
   }
 
-  // When approach starts: render gift marker, avatar, path, fit bounds
+  // When navigation begins, render gift + avatar markers, seed virtual position.
   useEffect(() => {
-    if (step.kind !== "approach") return;
+    if (step.kind !== "navigating") return;
     const m = mapRef.current;
     if (!m) return;
 
@@ -414,11 +356,7 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     if (!giftMarkerRef.current) {
       const el = document.createElement("div");
       el.style.cssText = "position:relative;width:56px;height:56px;display:flex;align-items:center;justify-content:center;";
-      const inner = document.createElement("div");
-      inner.className = "walk-gift";
-      inner.innerHTML = '<div class="walk-gift-iris"></div>';
-      el.appendChild(inner);
-      giftInnerElRef.current = inner;
+      el.innerHTML = '<div class="walk-gift"><div class="walk-gift-iris"></div></div>';
       giftMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "center" })
         .setLngLat([spawn.lng, spawn.lat])
         .addTo(m);
@@ -426,242 +364,221 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
       giftMarkerRef.current.setLngLat([spawn.lng, spawn.lat]);
     }
 
-    // Avatar starts at anchor
-    if (avatarMarkerRef.current) {
-      avatarMarkerRef.current.setLngLat([anchor.lng, anchor.lat]);
-    } else {
+    virtualPosRef.current = { lat: anchor.lat, lng: anchor.lng };
+    avatarPosRef.current = { lat: anchor.lat, lng: anchor.lng };
+    setAvatarPos({ lat: anchor.lat, lng: anchor.lng });
+
+    if (!avatarMarkerRef.current) {
       const el = document.createElement("div");
-      el.style.cssText = "display:flex;align-items:center;justify-content:center;";
-      const inner = document.createElement("div");
-      inner.className = "walk-avatar walk-avatar-idle";
-      el.appendChild(inner);
-      avatarElRef.current = inner;
+      el.style.cssText = "position:relative;display:flex;align-items:center;justify-content:center;";
+      const dot = document.createElement("div");
+      dot.className = "walk-avatar";
+      const label = document.createElement("div");
+      label.className = "walk-avatar-label";
+      label.id = "walk-avatar-label";
+      label.textContent = handleRef.current;
+      el.appendChild(dot);
+      el.appendChild(label);
       avatarMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "center" })
         .setLngLat([anchor.lng, anchor.lat])
         .addTo(m);
+    } else {
+      avatarMarkerRef.current.setLngLat([anchor.lng, anchor.lat]);
     }
     if (pinMarkerRef.current) {
       pinMarkerRef.current.remove();
       pinMarkerRef.current = null;
     }
 
-    // Draw path
-    const src = m.getSource(lineSourceIdRef.current) as mapboxgl.GeoJSONSource | undefined;
-    src?.setData({
-      type: "Feature",
-      geometry: { type: "LineString", coordinates: [[anchor.lng, anchor.lat], [spawn.lng, spawn.lat]] },
-      properties: {},
-    });
-
-    const bounds = new mapboxgl.LngLatBounds([anchor.lng, anchor.lat], [anchor.lng, anchor.lat]);
-    bounds.extend([spawn.lng, spawn.lat]);
-    m.fitBounds(bounds, { padding: 90, duration: 600, maxZoom: 17 });
+    m.easeTo({ center: [anchor.lng, anchor.lat], zoom: 18, duration: 700 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.kind]);
 
-  // Compute current effective progress, update avatar position, path line, displays.
-  const recompute = useCallback(() => {
-    if (step.kind !== "approach") return;
-    const { anchor, spawn } = step.spawn;
-    const total = totalDistanceMRef.current;
-    if (total <= 0) return;
+  // GPS watcher — runs during navigation.
+  useEffect(() => {
+    if (step.kind !== "navigating") return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    let cleared = false;
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (cleared) return;
+        gpsPosRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setGpsActive(true);
+      },
+      () => { /* permission denied — joystick still works */ },
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 8000 },
+    );
+    return () => {
+      cleared = true;
+      try { navigator.geolocation.clearWatch(id); } catch { /* no-op */ }
+      setGpsActive(false);
+    };
+  }, [step.kind]);
 
-    const gpsDist = gpsDistanceToSpawnRef.current;
-    const gpsProgress = gpsDist !== null ? Math.max(0, total - gpsDist) : 0;
-    const progress = Math.min(total, Math.max(virtualProgressRef.current, gpsProgress));
-    const t = total > 0 ? progress / total : 0;
-    const lat = anchor.lat + (spawn.lat - anchor.lat) * t;
-    const lng = anchor.lng + (spawn.lng - anchor.lng) * t;
-    avatarMarkerRef.current?.setLngLat([lng, lat]);
-
-    const remaining = Math.max(0, total - progress);
-
-    // Update path line from current avatar to spawn so it visually shrinks
+  // Movement + render tick — runs while navigating.
+  useEffect(() => {
+    if (step.kind !== "navigating") return;
     const m = mapRef.current;
-    if (m) {
-      const src = m.getSource(lineSourceIdRef.current) as mapboxgl.GeoJSONSource | undefined;
-      src?.setData({
-        type: "Feature",
-        geometry: { type: "LineString", coordinates: [[lng, lat], [spawn.lng, spawn.lat]] },
-        properties: {},
-      });
-    }
-
-    // Update gift visual closeness
-    const giftEl = giftInnerElRef.current;
-    if (giftEl) {
-      if (remaining <= PROXIMITY_M) {
-        if (!giftEl.classList.contains("walk-gift-close")) giftEl.classList.add("walk-gift-close");
-      } else if (giftEl.classList.contains("walk-gift-close")) {
-        giftEl.classList.remove("walk-gift-close");
-      }
-    }
-
-    // Throttle display updates
-    const now = performance.now();
-    if (now - lastDisplayUpdateRef.current >= DISPLAY_THROTTLE_MS) {
-      lastDisplayUpdateRef.current = now;
-      setRemainingM(remaining);
-    }
-
-    // Burst once on first reaching <= 5m
-    if (remaining <= CATCH_RADIUS_M && !burstFiredRef.current) {
-      burstFiredRef.current = true;
-      setRemainingM(remaining);
-      setShowBurst(true);
-      try { playSound("approach", 0.55); } catch { /* no-op */ }
-      if (typeof navigator !== "undefined") {
-        const nav = navigator as Navigator & { vibrate?: (p: number | number[]) => boolean };
-        try { nav.vibrate?.([60, 40, 120]); } catch { /* no-op */ }
-      }
-      window.setTimeout(() => setShowBurst(false), 900);
-    }
-  }, [step]);
-
-  // Hold-to-walk RAF loop
-  const stopHoldLoop = useCallback(() => {
-    if (rafRef.current !== null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    if (vibrateIntervalRef.current !== null) {
-      clearInterval(vibrateIntervalRef.current);
-      vibrateIntervalRef.current = null;
-    }
-    if (avatarElRef.current) {
-      avatarElRef.current.classList.remove("walk-avatar-walking");
-      if (!avatarElRef.current.classList.contains("walk-avatar-idle")) {
-        avatarElRef.current.classList.add("walk-avatar-idle");
-      }
-    }
-  }, []);
-
-  const startHoldLoop = useCallback(() => {
-    if (step.kind !== "approach") return;
-    if (holdingRef.current) return;
-    holdingRef.current = true;
-    setHoldingUI(true);
-    if (avatarElRef.current) {
-      avatarElRef.current.classList.remove("walk-avatar-idle");
-      if (!avatarElRef.current.classList.contains("walk-avatar-walking")) {
-        avatarElRef.current.classList.add("walk-avatar-walking");
-      }
-    }
-
-    if (!reducedMotion && typeof navigator !== "undefined") {
-      const nav = navigator as Navigator & { vibrate?: (p: number | number[]) => boolean };
-      try { nav.vibrate?.(20); } catch { /* no-op */ }
-      vibrateIntervalRef.current = window.setInterval(() => {
-        try { nav.vibrate?.(20); } catch { /* no-op */ }
-      }, VIBRATE_INTERVAL_MS) as unknown as number;
-    }
+    if (!m) return;
+    const spawn = step.spawn.spawn;
 
     lastTickTsRef.current = performance.now();
-    const tick = () => {
-      if (!holdingRef.current) {
-        rafRef.current = null;
+    let stopped = false;
+
+    const loop = () => {
+      if (stopped) return;
+      const now = performance.now();
+      const dt = Math.min(0.25, (now - lastTickTsRef.current) / 1000);
+      lastTickTsRef.current = now;
+
+      const k = knobRef.current;
+      const vp = virtualPosRef.current;
+      if (vp && k.mag > JOYSTICK_DEADZONE) {
+        const dist = WALK_SPEED_MPS * k.mag * dt;
+        const dLat = (dist * Math.cos(k.angle)) / 111000;
+        const dLng = (dist * Math.sin(k.angle)) / (111000 * Math.cos((vp.lat * Math.PI) / 180));
+        virtualPosRef.current = { lat: vp.lat + dLat, lng: vp.lng + dLng };
+      }
+
+      const vNow = virtualPosRef.current;
+      const g = gpsPosRef.current;
+      let eff = vNow ?? g;
+      if (vNow && g) {
+        const vd = haversineM(vNow.lat, vNow.lng, spawn.lat, spawn.lng);
+        const gd = haversineM(g.lat, g.lng, spawn.lat, spawn.lng);
+        eff = gd < vd ? g : vNow;
+      }
+      if (!eff) {
+        tickHandleRef.current = window.setTimeout(loop, TICK_MS);
         return;
       }
-      const now = performance.now();
-      const dt = (now - lastTickTsRef.current) / 1000;
-      lastTickTsRef.current = now;
-      virtualProgressRef.current = Math.min(
-        totalDistanceMRef.current,
-        virtualProgressRef.current + WALK_SPEED_MPS * dt,
-      );
-      recompute();
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-  }, [step.kind, reducedMotion, recompute]);
+      avatarPosRef.current = eff;
 
-  const releaseHold = useCallback(() => {
-    if (!holdingRef.current) return;
-    holdingRef.current = false;
-    setHoldingUI(false);
-    stopHoldLoop();
-  }, [stopHoldLoop]);
-
-  // Cleanup on unmount or step change away from approach
-  useEffect(() => {
-    return () => {
-      holdingRef.current = false;
-      stopHoldLoop();
-      if (geoWatchIdRef.current !== null && typeof navigator !== "undefined" && navigator.geolocation) {
-        navigator.geolocation.clearWatch(geoWatchIdRef.current);
-        geoWatchIdRef.current = null;
+      if (avatarMarkerRef.current) {
+        avatarMarkerRef.current.setLngLat([eff.lng, eff.lat]);
       }
-    };
-  }, [stopHoldLoop]);
+      m.easeTo({ center: [eff.lng, eff.lat], duration: 240 });
 
-  // GPS watch — start when in approach
-  const startGpsWatch = useCallback(() => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) return;
-    if (geoWatchIdRef.current !== null) return;
-    if (step.kind !== "approach") return;
-    const spawn = step.spawn.spawn;
-    geoWatchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const dist = haversineM(pos.coords.latitude, pos.coords.longitude, spawn.lat, spawn.lng);
-        gpsDistanceToSpawnRef.current = dist;
-        if (!gpsActive) setGpsActive(true);
-        if (!showHintGps) {
-          setShowHintGps(true);
-          window.setTimeout(() => setShowHintGps(false), 4200);
+      const distLeft = haversineM(eff.lat, eff.lng, spawn.lat, spawn.lng);
+      if (distLeft <= 25) {
+        const vol = Math.max(0.05, Math.min(0.55, (25 - distLeft) / 25));
+        if (!approachActiveRef.current) {
+          startApproachLoop(vol);
+          approachActiveRef.current = true;
+        } else {
+          setApproachVolume(vol);
         }
-        recompute();
-      },
-      () => {
-        // permission denied / failed — silently ignore, virtual walking still works
-      },
-      { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 },
-    );
-  }, [step, gpsActive, showHintGps, recompute]);
+      } else if (approachActiveRef.current) {
+        stopApproach();
+        approachActiveRef.current = false;
+      }
 
-  // Auto-start GPS if permission already granted
-  useEffect(() => {
-    if (step.kind !== "approach") return;
-    if (typeof navigator === "undefined") return;
-    const permsApi = (navigator as Navigator & { permissions?: { query: (q: { name: string }) => Promise<{ state: string }> } }).permissions;
-    if (permsApi && typeof permsApi.query === "function") {
-      permsApi.query({ name: "geolocation" }).then((result) => {
-        if (result.state === "granted") startGpsWatch();
-      }).catch(() => { /* no-op */ });
+      setAvatarPos(eff);
+      tickHandleRef.current = window.setTimeout(loop, TICK_MS);
+    };
+    loop();
+
+    return () => {
+      stopped = true;
+      if (tickHandleRef.current !== null) {
+        clearTimeout(tickHandleRef.current);
+        tickHandleRef.current = null;
+      }
+      stopApproach();
+      approachActiveRef.current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step.kind]);
+
+  // Joystick pointer handlers.
+  const updateKnob = useCallback((clientX: number, clientY: number) => {
+    const el = joystickRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let dx = clientX - cx;
+    let dy = clientY - cy;
+    const dist = Math.hypot(dx, dy);
+    const maxR = JOYSTICK_OUTER_R - JOYSTICK_KNOB_R;
+    if (dist > maxR && dist > 0) {
+      const s = maxR / dist;
+      dx *= s;
+      dy *= s;
     }
-  }, [step.kind, startGpsWatch]);
+    const mag = Math.min(1, dist / maxR);
+    // angle: 0 = north (knob pushed up), clockwise.
+    // dx (east), -dy (north): atan2(dx, -dy) gives 0 when straight up.
+    const angle = Math.atan2(dx, -dy);
+    knobRef.current = { dx, dy, mag, angle };
+    setKnob({ x: dx, y: dy });
+  }, []);
 
-  // Catch handler
+  const releaseKnob = useCallback(() => {
+    activePointerIdRef.current = null;
+    knobRef.current = { dx: 0, dy: 0, mag: 0, angle: 0 };
+    setKnob({ x: 0, y: 0 });
+  }, []);
+
+  const onJoystickDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (activePointerIdRef.current !== null) return;
+      e.preventDefault();
+      const el = joystickRef.current;
+      if (!el) return;
+      try { el.setPointerCapture(e.pointerId); } catch { /* no-op */ }
+      activePointerIdRef.current = e.pointerId;
+      updateKnob(e.clientX, e.clientY);
+      haptic(HAPTIC.TAP);
+    },
+    [updateKnob],
+  );
+
+  const onJoystickMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (activePointerIdRef.current !== e.pointerId) return;
+      e.preventDefault();
+      updateKnob(e.clientX, e.clientY);
+    },
+    [updateKnob],
+  );
+
+  const onJoystickUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (activePointerIdRef.current !== e.pointerId) return;
+      const el = joystickRef.current;
+      try { el?.releasePointerCapture(e.pointerId); } catch { /* no-op */ }
+      releaseKnob();
+    },
+    [releaseKnob],
+  );
+
+  const recenter = useCallback(() => {
+    const m = mapRef.current;
+    const a = avatarPosRef.current;
+    if (!m || !a) return;
+    m.easeTo({ center: [a.lng, a.lat], zoom: 18, duration: 400 });
+  }, []);
+
   async function attemptCatch() {
-    if (step.kind !== "approach") return;
-    if (remainingM > CATCH_RADIUS_M && (gpsDistanceToSpawnRef.current === null || gpsDistanceToSpawnRef.current > CATCH_RADIUS_M)) return;
+    if (step.kind !== "navigating") return;
     const preview = step.preview;
     const spawn = step.spawn;
-    // Avatar's current latitude/longitude (interpolated by recompute)
-    let avLat = spawn.spawn.lat;
-    let avLng = spawn.spawn.lng;
-    const total = totalDistanceMRef.current;
-    if (total > 0) {
-      const gpsDist = gpsDistanceToSpawnRef.current;
-      const gpsProgress = gpsDist !== null ? Math.max(0, total - gpsDist) : 0;
-      const progress = Math.min(total, Math.max(virtualProgressRef.current, gpsProgress));
-      const t = progress / total;
-      avLat = spawn.anchor.lat + (spawn.spawn.lat - spawn.anchor.lat) * t;
-      avLng = spawn.anchor.lng + (spawn.spawn.lng - spawn.anchor.lng) * t;
-    }
-    releaseHold();
+    const av = avatarPosRef.current ?? spawn.spawn;
     setStep({ kind: "catching", preview, spawn });
     try {
-      try { playSound("catch", 0.6); } catch { /* no-op */ }
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (!token) throw new Error("Sign in first");
       const res = await fetch(`/api/gifts/${code}/catch`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ avatar_lat: avLat, avatar_lng: avLng, via_toggle: true }),
+        body: JSON.stringify({ avatar_lat: av.lat, avatar_lng: av.lng, via_toggle: true }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Catch failed");
+      try { playSound("catch", 0.55); } catch { /* no-op */ }
+      haptic(HAPTIC.CATCH_SUCCESS);
       setStep({ kind: "claimed", preview, tx: data.tx_hash ?? null });
     } catch (err) {
       setStep({ kind: "fatal", message: err instanceof Error ? err.message : "Catch failed" });
@@ -701,61 +618,55 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     );
   }
 
-  const canCatch =
-    step.kind === "approach" &&
-    (remainingM <= CATCH_RADIUS_M ||
-      (gpsDistanceToSpawnRef.current !== null && gpsDistanceToSpawnRef.current <= CATCH_RADIUS_M));
+  const isNavigating = step.kind === "navigating" || step.kind === "catching";
+  const spawnNow =
+    step.kind === "navigating" || step.kind === "catching" ? step.spawn.spawn : null;
 
-  const showProximityVignette = step.kind === "approach" && remainingM <= PROXIMITY_M;
-  const progressPct =
-    step.kind === "approach" && step.totalDistanceM > 0
-      ? Math.min(100, Math.max(0, ((step.totalDistanceM - remainingM) / step.totalDistanceM) * 100))
+  const distLeft =
+    isNavigating && spawnNow && avatarPos
+      ? haversineM(avatarPos.lat, avatarPos.lng, spawnNow.lat, spawnNow.lng)
+      : null;
+  const compassDeg =
+    isNavigating && spawnNow && avatarPos
+      ? bearingDeg(avatarPos.lat, avatarPos.lng, spawnNow.lat, spawnNow.lng)
       : 0;
+  const withinCatch = distLeft !== null && distLeft <= CATCH_RADIUS_M;
+  const vignetteAlpha =
+    distLeft !== null && distLeft <= 25 ? Math.min(0.55, (25 - distLeft) / 25) : 0;
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: C.bg, color: C.text, fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: C.bg,
+        color: C.text,
+        fontFamily: "'Inter', system-ui, sans-serif",
+        overflow: "hidden",
+        touchAction: "none",
+      }}
+    >
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
 
-      {showProximityVignette && (
+      {vignetteAlpha > 0 && (
         <div
           style={{
             position: "absolute",
             inset: 0,
             pointerEvents: "none",
-            background: "radial-gradient(circle at 50% 60%, rgba(0,255,136,0) 35%, rgba(0,255,136,0.18) 75%, rgba(0,255,136,0.42) 100%)",
-            animation: reducedMotion ? "none" : "walkVignetteIn 600ms ease-out forwards",
-            zIndex: 25,
+            background: `radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,255,136,${vignetteAlpha * 0.55}) 100%)`,
+            zIndex: 5,
           }}
         />
       )}
 
-      {showBurst && (
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              width: 80,
-              height: 80,
-              borderRadius: "50%",
-              background: "radial-gradient(circle, #88FF00 0%, #00FF88 45%, rgba(0,255,136,0) 70%)",
-              animation: reducedMotion ? "none" : "walkBurst 900ms ease-out forwards",
-              transform: "translate(-50%,-50%)",
-            }}
-          />
-        </div>
-      )}
-
-      {/* Top HUD */}
       {step.kind === "pin" && (
         <div style={topBannerStyle}>
           <div style={topBannerEyebrow}>Walk Mode</div>
-          <div style={topBannerBody}>Drop a pin to start your walk to the gift.</div>
+          <div style={topBannerBody}>Drop a pin to start the hunt</div>
           <div style={topBannerMeta}>Tap anywhere on the map</div>
         </div>
       )}
-
       {step.kind === "opening" && (
         <div style={topBannerStyle}>
           <div style={topBannerEyebrow}>Walk Mode</div>
@@ -763,110 +674,263 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
         </div>
       )}
 
-      {(step.kind === "approach" || step.kind === "catching") && (
-        <>
-          <div style={hudPillLeft}>
-            <div style={hudPillLabel}>Distance</div>
-            <div style={hudPillValue}>{formatDistance(remainingM)} to gift</div>
-          </div>
-          {holdingUI && (
-            <div style={hudPillRight}>
-              <div style={hudPillLabel}>ETA</div>
-              <div style={hudPillValue}>~{formatEta((remainingM / WALK_SPEED_MPS) * 1000)}</div>
-            </div>
-          )}
-        </>
+      {isNavigating && spawnNow && (
+        <CompassHud
+          distM={distLeft ?? 0}
+          bearing={compassDeg}
+          gpsActive={gpsActive}
+          withinCatch={withinCatch}
+        />
       )}
 
-      {/* Exit link */}
-      {(step.kind === "approach" || step.kind === "pin") && (
+      <button
+        type="button"
+        onClick={() => router.replace(`/gift/${code}`)}
+        style={exitBtnStyle}
+        aria-label="Exit walk mode"
+      >
+        Exit
+      </button>
+
+      {isNavigating && spawnNow && avatarPos && (
+        <Minimap avatar={avatarPos} spawn={spawnNow} />
+      )}
+
+      {isNavigating && (
         <button
           type="button"
-          onClick={() => router.replace(`/gift/${code}`)}
-          style={exitLinkStyle}
+          onClick={recenter}
+          style={recenterBtnStyle}
+          aria-label="Recenter map on you"
         >
-          Exit walk
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00FF88" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <circle cx="12" cy="12" r="9" />
+            <line x1="12" y1="1" x2="12" y2="4" />
+            <line x1="12" y1="20" x2="12" y2="23" />
+            <line x1="1" y1="12" x2="4" y2="12" />
+            <line x1="20" y1="12" x2="23" y2="12" />
+          </svg>
         </button>
       )}
 
-      {/* GPS hint / link */}
-      {step.kind === "approach" && (
-        <>
-          {!gpsActive && (
-            <button
-              type="button"
-              onClick={startGpsWatch}
-              style={gpsLinkStyle}
-            >
-              Use my real location
-            </button>
-          )}
-          {gpsActive && showHintGps && (
-            <div style={gpsHintStyle}>GPS active — physical walking also works</div>
-          )}
-        </>
-      )}
-
-      {/* Bottom WALK / CATCH button */}
-      {step.kind === "approach" && !canCatch && (
-        <div style={bottomButtonWrap}>
-          <button
-            type="button"
-            onPointerDown={(e) => { e.preventDefault(); startHoldLoop(); }}
-            onPointerUp={(e) => { e.preventDefault(); releaseHold(); }}
-            onPointerCancel={() => releaseHold()}
-            onPointerLeave={() => releaseHold()}
-            onContextMenu={(e) => e.preventDefault()}
+      {isNavigating && !withinCatch && (
+        <div
+          ref={joystickRef}
+          onPointerDown={onJoystickDown}
+          onPointerMove={onJoystickMove}
+          onPointerUp={onJoystickUp}
+          onPointerCancel={onJoystickUp}
+          style={joystickOuterStyle}
+        >
+          <div style={joystickRingInnerStyle} />
+          <div
             style={{
-              ...walkButtonStyle,
-              transform: holdingUI ? "scale(0.96)" : "scale(1)",
-              animation: reducedMotion ? "none" : "walkBtnPulse 2.2s ease-in-out infinite",
-              touchAction: "none",
-              userSelect: "none",
-              WebkitUserSelect: "none",
-              WebkitTapHighlightColor: "transparent",
+              ...joystickKnobStyle,
+              transform: `translate(${knob.x}px, ${knob.y}px)`,
+              transition:
+                activePointerIdRef.current === null
+                  ? "transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1)"
+                  : "none",
             }}
-          >
-            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: "0.18em" }}>HOLD TO WALK</div>
-            <div style={walkButtonProgressTrack}>
-              <div
-                style={{
-                  ...walkButtonProgressFill,
-                  width: `${progressPct}%`,
-                }}
-              />
-            </div>
-          </button>
+          />
         </div>
       )}
 
-      {step.kind === "approach" && canCatch && (
-        <div style={bottomButtonWrap}>
+      {isNavigating && withinCatch && (
+        <div style={catchWrapStyle}>
           <button
             type="button"
             onClick={attemptCatch}
+            disabled={step.kind === "catching"}
             style={{
-              ...catchButtonStyle,
-              animation: reducedMotion ? "none" : "walkBtnCatchPulse 0.9s ease-in-out infinite",
+              ...catchBtnStyle,
+              animation: step.kind === "catching" ? "none" : "walkCatchPulse 1.4s ease-in-out infinite",
+              opacity: step.kind === "catching" ? 0.7 : 1,
+              cursor: step.kind === "catching" ? "wait" : "pointer",
             }}
           >
-            CATCH
-          </button>
-        </div>
-      )}
-
-      {step.kind === "catching" && (
-        <div style={bottomButtonWrap}>
-          <button
-            type="button"
-            disabled
-            style={{ ...catchButtonStyle, opacity: 0.7, cursor: "wait" }}
-          >
-            CATCHING…
+            {step.kind === "catching" ? "Catching…" : "Catch"}
           </button>
         </div>
       )}
     </div>
+  );
+}
+
+// ───────────── Sub-components ─────────────
+
+function CompassHud({
+  distM,
+  bearing,
+  gpsActive,
+  withinCatch,
+}: {
+  distM: number;
+  bearing: number;
+  gpsActive: boolean;
+  withinCatch: boolean;
+}) {
+  const distLabel =
+    distM >= 1000 ? `${(distM / 1000).toFixed(2)}km to gift` : `${Math.round(distM)}m to gift`;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 16,
+        left: "50%",
+        transform: "translateX(-50%)",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "10px 16px",
+        background: "rgba(10,10,15,0.78)",
+        backdropFilter: "blur(10px)",
+        border: `1px solid ${C.primary}66`,
+        borderRadius: 16,
+        zIndex: 30,
+        boxShadow: "0 6px 24px rgba(0,0,0,0.55)",
+        maxWidth: "calc(100vw - 110px)",
+      }}
+    >
+      <div
+        style={{
+          width: 28,
+          height: 28,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          transform: `rotate(${bearing}deg)`,
+          transition: "transform 220ms linear",
+          animation: withinCatch ? "walkCompassPulse 0.7s ease-in-out infinite" : undefined,
+        }}
+      >
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#00FF88" stroke="#0a0a0f" strokeWidth="1.2" strokeLinejoin="round">
+          <path d="M12 2 L18 20 L12 16 L6 20 Z" />
+        </svg>
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 800, color: C.text, letterSpacing: "0.02em" }}>
+        {distLabel}
+      </div>
+      {gpsActive && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            padding: "3px 8px",
+            background: "rgba(0,255,136,0.12)",
+            border: `1px solid ${C.primary}55`,
+            borderRadius: 10,
+            fontSize: 9,
+            fontWeight: 800,
+            letterSpacing: "0.18em",
+            color: C.primary,
+            textTransform: "uppercase",
+          }}
+        >
+          <span style={{ width: 6, height: 6, borderRadius: 3, background: C.primary, boxShadow: `0 0 6px ${C.primary}` }} />
+          GPS
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Minimap({
+  avatar,
+  spawn,
+}: {
+  avatar: { lat: number; lng: number };
+  spawn: { lat: number; lng: number };
+}) {
+  const [visible, setVisible] = useState(true);
+  const W = 120;
+  const PAD = 14;
+  const midLat = (avatar.lat + spawn.lat) / 2;
+  const midLng = (avatar.lng + spawn.lng) / 2;
+  const dLat = Math.max(0.00012, Math.abs(avatar.lat - spawn.lat));
+  const dLng = Math.max(0.00012, Math.abs(avatar.lng - spawn.lng));
+  const span = Math.max(dLat, dLng) * 1.6;
+  const norm = (v: number, mid: number) => (v - mid) / span;
+  const toPx = (n: number) => W / 2 + n * (W - PAD * 2);
+  const avX = toPx(norm(avatar.lng, midLng));
+  const avY = toPx(-norm(avatar.lat, midLat));
+  const spX = toPx(norm(spawn.lng, midLng));
+  const spY = toPx(-norm(spawn.lat, midLat));
+  return (
+    <button
+      type="button"
+      onClick={() => setVisible((v) => !v)}
+      style={{
+        position: "absolute",
+        top: 70,
+        right: 14,
+        width: visible ? W : 38,
+        height: visible ? W : 38,
+        padding: 0,
+        border: `1px solid ${C.primary}66`,
+        borderRadius: 14,
+        background: "rgba(10,10,15,0.86)",
+        backdropFilter: "blur(8px)",
+        cursor: "pointer",
+        overflow: "hidden",
+        zIndex: 30,
+        boxShadow: "0 6px 20px rgba(0,0,0,0.55)",
+        transition: "width 220ms ease, height 220ms ease",
+      }}
+      aria-label={visible ? "Hide minimap" : "Show minimap"}
+    >
+      {visible ? (
+        <div style={{ position: "relative", width: "100%", height: "100%" }}>
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              backgroundImage:
+                "linear-gradient(rgba(0,255,136,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,136,0.12) 1px, transparent 1px)",
+              backgroundSize: "20px 20px",
+            }}
+          />
+          <svg width={W} height={W} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+            <line x1={avX} y1={avY} x2={spX} y2={spY} stroke="#00FF88" strokeWidth="1.2" strokeDasharray="3 3" opacity="0.55" />
+          </svg>
+          <div
+            style={{
+              position: "absolute",
+              left: spX - 6,
+              top: spY - 6,
+              width: 12,
+              height: 12,
+              borderRadius: 6,
+              background: "#88FF00",
+              boxShadow: "0 0 10px rgba(136,255,0,0.9)",
+              animation: "walkAvatarPulse 1.4s ease-in-out infinite",
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              left: avX - 4,
+              top: avY - 4,
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              background: "#00FF88",
+              border: "1px solid #0a0a0f",
+            }}
+          />
+        </div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00FF88" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <line x1="3" y1="9" x2="21" y2="9" />
+            <line x1="9" y1="3" x2="9" y2="21" />
+          </svg>
+        </div>
+      )}
+    </button>
   );
 }
 
@@ -1008,6 +1072,8 @@ function Confetti() {
   );
 }
 
+// ───────────── Styles ─────────────
+
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
   background: C.bg,
@@ -1072,155 +1138,105 @@ const topBannerMeta: React.CSSProperties = {
   letterSpacing: "0.05em",
 };
 
-const hudPillBase: React.CSSProperties = {
+const exitBtnStyle: React.CSSProperties = {
   position: "absolute",
-  top: 18,
-  padding: "8px 14px",
+  top: 16,
+  right: 14,
+  height: 36,
+  padding: "0 14px",
+  borderRadius: 18,
+  background: "rgba(10,10,15,0.78)",
+  backdropFilter: "blur(10px)",
+  border: `1px solid ${C.primary}44`,
+  color: C.text,
+  fontFamily: "inherit",
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: "0.18em",
+  textTransform: "uppercase",
+  cursor: "pointer",
+  zIndex: 31,
+};
+
+const recenterBtnStyle: React.CSSProperties = {
+  position: "absolute",
+  right: 14,
+  bottom: 200,
+  width: 44,
+  height: 44,
+  borderRadius: 22,
   background: "rgba(10,10,15,0.78)",
   backdropFilter: "blur(10px)",
   border: `1px solid ${C.primary}55`,
-  borderRadius: 14,
-  color: C.text,
-  boxShadow: "0 6px 20px rgba(0,0,0,0.45)",
-  zIndex: 30,
-  textAlign: "left",
-  minWidth: 92,
-};
-
-const hudPillLeft: React.CSSProperties = { ...hudPillBase, left: 14 };
-const hudPillRight: React.CSSProperties = { ...hudPillBase, right: 14, textAlign: "right" };
-
-const hudPillLabel: React.CSSProperties = {
-  fontSize: 9,
-  fontWeight: 800,
-  letterSpacing: "0.28em",
-  color: C.primary,
-  textTransform: "uppercase",
-  marginBottom: 2,
-};
-
-const hudPillValue: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 800,
-  color: C.text,
-  letterSpacing: "0.02em",
-};
-
-const exitLinkStyle: React.CSSProperties = {
-  position: "absolute",
-  top: 78,
-  right: 14,
-  padding: "6px 12px",
-  background: "rgba(10,10,15,0.65)",
-  border: "1px solid rgba(255,255,255,0.12)",
-  borderRadius: 12,
-  color: C.muted,
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: "0.08em",
-  textTransform: "uppercase",
-  cursor: "pointer",
-  fontFamily: "inherit",
-  zIndex: 30,
-};
-
-const gpsLinkStyle: React.CSSProperties = {
-  position: "absolute",
-  top: 78,
-  left: 14,
-  padding: "6px 12px",
-  background: "rgba(10,10,15,0.65)",
-  border: `1px solid ${C.primary}55`,
-  borderRadius: 12,
-  color: C.primary,
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: "0.08em",
-  textTransform: "uppercase",
-  cursor: "pointer",
-  fontFamily: "inherit",
-  zIndex: 30,
-};
-
-const gpsHintStyle: React.CSSProperties = {
-  position: "absolute",
-  top: 78,
-  left: "50%",
-  transform: "translateX(-50%)",
-  padding: "6px 14px",
-  background: "rgba(10,10,15,0.78)",
-  border: `1px solid ${C.primary}55`,
-  borderRadius: 12,
-  color: C.primary,
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: "0.06em",
-  zIndex: 30,
-  whiteSpace: "nowrap",
-};
-
-const bottomButtonWrap: React.CSSProperties = {
-  position: "absolute",
-  left: 0,
-  right: 0,
-  bottom: 28,
   display: "flex",
-  justifyContent: "center",
   alignItems: "center",
-  padding: "0 16px",
+  justifyContent: "center",
+  cursor: "pointer",
   zIndex: 30,
+  boxShadow: "0 6px 20px rgba(0,0,0,0.55)",
+};
+
+const joystickOuterStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 28,
+  bottom: 64,
+  width: JOYSTICK_OUTER_R * 2,
+  height: JOYSTICK_OUTER_R * 2,
+  borderRadius: JOYSTICK_OUTER_R,
+  background: "radial-gradient(circle at 50% 50%, rgba(0,255,136,0.10), rgba(0,0,0,0.55) 70%)",
+  border: `2px solid ${C.primary}88`,
+  boxShadow: "0 8px 28px rgba(0,0,0,0.6), 0 0 24px rgba(0,255,136,0.25)",
+  backdropFilter: "blur(6px)",
+  zIndex: 40,
+  touchAction: "none",
+  userSelect: "none",
+  WebkitUserSelect: "none",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const joystickRingInnerStyle: React.CSSProperties = {
+  position: "absolute",
+  width: JOYSTICK_OUTER_R * 1.4,
+  height: JOYSTICK_OUTER_R * 1.4,
+  borderRadius: "50%",
+  border: "1px dashed rgba(0,255,136,0.35)",
   pointerEvents: "none",
 };
 
-const walkButtonStyle: React.CSSProperties = {
-  width: "80%",
-  maxWidth: 440,
-  minHeight: 86,
-  borderRadius: 22,
-  background: "linear-gradient(180deg, #00FF88 0%, #00d873 100%)",
-  color: "#0a0a0f",
-  border: "2px solid rgba(255,255,255,0.16)",
-  fontFamily: "inherit",
-  fontWeight: 900,
-  fontSize: 18,
-  cursor: "pointer",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "14px 18px 10px",
-  transition: "transform 90ms ease-out",
-  pointerEvents: "auto",
-  gap: 8,
+const joystickKnobStyle: React.CSSProperties = {
+  position: "absolute",
+  width: JOYSTICK_KNOB_R * 2,
+  height: JOYSTICK_KNOB_R * 2,
+  borderRadius: JOYSTICK_KNOB_R,
+  background: "radial-gradient(circle at 35% 30%, #b6ffd0 0%, #00FF88 55%, #00b35e 100%)",
+  border: "2px solid rgba(255,255,255,0.6)",
+  boxShadow: "0 4px 14px rgba(0,255,136,0.55), inset 0 0 8px rgba(255,255,255,0.4)",
+  pointerEvents: "none",
 };
 
-const walkButtonProgressTrack: React.CSSProperties = {
+const catchWrapStyle: React.CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  bottom: 48,
+  transform: "translateX(-50%)",
+  width: "80%",
+  maxWidth: 420,
+  zIndex: 40,
+  animation: "walkCatchRise 320ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+};
+
+const catchBtnStyle: React.CSSProperties = {
   width: "100%",
-  height: 5,
-  background: "rgba(10,10,15,0.35)",
-  borderRadius: 999,
-  overflow: "hidden",
-};
-
-const walkButtonProgressFill: React.CSSProperties = {
-  height: "100%",
-  background: "linear-gradient(90deg, #0a0a0f, #88FF00)",
-  transition: "width 120ms linear",
-  borderRadius: 999,
-};
-
-const catchButtonStyle: React.CSSProperties = {
-  width: "80%",
-  maxWidth: 440,
-  minHeight: 86,
+  height: 80,
   borderRadius: 22,
-  background: "linear-gradient(180deg, #88FF00 0%, #00FF88 100%)",
+  border: "2px solid rgba(255,255,255,0.15)",
+  background: "linear-gradient(135deg, #00FF88 0%, #88FF00 100%)",
   color: "#0a0a0f",
-  border: "2px solid rgba(255,255,255,0.22)",
-  fontFamily: "inherit",
   fontWeight: 900,
   fontSize: 22,
   letterSpacing: "0.22em",
-  cursor: "pointer",
-  pointerEvents: "auto",
+  textTransform: "uppercase",
+  fontFamily: "inherit",
 };
