@@ -11,8 +11,11 @@ import { pickSpawnPoint, haversineM } from "@/lib/gift-utils";
 export const runtime = "nodejs";
 
 // Pin must be within this many meters of the Vercel edge-IP geolocation when
+// using toggle mode. Vercel edge IPs are datacenter locations (often hundreds
+// of km from the user), so we set this generously: 2000km = continental scale.
+// This still blocks Tokyo->NYC abuse but accepts realistic user-to-edge spread.
 // opening via the no-GPS toggle path. Loose by design — sanity check only.
-const TOGGLE_PIN_RADIUS_M = 50_000;
+const TOGGLE_PIN_RADIUS_M = 2_000_000;
 
 export async function POST(req: NextRequest, { params }: { params: { short_code: string } }) {
   const { user, error } = await requireAuth(req);
@@ -50,7 +53,7 @@ export async function POST(req: NextRequest, { params }: { params: { short_code:
       const dist = haversineM(edgeLat, edgeLng, body.lat, body.lng);
       if (dist > TOGGLE_PIN_RADIUS_M) {
         return NextResponse.json(
-          { error: "Pin must be within 50km of your region", distance_m: Math.round(dist) },
+          { error: "Pin must be within 2000km of your region", distance_m: Math.round(dist) },
           { status: 400 }
         );
       }
