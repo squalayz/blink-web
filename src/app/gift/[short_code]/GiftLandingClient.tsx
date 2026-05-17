@@ -44,6 +44,7 @@ interface GiftPreview {
   recipient_username: string | null;
   sender: { handle: string | null; display_name: string | null } | null;
   winner_handle: string | null;
+  you_are_sender?: boolean;
 }
 
 export default function GiftLandingClient() {
@@ -74,7 +75,13 @@ export default function GiftLandingClient() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/gifts/${code}`);
+      // Pass the bearer token when available so the server can compute
+      // you_are_sender. Anon callers get a normal recipient view.
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: HeadersInit = session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : {};
+      const res = await fetch(`/api/gifts/${code}`, { headers });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gift not found");
       setGift(data);
@@ -86,8 +93,11 @@ export default function GiftLandingClient() {
   }, [code]);
 
   useEffect(() => {
-    if (code) fetchPreview();
-  }, [code, fetchPreview]);
+    // Re-fetch when auth state settles so the sender preflight resolves
+    // after sign-in too.
+    if (!code || authLoading) return;
+    fetchPreview();
+  }, [code, fetchPreview, authLoading, user?.id]);
 
   async function handleAuth(e?: React.FormEvent) {
     if (e) e.preventDefault();
@@ -256,6 +266,11 @@ export default function GiftLandingClient() {
         </div>
       </div>
     );
+  }
+
+  // ──── Sender's own gift — show share / cancel panel instead of recipient hero ────
+  if (gift.you_are_sender) {
+    return <SenderPanel gift={gift} code={code} onRefresh={fetchPreview} />;
   }
 
   // ──── Stolen mid-walk (race) or already-spawned to someone else ────
@@ -784,6 +799,99 @@ function GeoStepPanel({
           {pickOnMapBlock}
         </div>
       )}
+    </div>
+  );
+}
+
+function SenderPanel({
+  gift,
+  code,
+  onRefresh,
+}: {
+  gift: GiftPreview;
+  code: string;
+  onRefresh: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+  const [cancelErr, setCancelErr] = useState("");
+
+  const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/gift/${code}` : `/gift/${code}`;
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  async function cancelGift() {
+    if (!confirm("Cancel this gift and refund the asset to your wallet?")) return;
+    setCanceling(true);
+    setCancelErr("");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("Sign in required");
+      const res = await fetch(`/api/gifts/${code}/cancel`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Cancel failed");
+      onRefresh();
+    } catch (err) {
+      setCancelErr(err instanceof Error ? err.message : "Cancel failed");
+    } finally {
+      setCanceling(false);
+    }
+  }
+
+  return (
+    <div style={pageStyle}>
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "40px 22px 80px" }}>
+        <div style={{ textAlign: "center", marginBottom: 18 }}>
+          <Glyph />
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.32em", color: C.primary, textTransform: "uppercase", marginTop: 16, marginBottom: 6 }}>
+            Your Spirit Gift
+          </div>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: C.text, margin: "4px 0 6px", letterSpacing: "-0.5px" }}>
+            Share or cancel
+          </h1>
+          <div style={{ fontSize: 14, color: C.muted }}>
+            This is the gift you sent. The recipient can claim it any time before it expires.
+          </div>
+        </div>
+
+        <AssetCard gift={gift} />
+
+        <div style={{ marginTop: 24, padding: "14px 16px", borderRadius: 14, background: "rgba(255,255,255,0.04)", border: `1px solid ${C.primary}33`, fontSize: 13, color: C.text, wordBreak: "break-all" }}>
+          <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: C.muted, marginBottom: 6 }}>
+            Share link
+          </div>
+          {shareUrl}
+        </div>
+
+        <button type="button" onClick={copyLink} style={{ ...primaryBtn, width: "100%", marginTop: 14 }}>
+          {copied ? "Copied!" : "Copy link"}
+        </button>
+
+        <button
+          type="button"
+          onClick={cancelGift}
+          disabled={canceling}
+          style={{ ...primaryBtn, width: "100%", marginTop: 10, background: "transparent", border: `1px solid ${C.danger}66`, color: C.danger, boxShadow: "none", opacity: canceling ? 0.6 : 1 }}
+        >
+          {canceling ? "…" : "Cancel & refund"}
+        </button>
+
+        {cancelErr && (
+          <div style={{ marginTop: 10, color: C.danger, fontSize: 13, textAlign: "center" }}>{cancelErr}</div>
+        )}
+      </div>
     </div>
   );
 }
