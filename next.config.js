@@ -37,11 +37,30 @@ const nextConfig = {
       },
     ];
   },
-  // Headers
+  // MetaMask SDK references React Native's async-storage in optional code
+  // paths it doesn't take on web, but webpack still tries to resolve it.
+  // Stubbing the module to `false` removes the build warning AND skips the
+  // resolution work.
+  webpack: (config) => {
+    config.resolve.fallback = {
+      ...(config.resolve.fallback || {}),
+      "@react-native-async-storage/async-storage": false,
+    };
+    return config;
+  },
   async headers() {
+    const immutable = [
+      { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+    ];
     return [
       {
-        // Cache public marketplace assets aggressively
+        // CDN-cache the marketing landing at the edge for 60s with 10-min SWR.
+        source: "/",
+        headers: [
+          { key: "Cache-Control", value: "public, s-maxage=60, stale-while-revalidate=600" },
+        ],
+      },
+      {
         source: "/marketplace/:path*",
         headers: [
           { key: "Cache-Control", value: "public, s-maxage=60, stale-while-revalidate=300" },
@@ -53,6 +72,16 @@ const nextConfig = {
           { key: "Cache-Control", value: "public, s-maxage=15, stale-while-revalidate=60" },
         ],
       },
+      // ─── Content-addressed static assets: 1-year immutable cache ───
+      { source: "/blink-orb-:size.webp", headers: immutable },
+      { source: "/blink-orb.:ext(png|jpg|webp)", headers: immutable },
+      { source: "/blink-orb-master.jpg", headers: immutable },
+      { source: "/blink-logo.:ext(png|webp|svg)", headers: immutable },
+      { source: "/cards/:path*", headers: immutable },
+      { source: "/floating-all/:path*", headers: immutable },
+      { source: "/floating/:path*", headers: immutable },
+      { source: "/textures/:path*", headers: immutable },
+      { source: "/creatures/:path*", headers: immutable },
     ];
   },
 };

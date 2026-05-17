@@ -9,21 +9,35 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/providers";
 import { CinematicLoad } from "@/components/CinematicLoad";
 import { RevealOnScroll } from "@/components/RevealOnScroll";
-import { BlinkTokenStrip } from "@/components/BlinkTokenStrip";
 import { Hero } from "@/components/landing/Hero";
-import { HowItWorks } from "@/components/landing/HowItWorks";
-import { TwoWaysToEarn } from "@/components/landing/TwoWaysToEarn";
-import { MintFoundersCTA } from "@/components/landing/MintFoundersCTA";
 import AuthModal from "@/components/AuthModal";
 
 // Below-fold sections — code-split so the landing chunk stays lean.
+// `ssr: true` keeps them in the SSR HTML for SEO; `loading: () => null`
+// keeps SSR fallback identical to the rendered shell.
 const BestiarySection = dynamic(
   () => import("@/components/BestiarySection").then((m) => m.BestiarySection),
-  { ssr: false },
+  { ssr: true, loading: () => null },
 );
 const MythicsSection = dynamic(
   () => import("@/components/MythicsSection").then((m) => m.MythicsSection),
-  { ssr: false },
+  { ssr: true, loading: () => null },
+);
+const HowItWorks = dynamic(
+  () => import("@/components/landing/HowItWorks").then((m) => m.HowItWorks),
+  { ssr: true, loading: () => null },
+);
+const TwoWaysToEarn = dynamic(
+  () => import("@/components/landing/TwoWaysToEarn").then((m) => m.TwoWaysToEarn),
+  { ssr: true, loading: () => null },
+);
+const MintFoundersCTA = dynamic(
+  () => import("@/components/landing/MintFoundersCTA").then((m) => m.MintFoundersCTA),
+  { ssr: true, loading: () => null },
+);
+const BlinkTokenStrip = dynamic(
+  () => import("@/components/BlinkTokenStrip").then((m) => m.BlinkTokenStrip),
+  { ssr: true, loading: () => null },
 );
 
 const TG_GROUP = "https://t.me/+7Xj6CKZs9iVmMDhh";
@@ -171,7 +185,9 @@ export default function HomePage() {
             alt="BLINK"
             width={32}
             height={32}
+            sizes="32px"
             priority
+            fetchPriority="high"
             style={{
               objectFit: "contain",
               filter: "drop-shadow(0 0 8px rgba(0,255,136,0.7))",

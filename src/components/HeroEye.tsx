@@ -142,8 +142,10 @@ export default function HeroEye({
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/blink-logo.png"
+          src="/blink-logo.webp"
           alt="BLINK"
+          fetchPriority="high"
+          decoding="async"
           style={{
             width: "100%",
             height: "100%",

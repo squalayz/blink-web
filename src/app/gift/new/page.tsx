@@ -3,7 +3,7 @@
 // BLINK Spirit Gift — sender creation flow.
 // 3 steps: pick asset → mode/recipient/message → confirm.
 
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
@@ -21,6 +21,16 @@ interface OwnedNFT {
 }
 
 export default function GiftNewPage() {
+  // useSearchParams forces the inner client tree to bail out of prerender;
+  // a Suspense boundary lets Next.js still build the static shell.
+  return (
+    <Suspense fallback={null}>
+      <GiftNewInner />
+    </Suspense>
+  );
+}
+
+function GiftNewInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();

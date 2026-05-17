@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 
-export const dynamic = "force-dynamic";
 import Providers from "@/components/providers";
 import AppShell from "@/components/AppShell";
 
@@ -41,7 +40,7 @@ export const metadata: Metadata = {
       "Catch what others can't see. Mystical creatures spawn on a real-world map every minute.",
     images: ["/api/og"],
   },
-  icons: { icon: "/blink-logo.png" },
+  icons: { icon: "/blink-logo.webp" },
   manifest: "/manifest.json",
 };
 
@@ -62,7 +61,7 @@ export default function RootLayout({
         <link
           rel="preload"
           as="image"
-          href="/blink-logo.png"
+          href="/blink-logo.webp"
           fetchPriority="high"
         />
       </head>
