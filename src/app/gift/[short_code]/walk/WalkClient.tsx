@@ -41,6 +41,9 @@ interface PreviewState {
 interface SpawnState {
   spawn: { lat: number; lng: number };
   anchor: { lat: number; lng: number };
+  // Server-known avatar position. If present, the walker resumes here on
+  // (re)load instead of being snapped back to the anchor each time.
+  avatar?: { lat: number; lng: number };
 }
 
 type Step =
@@ -426,7 +429,11 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     let cancelled = false;
     const startedAt = performance.now();
 
-    const showSpawn = (rawSpawn: { lat: number; lng: number }, rawAnchor: { lat: number; lng: number }) => {
+    const showSpawn = (
+      rawSpawn: { lat: number; lng: number },
+      rawAnchor: { lat: number; lng: number },
+      rawAvatar?: { lat: number; lng: number },
+    ) => {
       let anchorLat = rawAnchor.lat;
       let anchorLng = rawAnchor.lng;
       // Safety: if for any reason the anchor and spawn are >1km apart
@@ -448,6 +455,7 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
       const spawn: SpawnState = {
         spawn: { lat: rawSpawn.lat, lng: rawSpawn.lng },
         anchor: { lat: anchorLat, lng: anchorLng },
+        ...(rawAvatar ? { avatar: rawAvatar } : {}),
       };
       const elapsed = performance.now() - startedAt;
       const wait = Math.max(0, OPENING_CINEMATIC_MS - elapsed);
@@ -488,12 +496,23 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
         if (cancelled) return;
         if (!res.ok) throw new Error(data.error || "Failed to open");
         // When the gift was already opened previously the server returns the
-        // existing avatar row (anchor). Use that instead of the current IP
-        // — the user's IP may have shifted since (different network / POP)
-        // and we want the avatar to land near the spawn it was placed beside.
+        // existing avatar row. Anchor is the place the gift was opened from;
+        // avatar.lat/lng is where the walker has moved to since (or equal to
+        // anchor on the first open). On reload we want to resume at the last
+        // avatar position, not snap back to the anchor.
         const anchorLat = data.avatar?.anchor_lat ?? data.avatar?.lat ?? lat;
         const anchorLng = data.avatar?.anchor_lng ?? data.avatar?.lng ?? lng;
-        showSpawn({ lat: data.spawn.lat, lng: data.spawn.lng }, { lat: anchorLat, lng: anchorLng });
+        const avatarLat = data.avatar?.lat;
+        const avatarLng = data.avatar?.lng;
+        const hasMovedAvatar =
+          typeof avatarLat === "number" &&
+          typeof avatarLng === "number" &&
+          (avatarLat !== anchorLat || avatarLng !== anchorLng);
+        showSpawn(
+          { lat: data.spawn.lat, lng: data.spawn.lng },
+          { lat: anchorLat, lng: anchorLng },
+          hasMovedAvatar ? { lat: avatarLat as number, lng: avatarLng as number } : undefined,
+        );
       } catch (err) {
         if (cancelled) return;
         setStep({ kind: "fatal", message: err instanceof Error ? err.message : "Failed" });
@@ -511,7 +530,11 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
     const m = mapRef.current;
     if (!m) return;
 
-    const { anchor, spawn } = step.spawn;
+    const { anchor, spawn, avatar } = step.spawn;
+    // Resume position prefers the server-known avatar when it has moved away
+    // from the anchor (i.e. a reload mid-walk). Otherwise the anchor is the
+    // first-open position, which is correct for the very first render.
+    const resumePos = avatar ?? anchor;
 
     if (!giftMarkerRef.current) {
       const el = document.createElement("div");
@@ -524,9 +547,9 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
       giftMarkerRef.current.setLngLat([spawn.lng, spawn.lat]);
     }
 
-    virtualPosRef.current = { lat: anchor.lat, lng: anchor.lng };
-    avatarPosRef.current = { lat: anchor.lat, lng: anchor.lng };
-    setAvatarPos({ lat: anchor.lat, lng: anchor.lng });
+    virtualPosRef.current = { lat: resumePos.lat, lng: resumePos.lng };
+    avatarPosRef.current = { lat: resumePos.lat, lng: resumePos.lng };
+    setAvatarPos({ lat: resumePos.lat, lng: resumePos.lng });
 
     if (!avatarMarkerRef.current) {
       const el = document.createElement("div");
@@ -541,13 +564,13 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
       el.appendChild(dot);
       el.appendChild(label);
       avatarMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "center" })
-        .setLngLat([anchor.lng, anchor.lat])
+        .setLngLat([resumePos.lng, resumePos.lat])
         .addTo(m);
     } else {
-      avatarMarkerRef.current.setLngLat([anchor.lng, anchor.lat]);
+      avatarMarkerRef.current.setLngLat([resumePos.lng, resumePos.lat]);
     }
 
-    lastBreadcrumbPosRef.current = { lat: anchor.lat, lng: anchor.lng };
+    lastBreadcrumbPosRef.current = { lat: resumePos.lat, lng: resumePos.lng };
     lastZoomTargetRef.current = 18;
     trendSampleRef.current = { t: 0, dist: 0 };
 
