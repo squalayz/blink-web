@@ -360,9 +360,33 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
         const data = await res.json();
         if (cancelled) return;
         if (!res.ok) throw new Error(data.error || "Failed to open");
+        // When the gift was already opened previously the server returns the
+        // existing avatar row (anchor). Use that instead of the current IP
+        // — the user's IP may have shifted since (different network / POP)
+        // and we want the avatar to land near the spawn it was placed beside.
+        let anchorLat = data.avatar?.anchor_lat ?? data.avatar?.lat ?? lat;
+        let anchorLng = data.avatar?.anchor_lng ?? data.avatar?.lng ?? lng;
+        // Safety: if for any reason the anchor and spawn are >1km apart
+        // (network reroute, stale data, edge POP shift), pull the anchor in
+        // to within 200m of the spawn so the walk is playable. Without this
+        // the joystick at 1.4 m/s would feel frozen on a 100km distance.
+        const driftM = haversineM(anchorLat, anchorLng, data.spawn.lat, data.spawn.lng);
+        if (driftM > 1000) {
+          // Move the anchor onto a circle ~200m from the spawn, keeping the
+          // original direction so the compass points the same way.
+          const radius = 200;
+          const dLat = anchorLat - data.spawn.lat;
+          const dLng = anchorLng - data.spawn.lng;
+          const norm = Math.sqrt(dLat * dLat + dLng * dLng) || 1;
+          const cosLat = Math.cos((data.spawn.lat * Math.PI) / 180);
+          const dLatM = (radius / 111000) * (dLat / norm);
+          const dLngM = (radius / (111000 * (Math.abs(cosLat) < 1e-6 ? 1e-6 : cosLat))) * (dLng / norm);
+          anchorLat = data.spawn.lat + dLatM;
+          anchorLng = data.spawn.lng + dLngM;
+        }
         const spawn: SpawnState = {
           spawn: { lat: data.spawn.lat, lng: data.spawn.lng },
-          anchor: { lat, lng },
+          anchor: { lat: anchorLat, lng: anchorLng },
         };
         const elapsed = performance.now() - startedAt;
         const wait = Math.max(0, OPENING_CINEMATIC_MS - elapsed);
