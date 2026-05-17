@@ -82,23 +82,24 @@ export async function POST(req: NextRequest, { params }: { params: { short_code:
     return NextResponse.json({ error: "Already caught" }, { status: 410 });
   }
 
-  if (!viaToggle) {
-    // Server-side avatar truth check (real-GPS path only).
-    const { data: avatar } = await supabaseAdmin
-      .from("gift_avatars")
-      .select("avatar_lat, avatar_lng")
-      .eq("gift_id", gift.id)
-      .maybeSingle();
-    const avLat = avatar?.avatar_lat ?? body.avatar_lat;
-    const avLng = avatar?.avatar_lng ?? body.avatar_lng;
+  // Server-side proximity check runs for EVERY catch, including walk-mode
+  // (via_toggle) catches. The body coords are mandatory and validated above,
+  // and we still prefer the stored avatar position when present since it is
+  // authoritative for both walk and GPS paths.
+  const { data: avatar } = await supabaseAdmin
+    .from("gift_avatars")
+    .select("avatar_lat, avatar_lng")
+    .eq("gift_id", gift.id)
+    .maybeSingle();
+  const avLat = avatar?.avatar_lat ?? body.avatar_lat;
+  const avLng = avatar?.avatar_lng ?? body.avatar_lng;
 
-    const dist = haversineM(avLat, avLng, spawn.true_lat, spawn.true_lng);
-    if (dist > CATCH_RADIUS_M) {
-      return NextResponse.json(
-        { error: "Too far from creature", distance_m: Math.round(dist), needed_m: CATCH_RADIUS_M },
-        { status: 400 }
-      );
-    }
+  const dist = haversineM(avLat, avLng, spawn.true_lat, spawn.true_lng);
+  if (dist > CATCH_RADIUS_M) {
+    return NextResponse.json(
+      { error: "Move closer to the spirit", distance_m: Math.round(dist), needed_m: CATCH_RADIUS_M },
+      { status: 400 }
+    );
   }
 
   // Atomic claim of the creature itself first — guards against double-catch.
