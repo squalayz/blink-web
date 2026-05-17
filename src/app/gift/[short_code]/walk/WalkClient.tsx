@@ -523,13 +523,24 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
   const onJoystickDown = useCallback(
     (e: React.PointerEvent) => {
       if (activePointerIdRef.current !== null) return;
+      // stop the map from grabbing the gesture
       e.preventDefault();
+      e.stopPropagation();
       const el = joystickRef.current;
       if (!el) return;
       try { el.setPointerCapture(e.pointerId); } catch { /* no-op */ }
       activePointerIdRef.current = e.pointerId;
       updateKnob(e.clientX, e.clientY);
       haptic(HAPTIC.TAP);
+      // Disable Mapbox drag/zoom so the map doesn't fight the joystick gesture
+      // (especially on iOS Safari where two touch handlers can race).
+      const m = mapRef.current;
+      if (m) {
+        m.dragPan.disable();
+        m.touchZoomRotate.disable();
+        m.scrollZoom.disable();
+        m.doubleClickZoom.disable();
+      }
     },
     [updateKnob],
   );
@@ -549,6 +560,14 @@ export default function WalkClient({ initialCenter }: { initialCenter: { lat: nu
       const el = joystickRef.current;
       try { el?.releasePointerCapture(e.pointerId); } catch { /* no-op */ }
       releaseKnob();
+      // Re-enable Mapbox handlers so the user can pan/zoom the map manually again.
+      const m = mapRef.current;
+      if (m) {
+        m.dragPan.enable();
+        m.touchZoomRotate.enable();
+        m.scrollZoom.enable();
+        m.doubleClickZoom.enable();
+      }
     },
     [releaseKnob],
   );
@@ -1179,7 +1198,10 @@ const recenterBtnStyle: React.CSSProperties = {
 const joystickOuterStyle: React.CSSProperties = {
   position: "absolute",
   left: 28,
-  bottom: 64,
+  // Lift well above iOS Safari's bottom toolbar (chrome + nav). Without the env()
+  // safe-area inset the joystick sits behind the browser UI and taps never
+  // reach the page.
+  bottom: "calc(env(safe-area-inset-bottom, 16px) + 120px)",
   width: JOYSTICK_OUTER_R * 2,
   height: JOYSTICK_OUTER_R * 2,
   borderRadius: JOYSTICK_OUTER_R,
