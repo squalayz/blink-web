@@ -81,7 +81,7 @@ export default function HomePage() {
   const handleEnter = () => {
     if (loading) return;
     if (user) {
-      router.push("/watch");
+      router.push("/map");
     } else {
       setAuthMode("signup");
       setAuthOpen(true);
@@ -99,7 +99,7 @@ export default function HomePage() {
       .then(({ data }) => {
         if (data?.username) {
           setRedirecting(true);
-          router.push("/watch");
+          router.push("/map");
         }
       });
   }, [user, loading, router]);
@@ -336,76 +336,77 @@ export default function HomePage() {
         <MythicsSection />
       </RevealOnScroll>
 
-      {/* ─── THE COUNCIL ─── */}
+      {/* ─── TELEGRAM ─── */}
       <RevealOnScroll>
-      <section style={{ padding: "96px 24px", maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <span
+        <style>{`
+          @keyframes blinkTgPulse {
+            0%, 100% {
+              box-shadow:
+                0 0 32px rgba(0,255,136,0.45),
+                0 0 80px rgba(0,255,136,0.25),
+                inset 0 0 24px rgba(0,255,136,0.10);
+              border-color: rgba(0,255,136,0.55);
+            }
+            50% {
+              box-shadow:
+                0 0 64px rgba(0,255,136,0.80),
+                0 0 140px rgba(0,255,136,0.45),
+                inset 0 0 36px rgba(0,255,136,0.20);
+              border-color: rgba(0,255,136,0.95);
+            }
+          }
+          @keyframes blinkTgScan {
+            0% { transform: translateX(-120%); }
+            100% { transform: translateX(220%); }
+          }
+          .blink-tg-card { animation: blinkTgPulse 3.4s ease-in-out infinite; }
+          .blink-tg-card:hover { transform: translateY(-2px); transition: transform .25s ease; }
+          .blink-tg-scan {
+            position: absolute; inset: 0;
+            background: linear-gradient(115deg, transparent 0%, rgba(0,255,136,0.18) 45%, rgba(255,255,255,0.22) 50%, rgba(0,255,136,0.18) 55%, transparent 100%);
+            mix-blend-mode: screen; pointer-events: none;
+            animation: blinkTgScan 4.2s linear infinite;
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .blink-tg-card { animation: none; }
+            .blink-tg-scan { display: none; }
+          }
+        `}</style>
+        <section style={{ padding: "96px 24px", maxWidth: 1100, margin: "0 auto", textAlign: "center" }}>
+          <a
+            href={TG_GROUP}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="blink-tg-card"
             style={{
-              fontSize: 12,
-              letterSpacing: "0.4em",
-              color: BLINK.green,
-              textTransform: "uppercase",
-              fontWeight: 700,
-            }}
-          >
-            The Council
-          </span>
-          <h2
-            style={{
+              position: "relative",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 18,
+              padding: "22px 40px",
+              borderRadius: 999,
+              background: "linear-gradient(135deg, rgba(0,255,136,0.08), rgba(136,255,0,0.04))",
+              border: `2px solid ${BLINK.green}`,
+              color: BLINK.white,
+              fontSize: "clamp(20px, 3.2vw, 32px)",
               fontFamily: "Space Grotesk, Inter, sans-serif",
-              fontSize: "clamp(36px, 6vw, 56px)",
               fontWeight: 900,
-              letterSpacing: "-0.03em",
-              margin: "12px 0 8px",
-            }}
-          >
-            Watchers who see more, earn more.
-          </h2>
-          <p style={{ color: BLINK.muted, fontSize: 15 }}>
-            $BLINK rewards coming. Reputation already counts.
-          </p>
-        </div>
-
-        <div
-          style={{
-            background: BLINK.surface2,
-            border: `1px solid ${BLINK.border}`,
-            borderRadius: 20,
-            padding: "32px 24px",
-            maxWidth: 720,
-            margin: "0 auto",
-            textAlign: "center",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 14,
-              color: BLINK.muted,
-              lineHeight: 1.6,
-              maxWidth: 480,
-              margin: "0 auto 20px",
-            }}
-          >
-            The Council awakens at launch. The first Watchers earn their seat by
-            catching the rarest creatures and laying the longest trails.
-          </div>
-          <Link
-            href="/council"
-            style={{
-              color: BLINK.green,
-              fontSize: 13,
-              fontWeight: 700,
-              textDecoration: "none",
-              letterSpacing: "0.12em",
+              letterSpacing: "0.04em",
               textTransform: "uppercase",
+              textDecoration: "none",
+              overflow: "hidden",
+              isolation: "isolate",
             }}
           >
-            See The Council →
-          </Link>
-        </div>
-      </section>
-
+            {/* Telegram paper-plane SVG */}
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+              <path d="M21.5 3.5 2.5 10.8c-.9.3-.9 1.6 0 1.9l4.7 1.6 2 6.2c.2.7 1.1.9 1.6.3l2.5-2.6 4.6 3.4c.6.5 1.6.2 1.8-.6L22.5 4.7c.2-.8-.6-1.5-1-1.2Z" fill={BLINK.green} stroke={BLINK.green} strokeWidth="0.5" strokeLinejoin="round"/>
+              <path d="m10.5 16.3 8.3-9.5-10.3 7" stroke="#0a0a0f" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+            </svg>
+            <span>Telegram</span>
+            <span className="blink-tg-scan" />
+          </a>
+        </section>
       </RevealOnScroll>
 
       {/* ─── THE EYE SPEAKS ─── */}
@@ -672,7 +673,7 @@ export default function HomePage() {
         open={authOpen}
         initialMode={authMode}
         onClose={() => setAuthOpen(false)}
-        onSuccess={() => router.push("/watch")}
+        onSuccess={() => router.push("/map")}
       />
     </main>
   );
