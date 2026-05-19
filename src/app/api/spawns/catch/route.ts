@@ -28,11 +28,16 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { decryptAES } from "@/lib/production";
 import {
   buildMetadata,
+  buildMetadataFromCreatureId,
   ipfsToGatewayUrl,
   TIER_BLINK_REWARD,
   BURN_TIER_LABELS,
   type BurnTier,
 } from "@/lib/spawn-pool";
+import {
+  CREATURE_REGISTRY,
+  legacyResolveCreature,
+} from "@/lib/creature-registry";
 import { haversineMeters } from "@/lib/wild-spawns";
 
 export const runtime = "nodejs";
@@ -42,7 +47,10 @@ const RPC_URL = (
   process.env.ETH_RPC_URL || "https://ethereum-rpc.publicnode.com"
 ).trim();
 
-const BLINK_TOKEN_CONTRACT = "0xe7BF94959b0bfa8CB9e61149de5BFb387B40761B";
+const BLINK_TOKEN_CONTRACT = (
+  process.env.NEXT_PUBLIC_BLINK_TOKEN_CONTRACT ||
+  "0xe7BF94959b0bfa8CB9e61149de5BFb387B40761B"
+).trim();
 const MYTHICS_NFT_CONTRACT = (
   process.env.NEXT_PUBLIC_BLINK_MYTHICS_CONTRACT ||
   "0x4C3B668A628b47b7CC790FFf14BF4Aaff276E592"
@@ -76,11 +84,13 @@ interface CatchBody {
 interface SpawnRow {
   id: string;
   s2_cell_id: string;
+  spawn_index: number;
   lat: number;
   lng: number;
   tier: BurnTier;
   name: string;
   image_cid: string;
+  creature_id: number | null;
   expires_at: string;
   caught_by: string | null;
 }
@@ -122,7 +132,7 @@ export async function POST(req: NextRequest) {
     // reject 'too far' without burning the row.
     const { data: preview, error: previewErr } = await supabaseAdmin
       .from("wild_spawns")
-      .select("id, s2_cell_id, lat, lng, tier, name, image_cid, expires_at, caught_by")
+      .select("id, s2_cell_id, lat, lng, tier, name, image_cid, creature_id, expires_at, caught_by")
       .eq("id", spawnId)
       .maybeSingle();
     if (previewErr) {
@@ -170,7 +180,8 @@ export async function POST(req: NextRequest) {
       );
     }
     const freeRemaining = Number(profile.free_catches_remaining ?? 0);
-    const isFreeCatch = freeRemaining > 0;
+    // Special drops (sentinel spawn_index = -1) are always free catches — no ETH fee.
+    let isFreeCatch = freeRemaining > 0;
 
     // 3. Atomic claim — only one catcher wins.
     const { data: claimed, error: claimErr } = await supabaseAdmin
@@ -179,7 +190,7 @@ export async function POST(req: NextRequest) {
       .eq("id", spawnId)
       .is("caught_by", null)
       .gt("expires_at", new Date().toISOString())
-      .select("id, s2_cell_id, lat, lng, tier, name, image_cid, expires_at")
+      .select("id, s2_cell_id, spawn_index, lat, lng, tier, name, image_cid, creature_id, expires_at")
       .maybeSingle();
     if (claimErr) {
       return NextResponse.json(
@@ -197,6 +208,10 @@ export async function POST(req: NextRequest) {
     const claimedRow = claimed as SpawnRow;
     const tier: BurnTier = claimedRow.tier;
     const blinkRewardTokens = TIER_BLINK_REWARD[tier];
+    // Special drops (sentinel spawn_index = -1) waive the catch fee.
+    if (claimedRow.spawn_index === -1) {
+      isFreeCatch = true;
+    }
 
     // Helper to roll back the claim if any later step fails.
     const rollbackClaim = async () => {
@@ -319,14 +334,45 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 5. Build metadata + ownerMint.
-    const metadata = buildMetadata({
-      tier,
-      name: claimedRow.name,
-      imageCid: claimedRow.image_cid,
-      catchOrigin: "wild",
-      cellId: claimedRow.s2_cell_id,
-    });
+    // 5. IDENTITY CALIBRATION — build metadata from creature_id whenever
+    // possible so the minted NFT matches what the user saw in AR. Falls back
+    // to name-based resolution only for legacy rows that pre-date the
+    // registry, and logs a warning so we can backfill those.
+    let identityCreatureId: number | null = claimedRow.creature_id;
+    let identityName = claimedRow.name;
+    let identityImageCid = claimedRow.image_cid;
+    if (identityCreatureId == null) {
+      const legacy = legacyResolveCreature(claimedRow.name, claimedRow.image_cid);
+      if (legacy) {
+        identityCreatureId = legacy.id;
+        console.warn(
+          `[catch] Legacy spawn ${spawnId} resolved by name → creature_id=${legacy.id}`,
+        );
+      } else {
+        console.warn(
+          `[catch] Legacy spawn ${spawnId} could not be resolved to a creature_id — minting from raw row`,
+        );
+      }
+    }
+
+    let metadata: Record<string, unknown>;
+    if (identityCreatureId != null) {
+      const entry = CREATURE_REGISTRY[identityCreatureId];
+      identityName = entry.name;
+      identityImageCid = entry.visual.card;
+      metadata = buildMetadataFromCreatureId(identityCreatureId, {
+        catchOrigin: "wild",
+        cellId: claimedRow.s2_cell_id,
+      });
+    } else {
+      metadata = buildMetadata({
+        tier,
+        name: claimedRow.name,
+        imageCid: claimedRow.image_cid,
+        catchOrigin: "wild",
+        cellId: claimedRow.s2_cell_id,
+      });
+    }
     const tokenURI =
       "data:application/json;base64," +
       Buffer.from(JSON.stringify(metadata), "utf8").toString("base64");
@@ -424,8 +470,53 @@ export async function POST(req: NextRequest) {
       })
       .eq("id", spawnId);
 
+    // 7b. If this spawn was anchored to a Genesis Drop, mark the drop claimed.
+    // Conditional update on caught_by IS NULL preserves the first-catcher.
+    try {
+      await supabaseAdmin
+        .from("genesis_drops")
+        .update({ caught_by: user!.id, caught_at: new Date().toISOString() })
+        .eq("spawn_id", spawnId)
+        .is("caught_by", null);
+    } catch (err) {
+      console.error("genesis_drops claim sync failed", err);
+    }
+
+    // 7a. Log activity rows so the catch shows up in the wallet feed.
+    // Non-fatal — if the insert fails we still return success below.
+    try {
+      const rows: Array<Record<string, unknown>> = [
+        {
+          user_id: user!.id,
+          type: "catch",
+          title: `Caught ${identityName}`,
+          subtitle: BURN_TIER_LABELS[tier],
+          amount_text: mintedTokenId ? `#${mintedTokenId}` : null,
+          tx_hash: mintTxHash,
+          created_at: new Date().toISOString(),
+        },
+      ];
+      if (blinkRewardTxHash && blinkRewardTokens > 0) {
+        rows.push({
+          user_id: user!.id,
+          type: "reward",
+          title: `+${blinkRewardTokens} BLINK`,
+          subtitle: `Catch reward · ${identityName}`,
+          amount_text: `+${blinkRewardTokens} BLINK`,
+          tx_hash: blinkRewardTxHash,
+          created_at: new Date().toISOString(),
+        });
+      }
+      await supabaseAdmin.from("activity").insert(rows);
+    } catch (logErr) {
+      console.error("catch activity log failed", logErr);
+    }
+
     // 8. Decrement free-catch counter if this was free.
-    if (isFreeCatch) {
+    // Skip the decrement for special drops (sentinel spawn_index = -1) — they're always free.
+    const didDecrementFreeCatch =
+      isFreeCatch && claimedRow.spawn_index !== -1 && freeRemaining > 0;
+    if (didDecrementFreeCatch) {
       await supabaseAdmin
         .from("profiles")
         .update({ free_catches_remaining: Math.max(0, freeRemaining - 1) })
@@ -440,8 +531,9 @@ export async function POST(req: NextRequest) {
       spawnId,
       tier,
       tierLabel: BURN_TIER_LABELS[tier],
-      name: claimedRow.name,
-      image_url: ipfsToGatewayUrl(claimedRow.image_cid),
+      creatureId: identityCreatureId,
+      name: identityName,
+      image_url: ipfsToGatewayUrl(identityImageCid),
       tokenId: mintedTokenId,
       mintTxHash,
       feeToDeployerTxHash,
@@ -449,7 +541,9 @@ export async function POST(req: NextRequest) {
       blinkRewardTxHash,
       blinkRewarded: blinkRewardTokens,
       wasFreeCatch: isFreeCatch,
-      freeCatchesRemaining: isFreeCatch ? Math.max(0, freeRemaining - 1) : freeRemaining,
+      freeCatchesRemaining: didDecrementFreeCatch
+        ? Math.max(0, freeRemaining - 1)
+        : freeRemaining,
       openseaUrl,
     });
   } catch (err: unknown) {

@@ -18,6 +18,7 @@ import {
   upsertSpawnsForCells,
 } from "@/lib/wild-spawns";
 import { ipfsToGatewayUrl, TIER_COLOR } from "@/lib/spawn-pool";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +52,24 @@ export async function GET(req: NextRequest) {
 
     const rows = await listActiveSpawnsForCells(cells);
 
+    // Look up which (if any) of these spawns are Genesis Drops so the client
+    // can render them with the special pulsing gold ring.
+    let genesisSet = new Set<string>();
+    const specialIds = rows
+      .filter((r) => r.spawn_index === -1)
+      .map((r) => r.id);
+    if (specialIds.length > 0) {
+      const { data: gens } = await supabaseAdmin
+        .from("genesis_drops")
+        .select("spawn_id")
+        .in("spawn_id", specialIds);
+      genesisSet = new Set(
+        (gens ?? [])
+          .map((g) => g.spawn_id as string | null)
+          .filter((v): v is string => !!v),
+      );
+    }
+
     const spawns = rows.map((row) => ({
       id: row.id,
       lat: row.lat,
@@ -60,7 +79,9 @@ export async function GET(req: NextRequest) {
       name: row.name,
       image_cid: row.image_cid,
       image_url: ipfsToGatewayUrl(row.image_cid),
+      creature_id: row.creature_id,
       expires_at: row.expires_at,
+      is_genesis: genesisSet.has(row.id),
     }));
 
     return NextResponse.json({ spawns, epoch_bucket: bucket });

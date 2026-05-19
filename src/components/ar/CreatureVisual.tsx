@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CatchableSpawn } from "@/components/HuntMap";
-import { resolveCreatureArt } from "@/lib/bestiary-art";
+import { resolveByCreatureId } from "@/lib/bestiary-art";
 
 // Visual states the AR finite-state machine drives the creature through.
 // Kept aligned with ARCatchFsmState in ARCameraOverlay.tsx — the surface
@@ -85,7 +85,13 @@ export default function CreatureVisual({
   proximity,
 }: CreatureVisualProps) {
   useCreatureCss();
-  const art = resolveCreatureArt(spawn.name, spawn.tier, spawn.id);
+  // IDENTITY: resolve animated asset from the registry by creature_id so the
+  // AR camera shows the same creature that the catch route will mint.
+  const art = resolveByCreatureId(spawn.creature_id, {
+    name: spawn.name,
+    tier: spawn.tier,
+    imageCid: spawn.image_url,
+  });
   const floatingSrc = art.floating || spawn.image_url || "";
   const [blink, setBlink] = useState(false);
 

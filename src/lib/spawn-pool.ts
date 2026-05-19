@@ -68,56 +68,40 @@ export function isBurnTier(v: unknown): v is BurnTier {
   );
 }
 
-// Pre-generated test-batch CIDs. For v1 each tier shares a base pool of CIDs;
-// the tier badge + reward is what differentiates them. Real per-tier art comes
-// in v2.
-const BASE_IMAGE_CIDS: string[] = [
-  "ipfs://QmczHa15NP5McLJHn55jagT2MC4Lqg99uAnqR4UXydG6pi",
-];
-
-const TIER_IMAGE_CIDS: Record<BurnTier, string[]> = {
-  common: BASE_IMAGE_CIDS,
-  uncommon: BASE_IMAGE_CIDS,
-  rare: BASE_IMAGE_CIDS,
-  legendary: BASE_IMAGE_CIDS,
-  mythic: BASE_IMAGE_CIDS,
-};
-
-const TIER_NAME_POOL: Record<BurnTier, string[]> = {
-  common: ["Sparkling", "Mossy", "Pebble", "Drift", "Speck"],
-  uncommon: ["Glimmer", "Ember", "Whisper", "Cinder", "Husk"],
-  rare: ["Stormwing", "Voltkit", "Hexpaw", "Tideborn", "Sunshard"],
-  legendary: ["Aetherclaw", "Sablefang", "Pyrelord", "Cryolith", "Halofox"],
-  mythic: ["Voidsire", "Worldspark", "Oracle Prime", "Solrune", "Lastlight"],
-};
+// Spawn pool delegates to CREATURE_REGISTRY so identity (creature_id, name,
+// art, NFT metadata) flows through a single source of truth.
+import {
+  CREATURE_REGISTRY,
+  creatureIdsForTier,
+  pickCreatureIdDeterministic,
+} from "./creature-registry";
 
 export interface SpawnPoolPick {
+  creatureId: number;
   imageCid: string;
   name: string;
 }
 
 export function pickFromPool(tier: BurnTier): SpawnPoolPick {
-  const images = TIER_IMAGE_CIDS[tier];
-  const names = TIER_NAME_POOL[tier];
-  const now = Date.now();
-  const imageCid = images[now % images.length];
-  const name = names[now % names.length];
-  return { imageCid, name };
+  const ids = creatureIdsForTier(tier);
+  if (ids.length === 0) {
+    throw new Error(`No creatures registered for tier ${tier}`);
+  }
+  const id = ids[Date.now() % ids.length];
+  const entry = CREATURE_REGISTRY[id];
+  return { creatureId: id, imageCid: entry.visual.card, name: entry.name };
 }
 
-// Deterministic pick used by the wild-spawns generator. Same (tier, seed)
-// always returns the same (imageCid, name).
+/** Deterministic pick — same (tier, seed) always returns the same creature. */
 export function pickFromPoolDeterministic(tier: BurnTier, seed: number): SpawnPoolPick {
-  const images = TIER_IMAGE_CIDS[tier];
-  const names = TIER_NAME_POOL[tier];
-  const s = Math.abs(seed | 0);
-  return {
-    imageCid: images[s % images.length],
-    name: names[s % names.length],
-  };
+  const id = pickCreatureIdDeterministic(tier, seed);
+  const entry = CREATURE_REGISTRY[id];
+  return { creatureId: id, imageCid: entry.visual.card, name: entry.name };
 }
 
-// Resolve ipfs:// → public gateway URL for client consumption.
+// Resolve a stored imageCid to a URL the client can load. The wild-spawns DB
+// holds legacy IPFS CIDs alongside the new bestiary asset paths; route both
+// shapes through here.
 export function ipfsToGatewayUrl(ipfsUri: string): string {
   if (!ipfsUri) return "";
   if (ipfsUri.startsWith("ipfs://")) {
@@ -130,6 +114,7 @@ export function buildMetadata(opts: {
   tier: BurnTier;
   name: string;
   imageCid: string;
+  creatureId?: number;
   burnTxHash?: string;
   catchOrigin?: "wild" | "burn-mint";
   cellId?: string;
@@ -138,6 +123,9 @@ export function buildMetadata(opts: {
     { trait_type: "Tier", value: BURN_TIER_LABELS[opts.tier] },
     { trait_type: "Origin", value: opts.catchOrigin === "wild" ? "Wild Catch" : "Burn-Mint" },
   ];
+  if (opts.creatureId != null) {
+    attributes.push({ trait_type: "Creature ID", value: opts.creatureId });
+  }
   if (opts.burnTxHash) attributes.push({ trait_type: "Burn Tx", value: opts.burnTxHash });
   if (opts.cellId) attributes.push({ trait_type: "Spawn Cell", value: opts.cellId });
 
@@ -147,4 +135,36 @@ export function buildMetadata(opts: {
     image: opts.imageCid,
     attributes,
   };
+}
+
+/**
+ * Deterministic metadata-from-creature-id helper. The catch route MUST
+ * resolve metadata through this when the spawn carries a creature_id, so the
+ * NFT minted matches what was shown in AR.
+ */
+export function buildMetadataFromCreatureId(
+  creatureId: number,
+  opts: {
+    burnTxHash?: string;
+    catchOrigin?: "wild" | "burn-mint";
+    cellId?: string;
+  } = {},
+): Record<string, unknown> {
+  const entry = CREATURE_REGISTRY[creatureId];
+  if (!entry) {
+    throw new Error(`Unknown creature_id=${creatureId} — refusing to mint`);
+  }
+  const tier = entry.tier;
+  const imageCid = entry.nft.image_cid
+    ? `ipfs://${entry.nft.image_cid}`
+    : entry.visual.card;
+  return buildMetadata({
+    tier,
+    name: entry.name,
+    imageCid,
+    creatureId,
+    burnTxHash: opts.burnTxHash,
+    catchOrigin: opts.catchOrigin,
+    cellId: opts.cellId,
+  });
 }

@@ -4,19 +4,20 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "tsx scripts/validate-creature-registry.ts",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "validate:registry": "tsx scripts/validate-creature-registry.ts",
+    "test:catch-identity": "tsx scripts/test-catch-identity.ts"
   },
   "dependencies": {
     "@next-auth/supabase-adapter": "^0.2.1",
-    "@rainbow-me/rainbowkit": "^2.1.0",
     "@react-three/drei": "^9.109.0",
     "@react-three/fiber": "^8.17.0",
     "@solana/web3.js": "^1.98.4",
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2.45.0",
-    "@tanstack/react-query": "^5.51.0",
     "@types/leaflet": "^1.9.21",
     "@types/mapbox-gl": "^3.4.1",
     "@vercel/analytics": "^1.6.1",
@@ -27,7 +28,6 @@
     "ethers": "^6.13.0",
     "framer-motion": "^11.5.0",
     "grammy": "^1.21.0",
-    "jose": "^5.6.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.400.0",
     "mapbox-gl": "^3.21.0",
@@ -35,12 +35,10 @@
     "next-auth": "^4.24.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "siwe": "^2.3.2",
     "sonner": "^1.5.0",
     "three": "^0.164.0",
     "tiny-secp256k1": "^2.2.4",
     "viem": "^2.19.0",
-    "wagmi": "^2.12.0",
     "zustand": "^4.5.0"
   },
   "devDependencies": {
@@ -53,6 +51,7 @@
     "eslint-config-next": "^14.2.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
+    "tsx": "^4.22.3",
     "typescript": "^5.5.0"
   }
 }

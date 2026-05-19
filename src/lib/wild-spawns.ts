@@ -14,9 +14,12 @@
 import "server-only";
 import {
   TIER_DISTRIBUTION,
-  pickFromPoolDeterministic,
   type BurnTier,
 } from "@/lib/spawn-pool";
+import {
+  CREATURE_REGISTRY,
+  pickCreatureIdDeterministic,
+} from "@/lib/creature-registry";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const EPOCH_SECONDS = 300; // 5 min
@@ -35,6 +38,7 @@ export interface WildSpawnRow {
   tier: BurnTier;
   name: string;
   image_cid: string;
+  creature_id: number | null;
   spawned_at: string;
   expires_at: string;
   caught_by: string | null;
@@ -118,6 +122,7 @@ export interface GeneratedSpawn {
   tier: BurnTier;
   name: string;
   image_cid: string;
+  creature_id: number;
   spawned_at: string;
   expires_at: string;
 }
@@ -259,7 +264,8 @@ export function generateCellSpawns(cellId: string, bucket: number): GeneratedSpa
     const seed = hash32(`${cellId}|${bucket}|${idx}`);
     const rng = mulberry32(seed);
     const tier = pickTierFromRng(rng);
-    const pick = pickFromPoolDeterministic(tier, seed);
+    const creatureId = pickCreatureIdDeterministic(tier, seed);
+    const entry = CREATURE_REGISTRY[creatureId];
     out.push({
       s2_cell_id: cellId,
       epoch_bucket: bucket,
@@ -267,8 +273,9 @@ export function generateCellSpawns(cellId: string, bucket: number): GeneratedSpa
       lat: positions[idx].lat,
       lng: positions[idx].lng,
       tier,
-      name: pick.name,
-      image_cid: pick.imageCid,
+      name: entry.name,
+      image_cid: entry.visual.card,
+      creature_id: creatureId,
       spawned_at: spawnedAt,
       expires_at: expiresAt,
     });
@@ -304,7 +311,7 @@ export async function listActiveSpawnsForCells(
   const { data, error } = await supabaseAdmin
     .from("wild_spawns")
     .select(
-      "id, s2_cell_id, epoch_bucket, spawn_index, lat, lng, tier, name, image_cid, spawned_at, expires_at, caught_by, caught_at, mint_tx_hash, nft_token_id, blink_reward_tx_hash",
+      "id, s2_cell_id, epoch_bucket, spawn_index, lat, lng, tier, name, image_cid, creature_id, spawned_at, expires_at, caught_by, caught_at, mint_tx_hash, nft_token_id, blink_reward_tx_hash",
     )
     .in("s2_cell_id", cellIds)
     .is("caught_by", null)

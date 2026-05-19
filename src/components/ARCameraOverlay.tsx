@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { CatchableSpawn } from "@/components/HuntMap";
-import { resolveCreatureArt } from "@/lib/bestiary-art";
+import { resolveByCreatureId } from "@/lib/bestiary-art";
 import { sounds } from "@/lib/sounds";
 import CreatureVisual, {
   type CreatureVisualState,
@@ -364,7 +364,14 @@ export default function ARCameraOverlay({
   }, []);
 
   // ── Derive child props from FSM ────────────────────────────────────────
-  const art = spawn ? resolveCreatureArt(spawn.name, spawn.tier, spawn.id) : null;
+  // IDENTITY: anchor accent + art on creature_id, not on a name fallback.
+  const art = spawn
+    ? resolveByCreatureId(spawn.creature_id, {
+        name: spawn.name,
+        tier: spawn.tier,
+        imageCid: spawn.image_url,
+      })
+    : null;
   const accent = spawn?.tier_color || art?.color || "#00FF88";
 
   // Map FSM → CreatureVisual state.

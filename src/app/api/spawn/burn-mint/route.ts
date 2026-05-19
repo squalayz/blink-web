@@ -22,11 +22,12 @@ import { decryptAES } from "@/lib/production";
 import {
   BURN_TIER_COSTS,
   BURN_TIER_LABELS,
-  buildMetadata,
+  buildMetadataFromCreatureId,
   isBurnTier,
   pickFromPool,
   type BurnTier,
 } from "@/lib/spawn-pool";
+import { CREATURE_REGISTRY } from "@/lib/creature-registry";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +36,10 @@ const RPC_URL = (
   process.env.ETH_RPC_URL || "https://ethereum-rpc.publicnode.com"
 ).trim();
 
-const BLINK_TOKEN_CONTRACT = "0xe7BF94959b0bfa8CB9e61149de5BFb387B40761B";
+const BLINK_TOKEN_CONTRACT = (
+  process.env.NEXT_PUBLIC_BLINK_TOKEN_CONTRACT ||
+  "0xe7BF94959b0bfa8CB9e61149de5BFb387B40761B"
+).trim();
 const MYTHICS_NFT_CONTRACT = (
   process.env.NEXT_PUBLIC_BLINK_MYTHICS_CONTRACT ||
   "0x4C3B668A628b47b7CC790FFf14BF4Aaff276E592"
@@ -185,13 +189,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Pick image + build metadata
+    // 2. IDENTITY: pick a creature_id at burn-time and derive ALL metadata
+    // from the registry. Same key drives the orb row, the NFT image, and the
+    // AR visual when the resulting orb is later cracked. No re-pick later.
     const pick = pickFromPool(burnTier);
-    const metadata = buildMetadata({
-      tier: burnTier,
-      name: pick.name,
-      imageCid: pick.imageCid,
+    const creatureId = pick.creatureId;
+    const creatureEntry = CREATURE_REGISTRY[creatureId];
+    const metadata = buildMetadataFromCreatureId(creatureId, {
       burnTxHash,
+      catchOrigin: "burn-mint",
     });
 
     // For v1 we use a `data:` URI so the metadata is fully on-chain (no IPFS
@@ -266,7 +272,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Insert orb row
+    // 4. Insert orb row — stamp creature_id so the AR camera renders the
+    // matching creature when this orb is cracked.
     const droppedAt = new Date().toISOString();
     const assetPayload = {
       contract: MYTHICS_NFT_CONTRACT,
@@ -276,8 +283,9 @@ export async function POST(req: NextRequest) {
       burnTier,
       burnTxHash,
       mintTxHash,
-      image: pick.imageCid,
-      name: pick.name,
+      image: creatureEntry.visual.card,
+      name: creatureEntry.name,
+      creatureId,
     };
 
     const insertPayload: Record<string, unknown> = {
@@ -287,7 +295,7 @@ export async function POST(req: NextRequest) {
       amount: 0,
       amount_usd: 0,
       claim_fee_usd: 0,
-      message: cleanMessage || `[NFT] ${pick.name}`,
+      message: cleanMessage || `[NFT] ${creatureEntry.name}`,
       lat,
       lng,
       dropper_id: user!.id,
@@ -296,12 +304,13 @@ export async function POST(req: NextRequest) {
       status: "pending",
       expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       radius_meters: 100,
-      media_url: pick.imageCid,
+      media_url: creatureEntry.visual.card,
       media_type: "image",
       nft_mint_status: "minted",
       nft_reward: true,
       asset_type: "nft",
       asset_payload: assetPayload,
+      creature_id: creatureId,
     };
 
     const { data: insertedOrb, error: insertError } = await supabaseAdmin
@@ -331,7 +340,7 @@ export async function POST(req: NextRequest) {
         user_id: user!.id,
         type: "burn-mint",
         title: `Summoned ${BURN_TIER_LABELS[burnTier]} Creature`,
-        subtitle: `Burned ${cost.toLocaleString()} BLINK to mint ${pick.name}`,
+        subtitle: `Burned ${cost.toLocaleString()} BLINK to mint ${creatureEntry.name}`,
         amount_text: `${cost.toLocaleString()} BLINK`,
         orb_id: insertedOrb.id,
         amount: cost,
@@ -346,9 +355,10 @@ export async function POST(req: NextRequest) {
       tokenId: mintedTokenId,
       burnTxHash,
       mintTxHash,
-      image: pick.imageCid,
-      name: pick.name,
+      image: creatureEntry.visual.card,
+      name: creatureEntry.name,
       tier: burnTier,
+      creatureId,
     });
   } catch (err: unknown) {
     console.error("burn-mint unhandled", err);

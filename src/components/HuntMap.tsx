@@ -6,6 +6,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Orb, rarityColor } from '@/lib/theme';
 import { sounds } from '@/lib/sounds';
 import { applyBlinkMapStyle } from '@/lib/blink-map-style';
+import { resolveCreatureArt, resolveByCreatureId } from '@/lib/bestiary-art';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
@@ -47,7 +48,16 @@ export type CatchableSpawn = {
   tier_color: string;
   name: string;
   image_url: string;
+  /**
+   * Stable creature identity stamped at spawn-time. The AR overlay and the
+   * NFT mint route both resolve through CREATURE_REGISTRY[creature_id] so
+   * the visual the user catches matches the NFT that gets minted. May be
+   * null only for legacy rows predating the registry; resolveSpawnIdentity()
+   * falls back to a name lookup in that case.
+   */
+  creature_id?: number | null;
   expires_at: string;
+  is_genesis?: boolean;
 };
 
 export type NearbyWatcher = {
@@ -265,6 +275,47 @@ const HUNT_CSS = `
   animation: mmCatchablePulse 1.4s ease-in-out infinite;
   pointer-events: none;
 }
+.mm-genesis-ring {
+  position: absolute;
+  inset: -18px;
+  border-radius: 50%;
+  border: 3px solid var(--genesis-color, #ffd166);
+  box-shadow: 0 0 28px var(--genesis-color, #ffd166), inset 0 0 14px var(--genesis-color, #ffd166);
+  animation: mmGenesisPulse 1.8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 9;
+}
+@keyframes mmGenesisPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.85;
+    box-shadow: 0 0 18px var(--genesis-color, #ffd166), inset 0 0 8px var(--genesis-color, #ffd166);
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 1;
+    box-shadow: 0 0 42px var(--genesis-color, #ffd166), inset 0 0 20px var(--genesis-color, #ffd166);
+  }
+}
+.mm-genesis-label {
+  position: absolute;
+  left: 50%;
+  top: -38px;
+  transform: translateX(-50%);
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffd166, #ff8ae0);
+  color: #0a0a0f;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  box-shadow: 0 0 14px rgba(255,209,102,0.65);
+  pointer-events: none;
+  z-index: 13;
+}
 @keyframes mmOrbBob {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
@@ -425,6 +476,7 @@ const HUNT_CSS = `
   .mm-ghost-catch,
   .mm-orb-marker,
   .mm-catchable-ring,
+  .mm-genesis-ring,
   .mm-user-bolt,
   .mm-user-sonar,
   .mm-medium,
@@ -863,6 +915,7 @@ export default function HuntMap({
         pointer-events:none;
       `;
 
+      const art = resolveCreatureArt(s.species, s.rarity, s.id);
       const wildEl = document.createElement("div");
       wildEl.style.cssText = `
         width:38px;height:38px;border-radius:50%;
@@ -876,13 +929,13 @@ export default function HuntMap({
       `;
       wildEl.setAttribute("role", "button");
       wildEl.setAttribute("aria-label", `Wild ${s.species}`);
-      wildEl.innerHTML = `
-        <svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" width="70%" height="70%">
-          <ellipse cx="14" cy="14" rx="10" ry="6" fill="#0a0a0f" opacity="0.75"/>
-          <circle cx="14" cy="13" r="3.2" fill="${color}"/>
-          <circle cx="14" cy="13" r="1.4" fill="#FFFFFF"/>
-        </svg>
-      `;
+      wildEl.innerHTML = art.card
+        ? `<img src="${art.card}" alt="" style="width:78%;height:78%;object-fit:cover;border-radius:50%;display:block;filter:drop-shadow(0 0 4px ${color}aa);" />`
+        : `<svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" width="70%" height="70%">
+            <ellipse cx="14" cy="14" rx="10" ry="6" fill="#0a0a0f" opacity="0.75"/>
+            <circle cx="14" cy="13" r="3.2" fill="${color}"/>
+            <circle cx="14" cy="13" r="1.4" fill="#FFFFFF"/>
+          </svg>`;
       wildEl.addEventListener("click", () => onSelectWildSpawn?.(s));
 
       const fId = `wild-fuzzy:${s.id}`;
@@ -946,17 +999,33 @@ export default function HuntMap({
       const sonar = Array.from({ length: profile.sonarRings }, (_, i) =>
         `<div class="mm-orb-sonar" style="width:48px;height:48px;--orb-color:${color};animation-delay:${i * 0.45}s;"></div>`,
       ).join('');
-      const inner = s.image_url
-        ? `<img src="${s.image_url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" />`
+      // IDENTITY: catchable spawns carry creature_id stamped at spawn-time.
+      // Resolve through the registry so the map marker matches the creature
+      // the AR camera + NFT mint route will show.
+      const art = resolveByCreatureId(s.creature_id, {
+        name: s.name,
+        tier: s.tier,
+        imageCid: s.image_url,
+      });
+      const resolvedImg = art.card || s.image_url;
+      const inner = resolvedImg
+        ? `<img src="${resolvedImg}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" />`
         : `<svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" width="60%" height="60%">
              <circle cx="14" cy="14" r="6" fill="${color}" opacity="0.85"/>
              <circle cx="14" cy="14" r="2" fill="#0a0a0f"/>
            </svg>`;
 
+      const genesisRing = s.is_genesis
+        ? `<div class="mm-genesis-ring" style="--genesis-color:#ffd166"></div>`
+        : "";
+      const genesisLabel = s.is_genesis
+        ? `<div class="mm-genesis-label">GENESIS</div>`
+        : "";
       wrap.innerHTML = `
         ${halo}
         ${particles}
         <div class="mm-catchable-ring"></div>
+        ${genesisRing}
         <div
           class="mm-orb-marker${breathClass}${bobClass}"
           data-tier-mark="catchable"
@@ -975,6 +1044,7 @@ export default function HuntMap({
           ${inner}
         </div>
         ${sonar}
+        ${genesisLabel}
         <div class="mm-catch-pill">Catch</div>
       `;
       wrap.setAttribute("role", "button");

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireAuth, rateLimitByUser, sanitizeText, isPositiveFinite, isValidLat, isValidLng } from "@/lib/api-auth";
+import { CREATURE_REGISTRY } from "@/lib/creature-registry";
 
 export async function POST(req: NextRequest) {
   // 1. Auth check
@@ -79,6 +80,20 @@ export async function POST(req: NextRequest) {
     if (!isPositiveFinite(amount)) {
       insertPayload.amount = 0;
       insertPayload.amount_usd = 0;
+    }
+  }
+
+  // IDENTITY: pin creature_id on the orb row when the client provides one
+  // (drops from the bestiary / burn-mint flow). Anyone cracking this orb
+  // later will see the same creature in AR that gets minted.
+  if (typeof body.creature_id === "number" && Number.isInteger(body.creature_id)) {
+    if (CREATURE_REGISTRY[body.creature_id]) {
+      insertPayload.creature_id = body.creature_id;
+    } else {
+      return NextResponse.json(
+        { error: `Unknown creature_id=${body.creature_id}` },
+        { status: 400 },
+      );
     }
   }
 
