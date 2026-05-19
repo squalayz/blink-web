@@ -28,6 +28,7 @@ import PresenceLegend from "@/components/PresenceLegend";
 import PlayerSheet from "@/components/PlayerSheet";
 import { ErrorBoundary } from "@/components/error-boundary";
 import MapDownState from "@/components/MapDownState";
+import ARCameraOverlay from "@/components/ARCameraOverlay";
 
 const CATCH_PROXIMITY_M = 50;
 const AMBIENT_POLL_MS = 60_000;
@@ -225,6 +226,7 @@ export default function MapPage() {
   const [catching, setCatching] = useState(false);
   const [catchError, setCatchError] = useState<string | null>(null);
   const [catchResult, setCatchResult] = useState<CatchResult | null>(null);
+  const [arSpawn, setArSpawn] = useState<CatchableSpawn | null>(null);
   const leafletMapRef = useRef<any>(null);
   const watchIdRef = useRef<number | null>(null);
   const fabIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -347,8 +349,9 @@ export default function MapPage() {
   }, [user, position?.lat, position?.lng, fetchCatchableSpawns]);
 
   /* ---- Catch flow ---- */
-  const performCatch = useCallback(async () => {
-    if (!selectedCatchable || !position) return;
+  const performCatch = useCallback(async (override?: CatchableSpawn) => {
+    const target = override ?? selectedCatchable;
+    if (!target || !position) return;
     setCatching(true);
     setCatchError(null);
     try {
@@ -365,7 +368,7 @@ export default function MapPage() {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          spawnId: selectedCatchable.id,
+          spawnId: target.id,
           lat: position.lat,
           lng: position.lng,
         }),
@@ -652,15 +655,16 @@ export default function MapPage() {
       {/* ========== TOP BAR ========== */}
       <div
         style={{
-          height: 44,
-          minHeight: 44,
+          minHeight: "calc(44px + max(env(safe-area-inset-top, 0px), var(--blink-top-inset, 0px)))",
           background: COLORS.surface,
           borderBottom: `1px solid ${COLORS.border}`,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0 14px",
+          padding: "max(env(safe-area-inset-top, 0px), var(--blink-top-inset, 0px)) 14px 0",
           zIndex: 20,
+          flexShrink: 0,
+          boxSizing: "border-box",
         }}
       >
         <Link href="/" style={{ textDecoration: "none" }}>
@@ -1043,15 +1047,42 @@ export default function MapPage() {
               </button>
             </>
           )}
-          {!cameraGranted && (
-            <button
-              onClick={handleCameraRequest}
-              aria-label="Enable camera"
-              style={toolRailBtn}
-            >
-              <Camera size={16} color={COLORS.textMuted} />
-            </button>
-          )}
+          <button
+            onClick={() => {
+              // Pick the nearest catchable spawn so the AR view always opens
+              // on a real creature. Falls back to selectedCatchable / first
+              // spawn if no position is known yet.
+              let nearest: CatchableSpawn | null = null;
+              if (position && catchableSpawns.length > 0) {
+                let bestDist = Infinity;
+                for (const s of catchableSpawns) {
+                  const d = haversine(position.lat, position.lng, s.lat, s.lng);
+                  if (d < bestDist) {
+                    bestDist = d;
+                    nearest = s;
+                  }
+                }
+              }
+              const target = nearest ?? selectedCatchable ?? catchableSpawns[0] ?? null;
+              if (target) {
+                setArSpawn(target);
+              } else if (!cameraGranted) {
+                handleCameraRequest();
+              } else {
+                setCameraToast(true);
+                setTimeout(() => setCameraToast(false), 3000);
+              }
+              wakeFab();
+            }}
+            aria-label={cameraGranted ? "Open AR camera" : "Enable camera"}
+            style={{
+              ...toolRailBtn,
+              border: `1px solid ${catchableSpawns.length > 0 ? "rgba(0,255,136,0.45)" : "rgba(255,255,255,0.10)"}`,
+              boxShadow: catchableSpawns.length > 0 ? "0 0 10px rgba(0,255,136,0.22)" : "none",
+            }}
+          >
+            <Camera size={16} color={catchableSpawns.length > 0 ? "#00FF88" : COLORS.textMuted} />
+          </button>
         </div>
       </div>
 
@@ -1787,6 +1818,44 @@ export default function MapPage() {
         />
       )}
 
+      {/* ========== AR CAMERA OVERLAY ========== */}
+      <ARCameraOverlay
+        spawn={arSpawn}
+        userPosition={position}
+        onClose={() => setArSpawn(null)}
+        onCatch={async () => {
+          // AR overlay owns the throw + reveal sequence and renders its own
+          // result card, so we call the API inline here instead of going
+          // through performCatch (which would also pop the legacy modal).
+          if (!arSpawn || !position) {
+            return { error: "No position fix yet." };
+          }
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.access_token) return { error: "Not authenticated." };
+            const res = await fetch("/api/spawns/catch", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({
+                spawnId: arSpawn.id,
+                lat: position.lat,
+                lng: position.lng,
+              }),
+            });
+            const json = await res.json();
+            if (!res.ok) return { error: json.error || "Catch failed." };
+            // Drop the caught spawn from the map immediately.
+            void fetchCatchableSpawns();
+            return json as CatchResult;
+          } catch (err) {
+            return { error: err instanceof Error ? err.message : "Catch failed." };
+          }
+        }}
+      />
+
       {/* ========== CATCHABLE WILD SPAWN SHEET ========== */}
       <AnimatePresence>
         {selectedCatchable && (() => {
@@ -1913,7 +1982,7 @@ export default function MapPage() {
                 )}
 
                 <button
-                  onClick={performCatch}
+                  onClick={() => performCatch()}
                   disabled={!inRange || catching}
                   style={{
                     width: "100%",
