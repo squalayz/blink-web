@@ -133,10 +133,122 @@ function pickTierFromRng(rng: () => number): BurnTier {
   return TIER_DISTRIBUTION[0].tier;
 }
 
-export function generateCellSpawns(cellId: string, bucket: number): GeneratedSpawn[] {
+const MIN_SEPARATION_M = 70;
+// Poisson-disc / dart-throwing: per placement we sample up to K candidate
+// points and accept the first one that beats the separation target; if K
+// candidates all fail we keep the best-of-K as a fallback. With K this high
+// the scatter converges close to ideal blue-noise even when the cell is
+// near-saturated with constraints from neighbouring buckets.
+const POISSON_K = 96;
+const LAT_METERS_PER_DEG = 111_320;
+
+// Number of prior buckets whose spawns are still on-screen when a new bucket
+// is being placed. With DESPAWN_MS=30 min and EPOCH_SECONDS=300 (5 min),
+// 5 buckets remain active when bucket B begins. We use the raw intra-bucket
+// placements of those prior buckets as additional Mitchell constraints so the
+// new bucket actively avoids spots already taken by recently-spawned ones —
+// without this lookback, the cell would accumulate ~50 independently-placed
+// points and visibly clump along whichever radials happened to align.
+const ACTIVE_PRIOR_BUCKETS = Math.floor(DESPAWN_MS / 1000 / EPOCH_SECONDS) - 1;
+
+interface CellGeometry {
+  centerLat: number;
+  centerLng: number;
+  lngMetersPerDeg: number;
+  maxRadiusM: number;
+}
+
+function cellGeometry(cellId: string): CellGeometry {
   const origin = cellOrigin(cellId);
-  const countRng = mulberry32(hash32(`${cellId}|${bucket}|count`));
-  const count = MIN_PER_CELL + Math.floor(countRng() * (MAX_PER_CELL - MIN_PER_CELL + 1));
+  const centerLat = origin.lat + CELL_DEG / 2;
+  const centerLng = origin.lng + CELL_DEG / 2;
+  const lngMetersPerDeg = LAT_METERS_PER_DEG * Math.cos((centerLat * Math.PI) / 180);
+  // Inscribed-circle radius (minus a small buffer) so spawns stay inside the
+  // cell — keeps each cell's spawns owned by its (cell, bucket, idx) key.
+  const halfCellLatM = (CELL_DEG * LAT_METERS_PER_DEG) / 2;
+  const halfCellLngM = (CELL_DEG * lngMetersPerDeg) / 2;
+  const maxRadiusM = Math.max(50, Math.min(halfCellLatM, halfCellLngM) - 20);
+  return { centerLat, centerLng, lngMetersPerDeg, maxRadiusM };
+}
+
+function countForCellBucket(cellId: string, bucket: number): number {
+  const rng = mulberry32(hash32(`${cellId}|${bucket}|count`));
+  return MIN_PER_CELL + Math.floor(rng() * (MAX_PER_CELL - MIN_PER_CELL + 1));
+}
+
+function nearestDistanceM(
+  pt: { lat: number; lng: number },
+  placed: { lat: number; lng: number }[],
+): number {
+  let best = Infinity;
+  for (const p of placed) {
+    const d = haversineMeters(pt.lat, pt.lng, p.lat, p.lng);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+function placePositions(
+  cellId: string,
+  bucket: number,
+  geom: CellGeometry,
+  priorConstraints: { lat: number; lng: number }[],
+): { lat: number; lng: number }[] {
+  const { centerLat, centerLng, lngMetersPerDeg, maxRadiusM } = geom;
+  const count = countForCellBucket(cellId, bucket);
+
+  function candidatePoint(rng: () => number): { lat: number; lng: number } {
+    const angle = rng() * Math.PI * 2;
+    // sqrt(u) for uniform area distribution inside the inscribed disc.
+    const radiusM = Math.sqrt(rng()) * maxRadiusM;
+    const dN = Math.cos(angle) * radiusM;
+    const dE = Math.sin(angle) * radiusM;
+    return {
+      lat: centerLat + dN / LAT_METERS_PER_DEG,
+      lng: centerLng + dE / lngMetersPerDeg,
+    };
+  }
+
+  const placed: { lat: number; lng: number }[] = [...priorConstraints];
+  const out: { lat: number; lng: number }[] = [];
+  for (let idx = 0; idx < count; idx++) {
+    // Position-only seed so changes to placement RNG don't disturb tier/name
+    // selection (which still seeds off `${cellId}|${bucket}|${idx}`).
+    const seed = hash32(`${cellId}|${bucket}|pos|${idx}`);
+    const rng = mulberry32(seed);
+    let best: { lat: number; lng: number } | null = null;
+    let bestDist = -1;
+    for (let k = 0; k < POISSON_K; k++) {
+      const cand = candidatePoint(rng);
+      const d = placed.length === 0 ? maxRadiusM : nearestDistanceM(cand, placed);
+      if (d > bestDist) {
+        best = cand;
+        bestDist = d;
+      }
+      if (bestDist >= MIN_SEPARATION_M) break;
+    }
+    const pos = best ?? candidatePoint(rng);
+    placed.push(pos);
+    out.push(pos);
+  }
+  return out;
+}
+
+export function generateCellSpawns(cellId: string, bucket: number): GeneratedSpawn[] {
+  const geom = cellGeometry(cellId);
+
+  // Raw intra-bucket placements for the prior buckets whose spawns are still
+  // active. "Raw" means no further lookback, which keeps this deterministic
+  // in one step. Stored bucket B-k positions (which used their own lookback)
+  // differ from raw B-k by a few metres at most, so the constraint is
+  // approximate but the resulting scatter is well-separated.
+  const priorConstraints: { lat: number; lng: number }[] = [];
+  for (let k = 1; k <= ACTIVE_PRIOR_BUCKETS; k++) {
+    priorConstraints.push(...placePositions(cellId, bucket - k, geom, []));
+  }
+
+  const positions = placePositions(cellId, bucket, geom, priorConstraints);
+  const count = positions.length;
 
   const spawnedAtMs = bucketStartMs(bucket);
   const spawnedAt = new Date(spawnedAtMs).toISOString();
@@ -147,15 +259,13 @@ export function generateCellSpawns(cellId: string, bucket: number): GeneratedSpa
     const seed = hash32(`${cellId}|${bucket}|${idx}`);
     const rng = mulberry32(seed);
     const tier = pickTierFromRng(rng);
-    const latOffset = rng() * CELL_DEG;
-    const lngOffset = rng() * CELL_DEG;
     const pick = pickFromPoolDeterministic(tier, seed);
     out.push({
       s2_cell_id: cellId,
       epoch_bucket: bucket,
       spawn_index: idx,
-      lat: origin.lat + latOffset,
-      lng: origin.lng + lngOffset,
+      lat: positions[idx].lat,
+      lng: positions[idx].lng,
       tier,
       name: pick.name,
       image_cid: pick.imageCid,
