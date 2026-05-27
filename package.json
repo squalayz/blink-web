@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
+    "@lottiefiles/react-lottie-player": "^3.6.0",
     "@next-auth/supabase-adapter": "^0.2.1",
     "@plaiceholder/next": "^3.0.0",
     "@radix-ui/react-accordion": "^1.2.12",

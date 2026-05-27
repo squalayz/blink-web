@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef, useMemo, useDeferredValue } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -503,6 +503,7 @@ export default function MapPage() {
   }), [filteredOrbs, position]);
 
   const sortedOrbs = useMemo(() => [...orbsWithDistance].sort((a, b) => a.distance - b.distance), [orbsWithDistance]);
+  const deferredOrbs = useDeferredValue(sortedOrbs);
 
   const nearbyCount = useMemo(() => orbsWithDistance.filter((o) => o.distance < 500).length, [orbsWithDistance]);
 
@@ -999,7 +1000,7 @@ export default function MapPage() {
             gap: 6,
           }}>
             {nearbyCount > 0 && (
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#00FF88", boxShadow: "0 0 6px #00FF88", flexShrink: 0 }} />
+              <span className="mm-sense-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: "#00FF88", flexShrink: 0 }} />
             )}
             <span style={{
               color: nearbyCount > 0 ? COLORS.text : COLORS.textMuted,
@@ -1449,6 +1450,8 @@ export default function MapPage() {
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
+          willChange: "height",
+          transform: "translateZ(0)",
         }}
       >
         {/* Sheet handle (peek) */}
@@ -1487,7 +1490,7 @@ export default function MapPage() {
               <span
                 style={{ color: COLORS.text, fontSize: 14, fontWeight: 700, letterSpacing: "0.02em" }}
               >
-                {sortedOrbs.length} BLINK{sortedOrbs.length !== 1 ? "S" : ""} nearby
+                {deferredOrbs.length} BLINK{deferredOrbs.length !== 1 ? "S" : ""} nearby
               </span>
             </div>
             <motion.div
@@ -1537,7 +1540,7 @@ export default function MapPage() {
             </div>
           )}
 
-          {!orbsLoading && !orbsError && sortedOrbs.length === 0 && (
+          {!orbsLoading && !orbsError && deferredOrbs.length === 0 && (
             <div style={{ textAlign: "center", padding: 24 }}>
               <p style={{ color: COLORS.textMuted, fontSize: 14, margin: "0 0 12px" }}>
                 No creatures nearby. Be the first to spawn one!
@@ -1560,7 +1563,7 @@ export default function MapPage() {
             </div>
           )}
 
-          {sortedOrbs.map((orb) => {
+          {deferredOrbs.map((orb) => {
             const dist = orb.distance;
             const claimable = dist <= CLAIM_RADIUS_M;
             const color = RARITY_COLORS[orb.rarity] || RARITY_COLORS.common;
@@ -2316,6 +2319,8 @@ export default function MapPage() {
                       <img
                         src={selectedCatchable.image_url}
                         alt=""
+                        loading="lazy"
+                        decoding="async"
                         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                       />
                     )}
@@ -2540,6 +2545,8 @@ export default function MapPage() {
             <img
               src={catchResult.image_url}
               alt={catchResult.name}
+              loading="lazy"
+              decoding="async"
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             />
           ) : (

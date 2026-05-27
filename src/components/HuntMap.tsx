@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Orb, rarityColor } from '@/lib/theme';
@@ -181,8 +181,8 @@ const HUNT_CSS = `
   100% { transform: translate(-50%,-50%) scale(3.2); opacity: 0; }
 }
 @keyframes mmCatchablePulse {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,255,136,0.0); }
-  50% { transform: scale(1.06); box-shadow: 0 0 22px 6px rgba(0,255,136,0.5); }
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(0,255,136,0)); }
+  50% { transform: scale(1.06); filter: drop-shadow(0 0 22px rgba(0,255,136,0.5)); }
 }
 @keyframes mmMediumDrift {
   0%, 100% { opacity: 0.32; }
@@ -193,8 +193,8 @@ const HUNT_CSS = `
   50% { opacity: 0.85; transform: translate(0,0) scale(1.08); }
 }
 @keyframes mmPlayerPulse {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,255,136,0.6); }
-  50% { transform: scale(1.12); box-shadow: 0 0 18px 4px rgba(0,255,136,0.35); }
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(0,255,136,0.6)); }
+  50% { transform: scale(1.12); filter: drop-shadow(0 0 18px rgba(0,255,136,0.35)); }
 }
 @keyframes mmFuzzyBreath {
   0%, 100% { opacity: 0.22; transform: scale(1); }
@@ -297,12 +297,12 @@ const HUNT_CSS = `
   0%, 100% {
     transform: scale(1);
     opacity: 0.85;
-    box-shadow: 0 0 18px var(--genesis-color, #ffd166), inset 0 0 8px var(--genesis-color, #ffd166);
+    filter: drop-shadow(0 0 18px var(--genesis-color, #ffd166));
   }
   50% {
     transform: scale(1.12);
     opacity: 1;
-    box-shadow: 0 0 42px var(--genesis-color, #ffd166), inset 0 0 20px var(--genesis-color, #ffd166);
+    filter: drop-shadow(0 0 42px var(--genesis-color, #ffd166));
   }
 }
 .mm-genesis-label {
@@ -350,8 +350,8 @@ const HUNT_CSS = `
   to { opacity: 1; transform: scale(1); }
 }
 @keyframes mmWatcherPulse {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 6px rgba(0,255,136,0.6); }
-  50% { transform: scale(1.25); box-shadow: 0 0 12px rgba(0,255,136,0.9); }
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 6px rgba(0,255,136,0.6)); }
+  50% { transform: scale(1.25); filter: drop-shadow(0 0 12px rgba(0,255,136,0.9)); }
 }
 @keyframes mmCatchPill {
   0%, 100% { transform: translate(-50%,-2px); }
@@ -553,7 +553,7 @@ function silhouetteSvg(rColor: string): string {
   `;
 }
 
-export default function HuntMap({
+function HuntMap({
   orbs,
   userPosition,
   onSelectOrb,
@@ -639,6 +639,8 @@ export default function HuntMap({
 
     const el = document.createElement('div');
     el.style.cssText = 'position:relative;width:44px;height:44px;display:flex;align-items:center;justify-content:center;';
+    el.style.willChange = 'transform';
+    el.style.transform = 'translateZ(0)';
     el.innerHTML = `
       <svg class="mm-user-bolt" viewBox="0 0 24 30" fill="none" aria-hidden="true">
         <defs>
@@ -704,6 +706,8 @@ export default function HuntMap({
 
       const el = document.createElement('div');
       el.style.cssText = 'position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;';
+      el.style.willChange = 'transform';
+      el.style.transform = 'translateZ(0)';
       el.setAttribute('data-tier', tier);
 
       const profile = tierGlowProfile(orb.rarity);
@@ -903,6 +907,8 @@ export default function HuntMap({
         cursor:pointer;
         font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
       `;
+      dotEl.style.willChange = 'transform';
+      dotEl.style.transform = 'translateZ(0)';
       if (p.avatar_url) {
         dotEl.innerHTML = `<img src="${p.avatar_url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`;
       } else {
@@ -986,6 +992,8 @@ export default function HuntMap({
         display:flex;align-items:center;justify-content:center;
         overflow:visible;
       `;
+      wildEl.style.willChange = 'transform';
+      wildEl.style.transform = 'translateZ(0)';
       wildEl.setAttribute("role", "button");
       wildEl.setAttribute("aria-label", `Wild ${s.species}`);
       // Add despawn timer to create urgency
@@ -1052,6 +1060,8 @@ export default function HuntMap({
 
       const wrap = document.createElement("div");
       wrap.style.cssText = `position:relative;width:48px;height:48px;display:flex;align-items:center;justify-content:center;`;
+      wrap.style.willChange = 'transform';
+      wrap.style.transform = 'translateZ(0)';
       const halo = profile.haloRotate && !reduce ? '<div class="mm-orb-halo"></div>' : '';
       const particles = !reduce ? particleHTML(profile.particles, color, s.id) : '';
       const breathClass = profile.scaleBreath && !reduce ? ' mm-orb-breath' : '';
@@ -1149,6 +1159,8 @@ export default function HuntMap({
       const key = `watcher:${w.user_id}`;
       const wrap = document.createElement("div");
       wrap.style.cssText = `width:16px;height:16px;display:flex;align-items:center;justify-content:center;`;
+      wrap.style.willChange = 'transform';
+      wrap.style.transform = 'translateZ(0)';
       const dot = document.createElement("div");
       dot.className = "mm-watcher-dot";
       dot.setAttribute("data-handle", w.handle ? `@${w.handle}` : "A Watcher");
@@ -1292,6 +1304,12 @@ export default function HuntMap({
     </div>
   );
 }
+
+export default React.memo(HuntMap, (prev, next) =>
+  prev.orbs === next.orbs &&
+  prev.userPosition?.lat === next.userPosition?.lat &&
+  prev.userPosition?.lng === next.userPosition?.lng
+);
 
 function EdgePulses({ farOrbs }: { farOrbs: HuntOrb[] }) {
   // Bucket by 8-way direction so multiple far spawns in the same sector don't

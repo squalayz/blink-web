@@ -162,3 +162,23 @@ a, button, input, select, textarea, [role="button"] { touch-action: manipulation
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }
+
+/* GPU compositing for all animated game elements */
+.mm-orb-marker, .mm-orb-sonar, .mm-orb-halo, .mm-orb-breath, .mm-orb-bob, .mm-catchable-ring {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+* { -webkit-overflow-scrolling: touch; }
+.mm-orb-marker { contain: layout style paint; }
+
+/* SENSE pill pulse — filter:drop-shadow swaps out the prior boxShadow animation
+   so the indicator dot composites on the GPU instead of repainting the pill. */
+@keyframes mmSensePulse {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(0,255,136,0.85)); }
+  50% { filter: drop-shadow(0 0 10px rgba(0,255,136,1)); }
+}
+.mm-sense-dot {
+  animation: mmSensePulse 1.6s ease-in-out infinite;
+  will-change: filter;
+}
