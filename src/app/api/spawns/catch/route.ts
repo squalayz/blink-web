@@ -61,6 +61,13 @@ const CATCH_FEE_ETH = "0.1";
 const FEE_TO_DEPLOYER_ETH = "0.08";
 const FEE_TO_TREASURY_ETH = "0.02";
 
+const CATCH_ROUTER_ADDRESS = (
+  process.env.NEXT_PUBLIC_CATCH_ROUTER_ADDRESS ||
+  "0xFB3fde2AE27aFF2dEb901Bc3C73783a6b75E2C36"
+).trim();
+const PAID_CATCH_FEE_WEI = ethers.parseEther("0.005");
+const PAID_CATCH_REWARD_MULTIPLIER = 5n;
+
 const ERC20_ABI = [
   "function balanceOf(address) view returns (uint256)",
   "function transfer(address to, uint256 amount) returns (bool)",
@@ -78,6 +85,7 @@ interface CatchBody {
   spawnId?: unknown;
   lat?: unknown;
   lng?: unknown;
+  txHash?: unknown;
 }
 
 interface SpawnRow {
@@ -112,11 +120,18 @@ export async function POST(req: NextRequest) {
     const spawnId = typeof body.spawnId === "string" ? body.spawnId : "";
     const lat = Number(body.lat);
     const lng = Number(body.lng);
+    const paidTxHash =
+      typeof body.txHash === "string" && /^0x[0-9a-fA-F]{64}$/.test(body.txHash)
+        ? body.txHash.toLowerCase()
+        : null;
     if (!/^[0-9a-f-]{36}$/i.test(spawnId)) {
       return NextResponse.json({ error: "Invalid spawnId" }, { status: 400 });
     }
     if (!isValidLat(lat) || !isValidLng(lng)) {
       return NextResponse.json({ error: "Invalid lat/lng" }, { status: 400 });
+    }
+    if (typeof body.txHash !== "undefined" && body.txHash !== null && paidTxHash === null) {
+      return NextResponse.json({ error: "Invalid txHash" }, { status: 400 });
     }
 
     const deployerKey = process.env.DEPLOYER_PRIVATE_KEY?.trim();
@@ -161,6 +176,77 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 1b. Paid catch verification — if the client sent a txHash, confirm on
+    // chain that 0.005 ETH (or more) was paid to the BlinkCatchRouter and
+    // that this txHash has not been consumed by an earlier catch. Paid
+    // catches bypass the daily free-catch limit and earn 5x BLINK.
+    let isPaidCatch = false;
+    if (paidTxHash) {
+      const provider = new ethers.JsonRpcProvider(RPC_URL);
+      let onChainTx;
+      try {
+        onChainTx = await provider.getTransaction(paidTxHash);
+      } catch {
+        return NextResponse.json(
+          { error: "Could not fetch payment tx from RPC" },
+          { status: 502 },
+        );
+      }
+      if (!onChainTx) {
+        return NextResponse.json(
+          { error: "Payment tx not found on-chain (wait for confirmation)" },
+          { status: 402 },
+        );
+      }
+      if (
+        !onChainTx.to ||
+        onChainTx.to.toLowerCase() !== CATCH_ROUTER_ADDRESS.toLowerCase()
+      ) {
+        return NextResponse.json(
+          { error: "Payment tx not sent to catch router" },
+          { status: 402 },
+        );
+      }
+      if (onChainTx.value < PAID_CATCH_FEE_WEI) {
+        return NextResponse.json(
+          { error: "Payment value below 0.005 ETH" },
+          { status: 402 },
+        );
+      }
+      // Require the tx to be mined and successful before honouring it.
+      let rcpt;
+      try {
+        rcpt = await provider.getTransactionReceipt(paidTxHash);
+      } catch {
+        rcpt = null;
+      }
+      if (!rcpt || rcpt.status !== 1) {
+        return NextResponse.json(
+          { error: "Payment tx not yet confirmed" },
+          { status: 402 },
+        );
+      }
+      // Replay guard — partial UNIQUE index on paid_catch_tx_hash backs this.
+      const { data: existing, error: existingErr } = await supabaseAdmin
+        .from("wild_spawns")
+        .select("id")
+        .eq("paid_catch_tx_hash", paidTxHash)
+        .maybeSingle();
+      if (existingErr) {
+        return NextResponse.json(
+          { error: "Replay-check failed", details: existingErr.message },
+          { status: 500 },
+        );
+      }
+      if (existing) {
+        return NextResponse.json(
+          { error: "Payment tx already consumed by an earlier catch" },
+          { status: 409 },
+        );
+      }
+      isPaidCatch = true;
+    }
+
     // 2. Load catcher profile (incl. wallet + free-catch counter).
     const { data: profile, error: profileErr } = await supabaseAdmin
       .from("profiles")
@@ -175,18 +261,19 @@ export async function POST(req: NextRequest) {
     }
     const freeRemaining = Number(profile.free_catches_remaining ?? 0);
     // Special drops (sentinel spawn_index = -1) are always free catches — no ETH fee.
-    let isFreeCatch = freeRemaining > 0;
+    // Paid catches always count as non-free regardless of remaining counter.
+    let isFreeCatch = !isPaidCatch && freeRemaining > 0;
 
     // ── Daily catch rate limit ──
     // 10 free catches per day (resets at midnight UTC).
     // Paid catches (ETH) bypass this limit — handled in paid flow.
-    const DAILY_FREE_LIMIT = 3;
+    const DAILY_FREE_LIMIT = 2;
     const now = new Date();
     const resetAt = new Date(profile.daily_catch_reset_at ?? 0);
     const dayReset = resetAt.toISOString().slice(0, 10) !== now.toISOString().slice(0, 10);
     let dailyCount = dayReset ? 0 : Number(profile.daily_catch_count ?? 0);
 
-    if (isFreeCatch && dailyCount >= DAILY_FREE_LIMIT) {
+    if (!isPaidCatch && isFreeCatch && dailyCount >= DAILY_FREE_LIMIT) {
       return NextResponse.json(
         {
           error: "Daily free catch limit reached (10/day). Pay ETH to catch more and get 5x BLINK rewards.",
@@ -222,7 +309,8 @@ export async function POST(req: NextRequest) {
 
     const claimedRow = claimed as SpawnRow;
     const tier: BurnTier = claimedRow.tier;
-    const blinkRewardTokens = TIER_BLINK_REWARD[tier];
+    const baseReward = TIER_BLINK_REWARD[tier];
+    const blinkRewardTokens = isPaidCatch ? baseReward * 5 : baseReward;
     // Special drops (sentinel spawn_index = -1) waive the catch fee.
     if (claimedRow.spawn_index === -1) {
       isFreeCatch = true;
@@ -389,6 +477,7 @@ export async function POST(req: NextRequest) {
         mint_tx_hash: mintTxHash,
         nft_token_id: mintedTokenId,
         blink_reward_tx_hash: blinkRewardTxHash,
+        ...(isPaidCatch && paidTxHash ? { paid_catch_tx_hash: paidTxHash } : {}),
       })
       .eq("id", spawnId);
 
@@ -469,6 +558,8 @@ export async function POST(req: NextRequest) {
       blinkRewardTxHash,
       blinkRewarded: blinkRewardTokens,
       wasFreeCatch: isFreeCatch,
+      wasPaidCatch: isPaidCatch,
+      paidCatchTxHash: isPaidCatch ? paidTxHash : null,
       freeCatchesRemaining: didDecrementFreeCatch
         ? Math.max(0, freeRemaining - 1)
         : freeRemaining,

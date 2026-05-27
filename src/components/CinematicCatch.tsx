@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import CountUp from "react-countup";
+import { createWalletClient, custom, parseEther } from "viem";
+import { mainnet } from "viem/chains";
 
 export interface CatchResult {
   name: string;
@@ -14,18 +16,35 @@ export interface CatchResult {
   mintTxHash: string;
   openseaUrl: string | null;
   wasFreeCatch: boolean;
+  wasPaidCatch?: boolean;
   freeCatchesRemaining: number;
   dailyCatchRemaining?: number;
 }
 
+// Thrown by callers when the catch API returns 429 (daily free limit reached).
+// CinematicCatch catches this and shows the paid-catch screen.
+export class DailyLimitError extends Error {
+  constructor(message = "Daily free catch limit reached") {
+    super(message);
+    this.name = "DailyLimitError";
+  }
+}
+
 interface CinematicCatchProps {
   spawn: { name: string; tier: string; tier_color: string; image_url: string };
-  onCatch: () => Promise<CatchResult>;
+  onCatch: (opts?: { txHash?: string }) => Promise<CatchResult>;
   onDismiss: () => void;
   onShare?: (result: CatchResult) => void;
 }
 
-type Phase = "aim" | "throw" | "caught" | "error";
+type Phase = "aim" | "throw" | "caught" | "error" | "paid";
+type PaidStep = "idle" | "connecting" | "sending" | "confirming" | "catching";
+
+const CATCH_ROUTER_ADDRESS = (
+  process.env.NEXT_PUBLIC_CATCH_ROUTER_ADDRESS ||
+  "0xFB3fde2AE27aFF2dEb901Bc3C73783a6b75E2C36"
+) as `0x${string}`;
+const PAID_CATCH_FEE_ETH = "0.005";
 
 const BG = "#0a0a0f";
 const GREEN = "#00FF88";
@@ -117,6 +136,8 @@ export function CinematicCatch({ spawn, onCatch, onDismiss, onShare }: Cinematic
   const [flash, setFlash] = useState<"white" | "green" | null>(null);
   const [result, setResult] = useState<CatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [paidStep, setPaidStep] = useState<PaidStep>("idle");
+  const [paidError, setPaidError] = useState<string | null>(null);
   const catchCalledRef = useRef(false);
 
   const accent = getAccent(spawn.tier, spawn.tier_color);
@@ -128,53 +149,116 @@ export function CinematicCatch({ spawn, onCatch, onDismiss, onShare }: Cinematic
       const res = await onCatch();
       setResult(res);
     } catch (e) {
+      if (e instanceof DailyLimitError) {
+        // Hand off to the paid-catch screen instead of the generic error UI.
+        setPhase("paid");
+        catchCalledRef.current = false; // allow a paid retry
+        return;
+      }
       setError(e instanceof Error ? e.message : "Catch failed");
       setPhase("error");
     }
   }, [onCatch]);
 
-  const startThrow = useCallback(() => {
-    setPhase("throw");
-    // Fire the actual catch API immediately in background
-    runCatch();
-
-    // Animate the sequence
+  const playCatchSequence = useCallback(() => {
+    // Cinematic throw → shake → caught timeline. Pure UI; safe to run after
+    // the API has already returned (paid path) or in parallel with it (free
+    // path — see startThrow).
     setTimeout(() => {
-      // Flash white on impact
       setFlash("white");
       setTimeout(() => setFlash(null), 180);
     }, 700);
-
     setTimeout(() => {
-      // Shake 1
       setShaking(true);
       setTimeout(() => setShaking(false), 500);
     }, 900);
-
     setTimeout(() => {
-      // Flash green
       setFlash("green");
       setTimeout(() => setFlash(null), 180);
     }, 1100);
-
     setTimeout(() => {
-      // Shake 2
       setShaking(true);
       setTimeout(() => setShaking(false), 500);
     }, 1300);
-
     setTimeout(() => {
-      // Shake 3
       setShaking(true);
       setTimeout(() => setShaking(false), 500);
     }, 1700);
-
     setTimeout(() => {
       setFlash("green");
       setTimeout(() => setFlash(null), 120);
       setPhase("caught");
     }, 2200);
-  }, [runCatch]);
+  }, []);
+
+  const catchWithPayment = useCallback(async () => {
+    setPaidError(null);
+    type Eip1193 = { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> };
+    const eth =
+      typeof window !== "undefined"
+        ? ((window as unknown as { ethereum?: Eip1193 }).ethereum ?? undefined)
+        : undefined;
+    if (!eth) {
+      setPaidError("No wallet found. Install MetaMask or another EIP-1193 wallet.");
+      return;
+    }
+    try {
+      setPaidStep("connecting");
+      const wallet = createWalletClient({ chain: mainnet, transport: custom(eth) });
+      const [account] = await wallet.requestAddresses();
+      if (!account) throw new Error("Wallet did not return an address");
+
+      setPaidStep("sending");
+      const txHash = await wallet.sendTransaction({
+        account,
+        to: CATCH_ROUTER_ADDRESS,
+        value: parseEther(PAID_CATCH_FEE_ETH),
+      });
+
+      // Poll for confirmation via the connected wallet's provider.
+      setPaidStep("confirming");
+      const start = Date.now();
+      const TIMEOUT_MS = 120_000;
+      while (true) {
+        const rcpt = (await eth.request({
+          method: "eth_getTransactionReceipt",
+          params: [txHash],
+        })) as { status?: string } | null;
+        if (rcpt && rcpt.status === "0x1") break;
+        if (rcpt && rcpt.status === "0x0") {
+          throw new Error("Payment reverted on-chain");
+        }
+        if (Date.now() - start > TIMEOUT_MS) {
+          throw new Error("Payment confirmation timed out");
+        }
+        await new Promise((r) => setTimeout(r, 2500));
+      }
+
+      setPaidStep("catching");
+      // Retry the catch with the payment receipt — bypasses the daily limit.
+      try {
+        const res = await onCatch({ txHash });
+        setResult(res);
+        setPhase("throw");
+        // Play the catch animation now that the server gave us a result.
+        playCatchSequence();
+      } catch (e) {
+        setPaidError(e instanceof Error ? e.message : "Catch failed after payment");
+        setPaidStep("idle");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Payment failed";
+      // Surface user rejection separately.
+      setPaidError(/reject|denied|user/i.test(msg) ? "Payment cancelled" : msg);
+      setPaidStep("idle");
+    }
+  }, [onCatch, playCatchSequence]);
+
+  const startThrow = useCallback(() => {
+    setPhase("throw");
+    runCatch();
+    playCatchSequence();
+  }, [runCatch, playCatchSequence]);
 
   return (
     <AnimatePresence>
@@ -652,6 +736,147 @@ export function CinematicCatch({ spawn, onCatch, onDismiss, onShare }: Cinematic
               Try Again
             </button>
           </motion.div>
+        )}
+
+        {/* ─── PHASE: PAID (daily limit reached) ───────────── */}
+        {phase === "paid" && (
+          <>
+            {/* Creature still visible behind the dark modal */}
+            <div
+              style={{
+                position: "absolute",
+                top: "22%",
+                left: "50%",
+                transform: "translateX(-50%)",
+                width: 180,
+                height: 180,
+                opacity: 0.55,
+                filter: `drop-shadow(0 0 24px ${accent}aa)`,
+                zIndex: 1,
+                pointerEvents: "none",
+              }}
+            >
+              <img
+                src={spawn.image_url}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "contain" }}
+              />
+            </div>
+
+            {/* Dark dim layered on top of the AnimatePresence overlay */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: "rgba(0,0,0,0.55)",
+                zIndex: 2,
+                pointerEvents: "none",
+              }}
+            />
+
+            <motion.div
+              initial={{ y: 24, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ type: "spring", damping: 18, stiffness: 220 }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: "relative",
+                width: "calc(100% - 48px)",
+                maxWidth: 340,
+                background: "#0d0d18",
+                borderRadius: 22,
+                padding: "26px 22px 22px",
+                textAlign: "center",
+                border: `1px solid ${GREEN}33`,
+                boxShadow: `0 12px 60px rgba(0,0,0,0.6), 0 0 32px ${GREEN}22`,
+                zIndex: 5,
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: "Space Grotesk, Inter, sans-serif",
+                  fontSize: 22,
+                  fontWeight: 900,
+                  color: "#fff",
+                  letterSpacing: "-0.02em",
+                  marginBottom: 8,
+                }}
+              >
+                Daily limit reached
+              </div>
+              <div
+                style={{
+                  color: "#aab0bf",
+                  fontSize: 14,
+                  lineHeight: 1.5,
+                  marginBottom: 20,
+                }}
+              >
+                Pay <span style={{ color: "#fff", fontWeight: 700 }}>0.005 ETH</span>{" "}
+                to catch this creature and earn{" "}
+                <span style={{ color: GREEN, fontWeight: 800 }}>5x BLINK rewards</span>.
+              </div>
+
+              {paidError && (
+                <div
+                  style={{
+                    color: "#F87171",
+                    fontSize: 12,
+                    marginBottom: 12,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {paidError}
+                </div>
+              )}
+
+              <button
+                onClick={catchWithPayment}
+                disabled={paidStep !== "idle"}
+                style={{
+                  width: "100%",
+                  padding: "15px 0",
+                  borderRadius: 14,
+                  border: "none",
+                  background: paidStep === "idle" ? GREEN : `${GREEN}55`,
+                  color: BG,
+                  fontSize: 15,
+                  fontWeight: 900,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                  cursor: paidStep === "idle" ? "pointer" : "default",
+                  boxShadow:
+                    paidStep === "idle" ? `0 0 28px ${GREEN}55` : "none",
+                  marginBottom: 10,
+                }}
+              >
+                {paidStep === "idle" && "Pay & Catch"}
+                {paidStep === "connecting" && "Connecting wallet..."}
+                {paidStep === "sending" && "Sending payment..."}
+                {paidStep === "confirming" && "Confirming..."}
+                {paidStep === "catching" && "Catching..."}
+              </button>
+
+              <button
+                onClick={onDismiss}
+                disabled={paidStep !== "idle"}
+                style={{
+                  width: "100%",
+                  padding: "10px 0",
+                  borderRadius: 12,
+                  border: "none",
+                  background: "transparent",
+                  color: "#8a8a99",
+                  fontSize: 12,
+                  letterSpacing: "0.05em",
+                  cursor: paidStep === "idle" ? "pointer" : "default",
+                  opacity: paidStep === "idle" ? 1 : 0.4,
+                }}
+              >
+                Come back tomorrow
+              </button>
+            </motion.div>
+          </>
         )}
       </motion.div>
     </AnimatePresence>

@@ -31,7 +31,7 @@ import PlayerSheet from "@/components/PlayerSheet";
 import { ErrorBoundary } from "@/components/error-boundary";
 import MapDownState from "@/components/MapDownState";
 import ARCameraOverlay from "@/components/ARCameraOverlay";
-import { CinematicCatch } from "@/components/CinematicCatch";
+import { CinematicCatch, DailyLimitError } from "@/components/CinematicCatch";
 import { MapApproachVignette } from "@/components/MapApproachVignette";
 import { sounds, type ApproachRarity } from "@/lib/sounds";
 import { pulseSoft, pulseSharp } from "@/lib/haptics";
@@ -2214,16 +2214,25 @@ export default function MapPage() {
               tier_color: selectedCatchable.tier_color || "#00FF88",
               image_url: selectedCatchable.image_url,
             }}
-            onCatch={async () => {
+            onCatch={async (opts) => {
               if (!position || !user) throw new Error("Not authenticated.");
               const { data: { session } } = await supabase.auth.getSession();
               if (!session?.access_token) throw new Error("Not authenticated.");
               const res = await fetch("/api/spawns/catch", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-                body: JSON.stringify({ spawnId: selectedCatchable.id, lat: position.lat, lng: position.lng }),
+                body: JSON.stringify({
+                  spawnId: selectedCatchable.id,
+                  lat: position.lat,
+                  lng: position.lng,
+                  ...(opts?.txHash ? { txHash: opts.txHash } : {}),
+                }),
               });
               const json = await res.json();
+              if (res.status === 429) {
+                // Daily free limit hit — CinematicCatch will swap to the paid screen.
+                throw new DailyLimitError(json.error || "Daily free catch limit reached");
+              }
               if (!res.ok) throw new Error(json.error || "Catch failed.");
               void fetchCatchableSpawns();
               return json as CatchResult;
