@@ -1081,7 +1081,18 @@ export default function MapPage() {
       </AnimatePresence>
 
       {/* Legacy compass — show only when no radar creatures (no spawns in 1km) */}
-      {radarCreatures.length === 0 && <BlinkCompass reading={compassReading} />}
+      {radarCreatures.length === 0 && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: `calc(${NAV_H + 160}px + env(safe-area-inset-bottom, 0px))`,
+            right: 16,
+            zIndex: 50,
+          }}
+        >
+          <BlinkCompass reading={compassReading} />
+        </div>
+      )}
 
       {/* ========== MAP AREA (full-screen behind all overlays) ========== */}
       <div
