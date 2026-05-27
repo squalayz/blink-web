@@ -11,6 +11,10 @@
     {
       "path": "/api/gifts/sweep-tx",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/seed-world",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

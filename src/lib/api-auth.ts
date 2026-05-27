@@ -33,6 +33,59 @@ export async function requireAuth(req: NextRequest) {
 }
 
 /**
+ * Resolve the authenticated user's custodial ETH wallet address from
+ * their profile row. Returns { user, address } on success, or an error
+ * NextResponse if anything is missing.
+ */
+export async function requireUserWithEthAddress(req: NextRequest): Promise<
+  | { user: { id: string; email: string | null }; address: string; error: null }
+  | { user: null; address: null; error: NextResponse }
+> {
+  const { user, error } = await requireAuth(req);
+  if (error) return { user: null, address: null, error };
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("eth_address")
+    .eq("id", user!.id)
+    .maybeSingle();
+  const addr = profile?.eth_address as string | undefined;
+  if (!addr) {
+    return {
+      user: null,
+      address: null,
+      error: NextResponse.json(
+        { error: "No custodial ETH wallet on account" },
+        { status: 400 },
+      ),
+    };
+  }
+  return {
+    user: { id: user!.id, email: user!.email ?? null },
+    address: addr.toLowerCase(),
+    error: null,
+  };
+}
+
+/**
+ * Re-verify a user's password by calling signInWithPassword. Returns true if the
+ * password is correct, false otherwise. Used for password re-prompts before
+ * sensitive actions (sending tx, exporting private keys).
+ */
+export async function verifyUserPassword(email: string, password: string): Promise<boolean> {
+  if (!email || !password) return false;
+  // Use a throwaway client so we don't affect the admin session.
+  const client = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+  const { data, error } = await client.auth.signInWithPassword({ email, password });
+  if (error || !data.session) return false;
+  // Don't leave a lingering session on the throwaway client.
+  await client.auth.signOut();
+  return true;
+}
+
+/**
  * Rate limit by user ID. Returns error response if rate limited.
  */
 export function rateLimitByUser(userId: string, action: string, maxRequests: number, windowMs: number) {

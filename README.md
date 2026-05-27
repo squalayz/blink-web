@@ -2,7 +2,7 @@
 
 **Don't blink. The Eye is open.**
 
-Pokémon GO meets crypto. Players catch mystical BLINK creatures — Sprites, Cyclops, Cats, Oracles, and more — scattered on a real-world map. The Telegram bot [@TheEyeBlinkBot](https://t.me/+7Xj6CKZs9iVmMDhh) announces spawns and catches in real time, 24/7.
+Pokémon GO meets crypto. Players catch mystical BLINK creatures — Sprites, Cyclops, Cats, Oracles, and more — scattered on a real-world map. The Telegram bot [@TheEyeBlinkBot](https://t.me/blinkworldeth) announces spawns and catches in real time, 24/7.
 
 ## Phase 1 — what this codebase is
 
@@ -59,7 +59,7 @@ Required env vars are in `VERCEL-ENV-VARS.txt`. Set them via Vercel or a local `
 
 ## Telegram
 
-- Group: https://t.me/+7Xj6CKZs9iVmMDhh
+- Group: https://t.me/blinkworldeth
 - Bot: `@TheEyeBlinkBot`
 
 ## Phase 1 scope

@@ -38,6 +38,7 @@ export type WildSpawn = {
   fuzzy_lng: number;
   fuzzy_radius_m: number;
   expires_at?: string;
+  image_url?: string;
 };
 
 export type CatchableSpawn = {
@@ -58,6 +59,7 @@ export type CatchableSpawn = {
   creature_id?: number | null;
   expires_at: string;
   is_genesis?: boolean;
+  distanceM?: number;
 };
 
 export type NearbyWatcher = {
@@ -91,6 +93,12 @@ interface HuntMapProps {
   onSelectPlayer?: (player: NearbyPlayer) => void;
   onSelectWildSpawn?: (spawn: WildSpawn) => void;
   onSelectCatchable?: (spawn: CatchableSpawn) => void;
+  /**
+   * Living-approach vignette intensity in [0,1]. Drives the green edge-glow
+   * opacity (0 → 0.6) shown when a catchable spawn enters approach range.
+   * GPU-accelerated (opacity-only). Skipped under prefers-reduced-motion.
+   */
+  approachIntensity?: number;
 }
 
 const RARITY_TONE: Record<string, string> = {
@@ -466,7 +474,34 @@ const HUNT_CSS = `
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 .mm-ghost-catch:hover::after { opacity: 1; }
+.mm-approach-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  /* Inset green glow on the screen edges. Driven by --approach-intensity.
+   * Pure opacity + box-shadow → GPU compositor friendly. */
+  box-shadow: inset 0 0 120px 30px rgba(0, 255, 136, 0.85);
+  opacity: calc(var(--approach-intensity, 0) * 0.6);
+  transition: opacity 280ms ease;
+  will-change: opacity;
+  mix-blend-mode: screen;
+}
+.mm-approach-vignette::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 255, 136, 0.45) 100%);
+  opacity: 1;
+  animation: mmVignetteBreath 1.8s ease-in-out infinite;
+  will-change: opacity;
+}
+@keyframes mmVignetteBreath {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
 @media (prefers-reduced-motion: reduce) {
+  .mm-approach-vignette::after { animation: none !important; }
   .mm-orb-bob,
   .mm-orb-breath,
   .mm-orb-halo,
@@ -531,6 +566,7 @@ export default function HuntMap({
   onSelectPlayer,
   onSelectWildSpawn,
   onSelectCatchable,
+  approachIntensity = 0,
 }: HuntMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -566,7 +602,7 @@ export default function HuntMap({
   /* ── Init map ── */
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-
+    // Wait for a real position — fall back to NYC if location not enabled
     const center: [number, number] = userPosition
       ? [userPosition.lng, userPosition.lat]
       : [-74.006, 40.7128];
@@ -574,12 +610,14 @@ export default function HuntMap({
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: 'mapbox://styles/mapbox/dark-v11',
-      pitch: 45,
+      pitch: 0,
       bearing: 0,
       center,
       zoom: 15,
       attributionControl: false,
       logoPosition: 'bottom-left',
+      renderWorldCopies: false,
+      antialias: false,
     });
 
     const applyStyleNow = () => applyBlinkMapStyle(map, { hour: new Date().getHours() });
@@ -593,7 +631,7 @@ export default function HuntMap({
 
     mapRef.current = map;
     if (externalMapRef) externalMapRef.current = map;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [userPosition?.lat, userPosition?.lng]); // re-init if position arrives before map exists
 
   /* ── User marker ── */
   useEffect(() => {
@@ -625,7 +663,7 @@ export default function HuntMap({
     }
 
     if (!hasInitialView.current) {
-      mapRef.current.flyTo({ center: [userPosition.lng, userPosition.lat], zoom: 15, duration: 800 });
+      mapRef.current.easeTo({ center: [userPosition.lng, userPosition.lat], zoom: 15, duration: 600 });
       hasInitialView.current = true;
     }
   }, [userPosition]);
@@ -648,10 +686,7 @@ export default function HuntMap({
     if (!mapRef.current) return;
     const map = mapRef.current;
 
-    // Spawns that should render a marker (medium / close / catchable). Far
-    // spawns are intentionally hidden — only the compass + edge pulse hint
-    // at them, matching Pokemon-GO's distance haze.
-    const visibleOrbs = orbs.filter((o) => o.tier && o.tier !== 'far');
+    const visibleOrbs = orbs.filter((o) => o.tier); // show ALL tiers including far
     const currentIds = new Set(visibleOrbs.map((o) => o.id));
 
     markersRef.current.forEach((marker, id) => {
@@ -675,7 +710,25 @@ export default function HuntMap({
       const reduce = reducedMotionRef.current;
       const rTone = RARITY_TONE[orb.rarity] || rColor;
 
-      if (tier === 'medium') {
+      if (tier === 'far') {
+        el.style.width = '28px';
+        el.style.height = '28px';
+        el.style.opacity = '0.35';
+        el.innerHTML = `
+          <div style="
+            width:22px;height:22px;border-radius:50%;
+            background:radial-gradient(circle, ${rTone}44, transparent);
+            border:1.5px solid ${rTone}55;
+            display:flex;align-items:center;justify-content:center;
+            filter:blur(0.8px);
+          ">
+            <svg viewBox="0 0 20 20" width="11" height="11">
+              <circle cx="10" cy="10" r="7" fill="${rTone}" opacity="0.5"/>
+              <circle cx="10" cy="10" r="3" fill="#0a0a0f" opacity="0.7"/>
+            </svg>
+          </div>
+        `;
+      } else if (tier === 'medium') {
         el.style.width = '34px';
         el.style.height = '34px';
         el.innerHTML = `
@@ -750,6 +803,10 @@ export default function HuntMap({
       }
 
       el.addEventListener('click', () => {
+        if (tier === 'far') {
+          onSelectOrb(orb); // opens info panel but can't catch
+          return;
+        }
         if (tier === 'catchable' && !isClaimed) {
           const inner = el.querySelector('[data-tier-mark="catchable"]') as HTMLElement | null;
           if (inner && !reduce) {
@@ -916,8 +973,10 @@ export default function HuntMap({
       `;
 
       const art = resolveCreatureArt(s.species, s.rarity, s.id);
+      const cardSrc = art.card || s.image_url || "";
       const wildEl = document.createElement("div");
       wildEl.style.cssText = `
+        position:relative;
         width:38px;height:38px;border-radius:50%;
         background:radial-gradient(circle at 35% 35%, ${color}, #0a0a0f);
         border:2px solid ${color};
@@ -925,17 +984,23 @@ export default function HuntMap({
         animation:mmWildPulse 1.9s ease-in-out infinite;
         cursor:pointer;
         display:flex;align-items:center;justify-content:center;
-        overflow:hidden;
+        overflow:visible;
       `;
       wildEl.setAttribute("role", "button");
       wildEl.setAttribute("aria-label", `Wild ${s.species}`);
-      wildEl.innerHTML = art.card
-        ? `<img src="${art.card}" alt="" style="width:78%;height:78%;object-fit:cover;border-radius:50%;display:block;filter:drop-shadow(0 0 4px ${color}aa);" />`
+      // Add despawn timer to create urgency
+      const now = Date.now();
+      const expiresAt = new Date(s.expires_at).getTime();
+      const minsLeft = Math.max(0, Math.floor((expiresAt - now) / 60000));
+      const timerColor = minsLeft <= 5 ? "#ff4444" : minsLeft <= 15 ? "#ffaa00" : "#00FF88";
+      const imgHtml = cardSrc
+        ? `<img src="${cardSrc}" alt="" style="width:78%;height:78%;object-fit:cover;border-radius:50%;display:block;filter:drop-shadow(0 0 4px ${color}aa);" />`
         : `<svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" width="70%" height="70%">
             <ellipse cx="14" cy="14" rx="10" ry="6" fill="#0a0a0f" opacity="0.75"/>
             <circle cx="14" cy="13" r="3.2" fill="${color}"/>
             <circle cx="14" cy="13" r="1.4" fill="#FFFFFF"/>
           </svg>`;
+      wildEl.innerHTML = `${imgHtml}<div style="position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:${timerColor};font-size:9px;font-weight:bold;padding:2px 5px;border-radius:8px;white-space:nowrap;border:1px solid ${timerColor}33;">${minsLeft}m</div>`;
       wildEl.addEventListener("click", () => onSelectWildSpawn?.(s));
 
       const fId = `wild-fuzzy:${s.id}`;
@@ -956,11 +1021,6 @@ export default function HuntMap({
       const existingW = wildMarkersRef.current.get(wId);
       if (existingW) {
         existingW.setLngLat([s.fuzzy_lng, s.fuzzy_lat]);
-        existingW.remove();
-        const m2 = new mapboxgl.Marker({ element: wildEl, anchor: "center" })
-          .setLngLat([s.fuzzy_lng, s.fuzzy_lat])
-          .addTo(map);
-        wildMarkersRef.current.set(wId, m2);
       } else {
         const m2 = new mapboxgl.Marker({ element: wildEl, anchor: "center" })
           .setLngLat([s.fuzzy_lng, s.fuzzy_lat])
@@ -1062,12 +1122,12 @@ export default function HuntMap({
       const existing = catchableMarkersRef.current.get(key);
       if (existing) {
         existing.setLngLat([s.lng, s.lat]);
-        existing.remove();
+      } else {
+        const m = new mapboxgl.Marker({ element: wrap, anchor: "center" })
+          .setLngLat([s.lng, s.lat])
+          .addTo(map);
+        catchableMarkersRef.current.set(key, m);
       }
-      const m = new mapboxgl.Marker({ element: wrap, anchor: "center" })
-        .setLngLat([s.lng, s.lat])
-        .addTo(map);
-      catchableMarkersRef.current.set(key, m);
     });
   }, [catchableSpawns, onSelectCatchable]);
 
@@ -1097,12 +1157,12 @@ export default function HuntMap({
       const existing = watcherMarkersRef.current.get(key);
       if (existing) {
         existing.setLngLat([w.lng, w.lat]);
-        existing.remove();
+      } else {
+        const m = new mapboxgl.Marker({ element: wrap, anchor: "center" })
+          .setLngLat([w.lng, w.lat])
+          .addTo(map);
+        watcherMarkersRef.current.set(key, m);
       }
-      const m = new mapboxgl.Marker({ element: wrap, anchor: "center" })
-        .setLngLat([w.lng, w.lat])
-        .addTo(map);
-      watcherMarkersRef.current.set(key, m);
     });
   }, [watchers]);
 
@@ -1210,6 +1270,20 @@ export default function HuntMap({
           background:
             'radial-gradient(ellipse at 50% 40%, rgba(0,255,136,0.06), transparent 55%), radial-gradient(ellipse at 80% 80%, rgba(136,255,0,0.04), transparent 60%), linear-gradient(180deg, rgba(10,10,15,0.15), rgba(10,10,15,0.35))',
           mixBlendMode: 'screen',
+        }}
+      />
+
+      {/* Living-approach vignette: green edge glow that intensifies as the
+          closest catchable spawn approaches. CSS-variable driven so we never
+          touch React's commit cycle when intensity changes via the parent's
+          state — only the inline style attribute updates. */}
+      <div
+        aria-hidden
+        className="mm-approach-vignette"
+        style={{
+          ['--approach-intensity' as unknown as string]: String(
+            Math.max(0, Math.min(1, approachIntensity)),
+          ),
         }}
       />
 

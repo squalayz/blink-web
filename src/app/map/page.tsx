@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback, useRef } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -14,6 +14,8 @@ import UserProfileCard from "@/components/UserProfileCard";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 
 import { BlinkCompass, type CompassReading, type CompassTier } from "@/components/BlinkCompass";
+import { CreatureRadar, type RadarCreature } from "@/components/CreatureRadar";
+import { SpawnNotifier, useNotificationPermission } from "@/components/SpawnNotifier";
 import { BESTIARY } from "@/lib/bestiary";
 import { usePresence } from "@/lib/use-presence";
 import type {
@@ -29,9 +31,13 @@ import PlayerSheet from "@/components/PlayerSheet";
 import { ErrorBoundary } from "@/components/error-boundary";
 import MapDownState from "@/components/MapDownState";
 import ARCameraOverlay from "@/components/ARCameraOverlay";
+import { CinematicCatch } from "@/components/CinematicCatch";
+import { MapApproachVignette } from "@/components/MapApproachVignette";
+import { sounds, type ApproachRarity } from "@/lib/sounds";
+import { pulseSoft, pulseSharp } from "@/lib/haptics";
 
 const CATCH_PROXIMITY_M = 50;
-const AMBIENT_POLL_MS = 60_000;
+const AMBIENT_POLL_MS = 15_000;
 
 const TIER_LABELS: Record<string, string> = {
   common: "Common",
@@ -117,15 +123,24 @@ interface Position {
 
 const COLORS = {
   bg: "#0a0a0f",
-  surface: "#0d0d14",
-  card: "#1a1a24",
+  surface: "rgba(13,13,20,0.96)",
+  surfaceBlur: "rgba(13,13,20,0.82)",
+  card: "rgba(24,24,36,0.9)",
   primary: "#00FF88",
   accent: "#00FF88",
   gold: "#88FF00",
   text: "#FFFFFF",
   textMuted: "#8a8a99",
-  border: "#1F2028",
+  textSubtle: "#555566",
+  border: "rgba(255,255,255,0.06)",
+  borderGlow: "rgba(0,255,136,0.22)",
+  // Frosted glass helper — use as background
+  glass: "rgba(10,10,20,0.72)",
+  glassStrong: "rgba(10,10,20,0.88)",
 };
+
+// Nav height constant: mobile pill nav ≈ 80px + 16px margin = 96px total clearance
+const NAV_H = 96;
 
 const RARITY_COLORS: Record<string, string> = {
   common: "#C0C0C0",
@@ -174,13 +189,13 @@ function formatDistance(meters: number): string {
 }
 
 const toolRailBtn: React.CSSProperties = {
-  width: 36,
-  height: 36,
-  borderRadius: 10,
-  background: "rgba(10,10,15,0.55)",
-  backdropFilter: "blur(14px)",
-  WebkitBackdropFilter: "blur(14px)",
-  border: "1px solid rgba(0,255,136,0.32)",
+  width: 40,
+  height: 40,
+  borderRadius: 12,
+  background: "rgba(10,10,20,0.75)",
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  border: "1px solid rgba(255,255,255,0.08)",
   color: "#00FF88",
   fontSize: 16,
   fontWeight: 700,
@@ -190,6 +205,8 @@ const toolRailBtn: React.CSSProperties = {
   justifyContent: "center",
   fontFamily: "inherit",
   padding: 0,
+  transition: "all 0.15s ease",
+  boxShadow: "0 2px 12px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)",
 };
 
 /* ------------------------------------------------------------------ */
@@ -226,7 +243,10 @@ export default function MapPage() {
   const [catching, setCatching] = useState(false);
   const [catchError, setCatchError] = useState<string | null>(null);
   const [catchResult, setCatchResult] = useState<CatchResult | null>(null);
+  const [cinematicOpen, setCinematicOpen] = useState(false);
   const [arSpawn, setArSpawn] = useState<CatchableSpawn | null>(null);
+  const [arOpen, setArOpen] = useState(false);
+  const [blinkBalance, setBlinkBalance] = useState<number | null>(null);
   const leafletMapRef = useRef<any>(null);
   const watchIdRef = useRef<number | null>(null);
   const fabIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -263,8 +283,18 @@ export default function MapPage() {
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
     }
+    // Throttle position updates — only re-render if moved >3m or >3s elapsed
+    let lastUpdateMs = 0;
+    let lastLat = 0; let lastLng = 0;
     const id = navigator.geolocation.watchPosition(
       (pos) => {
+        const now = Date.now();
+        const dlat = Math.abs(pos.coords.latitude - lastLat);
+        const dlng = Math.abs(pos.coords.longitude - lastLng);
+        const movedEnough = dlat > 0.000027 || dlng > 0.000027; // ~3m
+        const timeElapsed = now - lastUpdateMs > 3000;
+        if (!movedEnough && !timeElapsed) return;
+        lastLat = pos.coords.latitude; lastLng = pos.coords.longitude; lastUpdateMs = now;
         setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
       (err) => {
@@ -287,6 +317,20 @@ export default function MapPage() {
       }
     };
   }, [requestLocation]);
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch("https://ipapi.co/json/");
+        const d = await r.json();
+        if (d.latitude && d.longitude) {
+          setPosition(prev => prev ?? { lat: Number(d.latitude), lng: Number(d.longitude) });
+        }
+      } catch {}
+    }, 2000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ---- Camera permission check ---- */
   useEffect(() => {
@@ -323,30 +367,75 @@ export default function MapPage() {
     if (user) fetchOrbs();
   }, [user, fetchOrbs]);
 
+  /* ---- BLINK balance for HUD ---- */
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("eth_address, wallet_address")
+          .eq("user_id", user.id)
+          .single();
+        const addr = profile?.eth_address ?? profile?.wallet_address;
+        if (!addr) return;
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+        const res = await fetch(`/api/wallet/balance?address=${addr}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        if (typeof data.blink === "number") setBlinkBalance(data.blink);
+      } catch {
+        /* silent */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   /* ---- Ambient wild spawn polling (catch-to-mint) ---- */
   const fetchCatchableSpawns = useCallback(async () => {
     if (!position) return;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) return;
+      let { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        // Session may be stale — try refreshing once
+        const refreshed = await supabase.auth.refreshSession();
+        session = refreshed.data.session;
+        if (!session?.access_token) return;
+      }
       const res = await fetch(
         `/api/spawns/ambient?lat=${position.lat}&lng=${position.lng}`,
         { headers: { Authorization: `Bearer ${session.access_token}` } },
       );
-      if (!res.ok) return;
+      if (!res.ok) {
+        console.error('[spawns/ambient]', res.status, await res.text().catch(() => ''));
+        return;
+      }
       const json = await res.json();
-      setCatchableSpawns((json.spawns ?? []) as CatchableSpawn[]);
-    } catch {
-      /* silent */
+      console.log('[ambient] raw spawns:', json.spawns?.length ?? 0, 'pos:', position?.lat, position?.lng);
+      const spawnsWithDistance = (json.spawns ?? []).map((s: CatchableSpawn) => ({
+        ...s,
+        distanceM: position ? haversine(position.lat, position.lng, s.lat, s.lng) : 9999,
+      }));
+      console.log('[ambient] setCatchableSpawns:', spawnsWithDistance.length);
+      setCatchableSpawns(spawnsWithDistance as CatchableSpawn[]);
+    } catch (err) {
+      console.error('[fetchCatchableSpawns error]', err);
     }
   }, [position?.lat, position?.lng]);
 
   useEffect(() => {
-    if (!user || !position) return;
+    if (!position) return;
     fetchCatchableSpawns();
     const id = setInterval(fetchCatchableSpawns, AMBIENT_POLL_MS);
     return () => clearInterval(id);
-  }, [user, position?.lat, position?.lng, fetchCatchableSpawns]);
+  }, [position?.lat, position?.lng, fetchCatchableSpawns]);
 
   /* ---- Catch flow ---- */
   const performCatch = useCallback(async (override?: CatchableSpawn) => {
@@ -380,6 +469,9 @@ export default function MapPage() {
         return;
       }
       setCatchResult(json as CatchResult);
+      if (typeof json.blinkRewarded === "number" && json.blinkRewarded > 0) {
+        setBlinkBalance((prev) => (prev !== null ? prev + json.blinkRewarded : json.blinkRewarded));
+      }
       setSelectedCatchable(null);
       // Re-poll immediately so the caught spawn drops off.
       await fetchCatchableSpawns();
@@ -401,27 +493,18 @@ export default function MapPage() {
         ? orbsForRender.filter((o) => (o as any).chain === CHAIN_FILTER_MAP[activeFilter] || o.currency === activeFilter)
         : orbsForRender.filter((o) => o.category?.toLowerCase() === activeFilter.toLowerCase());
 
-  const orbsWithDistance = filteredOrbs.map((o) => {
+  const orbsWithDistance = useMemo(() => filteredOrbs.map((o) => {
     const distance = position ? haversine(position.lat, position.lng, o.lat, o.lng) : Infinity;
     const bearing = position ? bearingDeg(position.lat, position.lng, o.lat, o.lng) : 0;
     const tier: Tier = position ? tierFromDistance(distance) : "far";
-    // Look up the matching creature image from the bestiary using the spawn id.
-    // Spawn IDs from blink-spawns encode creatureId in the id pattern, but we
-    // also have the rarity → BESTIARY lookup via dropper_name above.
     const creatureName = (o as { dropper_name?: string }).dropper_name;
     const creature = BESTIARY.find((c) => c.name === creatureName);
-    return {
-      ...o,
-      distance,
-      bearing,
-      tier,
-      creatureImage: creature?.image ?? null,
-    };
-  });
+    return { ...o, distance, bearing, tier, creatureImage: creature?.image ?? null };
+  }), [filteredOrbs, position]);
 
-  const sortedOrbs = [...orbsWithDistance].sort((a, b) => a.distance - b.distance);
+  const sortedOrbs = useMemo(() => [...orbsWithDistance].sort((a, b) => a.distance - b.distance), [orbsWithDistance]);
 
-  const nearbyCount = orbsWithDistance.filter((o) => o.distance < 500).length;
+  const nearbyCount = useMemo(() => orbsWithDistance.filter((o) => o.distance < 500).length, [orbsWithDistance]);
 
   /* ---- Presence + wild spawns (privacy-blurred) ---- */
   const { players, wildSpawns } = usePresence(position);
@@ -513,7 +596,205 @@ export default function MapPage() {
     };
   }, [user, position?.lat, position?.lng]);
 
+  /* ---- Living-approach mechanic (Win #1) ----
+   *
+   * Compute distance to nearest catchable spawn on every GPS tick. Cross
+   * proximity tiers (100m → 50m → 25m → 10m) with a 5m hysteresis buffer
+   * so jitter doesn't cause flicker. Each crossing wires the hum + vignette
+   * + a haptic pulse. iOS Safari vibrate is a silent no-op (handled in
+   * haptics.ts). Reduced-motion users get no vignette pulse (handled in
+   * HuntMap CSS) and no audio (gated inside sounds.setApproachIntensity).
+   */
+  type ApproachTier = "none" | "100m" | "50m" | "25m" | "10m";
+  const APPROACH_ENTER: Record<Exclude<ApproachTier, "none">, number> = {
+    "100m": 100,
+    "50m": 50,
+    "25m": 25,
+    "10m": 10,
+  };
+  // Exit threshold = enter + 5m hysteresis so 1-2m GPS jitter can't flicker tiers.
+  const APPROACH_EXIT: Record<Exclude<ApproachTier, "none">, number> = {
+    "100m": 105,
+    "50m": 55,
+    "25m": 30,
+    "10m": 15,
+  };
+  const [approachIntensity, setApproachIntensity] = useState(0);
+  const approachTierRef = useRef<ApproachTier>("none");
+  const approachIntensityRampRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Smoothly ramp the intensity (used for the vignette CSS var + the audio
+  // hum) from current → target over ~600ms. setApproachIntensity in sounds.ts
+  // already does its own 250ms gain ramp; this just animates the visual side.
+  const rampApproachIntensity = useCallback(
+    (target: number, rarity: ApproachRarity) => {
+      if (approachIntensityRampRef.current) {
+        clearInterval(approachIntensityRampRef.current as unknown as number);
+        approachIntensityRampRef.current = null;
+      }
+      const start = approachIntensity;
+      const startedAt = Date.now();
+      const dur = 600;
+      const tick = () => {
+        const t = Math.min(1, (Date.now() - startedAt) / dur);
+        const v = start + (target - start) * t;
+        setApproachIntensity(v);
+        if (t >= 1) {
+          if (approachIntensityRampRef.current) {
+            clearInterval(approachIntensityRampRef.current as unknown as number);
+            approachIntensityRampRef.current = null;
+          }
+        }
+      };
+      approachIntensityRampRef.current = setInterval(tick, 30);
+      // Tell the audio engine immediately so it ramps in parallel.
+      sounds.setApproachIntensity(target, rarity);
+    },
+    [approachIntensity],
+  );
+
+  useEffect(() => {
+    if (!position || catchableSpawns.length === 0) {
+      if (approachTierRef.current !== "none") {
+        approachTierRef.current = "none";
+        sounds.stopApproachHum();
+        rampApproachIntensity(0, "common");
+      }
+      return;
+    }
+
+    // Closest catchable spawn (these are exact GPS — not fuzzy — so distance
+    // is trustworthy for the approach mechanic).
+    let nearestDist = Infinity;
+    let nearestRarity: ApproachRarity = "common";
+    for (const s of catchableSpawns) {
+      const d = haversine(position.lat, position.lng, s.lat, s.lng);
+      if (d < nearestDist) {
+        nearestDist = d;
+        const r = (s.tier || "common").toLowerCase();
+        if (
+          r === "common" ||
+          r === "uncommon" ||
+          r === "rare" ||
+          r === "legendary" ||
+          r === "mythic"
+        ) {
+          nearestRarity = r;
+        } else {
+          nearestRarity = "common";
+        }
+      }
+    }
+
+    const current = approachTierRef.current;
+
+    // Determine the new tier with hysteresis: only step *into* a tighter tier
+    // when crossing its enter threshold; only step *out* of a tier when past
+    // its exit threshold (5m further out).
+    let next: ApproachTier = current;
+    const tighter: ApproachTier[] = ["10m", "25m", "50m", "100m"];
+    // First, try to enter a tighter tier.
+    for (const tier of tighter) {
+      if (nearestDist <= APPROACH_ENTER[tier as Exclude<ApproachTier, "none">]) {
+        // Tier order: 10m is tightest. Only adopt if it's tighter than current.
+        const order: ApproachTier[] = ["none", "100m", "50m", "25m", "10m"];
+        if (order.indexOf(tier) > order.indexOf(current)) {
+          next = tier;
+        }
+        break;
+      }
+    }
+    // If we didn't tighten, check if we should loosen.
+    if (next === current && current !== "none") {
+      const exitFor = APPROACH_EXIT[current as Exclude<ApproachTier, "none">];
+      if (nearestDist > exitFor) {
+        const order: ApproachTier[] = ["none", "100m", "50m", "25m", "10m"];
+        const idx = order.indexOf(current);
+        // Step back exactly one tier (and re-evaluate next tick if still loose).
+        next = order[Math.max(0, idx - 1)];
+      }
+    }
+
+    if (next === current) return;
+
+    // Tier change → fire its event payload.
+    approachTierRef.current = next;
+    switch (next) {
+      case "100m":
+        // Entering approach range: kick the hum on quietly, ramp to 0.3.
+        sounds.setApproachIntensity(0.1, nearestRarity);
+        rampApproachIntensity(0.3, nearestRarity);
+        break;
+      case "50m":
+        rampApproachIntensity(0.6, nearestRarity);
+        pulseSoft();
+        break;
+      case "25m":
+        rampApproachIntensity(0.85, nearestRarity);
+        pulseSoft();
+        break;
+      case "10m":
+        rampApproachIntensity(1.0, nearestRarity);
+        // pulseSharp only fires on the transition INTO 10m (debounced by the
+        // tier-change guard above — re-entering after exiting + re-crossing
+        // is a new transition, which is the intended behaviour).
+        pulseSharp();
+        break;
+      case "none":
+        // All spawns left the 100m ring: fade everything out.
+        rampApproachIntensity(0, nearestRarity);
+        sounds.stopApproachHum();
+        break;
+    }
+  }, [position, catchableSpawns, rampApproachIntensity]);
+
+  // Cleanup on unmount: kill any ramp interval + the hum.
+  useEffect(() => {
+    return () => {
+      if (approachIntensityRampRef.current) {
+        clearInterval(approachIntensityRampRef.current as unknown as number);
+      }
+      sounds.stopApproachHum();
+    };
+  }, []);
+
   /* ---- Compass reading ---- */
+  // Radar: up to 5 nearest catchable spawns within 1km, sorted by distance
+  const radarCreatures: RadarCreature[] = useMemo(() => {
+    if (!position) return [];
+    return catchableSpawns
+      .map((s) => {
+        const distanceM = haversine(position.lat, position.lng, s.lat, s.lng);
+        if (distanceM > 1000) return null;
+        const dLng = (s.lng - position.lng) * Math.PI / 180;
+        const lat1 = position.lat * Math.PI / 180;
+        const lat2 = s.lat * Math.PI / 180;
+        const y = Math.sin(dLng) * Math.cos(lat2);
+        const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+        const bearing = ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+        return { id: s.id, name: s.name, tier: s.tier, tier_color: s.tier_color || "", distanceM, bearingDeg: bearing, image_url: s.image_url };
+      })
+      .filter(Boolean)
+      .sort((a, b) => (a!.distanceM - b!.distanceM))
+      .slice(0, 5) as RadarCreature[];
+  }, [catchableSpawns, position]);
+
+  // Notification-eligible spawns
+  const notifySpawns = useMemo(() => radarCreatures.map((c) => ({ id: c.id, name: c.name, tier: c.tier, distanceM: c.distanceM })), [radarCreatures]);
+  const { permission: notifPermission } = useNotificationPermission();
+
+  // Vignette: nearest catchable spawn for approach overlay
+  const vigData = useMemo(() => {
+    if (!position || radarCreatures.length === 0) return null;
+    const nearest = radarCreatures[0]; // already sorted by distance
+    const distM = nearest.distanceM;
+    const intensity = distM > 500 ? 0
+      : distM > 100 ? 0.15 + (500 - distM) / 400 * 0.45
+      : distM > 50  ? 0.60 + (100 - distM) / 50 * 0.35
+      : 1.0;
+    return { nearest, distM, intensity };
+  }, [radarCreatures, position]);
+
   const compassReading: CompassReading = (() => {
     if (!position || orbsWithDistance.length === 0) {
       return { tier: "none", distanceM: Infinity, bearingDeg: 0 };
@@ -644,157 +925,167 @@ export default function MapPage() {
       style={{
         background: COLORS.bg,
         height: "100dvh",
-        display: "flex",
-        flexDirection: "column",
         overflow: "hidden",
         position: "relative",
         fontFamily:
           '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
       }}
     >
-      {/* ========== TOP BAR ========== */}
+      {/* ========== FLOATING TOP BAR ========== */}
+      {/* Full-screen map underneath — all UI floats as absolute overlays */}
       <div
         style={{
-          minHeight: "calc(44px + max(env(safe-area-inset-top, 0px), var(--blink-top-inset, 0px)))",
-          background: COLORS.surface,
-          borderBottom: `1px solid ${COLORS.border}`,
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 40,
+          paddingTop: "max(env(safe-area-inset-top, 0px), 12px)",
+          padding: "max(env(safe-area-inset-top, 0px), 12px) 12px 0",
+          pointerEvents: "none",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "max(env(safe-area-inset-top, 0px), var(--blink-top-inset, 0px)) 14px 0",
-          zIndex: 20,
-          flexShrink: 0,
-          boxSizing: "border-box",
+          flexDirection: "column",
+          gap: 8,
         }}
       >
-        <Link href="/" style={{ textDecoration: "none" }}>
-          <span
-            style={{
-              fontSize: 16,
-              fontWeight: 800,
-              letterSpacing: "-0.02em",
-              background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.accent})`,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
-            BLINK
-          </span>
-        </Link>
+        {/* Main pill: logo + sense count + profile */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            pointerEvents: "auto",
+          }}
+        >
+          {/* Logo pill */}
+          <Link href="/" style={{ textDecoration: "none", flexShrink: 0 }}>
+            <div style={{
+              height: 40,
+              padding: "0 14px",
+              borderRadius: 999,
+              background: COLORS.glassStrong,
+              backdropFilter: "blur(24px)",
+              WebkitBackdropFilter: "blur(24px)",
+              border: "1px solid rgba(0,255,136,0.18)",
+              boxShadow: "0 2px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}>
+              <span style={{
+                fontSize: 15,
+                fontWeight: 800,
+                letterSpacing: "-0.02em",
+                background: "linear-gradient(135deg, #00FF88, #88FF00)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+              }}>BLINK</span>
+            </div>
+          </Link>
 
-        <span style={{ color: COLORS.textMuted, fontSize: 12, fontWeight: 500, letterSpacing: "0.02em" }}>
-          {nearbyCount > 0
-            ? `${nearbyCount} BLINK${nearbyCount !== 1 ? "S" : ""} sensed`
-            : "The Eye is quiet"}
-        </span>
+          {/* Sense status pill — center, flex grows */}
+          <div style={{
+            flex: 1,
+            height: 40,
+            borderRadius: 999,
+            background: COLORS.glassStrong,
+            backdropFilter: "blur(24px)",
+            WebkitBackdropFilter: "blur(24px)",
+            border: `1px solid ${nearbyCount > 0 ? "rgba(0,255,136,0.22)" : "rgba(255,255,255,0.06)"}`,
+            boxShadow: "0 2px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+          }}>
+            {nearbyCount > 0 && (
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#00FF88", boxShadow: "0 0 6px #00FF88", flexShrink: 0 }} />
+            )}
+            <span style={{
+              color: nearbyCount > 0 ? COLORS.text : COLORS.textMuted,
+              fontSize: 12,
+              fontWeight: nearbyCount > 0 ? 700 : 500,
+              letterSpacing: "0.01em",
+            }}>
+              {nearbyCount > 0 ? `${nearbyCount} creature${nearbyCount !== 1 ? "s" : ""} nearby` : "The Eye is quiet"}
+            </span>
+          </div>
 
-        <Link href="/profile" style={{ textDecoration: "none" }}>
-          <div
-            style={{
-              width: 30,
-              height: 30,
+          {/* BLINK balance pill */}
+          <Link href="/wallet" style={{ textDecoration: "none", flexShrink: 0 }} aria-label="Wallet">
+            <div style={{
+              height: 40,
+              padding: "0 12px",
+              borderRadius: 999,
+              background: COLORS.glassStrong,
+              backdropFilter: "blur(24px)",
+              WebkitBackdropFilter: "blur(24px)",
+              border: "1px solid rgba(0,255,136,0.18)",
+              boxShadow: "0 2px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+            }}>
+              <span style={{ fontSize: 14, lineHeight: 1 }}>⚡</span>
+              {blinkBalance === null
+                ? <span style={{ color: COLORS.textMuted, fontSize: 13, fontWeight: 700 }}>···</span>
+                : <span style={{ color: COLORS.text, fontSize: 13, fontWeight: 700 }}>{blinkBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              }
+            </div>
+          </Link>
+
+          {/* Profile avatar */}
+          <Link href="/profile" style={{ textDecoration: "none", flexShrink: 0 }} aria-label="Profile">
+            <div style={{
+              width: 40,
+              height: 40,
               borderRadius: "50%",
-              background: COLORS.card,
+              background: COLORS.glassStrong,
+              backdropFilter: "blur(24px)",
+              WebkitBackdropFilter: "blur(24px)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              boxShadow: "0 2px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              border: `1px solid ${COLORS.border}`,
-            }}
-          >
-            <User size={15} color={COLORS.textMuted} />
-          </div>
-        </Link>
-      </div>
-
-      {/* ========== FILTER ROW (collapsed by default — single chip) ========== */}
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          padding: "8px 16px",
-          background: COLORS.bg,
-          zIndex: 19,
-          overflowX: "auto",
-          alignItems: "center",
-        }}
-      >
-        <button
-          onClick={() => setFiltersOpen((v) => !v)}
-          aria-expanded={filtersOpen}
-          aria-controls="map-filter-pills"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "6px 14px",
-            borderRadius: 999,
-            border: `1px solid ${activeFilter !== "All" ? COLORS.primary : COLORS.border}`,
-            background: activeFilter !== "All" ? `${COLORS.primary}18` : "transparent",
-            color: activeFilter !== "All" ? COLORS.primary : COLORS.textMuted,
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: "pointer",
-            flexShrink: 0,
-          }}
-        >
-          <Filter size={13} />
-          {activeFilter === "All" ? "Filter" : activeFilter}
-        </button>
-
-        {filtersOpen && (
-          <div
-            id="map-filter-pills"
-            style={{
-              display: "flex",
-              gap: 8,
-              overflowX: "auto",
-              flex: 1,
-              minWidth: 0,
-            }}
-          >
-            {FILTER_OPTIONS.map((f) => {
-              const active = activeFilter === f;
-              const chainColor = CHAIN_PILL_COLORS[f];
-              return (
-                <button
-                  key={f}
-                  onClick={() => {
-                    setActiveFilter(f);
-                    if (f === "All") setFiltersOpen(false);
-                  }}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: 999,
-                    border: active
-                      ? chainColor ? `1px solid ${chainColor}` : "none"
-                      : `1px solid ${COLORS.border}`,
-                    background: active
-                      ? chainColor ? `${chainColor}22` : COLORS.primary
-                      : "transparent",
-                    color: active
-                      ? chainColor ? chainColor : "#fff"
-                      : COLORS.textMuted,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                    flexShrink: 0,
-                  }}
-                >
-                  {f}
-                </button>
-              );
-            })}
-          </div>
-        )}
+            }}>
+              <User size={16} color={COLORS.textMuted} />
+            </div>
+          </Link>
+        </div>
       </div>
 
       {/* ========== HOT/COLD COMPASS ========== */}
-      <BlinkCompass reading={compassReading} />
+      {/* Spawn notifier — silent side effect component */}
+      <SpawnNotifier spawns={notifySpawns} enabled={notifPermission === "granted"} />
 
-      {/* ========== MAP AREA ========== */}
+      {/* Creature radar — shows when spawns are within 1km */}
+      <AnimatePresence>
+        {radarCreatures.length > 0 && (
+          <div style={{ position: "absolute", bottom: `calc(${NAV_H + 96}px + env(safe-area-inset-bottom, 0px))`, right: 16, zIndex: 50 }}>
+            <CreatureRadar
+              creatures={radarCreatures}
+              onCreatureSelect={(id) => {
+                const spawn = catchableSpawns.find((s) => s.id === id);
+                if (spawn) {
+                  setSelectedCatchable(spawn);
+                  if (position) {
+                    const d = haversine(position.lat, position.lng, spawn.lat, spawn.lng);
+                    if (d <= CATCH_PROXIMITY_M) setCinematicOpen(true);
+                  }
+                }
+              }}
+            />
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Legacy compass — show only when no radar creatures (no spawns in 1km) */}
+      {radarCreatures.length === 0 && <BlinkCompass reading={compassReading} />}
+
+      {/* ========== MAP AREA (full-screen behind all overlays) ========== */}
       <div
-        style={{ flex: 1, position: "relative", overflow: "hidden" }}
+        style={{ position: "absolute", inset: 0, overflow: "hidden", zIndex: 1 }}
       >
         <Suspense
           fallback={
@@ -842,7 +1133,17 @@ export default function MapPage() {
               recentCatches={recentCatchesList}
               onSelectPlayer={(p) => { setSelectedPlayer(p); wakeFab(); }}
               onSelectWildSpawn={(s) => { setSelectedWild(s); wakeFab(); }}
-              onSelectCatchable={(s) => { setSelectedCatchable(s); setCatchError(null); wakeFab(); }}
+              onSelectCatchable={(s) => {
+                setSelectedCatchable(s);
+                setCatchError(null);
+                wakeFab();
+                // If already in range, skip the sheet and go straight to cinematic
+                if (position) {
+                  const d = haversine(position.lat, position.lng, s.lat, s.lng);
+                  if (d <= CATCH_PROXIMITY_M) setCinematicOpen(true);
+                }
+              }}
+              approachIntensity={approachIntensity}
             />
           </ErrorBoundary>
         </Suspense>
@@ -854,11 +1155,13 @@ export default function MapPage() {
             aria-label={isDenied ? "Location blocked" : "Enable location"}
             style={{
               position: "absolute",
-              bottom: 104,
+              bottom: `calc(${NAV_H + 92}px + env(safe-area-inset-bottom, 0px))`,
               left: "50%",
               transform: "translateX(-50%)",
               zIndex: 50,
-              background: "rgba(10,10,15,0.7)",
+              background: COLORS.glassStrong,
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
               border: `1px solid ${isDenied ? "rgba(239,68,68,0.35)" : "rgba(0,255,136,0.35)"}`,
               borderRadius: 999,
               padding: "6px 12px",
@@ -867,8 +1170,6 @@ export default function MapPage() {
               alignItems: "center",
               cursor: isDenied ? "default" : "pointer",
               whiteSpace: "nowrap",
-              backdropFilter: "blur(14px)",
-              WebkitBackdropFilter: "blur(14px)",
               boxShadow: "0 2px 12px rgba(0,0,0,0.4)",
               fontFamily: "inherit",
               color: isDenied ? "#fca5a5" : "#cfd3dd",
@@ -887,7 +1188,7 @@ export default function MapPage() {
           <div
             style={{
               position: "absolute",
-              top: 12,
+              top: 64,
               left: 12,
               zIndex: 18,
               maxWidth: "calc(100% - 80px)",
@@ -992,22 +1293,23 @@ export default function MapPage() {
           </div>
         )}
 
-        {/* ---- Tool rail (top-right) ---- */}
+        {/* ---- Tool rail (top-right, below top bar) ---- */}
         <div
           style={{
             position: "absolute",
-            top: 16,
+            top: 64,
             right: 12,
             display: "flex",
             flexDirection: "column",
             gap: 8,
             zIndex: 15,
-            padding: 4,
-            background: "rgba(10,10,15,0.4)",
-            backdropFilter: "blur(10px)",
-            WebkitBackdropFilter: "blur(10px)",
-            borderRadius: 14,
-            border: `1px solid ${COLORS.border}`,
+            padding: 5,
+            background: COLORS.glassStrong,
+            backdropFilter: "blur(24px)",
+            WebkitBackdropFilter: "blur(24px)",
+            borderRadius: 16,
+            border: "1px solid rgba(255,255,255,0.07)",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)",
           }}
         >
           <button
@@ -1049,9 +1351,15 @@ export default function MapPage() {
           )}
           <button
             onClick={() => {
-              // Pick the nearest catchable spawn so the AR view always opens
-              // on a real creature. Falls back to selectedCatchable / first
-              // spawn if no position is known yet.
+              wakeFab();
+              if (!cameraGranted) {
+                handleCameraRequest();
+                return;
+              }
+              // Always open the AR overlay. If a catchable spawn is nearby,
+              // pre-select the nearest one so the Pokémon-GO flow runs; if
+              // not, open with arSpawn = null and let the overlay render its
+              // "no creatures within 200m" empty state.
               let nearest: CatchableSpawn | null = null;
               if (position && catchableSpawns.length > 0) {
                 let bestDist = Infinity;
@@ -1064,15 +1372,8 @@ export default function MapPage() {
                 }
               }
               const target = nearest ?? selectedCatchable ?? catchableSpawns[0] ?? null;
-              if (target) {
-                setArSpawn(target);
-              } else if (!cameraGranted) {
-                handleCameraRequest();
-              } else {
-                setCameraToast(true);
-                setTimeout(() => setCameraToast(false), 3000);
-              }
-              wakeFab();
+              setArSpawn(target);
+              setArOpen(true);
             }}
             aria-label={cameraGranted ? "Open AR camera" : "Enable camera"}
             style={{
@@ -1097,10 +1398,12 @@ export default function MapPage() {
             transition={{ type: "spring", damping: 22, stiffness: 300 }}
             style={{
               position: "absolute",
-              bottom: 132,
+              bottom: `calc(${NAV_H + 130}px + env(safe-area-inset-bottom, 0px))`,
               left: "50%",
               transform: "translateX(-50%)",
-              background: COLORS.card,
+              background: COLORS.glassStrong,
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
               color: "#8888aa",
               padding: "10px 20px",
               borderRadius: 12,
@@ -1116,19 +1419,21 @@ export default function MapPage() {
         )}
       </AnimatePresence>
 
-      {/* ========== BOTTOM SHEET ========== */}
+      {/* ========== BOTTOM SHEET (Apple-style frosted glass) ========== */}
       <motion.div
-        animate={{ height: sheetExpanded ? "60dvh" : 88 }}
-        transition={{ type: "spring", damping: 28, stiffness: 300 }}
+        animate={{ height: sheetExpanded ? `calc(62dvh - ${NAV_H}px)` : 84 }}
+        transition={{ type: "spring", damping: 32, stiffness: 320, restDelta: 0.5 }}
         style={{
           position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          background: COLORS.surface,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          borderTop: `1px solid ${COLORS.border}`,
+          bottom: `calc(${NAV_H}px + env(safe-area-inset-bottom, 0px))`,
+          left: 8,
+          right: 8,
+          background: COLORS.glassStrong,
+          backdropFilter: "blur(32px)",
+          WebkitBackdropFilter: "blur(32px)",
+          borderRadius: 22,
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 -2px 40px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.07)",
           zIndex: 30,
           display: "flex",
           flexDirection: "column",
@@ -1153,10 +1458,10 @@ export default function MapPage() {
         >
           <div
             style={{
-              width: 36,
+              width: 40,
               height: 4,
               borderRadius: 2,
-              background: COLORS.border,
+              background: "rgba(255,255,255,0.15)",
             }}
           />
           <div
@@ -1257,12 +1562,15 @@ export default function MapPage() {
                   display: "flex",
                   alignItems: "center",
                   gap: 10,
-                  padding: "10px 12px",
-                  borderRadius: 12,
+                  padding: "11px 13px",
+                  borderRadius: 14,
                   marginBottom: 6,
-                  background: COLORS.card,
+                  background: "rgba(255,255,255,0.04)",
                   cursor: "pointer",
-                  border: `1px solid ${COLORS.border}`,
+                  border: "1px solid rgba(255,255,255,0.07)",
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
                 }}
               >
                 {/* rarity dot */}
@@ -1375,8 +1683,8 @@ export default function MapPage() {
           transition={{ duration: 0.35, ease: "easeOut" }}
           style={{
             position: "absolute",
-            bottom: 104,
-            left: 14,
+            bottom: `calc(${NAV_H + 96}px + env(safe-area-inset-bottom, 0px))`,
+            left: 16,
             borderRadius: "50%",
             background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.gold})`,
             display: "flex",
@@ -1384,8 +1692,8 @@ export default function MapPage() {
             justifyContent: "center",
             cursor: "pointer",
             zIndex: 35,
-            boxShadow: `0 0 18px 4px ${COLORS.primary}40`,
-            border: `1px solid ${COLORS.primary}aa`,
+            boxShadow: `0 4px 24px ${COLORS.primary}50, 0 0 40px ${COLORS.primary}20`,
+            border: "1px solid rgba(255,255,255,0.18)",
             color: COLORS.bg,
           }}
         >
@@ -1422,10 +1730,15 @@ export default function MapPage() {
               style={{
                 width: "100%",
                 maxWidth: 480,
-                background: COLORS.surface,
-                borderTopLeftRadius: 24,
-                borderTopRightRadius: 24,
-                padding: "20px 20px 32px",
+                background: COLORS.glassStrong,
+                backdropFilter: "blur(32px)",
+                WebkitBackdropFilter: "blur(32px)",
+                borderTopLeftRadius: 28,
+                borderTopRightRadius: 28,
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderBottom: "none",
+                boxShadow: "0 -4px 48px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07)",
+                padding: "20px 20px calc(32px + env(safe-area-inset-bottom, 0px))",
                 position: "relative",
               }}
             >
@@ -1672,8 +1985,12 @@ export default function MapPage() {
               style={{
                 width: "100%",
                 maxWidth: 360,
-                background: COLORS.surface,
-                borderRadius: 20,
+                background: COLORS.glassStrong,
+                backdropFilter: "blur(32px)",
+                WebkitBackdropFilter: "blur(32px)",
+                borderRadius: 24,
+                border: "1px solid rgba(255,255,255,0.09)",
+                boxShadow: "0 8px 48px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.07)",
                 padding: 24,
                 textAlign: "center",
               }}
@@ -1682,7 +1999,7 @@ export default function MapPage() {
                 Catch this creature?
               </h3>
               {/* Reward */}
-              <div style={{ background: COLORS.bg, borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+              <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 14, padding: "12px 14px", marginBottom: 10, border: "1px solid rgba(255,255,255,0.06)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                   <span style={{ color: COLORS.textMuted, fontSize: 13 }}>Reward inside</span>
                   <span style={{ color: COLORS.accent, fontSize: 14, fontWeight: 700 }}>{confirmOrb.amount} {confirmOrb.currency}</span>
@@ -1819,10 +2136,13 @@ export default function MapPage() {
       )}
 
       {/* ========== AR CAMERA OVERLAY ========== */}
+      {arOpen && (
       <ARCameraOverlay
         spawn={arSpawn}
         userPosition={position}
-        onClose={() => setArSpawn(null)}
+        spawns={catchableSpawns}
+        onSwitchSpawn={(s) => setArSpawn(s)}
+        onClose={() => { setArOpen(false); setArSpawn(null); }}
         onCatch={async () => {
           // AR overlay owns the throw + reveal sequence and renders its own
           // result card, so we call the API inline here instead of going
@@ -1855,10 +2175,65 @@ export default function MapPage() {
           }
         }}
       />
+      )}
 
-      {/* ========== CATCHABLE WILD SPAWN SHEET ========== */}
+      {/* ========== APPROACH VIGNETTE ========== */}
+      {vigData && vigData.intensity > 0.02 && (
+        <MapApproachVignette
+          key="approach-vig"
+          intensity={vigData.intensity}
+          tierColor={vigData.nearest.tier_color || "#00FF88"}
+          creatureName={vigData.nearest.name}
+          distanceM={vigData.distM}
+          onCatch={vigData.distM <= CATCH_PROXIMITY_M ? () => {
+            const spawn = catchableSpawns.find((s) => s.id === vigData.nearest.id);
+            if (spawn) { setSelectedCatchable(spawn); setCinematicOpen(true); }
+          } : undefined}
+        />
+      )}
+
+      {/* ========== CINEMATIC CATCH ========== */}
       <AnimatePresence>
-        {selectedCatchable && (() => {
+        {cinematicOpen && selectedCatchable && (
+          <CinematicCatch
+            key="cinematic-catch"
+            spawn={{
+              name: selectedCatchable.name,
+              tier: selectedCatchable.tier,
+              tier_color: selectedCatchable.tier_color || "#00FF88",
+              image_url: selectedCatchable.image_url,
+            }}
+            onCatch={async () => {
+              if (!position || !user) throw new Error("Not authenticated.");
+              const { data: { session } } = await supabase.auth.getSession();
+              if (!session?.access_token) throw new Error("Not authenticated.");
+              const res = await fetch("/api/spawns/catch", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ spawnId: selectedCatchable.id, lat: position.lat, lng: position.lng }),
+              });
+              const json = await res.json();
+              if (!res.ok) throw new Error(json.error || "Catch failed.");
+              void fetchCatchableSpawns();
+              return json as CatchResult;
+            }}
+            onDismiss={() => {
+              setCinematicOpen(false);
+              setSelectedCatchable(null);
+              setCatchResult(null);
+            }}
+            onShare={(result) => {
+              const text = `Just caught ${result.name} on @blinkworldeth and earned ${result.blinkRewarded.toLocaleString()} $BLINK tokens!\n\nReal crypto. Real NFTs. Real money.\n\nhttps://blinkworld.xyz`;
+              if (navigator.share) navigator.share({ text }).catch(() => {});
+              else navigator.clipboard.writeText(text).catch(() => {});
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ========== LEGACY CATCHABLE WILD SPAWN SHEET (tap from map marker) ========== */}
+      <AnimatePresence>
+        {selectedCatchable && !cinematicOpen && (() => {
           const dist = position
             ? haversine(position.lat, position.lng, selectedCatchable.lat, selectedCatchable.lng)
             : Infinity;
@@ -1892,10 +2267,15 @@ export default function MapPage() {
                 style={{
                   width: "100%",
                   maxWidth: 480,
-                  background: COLORS.surface,
-                  borderTopLeftRadius: 22,
-                  borderTopRightRadius: 22,
-                  padding: "22px 22px 28px",
+                  background: COLORS.glassStrong,
+                  backdropFilter: "blur(32px)",
+                  WebkitBackdropFilter: "blur(32px)",
+                  borderTopLeftRadius: 28,
+                  borderTopRightRadius: 28,
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderBottom: "none",
+                  boxShadow: "0 -4px 48px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07)",
+                  padding: "22px 22px calc(28px + env(safe-area-inset-bottom, 0px))",
                   color: COLORS.text,
                 }}
               >
@@ -1982,7 +2362,7 @@ export default function MapPage() {
                 )}
 
                 <button
-                  onClick={() => performCatch()}
+                  onClick={() => { if (inRange) setCinematicOpen(true); }}
                   disabled={!inRange || catching}
                   style={{
                     width: "100%",
@@ -1997,11 +2377,7 @@ export default function MapPage() {
                     opacity: catching ? 0.6 : 1,
                   }}
                 >
-                  {catching
-                    ? "Minting..."
-                    : inRange
-                      ? "Catch"
-                      : `Walk closer — ${Math.round(dist)}m away`}
+                  {inRange ? "Catch" : `Walk closer — ${Math.round(dist)}m away`}
                 </button>
               </motion.div>
             </motion.div>
@@ -2012,165 +2388,284 @@ export default function MapPage() {
       {/* ========== CATCH SUCCESS MODAL ========== */}
       <AnimatePresence>
         {catchResult && (() => {
-          const accent = (() => {
-            const map: Record<string, string> = {
-              common: "#FFFFFF",
-              uncommon: "#66E3FF",
-              rare: "#6BB5FF",
-              legendary: "#FFD773",
-              mythic: "#FF66CC",
-            };
-            return map[catchResult.tier] || COLORS.accent;
-          })();
-          return (
-            <motion.div
-              key="catch-success-overlay"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setCatchResult(null)}
+  const accent = (() => {
+    const map: Record<string, string> = {
+      common: "#FFFFFF",
+      uncommon: "#66E3FF",
+      rare: "#6BB5FF",
+      legendary: "#FFD773",
+      mythic: "#FF66CC",
+    };
+    return map[catchResult.tier] || COLORS.accent;
+  })();
+
+  return (
+    <motion.div
+      key="catch-success-overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={() => setCatchResult(null)}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.92)",
+        zIndex: 85,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        overflow: "hidden",
+      }}
+    >
+      {/* Confetti particles */}
+      {Array.from({ length: 24 }).map((_, i) => {
+        const colors = [accent, "#00FF88", "#ffffff", "#FFD700", "#ff6b6b"];
+        const color = colors[i % colors.length];
+        const startX = Math.random() * 100;
+        const delay = Math.random() * 0.6;
+        const duration = 1.2 + Math.random() * 1.2;
+        const size = 6 + Math.random() * 8;
+        return (
+          <motion.div
+            key={i}
+            initial={{ y: -20, x: `${startX}vw`, opacity: 1, rotate: 0, scale: 1 }}
+            animate={{ y: "110vh", x: `calc(${startX}vw + ${(Math.random() - 0.5) * 120}px)`, opacity: 0, rotate: Math.random() * 720 - 360, scale: 0.3 }}
+            transition={{ delay, duration, ease: "easeIn" }}
+            style={{
+              position: "fixed",
+              top: 0,
+              width: size,
+              height: size * (Math.random() > 0.5 ? 1 : 2.5),
+              background: color,
+              borderRadius: Math.random() > 0.5 ? "50%" : 2,
+              zIndex: 86,
+              pointerEvents: "none",
+            }}
+          />
+        );
+      })}
+
+      {/* Main card */}
+      <motion.div
+        initial={{ scale: 0.3, opacity: 0, rotateY: 180 }}
+        animate={{ scale: 1, opacity: 1, rotateY: 0 }}
+        exit={{ scale: 0.8, opacity: 0 }}
+        transition={{ type: "spring", damping: 20, stiffness: 200, delay: 0.1 }}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%",
+          maxWidth: 340,
+          background: `linear-gradient(160deg, #0d0d18 0%, #0a0a0f 100%)`,
+          borderRadius: 24,
+          padding: "28px 22px 24px",
+          textAlign: "center",
+          border: `2px solid ${accent}`,
+          boxShadow: `0 0 60px ${accent}55, 0 0 120px ${accent}22, inset 0 1px 0 ${accent}33`,
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* Background glow pulse */}
+        <motion.div
+          animate={{ opacity: [0.15, 0.35, 0.15] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: `radial-gradient(ellipse at 50% 30%, ${accent}33 0%, transparent 70%)`,
+            pointerEvents: "none",
+            borderRadius: 24,
+          }}
+        />
+
+        {/* "CAUGHT!" badge */}
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.3, type: "spring", stiffness: 300 }}
+          style={{
+            display: "inline-block",
+            background: accent,
+            color: "#000",
+            fontSize: 11,
+            fontWeight: 900,
+            letterSpacing: 3,
+            padding: "4px 14px",
+            borderRadius: 20,
+            marginBottom: 16,
+            textTransform: "uppercase",
+          }}
+        >
+          ⚡ CAUGHT!
+        </motion.div>
+
+        {/* Creature card image */}
+        <motion.div
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.25, type: "spring", damping: 16, stiffness: 220 }}
+          style={{
+            width: 160,
+            height: 160,
+            borderRadius: 20,
+            margin: "0 auto 18px",
+            overflow: "hidden",
+            border: `3px solid ${accent}`,
+            boxShadow: `0 0 40px ${accent}66, 0 8px 32px rgba(0,0,0,0.6)`,
+            position: "relative",
+          }}
+        >
+          {catchResult.image_url ? (
+            <img
+              src={catchResult.image_url}
+              alt={catchResult.name}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+          ) : (
+            <div style={{ width: "100%", height: "100%", background: `radial-gradient(circle, ${accent}44, #0a0a0f)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 48 }}>👁</div>
+          )}
+          {/* Shine sweep */}
+          <motion.div
+            initial={{ x: "-100%", opacity: 0.6 }}
+            animate={{ x: "200%", opacity: 0 }}
+            transition={{ delay: 0.5, duration: 0.8, ease: "easeOut" }}
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.5) 50%, transparent 70%)",
+              pointerEvents: "none",
+            }}
+          />
+        </motion.div>
+
+        {/* Creature name */}
+        <motion.h2
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          style={{ color: "#fff", fontSize: 26, fontWeight: 900, margin: "0 0 4px", letterSpacing: 1 }}
+        >
+          {catchResult.name}
+        </motion.h2>
+
+        {/* Tier badge */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          style={{ color: accent, fontSize: 13, fontWeight: 700, marginBottom: 20, textTransform: "uppercase", letterSpacing: 2 }}
+        >
+          {catchResult.tierLabel}
+        </motion.div>
+
+        {/* BLINK reward — BIG */}
+        <motion.div
+          initial={{ scale: 0.5, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.55, type: "spring", stiffness: 300, damping: 18 }}
+          style={{
+            background: "rgba(0,255,136,0.08)",
+            border: "1px solid #00FF8844",
+            borderRadius: 16,
+            padding: "14px 16px",
+            marginBottom: 14,
+          }}
+        >
+          <div style={{ color: "#ffffff88", fontSize: 11, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>You Earned</div>
+          <div style={{ color: "#00FF88", fontSize: 32, fontWeight: 900, letterSpacing: 1 }}>
+            +{catchResult.blinkRewarded.toLocaleString()}
+          </div>
+          <div style={{ color: "#00FF88aa", fontSize: 13, fontWeight: 700 }}>$BLINK TOKENS</div>
+        </motion.div>
+
+        {/* NFT info row */}
+        {catchResult.tokenId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.65 }}
+            style={{ color: "#ffffff55", fontSize: 12, marginBottom: 20 }}
+          >
+            NFT minted to your wallet · Token #{catchResult.tokenId}
+          </motion.div>
+        )}
+
+        {/* Action buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7 }}
+          style={{ display: "flex", flexDirection: "column", gap: 10 }}
+        >
+          {/* Share button */}
+          <button
+            onClick={() => {
+              const text = `🔥 Just caught ${catchResult.name} on @blinkworldeth and earned ${catchResult.blinkRewarded.toLocaleString()} $BLINK tokens!\n\nReal crypto. Real NFTs. Real money.\n\nhttps://blinkworld.xyz`;
+              if (navigator.share) {
+                navigator.share({ text }).catch(() => {});
+              } else {
+                navigator.clipboard.writeText(text).catch(() => {});
+              }
+            }}
+            style={{
+              width: "100%",
+              padding: "14px 0",
+              borderRadius: 14,
+              border: "none",
+              background: accent,
+              color: "#000",
+              fontSize: 14,
+              fontWeight: 900,
+              cursor: "pointer",
+              letterSpacing: 0.5,
+            }}
+          >
+            📢 Share Your Catch
+          </button>
+
+          {catchResult.openseaUrl && (
+            <a
+              href={catchResult.openseaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               style={{
-                position: "fixed",
-                inset: 0,
-                background: "rgba(0,0,0,0.78)",
-                zIndex: 85,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 24,
+                display: "block",
+                padding: "12px 0",
+                borderRadius: 14,
+                background: "rgba(255,255,255,0.06)",
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 700,
+                textDecoration: "none",
+                border: "1px solid rgba(255,255,255,0.1)",
               }}
             >
-              <motion.div
-                initial={{ scale: 0.92, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.92, opacity: 0 }}
-                transition={{ type: "spring", damping: 24, stiffness: 280 }}
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  width: "100%",
-                  maxWidth: 380,
-                  background: COLORS.surface,
-                  borderRadius: 22,
-                  padding: "24px 22px 26px",
-                  textAlign: "center",
-                  border: `1px solid ${accent}55`,
-                  boxShadow: `0 0 32px ${accent}33`,
-                }}
-              >
-                <div
-                  style={{
-                    width: 112,
-                    height: 112,
-                    borderRadius: "50%",
-                    background: `radial-gradient(circle at 35% 35%, ${accent}, #0a0a0f)`,
-                    border: `3px solid ${accent}`,
-                    margin: "0 auto 16px",
-                    overflow: "hidden",
-                    boxShadow: `0 0 28px ${accent}88`,
-                  }}
-                >
-                  {catchResult.image_url && (
-                    <img
-                      src={catchResult.image_url}
-                      alt=""
-                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                    />
-                  )}
-                </div>
-                <h3 style={{ color: COLORS.text, fontSize: 20, fontWeight: 800, margin: "0 0 6px" }}>
-                  Caught {catchResult.name}
-                </h3>
-                <div style={{ color: accent, fontSize: 13, fontWeight: 700, margin: "0 0 14px" }}>
-                  {catchResult.tierLabel} · NFT minted to your wallet
-                </div>
-                <div
-                  style={{
-                    background: COLORS.bg,
-                    borderRadius: 12,
-                    padding: "12px 14px",
-                    marginBottom: 14,
-                    textAlign: "left",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                    <span style={{ color: COLORS.textMuted, fontSize: 13 }}>BLINK reward</span>
-                    <span style={{ color: COLORS.accent, fontSize: 13, fontWeight: 700 }}>
-                      {catchResult.blinkRewarded.toLocaleString()} BLINK
-                    </span>
-                  </div>
-                  {catchResult.tokenId && (
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ color: COLORS.textMuted, fontSize: 13 }}>Token ID</span>
-                      <span style={{ color: COLORS.text, fontSize: 13, fontFamily: "monospace" }}>
-                        #{catchResult.tokenId}
-                      </span>
-                    </div>
-                  )}
-                  {catchResult.wasFreeCatch && (
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ color: COLORS.textMuted, fontSize: 13 }}>Free catches left</span>
-                      <span style={{ color: COLORS.text, fontSize: 13 }}>
-                        {catchResult.freeCatchesRemaining}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {catchResult.openseaUrl && (
-                    <a
-                      href={catchResult.openseaUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: "block",
-                        padding: "12px 0",
-                        borderRadius: 12,
-                        background: COLORS.card,
-                        color: COLORS.text,
-                        fontSize: 14,
-                        fontWeight: 700,
-                        textDecoration: "none",
-                        border: `1px solid ${COLORS.border}`,
-                      }}
-                    >
-                      View on OpenSea
-                    </a>
-                  )}
-                  <a
-                    href={`https://etherscan.io/tx/${catchResult.mintTxHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: "block",
-                      padding: "10px 0",
-                      color: COLORS.textMuted,
-                      fontSize: 12,
-                      textDecoration: "none",
-                    }}
-                  >
-                    View mint transaction
-                  </a>
-                  <button
-                    onClick={() => setCatchResult(null)}
-                    style={{
-                      width: "100%",
-                      padding: "12px 0",
-                      borderRadius: 12,
-                      border: "none",
-                      background: COLORS.accent,
-                      color: COLORS.bg,
-                      fontSize: 14,
-                      fontWeight: 800,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Done
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          );
-        })()}
+              View on OpenSea
+            </a>
+          )}
+
+          <button
+            onClick={() => setCatchResult(null)}
+            style={{
+              width: "100%",
+              padding: "12px 0",
+              borderRadius: 14,
+              border: "1px solid rgba(255,255,255,0.1)",
+              background: "transparent",
+              color: "#ffffff66",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Keep Hunting
+          </button>
+        </motion.div>
+      </motion.div>
+    </motion.div>
+  );
+})()}
       </AnimatePresence>
 
       {/* ========== WILD CREATURE SHEET ========== */}

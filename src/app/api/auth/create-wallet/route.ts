@@ -1,47 +1,74 @@
+// BLINK custodial signup.
+// Username + password creates a Supabase auth user, generates an ETH wallet,
+// encrypts the private key at rest, and returns a session token.
+// Private key is NEVER returned here — users access funds by signing back in.
+
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { encryptAES } from "@/lib/production";
+import { ethers } from "ethers";
+import { encryptAES, checkRateLimit } from "@/lib/production";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Stable fake-email so the same username can sign back in with their password.
+// Supabase Auth requires an email; users never see this.
+function fakeEmail(username: string): string {
+  return `${username}@wallet.blink.app`;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { username } = await req.json();
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const rl = checkRateLimit(`signup:${ip}`, 5, 5 * 60_000);
+    if (!rl.allowed) {
+      return NextResponse.json({ error: "Too many signup attempts. Try again later." }, { status: 429 });
+    }
+
+    const body = await req.json();
+    const { username, password } = body as { username?: string; password?: string };
 
     if (!username || typeof username !== "string") {
       return NextResponse.json({ error: "Username is required" }, { status: 400 });
     }
+    if (!password || typeof password !== "string") {
+      return NextResponse.json({ error: "Password is required" }, { status: 400 });
+    }
 
     const cleaned = username.trim().toLowerCase();
     if (cleaned.length < 3 || cleaned.length > 30) {
-      return NextResponse.json({ error: "Username must be 3–30 characters" }, { status: 400 });
+      return NextResponse.json({ error: "Username must be 3-30 characters" }, { status: 400 });
     }
     if (!/^[a-z0-9_]+$/.test(cleaned)) {
       return NextResponse.json({ error: "Letters, numbers, and underscores only" }, { status: 400 });
     }
+    if (password.length < 8) {
+      return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
+    }
+    if (password.length > 200) {
+      return NextResponse.json({ error: "Password too long" }, { status: 400 });
+    }
 
-    // Check username availability
     const { data: existing } = await supabaseAdmin
       .from("profiles")
       .select("id")
       .eq("username", cleaned)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       return NextResponse.json({ error: "Username already taken" }, { status: 409 });
     }
 
-    // Generate a unique fake email for Supabase Auth (wallet-only users have no real email)
-    const fakeEmail = `${cleaned}-${Date.now()}@wallet.blink.app`;
-    const tempPassword = crypto.randomUUID() + crypto.randomUUID();
+    const email = fakeEmail(cleaned);
 
-    // Create Supabase auth user
+    // Create Supabase auth user with the real user-supplied password.
+    // Supabase hashes the password (bcrypt). We use this same password for re-verification
+    // on sends and key exports, so we never need to store a duplicate hash.
     const { data: authData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
-      email: fakeEmail,
-      password: tempPassword,
+      email,
+      password,
       email_confirm: true,
       user_metadata: { username: cleaned, wallet_user: true },
     });
@@ -53,92 +80,46 @@ export async function POST(req: NextRequest) {
 
     const userId = authData.user.id;
 
-    // Generate ETH wallet
-    const { ethers } = await import("ethers");
     const ethWallet = ethers.Wallet.createRandom();
     const ethAddress = ethWallet.address;
-    const ethPrivateKey = ethWallet.privateKey;
-    const ethEncryptedKey = encryptAES(ethPrivateKey);
+    const ethEncryptedKey = encryptAES(ethWallet.privateKey);
 
-    // Generate SOL wallet
-    const { Keypair } = await import("@solana/web3.js");
-    const solKeypair = Keypair.generate();
-    const solAddress = solKeypair.publicKey.toBase58();
-    const solPrivateKeyHex = Buffer.from(solKeypair.secretKey).toString("hex");
-    const solEncryptedKey = encryptAES(solPrivateKeyHex);
-
-    // Generate BTC wallet
-    let btcAddress = "";
-    let btcPrivateKey = "";
-    let btcEncryptedKey = "";
-    try {
-      const ecc = await import("tiny-secp256k1");
-      const { ECPairFactory } = await import("ecpair");
-      const bitcoin = await import("bitcoinjs-lib");
-      const ECPair = ECPairFactory(ecc);
-      const keyPair = ECPair.makeRandom();
-      const { address } = bitcoin.payments.p2wpkh({ pubkey: Buffer.from(keyPair.publicKey) });
-      btcAddress = address || "";
-      btcPrivateKey = keyPair.toWIF();
-      btcEncryptedKey = encryptAES(btcPrivateKey);
-    } catch (btcErr) {
-      console.error("BTC wallet generation failed:", btcErr);
-    }
-
-    // Save profile with encrypted keys
     const { error: profileError } = await supabaseAdmin.from("profiles").upsert({
       id: userId,
-      user_id: userId,  // profiles table requires user_id
+      user_id: userId,
       username: cleaned,
       handle: cleaned,
       display_name: cleaned,
       eth_address: ethAddress,
       eth_encrypted_key: ethEncryptedKey,
-      sol_address: solAddress,
-      sol_encrypted_key: solEncryptedKey,
-      btc_address: btcAddress || null,
-      btc_encrypted_key: btcEncryptedKey || null,
       onboarded: true,
       updated_at: new Date().toISOString(),
     });
 
     if (profileError) {
       console.error("Profile upsert error:", profileError);
-      // Don't fail — keys are still returned, profile can be fixed
     }
 
-    // Create a session for the user
-    const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.generateLink({
-      type: "magiclink",
-      email: fakeEmail,
-    });
-
-    // Use signInWithPassword as the session mechanism
     const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
-      email: fakeEmail,
-      password: tempPassword,
+      email,
+      password,
     });
 
     if (signInError || !signInData.session) {
       console.error("Sign-in error:", signInError);
-      return NextResponse.json({ error: "Account created but login failed. Contact support." }, { status: 500 });
+      return NextResponse.json(
+        { error: "Account created but login failed. Try signing in." },
+        { status: 500 }
+      );
     }
 
-    // Return session tokens + private keys (shown once, never stored in plaintext)
     return NextResponse.json({
       success: true,
       access_token: signInData.session.access_token,
       refresh_token: signInData.session.refresh_token,
       user: { id: userId, username: cleaned },
       eth_address: ethAddress,
-      sol_address: solAddress,
-      btc_address: btcAddress,
-      // Private keys — shown once to user, never stored in plaintext on server
-      eth_private_key: ethPrivateKey,
-      sol_private_key: solPrivateKeyHex,
-      btc_private_key: btcPrivateKey,
     });
-
   } catch (err) {
     console.error("create-wallet error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

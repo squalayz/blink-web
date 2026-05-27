@@ -108,7 +108,7 @@ export default function SecurityPage() {
           }}
         >
           <Image
-            src="/blink-logo.png"
+            src="/blink-logo.webp"
             alt="BLINK"
             width={38}
             height={38}

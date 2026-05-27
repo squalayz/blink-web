@@ -1,12 +1,12 @@
 // ════════════════════════════════════════════════════════════════════════════
 // BLINK Phase 5b — Player stats
 //
-// GET /api/me/stats returns the SIWE-authenticated wallet's catch totals
+// GET /api/me/stats returns the authenticated custodial wallet's catch totals
 // and lifetime $BLINK earned. Feeds the "My BLINK" nav pill.
 // ════════════════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
-import { readSiweSession } from "@/lib/siwe-session";
+import { requireUserWithEthAddress } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 function computeStreakDays(caughtAtIso: string[]): number {
@@ -30,12 +30,10 @@ function computeStreakDays(caughtAtIso: string[]): number {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await readSiweSession(req);
-  if (!session?.address) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  const resolved = await requireUserWithEthAddress(req);
+  if (resolved.error) return resolved.error;
 
-  const wallet = session.address.toLowerCase();
+  const wallet = resolved.address;
   const since24hIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const since30dIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 

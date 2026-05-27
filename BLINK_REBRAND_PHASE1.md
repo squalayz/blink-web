@@ -123,7 +123,7 @@ HERO SECTION (full viewport):
   Big headline: "Don't blink."
   Sub: "The Eye is open. Catch what others can't see."
   Primary CTA: "ENTER THE EYE" → /watch
-  Secondary: "Join The Council" → telegram link https://t.me/+7Xj6CKZs9iVmMDhh
+  Secondary: "Join The Council" → telegram link https://t.me/blinkworldeth
 
 LIVE TICKER STRIP (just below hero):
   Scrolling/auto-updating: "@watcher_x caught a Cyclops in NYC • Sprite spawning in Tokyo • 1,243 active watchers worldwide..."
@@ -162,7 +162,7 @@ Creature image paths (USE THESE — already exist):
 Copy them into `public/creatures/` so the Next.js app can use them.
 
 ## Telegram & community
-- TG group link: `https://t.me/+7Xj6CKZs9iVmMDhh`
+- TG group link: `https://t.me/blinkworldeth`
 - Bot username: `@TheEyeBlinkBot`
 - Any TG references in the codebase → update to these
 

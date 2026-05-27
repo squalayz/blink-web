@@ -50,7 +50,15 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const rows = await listActiveSpawnsForCells(cells);
+    let rows = await listActiveSpawnsForCells(cells);
+
+    // If the user has fewer than 3 active spawns nearby (e.g. most expired
+    // mid-bucket under the Pokémon GO-style TTL system), seed the prior
+    // bucket too so there are always at least a few creatures to hunt.
+    if (!rows || rows.length < 3) {
+      await upsertSpawnsForCells(cells, bucket - 1);
+      rows = await listActiveSpawnsForCells(cells);
+    }
 
     // Look up which (if any) of these spawns are Genesis Drops so the client
     // can render them with the special pulsing gold ring.
@@ -79,9 +87,11 @@ export async function GET(req: NextRequest) {
       name: row.name,
       image_cid: row.image_cid,
       image_url: ipfsToGatewayUrl(row.image_cid),
-      creature_id: row.creature_id,
       expires_at: row.expires_at,
       is_genesis: genesisSet.has(row.id),
+      fuzzy_lat: row.lat + (Math.random() - 0.5) * 0.002,
+      fuzzy_lng: row.lng + (Math.random() - 0.5) * 0.002,
+      fuzzy_radius_m: 150,
     }));
 
     return NextResponse.json({ spawns, epoch_bucket: bucket });

@@ -36,6 +36,7 @@ interface SendState {
   chain: OrbCurrency;
   recipient: string;
   amount: string;
+  password: string;
   sending: boolean;
   error: string;
   success: string;
@@ -167,6 +168,7 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
     chain: "ETH",
     recipient: "",
     amount: "",
+    password: "",
     sending: false,
     error: "",
     success: "",
@@ -246,20 +248,40 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
       setSend((s) => ({ ...s, error: "Please enter a valid recipient and amount." }));
       return;
     }
+    if (!send.password) {
+      setSend((s) => ({ ...s, error: "Password required to confirm send." }));
+      return;
+    }
     setSend((s) => ({ ...s, sending: true, error: "", success: "" }));
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("Not signed in.");
+
       const res = await fetch("/api/wallet/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
-          chain: send.chain,
-          recipient: send.recipient,
+          to_address: send.recipient,
           amount: parseFloat(send.amount),
-          userId: user?.id,
+          password: send.password,
         }),
       });
-      if (!res.ok) throw new Error("Send failed");
-      setSend((s) => ({ ...s, success: "Transaction submitted!", amount: "", recipient: "" }));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Send failed");
+      setSend((s) => ({
+        ...s,
+        success: `Sent! Tx: ${data.txHash?.slice(0, 10)}…`,
+        amount: "",
+        recipient: "",
+        password: "",
+      }));
+      // Refresh balances + activity once tx is broadcast.
+      refreshBalances();
+      fetchActivity();
     } catch (err: unknown) {
       setSend((s) => ({
         ...s,
@@ -464,6 +486,17 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
         style={inputStyle}
       />
 
+      {/* Password (required by /api/wallet/send) */}
+      <label style={{ ...labelStyle, marginTop: 14 }}>Password</label>
+      <input
+        value={send.password}
+        type="password"
+        autoComplete="current-password"
+        onChange={(e) => setSend((s) => ({ ...s, password: e.target.value }))}
+        placeholder="Re-enter your password"
+        style={inputStyle}
+      />
+
       {/* Fee breakdown */}
       {sendBreakdown && parseFloat(send.amount) > 0 && (
         <div
@@ -512,17 +545,17 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
 
       <button
         onClick={handleSend}
-        disabled={send.sending || !send.recipient || !send.amount}
+        disabled={send.sending || !send.recipient || !send.amount || !send.password}
         style={{
           ...actionBtnStyle,
           marginTop: 20,
           background:
-            send.sending || !send.recipient || !send.amount
+            send.sending || !send.recipient || !send.amount || !send.password
               ? `${C.primary}55`
               : C.primary,
           cursor:
-            send.sending || !send.recipient || !send.amount ? "not-allowed" : "pointer",
-          opacity: send.sending || !send.recipient || !send.amount ? 0.6 : 1,
+            send.sending || !send.recipient || !send.amount || !send.password ? "not-allowed" : "pointer",
+          opacity: send.sending || !send.recipient || !send.amount || !send.password ? 0.6 : 1,
         }}
       >
         {send.sending ? (

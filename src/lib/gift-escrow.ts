@@ -38,7 +38,10 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const RPC_URL = (process.env.ETH_RPC_URL || "https://ethereum-rpc.publicnode.com").trim();
 
-export const BLINK_TOKEN_CONTRACT = "0xe7BF94959b0bfa8CB9e61149de5BFb387B40761B";
+export const BLINK_TOKEN_CONTRACT = (
+  process.env.NEXT_PUBLIC_BLINK_TOKEN_CONTRACT ||
+  "0xe7BF94959b0bfa8CB9e61149de5BFb387B40761B"
+).trim();
 
 // Full 20-byte BLINK NFT contract addresses. Sourced from env where set so the
 // allow-list stays in lockstep with the rest of the app (wallet-nfts.ts uses

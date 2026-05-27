@@ -6,7 +6,7 @@ import PortfolioBar from "./PortfolioBar";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import { C } from "@/lib/theme";
 
-const SHOW_SHELL_PATHS = ["/watch", "/live", "/spawn", "/messages", "/profile", "/council", "/wallet", "/missions", "/tasks", "/squads", "/market", "/trails", "/travel", "/map"];
+const SHOW_SHELL_PATHS = ["/watch", "/live", "/spawn", "/messages", "/profile", "/council", "/wallet", "/missions", "/tasks", "/squads", "/market", "/trails", "/travel", "/map", "/friends", "/gifts"];
 const HIDE_SHELL_PREFIXES = ["/onboarding", "/auth", "/catch", "/orb"];
 
 function shouldShowShell(pathname: string): boolean {
@@ -54,7 +54,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Content area: offset by sidebar width */}
         <div style={{ flex: 1, marginLeft: SIDEBAR_WIDTH, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
           <PortfolioBar />
-          <div style={{ flex: 1, paddingTop: 52, overflow: "auto", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+          <div style={{ flex: 1, paddingTop: "calc(60px + max(env(safe-area-inset-top, 0px), var(--blink-top-inset, 0px)))", overflow: "auto", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
             <div style={{ maxWidth: contentMaxWidth, margin: "0 auto", width: "100%", padding: "0 24px" }}>
               {children}
             </div>
@@ -68,7 +68,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ minHeight: "100vh", minHeight: "100dvh", background: C.bg, display: "flex", flexDirection: "column" } as React.CSSProperties}>
       <PortfolioBar />
-      <div style={{ flex: 1, paddingTop: 52, paddingBottom: 88, overflow: "auto", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+      <div style={{ flex: 1, paddingTop: "calc(60px + max(env(safe-area-inset-top, 0px), var(--blink-top-inset, 0px)))", paddingBottom: 88, overflow: "auto", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
         <div style={{ maxWidth: contentMaxWidth, margin: "0 auto", width: "100%" }}>
           {children}
         </div>

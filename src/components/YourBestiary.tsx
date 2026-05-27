@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { useAccount } from "wagmi";
 import {
   BESTIARY,
   BLINK_MINT_URL,
@@ -12,6 +11,7 @@ import {
 } from "@/lib/bestiary";
 import { CreatureModal } from "./CreatureModal";
 import { sounds } from "@/lib/sounds";
+import { supabase } from "@/lib/supabase";
 
 const SURFACE2 = "#1a1a24";
 const BORDER = "rgba(0,255,136,0.10)";
@@ -32,7 +32,6 @@ export function useBlinkHoldings():
   | { state: "loading"; holdings: null }
   | { state: "error"; holdings: null }
   | { state: "ready"; holdings: Holdings } {
-  const { address } = useAccount();
   const [data, setData] = useState<Holdings | null>(null);
   const [state, setState] = useState<"loading" | "error" | "ready">("loading");
 
@@ -41,11 +40,15 @@ export function useBlinkHoldings():
     async function load() {
       try {
         setState("loading");
-        const target = address ?? "";
-        const url = target
-          ? `/api/wallet/holdings?wallet=${encodeURIComponent(target)}`
-          : "/api/wallet/holdings";
-        const res = await fetch(url, { credentials: "include" });
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: Record<string, string> = {};
+        if (session?.access_token) {
+          headers.Authorization = `Bearer ${session.access_token}`;
+        }
+        const res = await fetch("/api/wallet/holdings", {
+          headers,
+          credentials: "include",
+        });
         if (!res.ok) throw new Error(`http ${res.status}`);
         const json = (await res.json()) as {
           wallet: string;
@@ -67,7 +70,7 @@ export function useBlinkHoldings():
     return () => {
       cancelled = true;
     };
-  }, [address]);
+  }, []);
 
   if (state === "loading") return { state, holdings: null };
   if (state === "error") return { state, holdings: null };

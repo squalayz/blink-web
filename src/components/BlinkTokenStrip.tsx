@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 
-const BLINK_TOKEN_CONTRACT = "0xe7BF94959b0bfa8CB9e61149de5BFb387B40761B";
+const BLINK_TOKEN_CONTRACT =
+  process.env.NEXT_PUBLIC_BLINK_TOKEN_CONTRACT ||
+  "0xe7BF94959b0bfa8CB9e61149de5BFb387B40761B";
 const ETHERSCAN_URL = `https://etherscan.io/token/${BLINK_TOKEN_CONTRACT}`;
 const DEXSCREENER_URL = `https://dexscreener.com/ethereum/${BLINK_TOKEN_CONTRACT}`;
 const UNISWAP_URL = `https://app.uniswap.org/explore/tokens/ethereum/${BLINK_TOKEN_CONTRACT}`;
@@ -40,7 +42,7 @@ export function BlinkTokenStrip() {
   return (
     <section
       style={{
-        padding: "40px 24px",
+        padding: "40px clamp(14px, 4vw, 24px)",
         maxWidth: 1280,
         margin: "0 auto",
       }}
@@ -51,7 +53,7 @@ export function BlinkTokenStrip() {
           background: `linear-gradient(135deg, rgba(0,255,136,0.10), rgba(136,255,0,0.05))`,
           border: `1px solid ${GREEN}66`,
           borderRadius: 20,
-          padding: "22px 24px",
+          padding: "22px clamp(16px, 4vw, 24px)",
           boxShadow: `0 0 28px rgba(0,255,136,0.18)`,
           overflow: "hidden",
         }}

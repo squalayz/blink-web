@@ -16,29 +16,11 @@ import { usePrices } from "@/hooks/usePrices";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import { OrbView } from "@/components/OrbAnimation";
 import { sounds, type BlinkSound } from "@/lib/sounds";
-import { claimReward, type RewardVoucher } from "@/lib/blink-claim";
-import { useAccount, useWaitForTransactionReceipt } from "wagmi";
 
 function catchSoundFor(rarity: OrbRarity): BlinkSound {
   if (rarity === "Legendary") return "catchMythic";
   if (rarity === "Rare") return "catchRare";
   return "catchCommon";
-}
-
-function rarityToBlinkTier(r: OrbRarity): "common" | "rare" | "legendary" {
-  if (r === "Legendary") return "legendary";
-  if (r === "Rare") return "rare";
-  return "common";
-}
-
-function formatBlinkAmount(wei: string): string {
-  try {
-    const v = BigInt(wei);
-    const whole = v / 10n ** 18n;
-    return whole.toLocaleString("en-US");
-  } catch {
-    return "0";
-  }
 }
 
 /* ================================================================== */
@@ -74,11 +56,6 @@ function normaliseCurrency(c: string | undefined): OrbCurrency {
 function usdValue(amount: number, currency: OrbCurrency, rates: { sol: number; eth: number; btc: number }): number {
   const map: Record<OrbCurrency, number> = { SOL: rates.sol, ETH: rates.eth, BTC: rates.btc };
   return amount * (map[currency] ?? 0);
-}
-
-function truncateHash(h: string): string {
-  if (!h || h.length <= 14) return h;
-  return `${h.slice(0, 8)}...${h.slice(-6)}`;
 }
 
 /* ================================================================== */
@@ -608,18 +585,6 @@ export default function CrackPage() {
   const [showCountUp, setShowCountUp] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
 
-  // BLINK voucher + claim state (Phase 5)
-  const [blinkVoucher, setBlinkVoucher] = useState<RewardVoucher | null>(null);
-  const [blinkVoucherError, setBlinkVoucherError] = useState("");
-  const [blinkClaimError, setBlinkClaimError] = useState("");
-  const [blinkClaiming, setBlinkClaiming] = useState(false);
-  const [blinkClaimTxHash, setBlinkClaimTxHash] = useState<`0x${string}` | null>(null);
-  const { address: wagmiAddress } = useAccount();
-  const { data: claimReceipt } = useWaitForTransactionReceipt({
-    hash: blinkClaimTxHash ?? undefined,
-  });
-  const blinkVoucherFetchedRef = useRef(false);
-
   const phaseRef = useRef<Phase>("APPROACH");
   const crackCalledRef = useRef(false);
 
@@ -789,62 +754,6 @@ export default function CrackPage() {
   const handleClose = useCallback(() => {
     router.push("/watch");
   }, [router]);
-
-  /* Phase 5: fetch BLINK reward voucher once the orb crack is confirmed.
-     SIWE-cookie auth — the request only succeeds if the user has linked
-     their wallet via /api/auth/siwe. We swallow errors silently so a
-     missing SIWE session doesn't break the existing orb collect flow. */
-  useEffect(() => {
-    if (!confirmed) return;
-    if (!orb?.id) return;
-    if (blinkVoucherFetchedRef.current) return;
-    blinkVoucherFetchedRef.current = true;
-    (async () => {
-      try {
-        const res = await fetch("/api/rewards/voucher", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            rarity: rarityToBlinkTier(rarity),
-            catchId: orb.id,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data?.signature) {
-          setBlinkVoucherError(data?.error ?? "voucher unavailable");
-          return;
-        }
-        setBlinkVoucher({
-          rewardsContract: data.rewardsContract,
-          amount: data.amount,
-          nonce: data.nonce,
-          deadline: data.deadline,
-          ref: data.ref,
-          signature: data.signature,
-        });
-      } catch {
-        setBlinkVoucherError("voucher unavailable");
-      }
-    })();
-  }, [confirmed, orb?.id, rarity]);
-
-  const handleClaimBlink = useCallback(async () => {
-    if (!blinkVoucher || blinkClaiming || blinkClaimTxHash) return;
-    setBlinkClaiming(true);
-    setBlinkClaimError("");
-    try {
-      const hash = await claimReward(blinkVoucher);
-      setBlinkClaimTxHash(hash);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "claim failed";
-      setBlinkClaimError(msg.length > 140 ? msg.slice(0, 140) + "…" : msg);
-    } finally {
-      setBlinkClaiming(false);
-    }
-  }, [blinkVoucher, blinkClaiming, blinkClaimTxHash]);
-
-  const blinkClaimConfirmed =
-    !!blinkClaimTxHash && claimReceipt?.status === "success";
 
   /* Dynamic keyframes for particles/fragments */
   const dynamicKeyframes = useMemo(() => {
@@ -1410,148 +1319,6 @@ export default function CrackPage() {
                       {crackResult.chain.toUpperCase()}
                     </span>
                   </div>
-                </div>
-              )}
-
-              {/* ───── Phase 5: $BLINK claim card ───── */}
-              {(blinkVoucher || blinkVoucherError) && (
-                <div style={{
-                  marginTop: 24,
-                  padding: "18px 18px",
-                  background: "rgba(255,255,255,0.04)",
-                  border: `1px solid ${C.cardBorder}`,
-                  borderRadius: 16,
-                  textAlign: "left",
-                  animation: "slideUp 0.4s ease-out",
-                }}>
-                  {blinkVoucher && !blinkClaimConfirmed && (
-                    <>
-                      <div style={{
-                        display: "flex", alignItems: "baseline",
-                        justifyContent: "space-between", gap: 12,
-                        marginBottom: 12,
-                      }}>
-                        <div>
-                          <div style={{
-                            color: C.muted, fontSize: 11, fontWeight: 700,
-                            letterSpacing: "0.14em", textTransform: "uppercase",
-                            marginBottom: 4,
-                          }}>
-                            Bonus reward
-                          </div>
-                          <div style={{
-                            color: C.primary, fontSize: 26, fontWeight: 900,
-                            lineHeight: 1,
-                          }}>
-                            +{formatBlinkAmount(blinkVoucher.amount)} BLINK
-                          </div>
-                        </div>
-                        <div style={{
-                          padding: "5px 12px", borderRadius: 16,
-                          background: `${C.primary}18`,
-                          border: `1px solid ${C.primary}44`,
-                          color: C.primary,
-                          fontSize: 10, fontWeight: 700,
-                          letterSpacing: "0.12em", textTransform: "uppercase",
-                          whiteSpace: "nowrap",
-                        }}>
-                          Ready
-                        </div>
-                      </div>
-                      {blinkClaimError && (
-                        <div style={{
-                          marginBottom: 12, padding: "8px 12px", borderRadius: 10,
-                          background: `${C.danger}18`,
-                          border: `1px solid ${C.danger}44`,
-                          color: C.danger, fontSize: 12,
-                        }}>
-                          {blinkClaimError}
-                        </div>
-                      )}
-                      {!wagmiAddress ? (
-                        <div style={{
-                          padding: "10px 12px", borderRadius: 10,
-                          background: "rgba(255,255,255,0.04)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                          color: C.muted, fontSize: 12,
-                        }}>
-                          Connect your wallet to claim on Ethereum mainnet.
-                        </div>
-                      ) : (
-                        <button
-                          onClick={handleClaimBlink}
-                          disabled={blinkClaiming || !!blinkClaimTxHash}
-                          style={{
-                            width: "100%", padding: "13px 0",
-                            borderRadius: 12, border: "none",
-                            background: blinkClaiming || blinkClaimTxHash
-                              ? "rgba(255,255,255,0.06)"
-                              : `linear-gradient(135deg, ${C.primary}, ${C.primary2})`,
-                            color: blinkClaiming || blinkClaimTxHash ? C.muted : "#0a0a0f",
-                            fontSize: 14, fontWeight: 800,
-                            letterSpacing: "0.06em",
-                            cursor: blinkClaiming || blinkClaimTxHash ? "default" : "pointer",
-                            boxShadow: blinkClaiming || blinkClaimTxHash
-                              ? "none"
-                              : `0 4px 20px ${C.primary}55`,
-                            transition: "all 0.2s",
-                          }}
-                        >
-                          {blinkClaimTxHash
-                            ? "Confirming…"
-                            : blinkClaiming
-                              ? "Signing…"
-                              : `Claim ${formatBlinkAmount(blinkVoucher.amount)} BLINK`}
-                        </button>
-                      )}
-                    </>
-                  )}
-                  {blinkClaimConfirmed && blinkVoucher && (
-                    <div style={{ textAlign: "center" }}>
-                      <div style={{
-                        color: C.primary, fontSize: 13, fontWeight: 700,
-                        letterSpacing: "0.14em", textTransform: "uppercase",
-                        marginBottom: 6,
-                      }}>
-                        BLINK Claimed
-                      </div>
-                      <div style={{
-                        color: C.text, fontSize: 22, fontWeight: 800,
-                        marginBottom: 8,
-                      }}>
-                        +{formatBlinkAmount(blinkVoucher.amount)} BLINK
-                      </div>
-                      {blinkClaimTxHash && (
-                        <a
-                          href={`https://etherscan.io/tx/${blinkClaimTxHash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: "inline-block",
-                            padding: "6px 14px", borderRadius: 16,
-                            background: "rgba(255,255,255,0.04)",
-                            border: "1px solid rgba(255,255,255,0.12)",
-                            color: C.primary, fontSize: 11,
-                            fontFamily: "monospace",
-                            textDecoration: "none",
-                          }}
-                        >
-                          {truncateHash(blinkClaimTxHash)} ↗
-                        </a>
-                      )}
-                    </div>
-                  )}
-                  {blinkVoucherError && !blinkVoucher && (
-                    <div style={{
-                      color: C.muted, fontSize: 12,
-                      textAlign: "center",
-                      padding: "4px 0",
-                    }}>
-                      {blinkVoucherError === "unauthorized"
-                        ? "Sign in with wallet to earn $BLINK rewards."
-                        : `Bonus reward unavailable (${blinkVoucherError}).`}
-                    </div>
-                  )}
                 </div>
               )}
 

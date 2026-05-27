@@ -10,6 +10,7 @@ import CreatureVisual, {
 import CaptureOrb, { type CaptureOrbPhase } from "@/components/ar/CaptureOrb";
 import ParticleField, { type ParticleMode } from "@/components/ar/ParticleField";
 import CatchResult, { type ARCatchResult } from "@/components/ar/CatchResult";
+import MinimapRadar from "@/components/ar/MinimapRadar";
 
 // ── Public surface ─────────────────────────────────────────────────────────
 // The parent owns the catch API call but the AR overlay now owns the full
@@ -20,12 +21,23 @@ interface ARCameraOverlayProps {
   onClose: () => void;
   onCatch: () => Promise<ARCatchResult | { error: string }>;
   userPosition: { lat: number; lng: number } | null;
+  // All catchable spawns currently within map range. Rendered on the minimap
+  // radar so the user can navigate to other creatures without leaving AR.
+  spawns?: CatchableSpawn[];
+  // Called when the user taps a radar dot — parent should swap the active
+  // AR target to that spawn.
+  onSwitchSpawn?: (spawn: CatchableSpawn) => void;
 }
 
-// ── Distance helpers ───────────────────────────────────────────────────────
-// Mirrors the server-side proximity gate so the throw button is locked out
-// before the network ever hears about it.
-const PROXIMITY_M = 50;
+// ── Distance / bearing helpers ─────────────────────────────────────────────
+// The server enforces PROXIMITY_M = 50 (see /api/spawns/catch/route.ts); the
+// client gates the throw mechanic at CATCHABLE_RANGE_M = 50 to match the
+// server's floor.
+// VISIBLE_RANGE_M is the falloff over which the distance-based scale fades
+// from ~1.0 (close) down to 0.3 (far edge of visibility).
+const CATCHABLE_RANGE_M = 50;
+const VISIBLE_RANGE_M = 200;
+const FOV_DEG = 60;
 
 function haversineMeters(
   lat1: number,
@@ -43,15 +55,38 @@ function haversineMeters(
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+function bearingDeg(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLng = toRad(lng2 - lng1);
+  const rLat1 = toRad(lat1);
+  const rLat2 = toRad(lat2);
+  const y = Math.sin(dLng) * Math.cos(rLat2);
+  const x =
+    Math.cos(rLat1) * Math.sin(rLat2) -
+    Math.sin(rLat1) * Math.cos(rLat2) * Math.cos(dLng);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
 // ── Finite-state machine ──────────────────────────────────────────────────
 //
-// materializing → idle → aimed → thrown → captured → shaking → success
-//                                              ↘ failed (escape) → idle
+// approaching → materializing → idle → aimed → thrown → captured → shaking → success
+//                                                            ↘ failed (escape) → idle
+//
+// "approaching": user is outside CATCHABLE_RANGE_M — creature renders in
+// world-space (bearing + distance scale), no orb, no throw. ARRIVED fires
+// once distance drops into range and hands off to the existing materialize
+// reveal → idle flow.
 //
 // Mint API fires on THROW so the network round-trip overlaps with the
 // 0.8s throw + 1.2s shake. The shake phase awaits the API result before
 // advancing to success/failed.
 type FsmKind =
+  | "approaching"
   | "materializing"
   | "idle"
   | "aimed"
@@ -68,6 +103,7 @@ interface FsmState {
 }
 
 type FsmAction =
+  | { type: "ARRIVED" }
   | { type: "MATERIALIZED" }
   | { type: "AIM" }
   | { type: "RELEASE" }
@@ -81,6 +117,10 @@ type FsmAction =
 
 function fsmReducer(state: FsmState, action: FsmAction): FsmState {
   switch (action.type) {
+    case "ARRIVED":
+      return state.kind === "approaching"
+        ? { ...state, kind: "materializing" }
+        : state;
     case "MATERIALIZED":
       return state.kind === "materializing" ? { ...state, kind: "idle" } : state;
     case "AIM":
@@ -103,13 +143,13 @@ function fsmReducer(state: FsmState, action: FsmAction): FsmState {
     case "RESET_AFTER_FAIL":
       return { kind: "idle", result: null, error: null };
     case "RESET":
-      return { kind: "materializing", result: null, error: null };
+      return { kind: "approaching", result: null, error: null };
     default:
       return state;
   }
 }
 
-const INITIAL_FSM: FsmState = { kind: "materializing", result: null, error: null };
+const INITIAL_FSM: FsmState = { kind: "approaching", result: null, error: null };
 
 // Swipe gesture threshold — pointer must travel at least this many px upward
 // AND release within MAX_SWIPE_MS for it to count as a throw.
@@ -121,15 +161,25 @@ export default function ARCameraOverlay({
   onClose,
   onCatch,
   userPosition,
+  spawns,
+  onSwitchSpawn,
 }: ARCameraOverlayProps) {
+  const radarSpawns = spawns ?? [];
+  const handleRadarTap = useCallback(
+    (s: CatchableSpawn) => {
+      if (onSwitchSpawn) onSwitchSpawn(s);
+    },
+    [onSwitchSpawn],
+  );
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [tilt, setTilt] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [heading, setHeading] = useState<number | null>(null);
   const [fsm, dispatch] = useReducer(fsmReducer, INITIAL_FSM);
-  const fsmKindRef = useRef<FsmKind>("materializing");
+  const fsmKindRef = useRef<FsmKind>("approaching");
   useEffect(() => {
     fsmKindRef.current = fsm.kind;
   }, [fsm.kind]);
@@ -139,22 +189,72 @@ export default function ARCameraOverlay({
     h: typeof window === "undefined" ? 0 : window.innerHeight,
   });
 
-  // Distance from user → spawn (real, server-mirrored proximity check).
+  // Distance from user → spawn. The throw/orb is gated client-side at
+  // CATCHABLE_RANGE_M; the server still enforces its 50m floor.
   const distanceM =
     userPosition && spawn
       ? haversineMeters(userPosition.lat, userPosition.lng, spawn.lat, spawn.lng)
       : null;
-  const inRange = distanceM === null ? true : distanceM <= PROXIMITY_M;
+  const inRange = distanceM === null ? true : distanceM <= CATCHABLE_RANGE_M;
   const proximity =
     distanceM === null
       ? 1
-      : Math.max(0, Math.min(1, 1 - distanceM / (PROXIMITY_M * 2)));
+      : Math.max(
+          0,
+          Math.min(1, 1 - distanceM / (CATCHABLE_RANGE_M * 2)),
+        );
+
+  // Compass bearing from user → spawn, plus its delta vs. the device heading.
+  // xPct maps [-FOV/2, +FOV/2] across the screen width; values outside [0, 1]
+  // mean the creature is off-screen and we draw an edge arrow instead.
+  const bearing =
+    userPosition && spawn
+      ? bearingDeg(userPosition.lat, userPosition.lng, spawn.lat, spawn.lng)
+      : null;
+  let deltaH: number | null = null;
+  let worldXPct = 0.5;
+  let inFov = true;
+  if (heading !== null && bearing !== null) {
+    let d = bearing - heading;
+    if (d > 180) d -= 360;
+    if (d < -180) d += 360;
+    deltaH = d;
+    worldXPct = 0.5 + d / FOV_DEG;
+    inFov = worldXPct >= 0 && worldXPct <= 1;
+  }
+
+  // Distance-based scale for world rendering. 0.3 at the far edge of
+  // VISIBLE_RANGE_M, growing to ~1.0 as the user closes to CATCHABLE_RANGE_M.
+  const distanceFactor =
+    distanceM === null
+      ? 1
+      : 1 -
+        Math.min(
+          Math.max((distanceM - CATCHABLE_RANGE_M) / VISIBLE_RANGE_M, 0),
+          1,
+        );
+  const worldScale = 0.3 + distanceFactor * 0.7;
+  const worldPosition = { xPct: worldXPct, yPct: 0.45 };
 
   // ── Reset FSM whenever a new spawn opens ────────────────────────────────
   useEffect(() => {
     if (!spawn) return;
     dispatch({ type: "RESET" });
   }, [spawn?.id]);
+
+  // ── Approaching → materializing: arrive when in catch range ─────────────
+  // distanceM === null means GPS hasn't reported yet; fall through to the
+  // legacy materialize flow rather than pinning the user in "approaching".
+  useEffect(() => {
+    if (fsm.kind !== "approaching") return;
+    if (distanceM === null) {
+      dispatch({ type: "ARRIVED" });
+      return;
+    }
+    if (distanceM <= CATCHABLE_RANGE_M) {
+      dispatch({ type: "ARRIVED" });
+    }
+  }, [fsm.kind, distanceM]);
 
   // ── Track viewport size for canvas centre ───────────────────────────────
   useEffect(() => {
@@ -164,8 +264,9 @@ export default function ARCameraOverlay({
   }, []);
 
   // ── Start camera ────────────────────────────────────────────────────────
+  // Runs regardless of spawn so the empty-state ("no creatures within 200m")
+  // still shows a live camera feed.
   useEffect(() => {
-    if (!spawn) return;
     let cancelled = false;
 
     async function start() {
@@ -229,6 +330,16 @@ export default function ARCameraOverlay({
       const xOffset = Math.max(-30, Math.min(30, gamma * 0.7));
       const yOffset = Math.max(-30, Math.min(30, (beta - 70) * 0.5));
       setTilt({ x: xOffset, y: yOffset });
+      // iOS exposes magnetic-north heading directly; Android reports alpha
+      // which needs the (360 - alpha) flip to match compass convention.
+      const evt = e as DeviceOrientationEvent & {
+        webkitCompassHeading?: number;
+      };
+      if (typeof evt.webkitCompassHeading === "number") {
+        setHeading(evt.webkitCompassHeading);
+      } else if (typeof e.alpha === "number") {
+        setHeading((360 - e.alpha) % 360);
+      }
     }
 
     async function request() {
@@ -374,9 +485,12 @@ export default function ARCameraOverlay({
     : null;
   const accent = spawn?.tier_color || art?.color || "#00FF88";
 
-  // Map FSM → CreatureVisual state.
+  // Map FSM → CreatureVisual state. "approaching" rides the idle bob/breathe
+  // animation while world-mode anchors it at the bearing-derived position.
   const creatureState: CreatureVisualState = (() => {
     switch (fsm.kind) {
+      case "approaching":
+        return "idle";
       case "materializing":
         return "materializing";
       case "idle":
@@ -396,6 +510,8 @@ export default function ARCameraOverlay({
         return "idle";
     }
   })();
+  const creatureMode: "world" | "catchable" =
+    fsm.kind === "approaching" ? "world" : "catchable";
 
   // Map FSM → orb phase. Show 'locked' for a brief window inside the
   // success state via a transient flag (handled by a timer below).
@@ -410,6 +526,8 @@ export default function ARCameraOverlay({
   const orbPhase: CaptureOrbPhase = (() => {
     if (!cameraReady || cameraError) return "hidden";
     switch (fsm.kind) {
+      case "approaching":
+        return "hidden";
       case "materializing":
         return "hidden";
       case "idle":
@@ -432,6 +550,8 @@ export default function ARCameraOverlay({
   // Map FSM → particle mode.
   const particleMode: ParticleMode = (() => {
     switch (fsm.kind) {
+      case "approaching":
+        return "idle";
       case "materializing":
         return "materialize";
       case "idle":
@@ -459,7 +579,217 @@ export default function ARCameraOverlay({
     return () => clearTimeout(t);
   }, [fsm.kind]);
 
-  if (!spawn) return null;
+  // ── Empty state: camera button tapped but no nearby spawns ─────────────
+  // Renders the live camera feed plus a glass card so the user can still
+  // look around for creatures and exit cleanly. All FSM-dependent UI
+  // (creature, orb, HUD, throw gesture) is skipped.
+  if (!spawn) {
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="AR camera — no creatures nearby"
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9999,
+          background: "#0a0a0f",
+          overflow: "hidden",
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+        }}
+      >
+        <style>{`@keyframes arSpin { to { transform: rotate(360deg); } }`}</style>
+
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          autoPlay
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            zIndex: 1,
+            background: "#0a0a0f",
+          }}
+        />
+
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 2,
+            pointerEvents: "none",
+            background:
+              "radial-gradient(ellipse at 50% 50%, transparent 0%, rgba(10,10,15,0.45) 80%)",
+          }}
+        />
+
+        {!cameraReady && !cameraError && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 3,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "column",
+              gap: 16,
+              color: "#cfd3dd",
+            }}
+          >
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                border: "3px solid #00FF88",
+                borderTopColor: "transparent",
+                borderRadius: "50%",
+                animation: "arSpin 0.8s linear infinite",
+              }}
+            />
+            <span style={{ fontSize: 13, opacity: 0.8 }}>Starting camera…</span>
+          </div>
+        )}
+
+        {cameraError && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 50,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "column",
+              padding: 32,
+              textAlign: "center",
+              color: "#fff",
+              gap: 16,
+              background:
+                "radial-gradient(ellipse at top, rgba(10,10,15,0.6), rgba(10,10,15,0.96))",
+            }}
+          >
+            <p style={{ fontSize: 14, fontWeight: 600, margin: 0, lineHeight: 1.5 }}>
+              {cameraError}
+            </p>
+            <button
+              onClick={onClose}
+              style={{
+                marginTop: 8,
+                padding: "10px 24px",
+                borderRadius: 999,
+                border: "1px solid #00FF88",
+                background: "rgba(0,255,136,0.13)",
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
+        )}
+
+        {cameraReady && !cameraError && (
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              zIndex: 30,
+              padding: "22px 26px",
+              borderRadius: 18,
+              background: "rgba(10,10,15,0.72)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              backdropFilter: "blur(14px)",
+              WebkitBackdropFilter: "blur(14px)",
+              color: "#fff",
+              textAlign: "center",
+              maxWidth: "82vw",
+              boxShadow: "0 0 24px rgba(0,255,136,0.18)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 800,
+                letterSpacing: "0.04em",
+                marginBottom: 6,
+              }}
+            >
+              No creatures within 200m
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: "rgba(255,255,255,0.7)",
+                lineHeight: 1.4,
+              }}
+            >
+              Walk to the map to find one — or drop a spawn yourself.
+            </div>
+          </div>
+        )}
+
+        <div
+          style={{
+            position: "absolute",
+            top: "env(safe-area-inset-top, 0px)",
+            left: 0,
+            right: 0,
+            zIndex: 60,
+            padding: "12px 16px",
+            display: "flex",
+            justifyContent: "flex-end",
+            background:
+              "linear-gradient(180deg, rgba(10,10,15,0.55), rgba(10,10,15,0))",
+          }}
+        >
+          <button
+            aria-label="Close AR camera"
+            onClick={onClose}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              border: "1px solid rgba(255,255,255,0.18)",
+              background: "rgba(10,10,15,0.7)",
+              color: "#fff",
+              fontSize: 20,
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        {cameraReady && (
+          <MinimapRadar
+            userPosition={userPosition}
+            heading={heading}
+            spawns={radarSpawns}
+            activeSpawnId={null}
+            onTapSpawn={handleRadarTap}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -603,14 +933,78 @@ export default function ARCameraOverlay({
       )}
 
       {/* ── Creature ──────────────────────────────────────────────────── */}
-      {cameraReady && (
+      {/* During "approaching", hide the creature entirely if it's outside the
+          camera's FOV — the compass arrow below takes over as the visual cue. */}
+      {cameraReady && !(fsm.kind === "approaching" && !inFov) && (
         <CreatureVisual
           spawn={spawn}
           state={creatureState}
           accent={accent}
-          tilt={tilt}
+          tilt={fsm.kind === "approaching" ? { x: 0, y: 0 } : tilt}
           proximity={proximity}
+          mode={creatureMode}
+          worldPosition={creatureMode === "world" ? worldPosition : null}
+          worldScale={creatureMode === "world" ? worldScale : undefined}
         />
+      )}
+
+      {/* ── Approaching HUD: distance pill + off-screen compass arrow ─── */}
+      {cameraReady && fsm.kind === "approaching" && distanceM !== null && (
+        <>
+          {/* Distance label sits below the creature when on-screen, otherwise
+              centres beneath the screen midline near the compass arrow. */}
+          <div
+            style={{
+              position: "absolute",
+              top: `${(inFov ? worldPosition.yPct * 100 + 22 : 60)}%`,
+              left: inFov ? `${worldXPct * 100}%` : "50%",
+              transform: "translate(-50%, -50%)",
+              zIndex: 25,
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 800,
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              background: "rgba(10,10,15,0.72)",
+              border: `1px solid ${accent}66`,
+              borderRadius: 999,
+              padding: "6px 14px",
+              whiteSpace: "nowrap",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+              boxShadow: `0 0 12px ${accent}33`,
+              pointerEvents: "none",
+              transition: "top 320ms ease-out, left 320ms ease-out",
+            }}
+          >
+            {Math.round(distanceM)}m away — keep walking
+          </div>
+
+          {/* Compass arrow on the screen edge when creature is out of FOV.
+              Uses CSS-border triangles so no emoji glyphs leak into the UI. */}
+          {!inFov && heading !== null && deltaH !== null && (
+            <div
+              aria-hidden
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: deltaH < 0 ? 18 : "auto",
+                right: deltaH > 0 ? 18 : "auto",
+                transform: "translateY(-50%)",
+                zIndex: 25,
+                width: 0,
+                height: 0,
+                borderTop: "16px solid transparent",
+                borderBottom: "16px solid transparent",
+                borderRight: deltaH < 0 ? `24px solid ${accent}` : undefined,
+                borderLeft: deltaH > 0 ? `24px solid ${accent}` : undefined,
+                filter: `drop-shadow(0 0 10px ${accent})`,
+                animation: "arPulse 1.6s ease-in-out infinite",
+                pointerEvents: "none",
+              }}
+            />
+          )}
+        </>
       )}
 
       {/* ── Particle field (canvas) ───────────────────────────────────── */}
@@ -712,7 +1106,9 @@ export default function ARCameraOverlay({
       </div>
 
       {/* ── Bottom UI: distance + catch button ───────────────────────── */}
-      {cameraReady && !cameraError && fsm.kind !== "success" && (
+      {/* Suppressed during "approaching" — the near-creature distance pill
+          and compass arrow above carry the messaging for that phase. */}
+      {cameraReady && !cameraError && fsm.kind !== "success" && fsm.kind !== "approaching" && (
         <div
           style={{
             position: "absolute",
@@ -825,6 +1221,22 @@ export default function ARCameraOverlay({
           )}
         </div>
       )}
+
+      {/* ── Minimap radar (bottom-left) ──────────────────────────────── */}
+      {/* Hidden during the catch reveal animations so it doesn't compete with
+          the success/failed payoff moments. */}
+      {cameraReady &&
+        !cameraError &&
+        fsm.kind !== "success" &&
+        fsm.kind !== "failed" && (
+          <MinimapRadar
+            userPosition={userPosition}
+            heading={heading}
+            spawns={radarSpawns}
+            activeSpawnId={spawn?.id ?? null}
+            onTapSpawn={handleRadarTap}
+          />
+        )}
 
       {/* ── Success card (post-mint) ─────────────────────────────────── */}
       {fsm.kind === "success" && fsm.result && !orbLocked && (

@@ -27,6 +27,19 @@ export interface CreatureVisualProps {
   tilt: { x: number; y: number };
   /** 0–1 — proximity-driven scale + opacity multiplier (1 = in range). */
   proximity: number;
+  /**
+   * "catchable" (default) → centred card-frame-less visual driven by FSM state.
+   * "world" → free-floating Pokémon-GO-style render anchored by bearing/scale;
+   *           no halo, no swipe interaction, transparent backdrop.
+   */
+  mode?: "world" | "catchable";
+  /**
+   * World-mode screen anchor. xPct/yPct in 0–1 viewport coords.
+   * Ignored when mode === "catchable".
+   */
+  worldPosition?: { xPct: number; yPct: number } | null;
+  /** World-mode distance-based scale (0.3 far → 1.0 close). */
+  worldScale?: number;
 }
 
 const CREATURE_CSS_ID = "ar-creature-visual-styles";
@@ -83,6 +96,9 @@ export default function CreatureVisual({
   accent,
   tilt,
   proximity,
+  mode = "catchable",
+  worldPosition = null,
+  worldScale,
 }: CreatureVisualProps) {
   useCreatureCss();
   // IDENTITY: resolve animated asset from the registry by creature_id so the
@@ -121,7 +137,11 @@ export default function CreatureVisual({
   // State → top-level visual modifiers (scale + opacity applied to inner).
   const captured = state === "captured" || state === "shaking" || state === "success";
   const failed = state === "failed";
-  const showHalo = !captured && !failed && state !== "materializing";
+  const isWorld = mode === "world";
+  // World mode is a free-floating render: skip vortex + tier halo. A subtle
+  // glow on the artwork itself provides the "creature alive at distance" cue.
+  const showHalo = !isWorld && !captured && !failed && state !== "materializing";
+  const showVortex = !isWorld && state === "materializing";
 
   // Proximity-driven shrink + fade so 'come closer' is visceral. We never go
   // below 0.55 scale / 0.35 opacity so the creature stays visible.
@@ -129,12 +149,12 @@ export default function CreatureVisual({
   const proxScale = 0.55 + proxClamped * 0.45;
   const proxOpacity = 0.35 + proxClamped * 0.65;
 
-  let innerScale = proxScale;
-  let innerOpacity = proxOpacity;
+  let innerScale = isWorld ? (worldScale ?? 1) : proxScale;
+  let innerOpacity = isWorld ? 1 : proxOpacity;
   let innerAnimation: string | undefined;
   let innerTransition = "opacity 320ms, transform 480ms cubic-bezier(.2,.7,.3,1)";
 
-  if (state === "materializing") {
+  if (!isWorld && state === "materializing") {
     innerAnimation = "arCreatureMaterialize 600ms cubic-bezier(.18,1.2,.4,1) both";
     innerTransition = "none";
   } else if (captured) {
@@ -146,10 +166,23 @@ export default function CreatureVisual({
     innerTransition = "none";
   }
 
+  // Position anchor: 50/50 by default, world mode overrides via bearing-derived
+  // viewport percentages. Clamp to keep the creature renderable even if the
+  // caller passes slightly out-of-FOV values (caller is responsible for the
+  // compass-arrow fallback when truly off-screen).
+  const anchorLeft =
+    isWorld && worldPosition
+      ? `${Math.max(0, Math.min(1, worldPosition.xPct)) * 100}%`
+      : "50%";
+  const anchorTop =
+    isWorld && worldPosition
+      ? `${Math.max(0, Math.min(1, worldPosition.yPct)) * 100}%`
+      : "50%";
+
   return (
     <>
       {/* Materialize vortex — only during the 600ms reveal. */}
-      {state === "materializing" && (
+      {showVortex && (
         <div
           aria-hidden
           style={{
@@ -200,22 +233,28 @@ export default function CreatureVisual({
         aria-hidden
         style={{
           position: "absolute",
-          top: "50%",
-          left: "50%",
+          top: anchorTop,
+          left: anchorLeft,
           zIndex: 11,
-          width: "min(60vw, 360px)",
+          width: isWorld ? "min(45vw, 280px)" : "min(60vw, 360px)",
           maxHeight: "55vh",
           pointerEvents: "none",
           transform: `translate(-50%, -50%) translate(${tilt.x}px, ${tilt.y}px)`,
-          transition: "transform 220ms cubic-bezier(.2,.7,.3,1)",
+          transition: isWorld
+            ? "top 320ms ease-out, left 320ms ease-out, transform 220ms cubic-bezier(.2,.7,.3,1)"
+            : "transform 220ms cubic-bezier(.2,.7,.3,1)",
           willChange: "transform",
         }}
       >
         <div
-          className={state === "idle" || state === "aimed" ? "ar-bob-breathe" : undefined}
+          className={
+            isWorld || state === "idle" || state === "aimed"
+              ? "ar-bob-breathe"
+              : undefined
+          }
           style={{
             animation:
-              state === "idle" || state === "aimed"
+              isWorld || state === "idle" || state === "aimed"
                 ? "arBobBreathe 3.4s ease-in-out infinite"
                 : undefined,
             willChange: "transform",

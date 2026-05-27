@@ -141,7 +141,7 @@ All internal `router.push` / `Link href` / `redirect` updated to new paths in:
 - `src/components/GlassCard.tsx`, `ErrorState.tsx`, `Skeleton.tsx` — already pull from theme `C`; no changes required.
 - `src/components/error-boundary.tsx` — local `C` palette greenified; tag `[MishMesh ErrorBoundary]` → `[BLINK ErrorBoundary]`.
 - `src/components/PortfolioBar.tsx` — verified (uses theme `C`, no off-palette hex).
-- `src/lib/telegram.ts` — bot rebranded to BLINK / `@TheEyeBlinkBot`; group link `https://t.me/+7Xj6CKZs9iVmMDhh` documented. All 6+ message templates rebranded; `/hunt` button URLs → `/watch`. Bot slash-command identifier `/hunt` preserved (backend command). Emojis preserved in TG messages (exempt per spec).
+- `src/lib/telegram.ts` — bot rebranded to BLINK / `@TheEyeBlinkBot`; group link `https://t.me/blinkworldeth` documented. All 6+ message templates rebranded; `/hunt` button URLs → `/watch`. Bot slash-command identifier `/hunt` preserved (backend command). Emojis preserved in TG messages (exempt per spec).
 - `src/lib/wagmi-config.ts` — `appName: "MishMesh.ai"` → `"BLINK"`.
 - `src/lib/production.ts` — file header rebranded. **Intentionally preserved:** `ENC_SALT = "mishmesh-v17-salt"` — used to derive AES-256 wallet encryption keys; changing it would brick every existing encrypted wallet on the server.
 - `src/lib/coingecko-cli.ts` — header rebranded.

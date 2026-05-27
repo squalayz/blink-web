@@ -1,6 +1,28 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap");
 
 :root {
+  /* shadcn/ui CSS variable hooks — BLINK dark theme */
+  --background: 240 6% 5%;
+  --foreground: 0 0% 100%;
+  --card: 240 10% 7%;
+  --card-foreground: 0 0% 100%;
+  --popover: 240 10% 7%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 151 100% 50%;
+  --primary-foreground: 240 6% 5%;
+  --secondary: 240 8% 13%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 240 8% 13%;
+  --muted-foreground: 240 5% 53%;
+  --accent: 240 8% 13%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 7% 23%;
+  --input: 240 8% 13%;
+  --ring: 151 100% 50%;
+  --radius: 0.625rem;
+
   --blink-green: #00FF88;
   --blink-green-2: #88FF00;
   --blink-bg: #0a0a0f;
@@ -10,6 +32,35 @@
   --blink-muted: #8a8a99;
   --blink-glow: rgba(0,255,136,0.4);
   --blink-glow-soft: rgba(0,255,136,0.18);
+}
+
+/* Telegram WebApp safety net: TG draws a native title bar over the WebApp.
+   Even if --blink-top-inset hasn't been set yet (SDK still loading), force a
+   90px minimum on the landing nav whenever we're inside TG. iOS Telegram
+   status bar + title bar totals ~80-90px. */
+body[data-tg-webapp] .blink-top-nav {
+  padding-top: max(
+    90px,
+    calc(14px + max(env(safe-area-inset-top, 0px), var(--blink-top-inset, 0px)))
+  ) !important;
+}
+
+/* Landing-nav responsive rules — kept in globals.css (not styled-jsx) so they
+   apply reliably across SSR / in-app browsers / RSC boundaries. */
+.blink-top-nav-cta-short { display: none; }
+@media (max-width: 600px) {
+  /* Tight viewports: collapse the Telegram pill to icon-only so it can't
+     visually collide with the BLINK wordmark. */
+  .blink-top-nav-council-label { display: none; }
+  .blink-top-nav-council { padding: 8px 10px !important; }
+}
+@media (max-width: 420px) {
+  /* Very tight: drop the Telegram pill entirely — Sign In + Enter take priority. */
+  .blink-top-nav-council { display: none !important; }
+}
+@media (max-width: 360px) {
+  .blink-top-nav-cta-long { display: none; }
+  .blink-top-nav-cta-short { display: inline; }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

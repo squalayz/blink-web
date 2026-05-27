@@ -3,7 +3,7 @@
 //
 // Cell: 0.01° × 0.01° grid (~1km at equator). Cell ID = "{floor(lat*100)}:{floor(lng*100)}".
 // Epoch bucket: floor(unix_seconds / 300) → new spawns every 5 minutes.
-// Despawn: 30 min after spawn.
+// Despawn: never — creatures persist until caught.
 //
 // Determinism: every client requesting the same (cell, bucket) sees identical
 // spawn coords/tiers/names — social moments where two people see the same
@@ -23,10 +23,29 @@ import {
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const EPOCH_SECONDS = 300; // 5 min
-export const DESPAWN_MS = 30 * 60_000; // 30 min
+export const DESPAWN_MS = 30 * 60_000; // 30 min default — overridden per-spawn by pickSpawnTtlMs
 export const CELL_DEG = 0.01;
-const MIN_PER_CELL = 5;
-const MAX_PER_CELL = 12;
+const MIN_PER_CELL = 8;
+const MAX_PER_CELL = 15;
+
+// Pokémon GO-style spawn windows — creatures despawn and respawn on a cycle
+// Each spawn point gets a random TTL type determined by its seed
+export const SPAWN_TYPES = [
+  { ttlMs: 15 * 60_000, weight: 40 },   // 15 min — most common, high urgency
+  { ttlMs: 30 * 60_000, weight: 35 },   // 30 min — common
+  { ttlMs: 45 * 60_000, weight: 15 },   // 45 min — uncommon
+  { ttlMs: 60 * 60_000, weight: 10 },   // 60 min — rare, rare creatures
+] as const;
+
+export function pickSpawnTtlMs(rng: () => number): number {
+  const total = SPAWN_TYPES.reduce((a, t) => a + t.weight, 0);
+  let r = rng() * total;
+  for (const st of SPAWN_TYPES) {
+    r -= st.weight;
+    if (r <= 0) return st.ttlMs;
+  }
+  return SPAWN_TYPES[0].ttlMs;
+}
 
 export interface WildSpawnRow {
   id: string;
@@ -38,7 +57,6 @@ export interface WildSpawnRow {
   tier: BurnTier;
   name: string;
   image_cid: string;
-  creature_id: number | null;
   spawned_at: string;
   expires_at: string;
   caught_by: string | null;
@@ -122,7 +140,6 @@ export interface GeneratedSpawn {
   tier: BurnTier;
   name: string;
   image_cid: string;
-  creature_id: number;
   spawned_at: string;
   expires_at: string;
 }
@@ -154,7 +171,7 @@ const LAT_METERS_PER_DEG = 111_320;
 // new bucket actively avoids spots already taken by recently-spawned ones —
 // without this lookback, the cell would accumulate ~50 independently-placed
 // points and visibly clump along whichever radials happened to align.
-const ACTIVE_PRIOR_BUCKETS = Math.floor(DESPAWN_MS / 1000 / EPOCH_SECONDS) - 1;
+const ACTIVE_PRIOR_BUCKETS = Math.min(11, Math.floor(DESPAWN_MS / 1000 / EPOCH_SECONDS) - 1);
 
 interface CellGeometry {
   centerLat: number;
@@ -257,7 +274,6 @@ export function generateCellSpawns(cellId: string, bucket: number): GeneratedSpa
 
   const spawnedAtMs = bucketStartMs(bucket);
   const spawnedAt = new Date(spawnedAtMs).toISOString();
-  const expiresAt = new Date(spawnedAtMs + DESPAWN_MS).toISOString();
 
   const out: GeneratedSpawn[] = [];
   for (let idx = 0; idx < count; idx++) {
@@ -266,6 +282,8 @@ export function generateCellSpawns(cellId: string, bucket: number): GeneratedSpa
     const tier = pickTierFromRng(rng);
     const creatureId = pickCreatureIdDeterministic(tier, seed);
     const entry = CREATURE_REGISTRY[creatureId];
+    const ttlMs = pickSpawnTtlMs(rng);
+    const expiresAt = new Date(spawnedAtMs + ttlMs).toISOString();
     out.push({
       s2_cell_id: cellId,
       epoch_bucket: bucket,
@@ -275,7 +293,6 @@ export function generateCellSpawns(cellId: string, bucket: number): GeneratedSpa
       tier,
       name: entry.name,
       image_cid: entry.visual.card,
-      creature_id: creatureId,
       spawned_at: spawnedAt,
       expires_at: expiresAt,
     });
@@ -311,7 +328,7 @@ export async function listActiveSpawnsForCells(
   const { data, error } = await supabaseAdmin
     .from("wild_spawns")
     .select(
-      "id, s2_cell_id, epoch_bucket, spawn_index, lat, lng, tier, name, image_cid, creature_id, spawned_at, expires_at, caught_by, caught_at, mint_tx_hash, nft_token_id, blink_reward_tx_hash",
+      "id, s2_cell_id, epoch_bucket, spawn_index, lat, lng, tier, name, image_cid, spawned_at, expires_at, caught_by, caught_at, mint_tx_hash, nft_token_id, blink_reward_tx_hash",
     )
     .in("s2_cell_id", cellIds)
     .is("caught_by", null)

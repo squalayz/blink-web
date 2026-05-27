@@ -46,8 +46,9 @@ export function middleware(req: NextRequest) {
   // page.tsx handles both logged-in and logged-out states internally
 
   // Unauthenticated users hitting protected pages → redirect to signin
-  // Note: /messages and /profile handle their own auth checks client-side
-  const protectedPaths = ["/wallet", "/missions", "/tasks"];
+  // Note: /wallet, /messages, /profile handle their own auth checks client-side
+  // (Supabase sessions live in localStorage, not cookies, so middleware can't see them)
+  const protectedPaths = ["/missions", "/tasks"];
   if (!hasSession && protectedPaths.some(p => pathname.startsWith(p))) {
     return NextResponse.redirect(new URL("/auth/signin", req.url));
   }

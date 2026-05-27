@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readSiweSession } from "@/lib/siwe-session";
+import { requireUserWithEthAddress } from "@/lib/api-auth";
 import { checkRateLimit } from "@/lib/production";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
@@ -11,13 +11,12 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const session = await readSiweSession(req);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const resolved = await requireUserWithEthAddress(req);
+  if (resolved.error) return resolved.error;
+  const wallet = resolved.address;
 
   // 1 refresh / minute / wallet.
-  const limit = checkRateLimit(`wallet-refresh:${session.address}`, 1, 60_000);
+  const limit = checkRateLimit(`wallet-refresh:${wallet}`, 1, 60_000);
   if (!limit.allowed) {
     return NextResponse.json(
       { error: "Rate limit exceeded — try again in a minute." },
@@ -25,10 +24,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  invalidateHoldingsCache(session.address);
-  const snap = await getBlinkHoldings(session.address);
+  invalidateHoldingsCache(wallet);
+  const snap = await getBlinkHoldings(wallet);
   const payload = {
-    wallet: session.address,
+    wallet,
     genesis_ids: tokenIds(snap.genesis),
     mythic_ids: tokenIds(snap.mythics),
     last_refreshed: new Date().toISOString(),
@@ -42,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    wallet: session.address,
+    wallet,
     genesis: snap.genesis,
     mythics: snap.mythics,
     isHolder: snap.genesis.length > 0 || snap.mythics.length > 0,

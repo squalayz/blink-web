@@ -34,12 +34,29 @@ const FALLBACK_VOLUME: Record<BlinkSound, number> = {
   tick: 0.25,
 };
 
+type ApproachRarity = "common" | "uncommon" | "rare" | "legendary" | "mythic";
+
+type ApproachNodes = {
+  base: OscillatorNode;
+  fifth: OscillatorNode;
+  shimmer: OscillatorNode;
+  master: GainNode;
+  baseGain: GainNode;
+  fifthGain: GainNode;
+  shimmerGain: GainNode;
+  filter: BiquadFilterNode;
+  intensity: number;
+  rarity: ApproachRarity;
+  rampTimer: ReturnType<typeof setTimeout> | null;
+};
+
 type RuntimeState = {
   enabled: boolean;
   ctx: AudioContext | null;
   buffers: Map<BlinkSound, AudioBuffer | null>;
   loaded: Set<BlinkSound>;
   reducedMotion: boolean;
+  approach: ApproachNodes | null;
 };
 
 const state: RuntimeState = {
@@ -48,6 +65,7 @@ const state: RuntimeState = {
   buffers: new Map(),
   loaded: new Set(),
   reducedMotion: false,
+  approach: null,
 };
 
 function isBrowser(): boolean {
@@ -231,6 +249,161 @@ function preloadAll(): void {
   else window.setTimeout(run, 1200);
 }
 
+/* ── Approach hum (continuous, intensity-driven) ───────────────────── */
+
+// Rarity-tinted base frequencies. Lower & dirtier = common; higher & purer = mythic.
+const APPROACH_PROFILE: Record<
+  ApproachRarity,
+  { base: number; fifthRatio: number; shimmerRatio: number; maxGain: number; filterMax: number }
+> = {
+  common: { base: 92, fifthRatio: 1.5, shimmerRatio: 2.0, maxGain: 0.22, filterMax: 900 },
+  uncommon: { base: 104, fifthRatio: 1.5, shimmerRatio: 2.01, maxGain: 0.26, filterMax: 1100 },
+  rare: { base: 118, fifthRatio: 1.5, shimmerRatio: 2.0, maxGain: 0.3, filterMax: 1500 },
+  legendary: { base: 138, fifthRatio: 1.5, shimmerRatio: 2.005, maxGain: 0.34, filterMax: 2000 },
+  mythic: { base: 156, fifthRatio: 1.5, shimmerRatio: 2.01, maxGain: 0.38, filterMax: 2600 },
+};
+
+function clamp01(v: number): number {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+
+function applyApproachIntensity(): void {
+  const a = state.approach;
+  const ctx = state.ctx;
+  if (!a || !ctx) return;
+  const i = clamp01(a.intensity);
+  const profile = APPROACH_PROFILE[a.rarity];
+  const now = ctx.currentTime;
+  const target = i * profile.maxGain;
+  // Smooth ramp ~250ms — short enough to feel responsive, long enough to avoid clicks.
+  const t = now + 0.25;
+  a.master.gain.cancelScheduledValues(now);
+  a.master.gain.setValueAtTime(a.master.gain.value, now);
+  a.master.gain.linearRampToValueAtTime(target, t);
+
+  // Filter opens as intensity rises; the shimmer/fifth come up later.
+  a.filter.frequency.cancelScheduledValues(now);
+  a.filter.frequency.setValueAtTime(a.filter.frequency.value, now);
+  a.filter.frequency.linearRampToValueAtTime(
+    360 + (profile.filterMax - 360) * i,
+    t,
+  );
+
+  // Shimmer kicks in past ~0.5 intensity, fifth past ~0.3.
+  const shimmerAmt = Math.max(0, (i - 0.5) * 2);
+  const fifthAmt = Math.max(0, (i - 0.3) * 1.4);
+  a.shimmerGain.gain.cancelScheduledValues(now);
+  a.shimmerGain.gain.setValueAtTime(a.shimmerGain.gain.value, now);
+  a.shimmerGain.gain.linearRampToValueAtTime(0.35 * shimmerAmt, t);
+  a.fifthGain.gain.cancelScheduledValues(now);
+  a.fifthGain.gain.setValueAtTime(a.fifthGain.gain.value, now);
+  a.fifthGain.gain.linearRampToValueAtTime(0.55 * fifthAmt, t);
+}
+
+function startApproachHum(rarity: ApproachRarity, intensity: number): void {
+  if (!isBrowser()) return;
+  initOnce();
+  if (!state.enabled || state.reducedMotion) return;
+  const ctx = ensureContext();
+  if (!ctx) return;
+  if (ctx.state === "suspended") {
+    try {
+      void ctx.resume();
+    } catch {
+      /* no-op */
+    }
+  }
+
+  // If already humming with the same rarity, just update intensity.
+  if (state.approach && state.approach.rarity === rarity) {
+    state.approach.intensity = clamp01(intensity);
+    applyApproachIntensity();
+    return;
+  }
+
+  // Different rarity (or no hum yet): tear down + rebuild so the timbre changes.
+  if (state.approach) stopApproachHumImmediate();
+
+  const profile = APPROACH_PROFILE[rarity];
+  try {
+    const master = ctx.createGain();
+    master.gain.value = 0; // we'll ramp up
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 360;
+    filter.Q.value = 0.7;
+    master.connect(filter).connect(ctx.destination);
+
+    const base = ctx.createOscillator();
+    base.type = "sine";
+    base.frequency.value = profile.base;
+    const baseGain = ctx.createGain();
+    baseGain.gain.value = 0.85;
+    base.connect(baseGain).connect(master);
+
+    const fifth = ctx.createOscillator();
+    fifth.type = "triangle";
+    fifth.frequency.value = profile.base * profile.fifthRatio;
+    // tiny detune so it shimmers rather than beats hard
+    fifth.detune.value = -6;
+    const fifthGain = ctx.createGain();
+    fifthGain.gain.value = 0;
+    fifth.connect(fifthGain).connect(master);
+
+    const shimmer = ctx.createOscillator();
+    shimmer.type = "sine";
+    shimmer.frequency.value = profile.base * profile.shimmerRatio;
+    shimmer.detune.value = 8;
+    const shimmerGain = ctx.createGain();
+    shimmerGain.gain.value = 0;
+    shimmer.connect(shimmerGain).connect(master);
+
+    base.start();
+    fifth.start();
+    shimmer.start();
+
+    state.approach = {
+      base,
+      fifth,
+      shimmer,
+      master,
+      baseGain,
+      fifthGain,
+      shimmerGain,
+      filter,
+      intensity: clamp01(intensity),
+      rarity,
+      rampTimer: null,
+    };
+    applyApproachIntensity();
+  } catch {
+    state.approach = null;
+  }
+}
+
+function stopApproachHumImmediate(): void {
+  const a = state.approach;
+  const ctx = state.ctx;
+  if (!a || !ctx) {
+    state.approach = null;
+    return;
+  }
+  try {
+    const now = ctx.currentTime;
+    a.master.gain.cancelScheduledValues(now);
+    a.master.gain.setValueAtTime(a.master.gain.value, now);
+    a.master.gain.linearRampToValueAtTime(0.0001, now + 0.4);
+    const stopAt = now + 0.45;
+    a.base.stop(stopAt);
+    a.fifth.stop(stopAt);
+    a.shimmer.stop(stopAt);
+  } catch {
+    /* no-op */
+  }
+  if (a.rampTimer) clearTimeout(a.rampTimer);
+  state.approach = null;
+}
+
 let initialised = false;
 function initOnce(): void {
   if (initialised || !isBrowser()) return;
@@ -291,4 +464,30 @@ export const sounds = {
   init(): void {
     initOnce();
   },
+  /**
+   * Set the continuous approach-hum intensity in [0,1]. Starts the hum on
+   * first call, smoothly ramps thereafter. Pass a `rarity` to retint the
+   * timbre (which forces a brief restart). No-op if sound is disabled.
+   */
+  setApproachIntensity(intensity: number, rarity: ApproachRarity = "common"): void {
+    if (!isBrowser()) return;
+    initOnce();
+    if (!state.enabled || state.reducedMotion) {
+      // If the user disabled sound after we started, make sure we stop.
+      if (state.approach) stopApproachHumImmediate();
+      return;
+    }
+    if (!state.approach || state.approach.rarity !== rarity) {
+      startApproachHum(rarity, intensity);
+      return;
+    }
+    state.approach.intensity = Math.max(0, Math.min(1, intensity));
+    applyApproachIntensity();
+  },
+  stopApproachHum(): void {
+    if (!isBrowser()) return;
+    stopApproachHumImmediate();
+  },
 };
+
+export type { ApproachRarity };

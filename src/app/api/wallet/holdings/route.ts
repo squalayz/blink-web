@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readSiweSession } from "@/lib/siwe-session";
+import { requireUserWithEthAddress } from "@/lib/api-auth";
 import { getBlinkHoldings } from "@/lib/wallet-nfts";
 
 export const dynamic = "force-dynamic";
@@ -9,14 +9,13 @@ export async function GET(req: NextRequest) {
   const queryWallet = url.searchParams.get("wallet");
 
   // If a wallet is explicitly requested we let it through (read-only / public
-  // information). Otherwise fall back to the authenticated SIWE session.
+  // information). Otherwise fall back to the authenticated user's custodial
+  // ETH wallet.
   let wallet = queryWallet?.toLowerCase() ?? null;
   if (!wallet) {
-    const session = await readSiweSession(req);
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    wallet = session.address;
+    const resolved = await requireUserWithEthAddress(req);
+    if (resolved.error) return resolved.error;
+    wallet = resolved.address;
   }
 
   if (!/^0x[0-9a-f]{40}$/.test(wallet)) {

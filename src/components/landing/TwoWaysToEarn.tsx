@@ -1,14 +1,9 @@
 "use client";
 
-/*
- * Phase-6 Two Ways to Earn — side-by-side cards.
- * Card 1: 💎 EARN $BLINK with the rarity reward tiers.
- * Card 2: 💰 FIND REAL ETH treasure drops.
- * Mainnet $BLINK contract is referenced (not touched). /drop is linked
- * even if Phase 6b builds it later.
- */
-
-import Link from "next/link";
+import { useRef } from "react";
+import { motion, useInView } from "framer-motion";
+import CountUp from "react-countup";
+import { useInView as useInViewIO } from "react-intersection-observer";
 
 const BG = "#0a0a0f";
 const SURFACE2 = "#1a1a24";
@@ -17,19 +12,20 @@ const GREEN2 = "#88FF00";
 const WHITE = "#FFFFFF";
 const MUTED = "#8a8a99";
 const BORDER = "rgba(0,255,136,0.12)";
-const BORDER_BRIGHT = "rgba(0,255,136,0.40)";
 
-const BLINK_TOKEN_CONTRACT = "0xe7BF94959b0bfa8CB9e61149de5BFb387B40761B";
+const BLINK_TOKEN_CONTRACT =
+  process.env.NEXT_PUBLIC_BLINK_TOKEN_CONTRACT ||
+  "0xe7BF94959b0bfa8CB9e61149de5BFb387B40761B";
 const ETHERSCAN_URL = `https://etherscan.io/token/${BLINK_TOKEN_CONTRACT}`;
 
-type Tier = { label: string; reward: string; color: string; bright?: boolean };
+type Tier = { label: string; reward: string; rewardNum: number; rewardSuffix: string; color: string };
 
 const TIERS: Tier[] = [
-  { label: "Common", reward: "10 BLINK", color: "#9aa3b2" },
-  { label: "Uncommon", reward: "50 BLINK", color: "#00FF88" },
-  { label: "Rare", reward: "250 BLINK", color: "#88FF00" },
-  { label: "Legendary", reward: "1,500 BLINK", color: "#ffd166" },
-  { label: "Mythic", reward: "10,000 BLINK", color: "#ff8ae0", bright: true },
+  { label: "Common", reward: "10 BLINK", rewardNum: 10, rewardSuffix: " BLINK", color: "#9aa3b2" },
+  { label: "Uncommon", reward: "50 BLINK", rewardNum: 50, rewardSuffix: " BLINK", color: GREEN },
+  { label: "Rare", reward: "250 BLINK", rewardNum: 250, rewardSuffix: " BLINK", color: GREEN2 },
+  { label: "Legendary", reward: "1,500 BLINK", rewardNum: 1500, rewardSuffix: " BLINK", color: "#ffd166" },
+  { label: "Mythic", reward: "10,000 BLINK", rewardNum: 10000, rewardSuffix: " BLINK", color: "#ff8ae0" },
 ];
 
 const TREASURE_BULLETS = [
@@ -39,454 +35,392 @@ const TREASURE_BULLETS = [
 ];
 
 const KEYFRAMES = `
-@keyframes twoWaysShimmer {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+@keyframes rotateBorder {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
-@keyframes twoWaysBob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
+@keyframes checkDraw {
+  from { stroke-dashoffset: 30; opacity: 0; }
+  to { stroke-dashoffset: 0; opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .two-ways-shimmer,
-  .two-ways-bob {
-    animation: none !important;
-  }
+  .rotating-border { animation: none !important; }
+  .check-draw { animation: none !important; stroke-dashoffset: 0 !important; opacity: 1 !important; }
 }
 `;
 
+function AnimatedBorderCard({
+  children,
+  delay = 0,
+  fromX = 0,
+  inView,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  fromX?: number;
+  inView: boolean;
+}) {
+  return (
+    <motion.div
+      initial={{ x: fromX, opacity: 0 }}
+      animate={inView ? { x: 0, opacity: 1 } : {}}
+      transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay }}
+      style={{ flex: "1 1 0", minWidth: "min(300px, 100%)", position: "relative", padding: 2 }}
+    >
+      {/* Rotating conic gradient border */}
+      <div
+        className="rotating-border"
+        aria-hidden
+        style={{
+          position: "absolute",
+          inset: -1,
+          borderRadius: 22,
+          background: `conic-gradient(from 0deg, ${GREEN}00 0%, ${GREEN}60 25%, ${GREEN}00 50%, ${GREEN2}30 75%, ${GREEN}00 100%)`,
+          animation: "rotateBorder 4s linear infinite",
+          zIndex: 0,
+        }}
+      />
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
+          background: SURFACE2,
+          borderRadius: 20,
+          padding: "36px 28px",
+          height: "100%",
+          boxSizing: "border-box",
+        }}
+      >
+        {children}
+      </div>
+    </motion.div>
+  );
+}
+
+function TierRow({ tier, index, inView }: { tier: Tier; index: number; inView: boolean }) {
+  const [ref, tierVisible] = useInViewIO({ triggerOnce: true, threshold: 0.5 });
+
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ x: -20, opacity: 0 }}
+      animate={inView ? { x: 0, opacity: 1 } : {}}
+      transition={{ duration: 0.5, delay: index * 0.1 + 0.3 }}
+      whileHover={{ x: 4 }}
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "10px 14px",
+        borderRadius: 10,
+        background: "rgba(0,255,136,0.03)",
+        border: "1px solid rgba(0,255,136,0.06)",
+        position: "relative",
+        overflow: "hidden",
+        cursor: "default",
+        transition: "background 0.2s ease, border-color 0.2s ease",
+      }}
+    >
+      {/* Shimmer on hover */}
+      <motion.div
+        initial={{ x: "-120%" }}
+        whileHover={{ x: "220%" }}
+        transition={{ duration: 0.6, ease: "easeInOut" }}
+        aria-hidden
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "linear-gradient(115deg, transparent 0%, rgba(0,255,136,0.12) 45%, rgba(255,255,255,0.08) 50%, rgba(0,255,136,0.12) 55%, transparent 100%)",
+          pointerEvents: "none",
+        }}
+      />
+      <span style={{ fontSize: 13, color: tier.color, fontWeight: 700 }}>{tier.label}</span>
+      <span style={{ fontSize: 14, fontWeight: 900, color: tier.color, fontFamily: "Space Grotesk, Inter, sans-serif" }}>
+        {tierVisible ? (
+          <CountUp
+            end={tier.rewardNum}
+            suffix={tier.rewardSuffix}
+            separator=","
+            duration={1.5}
+            useEasing
+          />
+        ) : (
+          `0${tier.rewardSuffix}`
+        )}
+      </span>
+    </motion.div>
+  );
+}
+
+function AnimatedCheck({ inView, delay }: { inView: boolean; delay: number }) {
+  return (
+    <motion.svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      initial={{ opacity: 0 }}
+      animate={inView ? { opacity: 1 } : {}}
+      transition={{ duration: 0.3, delay }}
+      style={{ flexShrink: 0 }}
+    >
+      <circle cx="8" cy="8" r="7" stroke={GREEN} strokeWidth="1.5" opacity={0.3} />
+      <motion.path
+        d="M 4.5 8 L 7 10.5 L 11.5 5.5"
+        stroke={GREEN}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+        initial={{ pathLength: 0 }}
+        animate={inView ? { pathLength: 1 } : {}}
+        transition={{ duration: 0.5, delay: delay + 0.15, ease: "easeOut" }}
+      />
+    </motion.svg>
+  );
+}
+
 export function TwoWaysToEarn() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const inView = useInView(sectionRef, { once: true, margin: "-80px" });
+
   return (
     <section
+      ref={sectionRef}
       style={{
-        padding: "96px 24px",
-        maxWidth: 1180,
-        margin: "0 auto",
+        padding: "100px clamp(14px, 4vw, 24px)",
+        background: BG,
+        position: "relative",
+        overflow: "hidden",
       }}
     >
       <style>{KEYFRAMES}</style>
-      <div style={{ textAlign: "center", marginBottom: 48 }}>
-        <span
-          style={{
-            fontSize: 12,
-            letterSpacing: "0.4em",
-            color: GREEN,
-            textTransform: "uppercase",
-            fontWeight: 800,
-          }}
+
+      {/* Ambient glow */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: "20%",
+          width: 500,
+          height: 300,
+          borderRadius: "50%",
+          background: `radial-gradient(circle, ${GREEN}0A 0%, transparent 70%)`,
+          filter: "blur(60px)",
+          pointerEvents: "none",
+        }}
+      />
+
+      <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", zIndex: 1 }}>
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={inView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.6 }}
+          style={{ textAlign: "center", marginBottom: 64 }}
         >
-          Two ways to earn
-        </span>
-        <h2
-          style={{
-            fontFamily: "Space Grotesk, Inter, sans-serif",
-            fontSize: "clamp(34px, 6vw, 56px)",
-            fontWeight: 900,
-            letterSpacing: "-0.035em",
-            margin: "12px 0 0",
-            color: WHITE,
-          }}
-        >
-          You catch.{" "}
           <span
             style={{
-              background: `linear-gradient(135deg, ${GREEN}, ${GREEN2})`,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            You get paid.
-          </span>
-        </h2>
-      </div>
-
-      <div
-        className="two-ways-grid"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-          gap: 24,
-        }}
-      >
-        {/* CARD 1 — EARN $BLINK */}
-        <div
-          style={{
-            background: SURFACE2,
-            border: `1px solid ${BORDER}`,
-            borderRadius: 24,
-            padding: "34px 30px",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            aria-hidden
-            style={{
-              position: "absolute",
-              inset: 0,
-              background:
-                "radial-gradient(circle at 80% 0%, rgba(0,255,136,0.12), transparent 55%)",
-              pointerEvents: "none",
-            }}
-          />
-
-          <div
-            style={{
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              marginBottom: 8,
-            }}
-          >
-            <span
-              className="two-ways-bob"
-              aria-hidden
-              style={{
-                fontSize: 38,
-                filter: "drop-shadow(0 0 18px rgba(0,255,136,0.55))",
-                animation: "twoWaysBob 3.4s ease-in-out infinite",
-              }}
-            >
-              💎
-            </span>
-            <div
-              style={{
-                fontFamily: "Space Grotesk, Inter, sans-serif",
-                fontWeight: 900,
-                fontSize: 26,
-                color: WHITE,
-                letterSpacing: "-0.01em",
-              }}
-            >
-              EARN <span style={{ color: GREEN }}>$BLINK</span>
-            </div>
-          </div>
-          <p
-            style={{
-              position: "relative",
-              color: WHITE,
-              opacity: 0.8,
-              fontSize: 15,
-              lineHeight: 1.55,
-              margin: "0 0 22px",
-            }}
-          >
-            Every catch pays you in our token.
-          </p>
-
-          <div
-            style={{
-              position: "relative",
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-              marginBottom: 22,
-            }}
-          >
-            {TIERS.map((t) => (
-              <div
-                key={t.label}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "12px 16px",
-                  borderRadius: 12,
-                  background: t.bright
-                    ? "linear-gradient(135deg, rgba(255,138,224,0.12), rgba(0,255,136,0.06))"
-                    : "rgba(255,255,255,0.03)",
-                  border: `1px solid ${t.bright ? "rgba(255,138,224,0.4)" : BORDER}`,
-                  boxShadow: t.bright ? "0 0 26px rgba(255,138,224,0.25)" : "none",
-                }}
-              >
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 10,
-                    fontFamily: "Space Grotesk, Inter, sans-serif",
-                    fontWeight: 800,
-                    fontSize: 13,
-                    letterSpacing: "0.16em",
-                    textTransform: "uppercase",
-                    color: t.color,
-                  }}
-                >
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: t.color,
-                      boxShadow: `0 0 10px ${t.color}`,
-                    }}
-                  />
-                  {t.label}
-                </span>
-                <span
-                  style={{
-                    fontFamily: "Space Grotesk, Inter, sans-serif",
-                    fontWeight: t.bright ? 900 : 800,
-                    fontSize: t.bright ? 16 : 14,
-                    color: t.bright ? WHITE : WHITE,
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  {t.reward}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div
-            style={{
-              position: "relative",
-              padding: "14px 16px",
-              borderRadius: 12,
-              border: `1px solid ${BORDER}`,
-              background: "rgba(0,255,136,0.04)",
-              marginBottom: 22,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 11,
-                letterSpacing: "0.22em",
-                textTransform: "uppercase",
-                color: GREEN,
-                fontWeight: 800,
-                marginBottom: 8,
-              }}
-            >
-              Bonuses
-            </div>
-            <ul
-              style={{
-                margin: 0,
-                padding: 0,
-                listStyle: "none",
-                color: WHITE,
-                opacity: 0.84,
-                fontSize: 13.5,
-                lineHeight: 1.7,
-              }}
-            >
-              <li>· Genesis NFT holders earn 2x</li>
-              <li>· Mythic holders earn 5x</li>
-              <li>· Daily streaks stack rewards</li>
-            </ul>
-          </div>
-
-          <a
-            href={ETHERSCAN_URL}
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              position: "relative",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "12px 22px",
-              borderRadius: 999,
-              border: `1px solid ${GREEN}`,
+              fontSize: 11,
+              letterSpacing: "0.4em",
               color: GREEN,
-              textDecoration: "none",
-              fontFamily: "Space Grotesk, Inter, sans-serif",
-              fontWeight: 800,
-              fontSize: 12,
-              letterSpacing: "0.14em",
               textTransform: "uppercase",
+              fontWeight: 700,
+              display: "block",
+              marginBottom: 14,
             }}
           >
-            View BLINK contract on Etherscan →
-          </a>
-        </div>
+            Two Ways to Win
+          </span>
+          <h2
+            style={{
+              fontFamily: "Space Grotesk, Inter, sans-serif",
+              fontSize: "clamp(32px, 5.5vw, 60px)",
+              fontWeight: 900,
+              letterSpacing: "-0.04em",
+              margin: 0,
+              lineHeight: 1,
+              color: WHITE,
+            }}
+          >
+            Earn more than you expect.
+          </h2>
+        </motion.div>
 
-        {/* CARD 2 — FIND REAL ETH */}
+        {/* Two cards */}
         <div
           style={{
-            background: SURFACE2,
-            border: `1px solid ${BORDER_BRIGHT}`,
-            borderRadius: 24,
-            padding: "34px 30px",
-            position: "relative",
-            overflow: "hidden",
-            boxShadow: "0 0 36px rgba(0,255,136,0.10)",
+            display: "flex",
+            gap: 24,
+            flexWrap: "wrap",
+            alignItems: "stretch",
           }}
         >
-          <div
-            aria-hidden
-            style={{
-              position: "absolute",
-              inset: 0,
-              background:
-                "radial-gradient(circle at 20% 0%, rgba(255,215,0,0.10), transparent 55%), radial-gradient(circle at 80% 100%, rgba(0,255,136,0.10), transparent 50%)",
-              pointerEvents: "none",
-            }}
-          />
-          <div
-            style={{
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              marginBottom: 8,
-            }}
-          >
-            <span
-              className="two-ways-bob"
-              aria-hidden
-              style={{
-                fontSize: 38,
-                filter: "drop-shadow(0 0 18px rgba(255,215,0,0.5))",
-                animation: "twoWaysBob 3.6s ease-in-out 0.4s infinite",
-              }}
-            >
-              💰
-            </span>
-            <div
-              style={{
-                fontFamily: "Space Grotesk, Inter, sans-serif",
-                fontWeight: 900,
-                fontSize: 26,
-                color: WHITE,
-                letterSpacing: "-0.01em",
-              }}
-            >
-              FIND <span style={{ color: GREEN }}>REAL ETH</span>
-            </div>
-          </div>
-          <p
-            style={{
-              position: "relative",
-              color: WHITE,
-              opacity: 0.8,
-              fontSize: 15,
-              lineHeight: 1.55,
-              margin: "0 0 22px",
-            }}
-          >
-            Players hide treasures across the map. Walk there and keep what you find.
-          </p>
-
-          <ul
-            style={{
-              position: "relative",
-              margin: "0 0 22px",
-              padding: 0,
-              listStyle: "none",
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-            }}
-          >
-            {TREASURE_BULLETS.map((b) => (
-              <li
-                key={b}
+          {/* Card 1: EARN $BLINK */}
+          <AnimatedBorderCard delay={0.1} fromX={-80} inView={inView}>
+            <div style={{ marginBottom: 8 }}>
+              <span
                 style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 12,
-                  padding: "12px 16px",
-                  borderRadius: 12,
-                  background: "rgba(255,255,255,0.03)",
-                  border: `1px solid ${BORDER}`,
-                  color: WHITE,
-                  opacity: 0.9,
-                  fontSize: 14.5,
-                  lineHeight: 1.5,
+                  fontSize: 11,
+                  letterSpacing: "0.32em",
+                  textTransform: "uppercase",
+                  color: GREEN,
+                  fontWeight: 700,
                 }}
               >
-                <span
-                  aria-hidden
-                  style={{
-                    color: GREEN,
-                    fontWeight: 900,
-                    fontSize: 16,
-                    lineHeight: 1.2,
-                  }}
-                >
-                  ✓
-                </span>
-                <span>{b}</span>
-              </li>
-            ))}
-          </ul>
-
-          <div
-            style={{
-              position: "relative",
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              padding: "14px 16px",
-              borderRadius: 12,
-              border: `1px solid ${BORDER}`,
-              background: "rgba(255,215,0,0.04)",
-              marginBottom: 22,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 11,
-                letterSpacing: "0.22em",
-                textTransform: "uppercase",
-                color: "#ffd166",
-                fontWeight: 800,
-              }}
-            >
-              Sample drop
-            </span>
-            <div
+                Card Rewards
+              </span>
+            </div>
+            <h3
               style={{
                 fontFamily: "Space Grotesk, Inter, sans-serif",
-                fontSize: 18,
+                fontSize: "clamp(28px, 4vw, 40px)",
                 fontWeight: 900,
+                letterSpacing: "-0.03em",
                 color: WHITE,
+                margin: "0 0 8px",
+                lineHeight: 1,
               }}
             >
-              0.05 ETH · Brooklyn Bridge
-            </div>
-            <div style={{ fontSize: 12, color: MUTED, letterSpacing: "0.05em" }}>
-              Dropped by @watcher_x · GPS verified
-            </div>
-          </div>
+              Earn $BLINK
+            </h3>
+            <p style={{ fontSize: 14, color: MUTED, marginBottom: 24, lineHeight: 1.55 }}>
+              Every catch earns you $BLINK tokens, distributed by rarity.
+            </p>
 
-          <Link
-            href="/drop"
-            style={{
-              position: "relative",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "12px 22px",
-              borderRadius: 999,
-              background: `linear-gradient(135deg, ${GREEN}, ${GREEN2})`,
-              color: BG,
-              textDecoration: "none",
-              fontFamily: "Space Grotesk, Inter, sans-serif",
-              fontWeight: 900,
-              fontSize: 12,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              boxShadow: "0 0 22px rgba(0,255,136,0.45)",
-            }}
-          >
-            Hide a treasure →
-          </Link>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {TIERS.map((tier, i) => (
+                <TierRow key={tier.label} tier={tier} index={i} inView={inView} />
+              ))}
+            </div>
+
+            <div
+              style={{
+                marginTop: 24,
+                padding: "12px 16px",
+                background: "rgba(0,255,136,0.04)",
+                borderRadius: 10,
+                border: `1px solid ${BORDER}`,
+              }}
+            >
+              <span style={{ fontSize: 12, color: MUTED }}>
+                Real ERC-20 token on Ethereum ·{" "}
+                <a
+                  href={ETHERSCAN_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: GREEN, textDecoration: "none", fontWeight: 700 }}
+                >
+                  View contract
+                </a>
+              </span>
+            </div>
+          </AnimatedBorderCard>
+
+          {/* Card 2: FIND REAL ETH */}
+          <AnimatedBorderCard delay={0.25} fromX={80} inView={inView}>
+            <div style={{ marginBottom: 8 }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  letterSpacing: "0.32em",
+                  textTransform: "uppercase",
+                  color: "#ffd166",
+                  fontWeight: 700,
+                }}
+              >
+                Treasure Drops
+              </span>
+            </div>
+            <h3
+              style={{
+                fontFamily: "Space Grotesk, Inter, sans-serif",
+                fontSize: "clamp(28px, 4vw, 40px)",
+                fontWeight: 900,
+                letterSpacing: "-0.03em",
+                color: WHITE,
+                margin: "0 0 8px",
+                lineHeight: 1,
+              }}
+            >
+              Find Real ETH
+            </h3>
+            <p style={{ fontSize: 14, color: MUTED, marginBottom: 28, lineHeight: 1.55 }}>
+              Hidden in the real world. GPS-locked. First to arrive wins.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {TREASURE_BULLETS.map((bullet, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ x: 20, opacity: 0 }}
+                  animate={inView ? { x: 0, opacity: 1 } : {}}
+                  transition={{ duration: 0.5, delay: i * 0.12 + 0.4 }}
+                  style={{ display: "flex", alignItems: "flex-start", gap: 12 }}
+                >
+                  <AnimatedCheck inView={inView} delay={i * 0.12 + 0.5} />
+                  <span style={{ fontSize: 14, color: WHITE, lineHeight: 1.5, opacity: 0.9 }}>
+                    {bullet}
+                  </span>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Treasure drop visual */}
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={inView ? { scale: 1, opacity: 1 } : {}}
+              transition={{ duration: 0.6, delay: 0.7 }}
+              style={{
+                marginTop: 32,
+                padding: "20px",
+                background: "rgba(255,209,102,0.05)",
+                borderRadius: 14,
+                border: "1px solid rgba(255,209,102,0.15)",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "clamp(28px, 5vw, 40px)",
+                  fontFamily: "Space Grotesk, Inter, sans-serif",
+                  fontWeight: 900,
+                  color: "#ffd166",
+                  textShadow: "0 0 24px rgba(255,209,102,0.4)",
+                  letterSpacing: "-0.03em",
+                }}
+              >
+                ETH · NFTs · Tokens
+              </div>
+              <div style={{ fontSize: 12, color: MUTED, marginTop: 6, letterSpacing: "0.15em", textTransform: "uppercase" }}>
+                Real value. Real world.
+              </div>
+            </motion.div>
+
+            <motion.a
+              href="/drop"
+              whileHover={{ scale: 1.02 }}
+              style={{
+                display: "inline-block",
+                marginTop: 20,
+                padding: "12px 22px",
+                borderRadius: 999,
+                border: "1px solid rgba(255,209,102,0.3)",
+                background: "rgba(255,209,102,0.06)",
+                color: "#ffd166",
+                textDecoration: "none",
+                fontSize: 13,
+                fontWeight: 800,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+              }}
+            >
+              Create a drop →
+            </motion.a>
+          </AnimatedBorderCard>
         </div>
       </div>
-
-      <style jsx>{`
-        @media (max-width: 820px) {
-          .two-ways-grid {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
     </section>
   );
 }

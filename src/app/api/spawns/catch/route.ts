@@ -57,7 +57,6 @@ const MYTHICS_NFT_CONTRACT = (
 ).trim();
 
 const TREASURY_ADDR = "0x00468c1B22451ed9Fabc9DA32E6aEa28DC03a216";
-const PROXIMITY_M = 50;
 const CATCH_FEE_ETH = "0.1";
 const FEE_TO_DEPLOYER_ETH = "0.08";
 const FEE_TO_TREASURY_ETH = "0.02";
@@ -150,11 +149,12 @@ export async function POST(req: NextRequest) {
     if (new Date(preview.expires_at).getTime() < Date.now()) {
       return NextResponse.json({ error: "Spawn expired" }, { status: 410 });
     }
+    const catchRadiusM = (preview.tier === "common" || preview.tier === "uncommon") ? 100 : 50;
     const distance = haversineMeters(lat, lng, preview.lat, preview.lng);
-    if (distance > PROXIMITY_M) {
+    if (distance > catchRadiusM) {
       return NextResponse.json(
         {
-          error: `Too far from spawn — ${Math.round(distance)}m away. Walk within ${PROXIMITY_M}m to catch.`,
+          error: `Too far from spawn — ${Math.round(distance)}m away. Walk within ${catchRadiusM}m to catch.`,
           distance_m: Math.round(distance),
         },
         { status: 400 },
@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
     // 2. Load catcher profile (incl. wallet + free-catch counter).
     const { data: profile, error: profileErr } = await supabaseAdmin
       .from("profiles")
-      .select("id, eth_address, eth_encrypted_key, free_catches_remaining")
+      .select("id, eth_address, eth_encrypted_key, free_catches_remaining, daily_catch_count, daily_catch_reset_at")
       .eq("id", user!.id)
       .single();
     if (profileErr || !profile) {
@@ -173,15 +173,30 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    if (!profile.eth_address || !profile.eth_encrypted_key) {
-      return NextResponse.json(
-        { error: "No ETH wallet on account — set one up in /wallet first" },
-        { status: 400 },
-      );
-    }
     const freeRemaining = Number(profile.free_catches_remaining ?? 0);
     // Special drops (sentinel spawn_index = -1) are always free catches — no ETH fee.
     let isFreeCatch = freeRemaining > 0;
+
+    // ── Daily catch rate limit ──
+    // 10 free catches per day (resets at midnight UTC).
+    // Paid catches (ETH) bypass this limit — handled in paid flow.
+    const DAILY_FREE_LIMIT = 3;
+    const now = new Date();
+    const resetAt = new Date(profile.daily_catch_reset_at ?? 0);
+    const dayReset = resetAt.toISOString().slice(0, 10) !== now.toISOString().slice(0, 10);
+    let dailyCount = dayReset ? 0 : Number(profile.daily_catch_count ?? 0);
+
+    if (isFreeCatch && dailyCount >= DAILY_FREE_LIMIT) {
+      return NextResponse.json(
+        {
+          error: "Daily free catch limit reached (10/day). Pay ETH to catch more and get 5x BLINK rewards.",
+          daily_limit: DAILY_FREE_LIMIT,
+          daily_used: dailyCount,
+          resets_at: new Date(now.toISOString().slice(0, 10) + "T00:00:00.000Z").toISOString(),
+        },
+        { status: 429 },
+      );
+    }
 
     // 3. Atomic claim — only one catcher wins.
     const { data: claimed, error: claimErr } = await supabaseAdmin
@@ -237,102 +252,9 @@ export async function POST(req: NextRequest) {
 
     const provider = new ethers.JsonRpcProvider(RPC_URL);
 
-    // 4. Charge catch fee (if not free).
+    // 4. Catch fee waived in v1 — all wild catches are free
     let feeToDeployerTxHash: string | null = null;
     let feeToTreasuryTxHash: string | null = null;
-    if (!isFreeCatch) {
-      try {
-        const catcherSigner = new ethers.Wallet(catcherPrivateKey, provider);
-        const [balance, feeData, nonceStart, network] = await Promise.all([
-          provider.getBalance(catcherAddress),
-          provider.getFeeData(),
-          provider.getTransactionCount(catcherAddress, "pending"),
-          provider.getNetwork(),
-        ]);
-        if (!feeData.maxFeePerGas || !feeData.maxPriorityFeePerGas) {
-          await rollbackClaim();
-          return NextResponse.json(
-            { error: "RPC missing EIP-1559 fees — try again" },
-            { status: 502 },
-          );
-        }
-        const gasLimit = 21_000n;
-        const perTxGas = feeData.maxFeePerGas * gasLimit;
-        const totalFeeWei =
-          ethers.parseEther(CATCH_FEE_ETH) + perTxGas * 2n;
-        if (balance < totalFeeWei) {
-          await rollbackClaim();
-          return NextResponse.json(
-            {
-              error: `Insufficient ETH. Need at least ${ethers.formatEther(totalFeeWei)} ETH (catch fee + gas).`,
-              required_eth: ethers.formatEther(totalFeeWei),
-            },
-            { status: 402 },
-          );
-        }
-
-        // Send 0.08 → deployer
-        const deployerWallet = new ethers.Wallet(
-          deployerKey.startsWith("0x") ? deployerKey : `0x${deployerKey}`,
-          provider,
-        );
-        const tx1 = await catcherSigner.sendTransaction({
-          to: deployerWallet.address,
-          value: ethers.parseEther(FEE_TO_DEPLOYER_ETH),
-          gasLimit,
-          maxFeePerGas: feeData.maxFeePerGas,
-          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
-          nonce: nonceStart,
-          chainId: network.chainId,
-          type: 2,
-        });
-        const rcpt1 = await tx1.wait();
-        if (!rcpt1 || rcpt1.status !== 1) {
-          await rollbackClaim();
-          return NextResponse.json(
-            { error: "Catch fee tx (deployer) failed on-chain" },
-            { status: 502 },
-          );
-        }
-        feeToDeployerTxHash = tx1.hash;
-
-        // Send 0.02 → treasury
-        const tx2 = await catcherSigner.sendTransaction({
-          to: TREASURY_ADDR,
-          value: ethers.parseEther(FEE_TO_TREASURY_ETH),
-          gasLimit,
-          maxFeePerGas: feeData.maxFeePerGas,
-          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
-          nonce: nonceStart + 1,
-          chainId: network.chainId,
-          type: 2,
-        });
-        const rcpt2 = await tx2.wait();
-        if (!rcpt2 || rcpt2.status !== 1) {
-          // Deployer was already paid — leave the row claimed and surface the
-          // half-paid state. Support can refund manually.
-          return NextResponse.json(
-            {
-              error: "Catch fee tx (treasury) failed on-chain — partial payment made",
-              feeToDeployerTxHash,
-            },
-            { status: 502 },
-          );
-        }
-        feeToTreasuryTxHash = tx2.hash;
-      } catch (err: unknown) {
-        await rollbackClaim();
-        return NextResponse.json(
-          {
-            error:
-              err instanceof Error
-                ? `Catch fee failed: ${err.message}`
-                : "Catch fee failed",
-          },
-          { status: 502 },
-        );
-      }
-    }
 
     // 5. IDENTITY CALIBRATION — build metadata from creature_id whenever
     // possible so the minted NFT matches what the user saw in AR. Falls back
@@ -512,14 +434,19 @@ export async function POST(req: NextRequest) {
       console.error("catch activity log failed", logErr);
     }
 
-    // 8. Decrement free-catch counter if this was free.
+    // 8. Decrement free-catch counter + increment daily count.
     // Skip the decrement for special drops (sentinel spawn_index = -1) — they're always free.
     const didDecrementFreeCatch =
       isFreeCatch && claimedRow.spawn_index !== -1 && freeRemaining > 0;
     if (didDecrementFreeCatch) {
+      const newDailyCount = dayReset ? 1 : dailyCount + 1;
       await supabaseAdmin
         .from("profiles")
-        .update({ free_catches_remaining: Math.max(0, freeRemaining - 1) })
+        .update({
+          free_catches_remaining: Math.max(0, freeRemaining - 1),
+          daily_catch_count: newDailyCount,
+          daily_catch_reset_at: dayReset ? now.toISOString() : profile.daily_catch_reset_at,
+        })
         .eq("id", user!.id);
     }
 
@@ -527,6 +454,7 @@ export async function POST(req: NextRequest) {
       ? `https://opensea.io/assets/ethereum/${MYTHICS_NFT_CONTRACT}/${mintedTokenId}`
       : null;
 
+    const newDailyCount2 = didDecrementFreeCatch ? (dayReset ? 1 : dailyCount + 1) : dailyCount;
     return NextResponse.json({
       spawnId,
       tier,
@@ -544,6 +472,9 @@ export async function POST(req: NextRequest) {
       freeCatchesRemaining: didDecrementFreeCatch
         ? Math.max(0, freeRemaining - 1)
         : freeRemaining,
+      dailyCatchCount: newDailyCount2,
+      dailyCatchLimit: 3,
+      dailyCatchRemaining: Math.max(0, 3 - newDailyCount2),
       openseaUrl,
     });
   } catch (err: unknown) {

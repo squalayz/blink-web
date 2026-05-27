@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/api/og",
+        url: "/og-battle.jpg",
         width: 1200,
         height: 630,
         alt: "BLINK — Don't blink. The Eye is open.",
@@ -38,7 +39,7 @@ export const metadata: Metadata = {
     title: "BLINK — Don't blink. The Eye is open.",
     description:
       "Catch what others can't see. Mystical creatures spawn on a real-world map every minute.",
-    images: ["/api/og"],
+    images: ["/og-battle.jpg"],
   },
   icons: { icon: "/blink-logo.webp" },
   manifest: "/manifest.json",
@@ -66,6 +67,10 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <Script
+          src="https://telegram.org/js/telegram-web-app.js"
+          strategy="beforeInteractive"
+        />
         <Providers><AppShell>{children}</AppShell></Providers>
         <Analytics />
       </body>

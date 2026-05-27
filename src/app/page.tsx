@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -10,6 +11,7 @@ import { useAuth } from "@/components/providers";
 import { CinematicLoad } from "@/components/CinematicLoad";
 import { RevealOnScroll } from "@/components/RevealOnScroll";
 import { Hero } from "@/components/landing/Hero";
+import { StatsBar } from "@/components/landing/StatsBar";
 import AuthModal from "@/components/AuthModal";
 
 // Below-fold sections — code-split so the landing chunk stays lean.
@@ -40,7 +42,7 @@ const BlinkTokenStrip = dynamic(
   { ssr: true, loading: () => null },
 );
 
-const TG_GROUP = "https://t.me/+7Xj6CKZs9iVmMDhh";
+const TG_GROUP = "https://t.me/blinkworldeth";
 
 const BLINK = {
   green: "#00FF88",
@@ -158,7 +160,7 @@ export default function HomePage() {
           position: "sticky",
           top: 0,
           zIndex: 50,
-          padding: "14px clamp(14px, 4vw, 24px)",
+          padding: "calc(14px + max(env(safe-area-inset-top, 0px), var(--blink-top-inset, 0px))) clamp(14px, 4vw, 24px) 14px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -171,13 +173,16 @@ export default function HomePage() {
       >
         <Link
           href="/"
+          className="blink-top-nav-brand"
           style={{
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
             gap: 10,
             textDecoration: "none",
             color: BLINK.white,
             minWidth: 0,
+            flexShrink: 1,
+            overflow: "hidden",
           }}
         >
           <Image
@@ -200,6 +205,7 @@ export default function HomePage() {
               fontWeight: 800,
               fontSize: 20,
               letterSpacing: "0.04em",
+              whiteSpace: "nowrap",
             }}
           >
             BLINK
@@ -231,12 +237,13 @@ export default function HomePage() {
               letterSpacing: "0.02em",
               whiteSpace: "nowrap",
               boxShadow: "0 0 14px rgba(0,255,136,0.25)",
+              flexShrink: 0,
             }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M21.5 3.5 2.5 10.8c-.9.3-.9 1.6 0 1.9l4.7 1.6 2 6.2c.2.7 1.1.9 1.6.3l2.5-2.6 4.6 3.4c.6.5 1.6.2 1.8-.6L22.5 4.7c.2-.8-.6-1.5-1-1.2Z" fill={BLINK.green}/>
             </svg>
-            Telegram
+            <span className="blink-top-nav-council-label">Telegram</span>
           </a>
           {!loading && user ? (
             <button
@@ -308,28 +315,13 @@ export default function HomePage() {
           )}
         </div>
 
-        <style jsx>{`
-          .blink-top-nav-cta-short {
-            display: none;
-          }
-          @media (max-width: 480px) {
-            .blink-top-nav-council {
-              display: none;
-            }
-          }
-          @media (max-width: 360px) {
-            .blink-top-nav-cta-long {
-              display: none;
-            }
-            .blink-top-nav-cta-short {
-              display: inline;
-            }
-          }
-        `}</style>
       </nav>
 
       {/* ─── HERO SECTION ─── */}
       <Hero />
+
+      {/* ─── STATS BAR ─── */}
+      <StatsBar />
 
       {/* ─── BESTIARY (moved up — the rarest 20 + clear "hundreds in the wild" story) ─── */}
       <RevealOnScroll>

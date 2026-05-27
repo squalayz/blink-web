@@ -51,9 +51,11 @@ export function MintFoundersCTA() {
     <section
       id="mint-founders"
       style={{
-        padding: "72px clamp(16px, 5vw, 24px)",
+        padding: "72px clamp(14px, 4vw, 24px)",
         maxWidth: 1100,
         margin: "0 auto",
+        width: "100%",
+        boxSizing: "border-box",
       }}
     >
       <style>{KEYFRAMES}</style>
@@ -64,7 +66,7 @@ export function MintFoundersCTA() {
           background: `linear-gradient(135deg, ${SURFACE2}, rgba(0,255,136,0.06))`,
           border: `1px solid ${BORDER}`,
           borderRadius: 28,
-          padding: "clamp(28px, 6vw, 44px) clamp(20px, 5vw, 36px)",
+          padding: "clamp(24px, 5vw, 44px) clamp(16px, 4vw, 36px)",
           overflow: "hidden",
           animation: "mintRecruiterPulse 4s ease-in-out infinite",
         }}
@@ -101,7 +103,7 @@ export function MintFoundersCTA() {
                 textShadow: "0 0 12px rgba(0,255,136,0.45)",
               }}
             >
-              🐲 Mint your first BLINK
+              Mint your first BLINK
             </span>
             <h2
               style={{
@@ -212,7 +214,9 @@ export function MintFoundersCTA() {
             </div>
           </div>
 
-          {/* Right column — staggered floating portraits */}
+          {/* Right column — staggered floating portraits (desktop)
+              flips to a clean inline 4-up row on mobile so cards never
+              clip past the card edge. */}
           <div
             className="mint-recruiter-portraits"
             style={{
@@ -221,6 +225,7 @@ export function MintFoundersCTA() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              width: "100%",
             }}
           >
             {PORTRAITS.map((p, i) => (
@@ -261,22 +266,29 @@ export function MintFoundersCTA() {
         @media (max-width: 820px) {
           .mint-recruiter-row {
             grid-template-columns: 1fr !important;
+            gap: 24px !important;
           }
+          /* On mobile the floating overlap clips cards off the card edge.
+             Switch to a flat inline 4-up grid that always fits the container. */
           .mint-recruiter-portraits {
-            min-height: 200px !important;
+            min-height: 0 !important;
             order: -1;
+            display: grid !important;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: clamp(6px, 2vw, 12px);
+            width: 100%;
+            max-width: 100%;
           }
-        }
-        @media (max-width: 480px) {
           .mint-recruiter-portraits :global(.mint-recruiter-portrait) {
-            width: 88px !important;
-            height: 88px !important;
-          }
-        }
-        @media (max-width: 360px) {
-          .mint-recruiter-portraits :global(.mint-recruiter-portrait) {
-            width: 72px !important;
-            height: 72px !important;
+            position: relative !important;
+            top: auto !important;
+            left: auto !important;
+            width: 100% !important;
+            height: auto !important;
+            aspect-ratio: 1 / 1;
+            transform: none !important;
+            animation: none !important;
+            border-radius: 14px !important;
           }
         }
       `}</style>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { C } from "@/lib/theme";
@@ -48,11 +48,13 @@ function ChatIcon({ active }: { active: boolean }) {
   );
 }
 
-function PersonIcon({ active }: { active: boolean }) {
+function WalletIcon({ active }: { active: boolean }) {
+  const stroke = active ? C.primary : C.muted;
+  const fill = active ? C.primary : "none";
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? C.primary : "none"} stroke={active ? C.primary : C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="8" r="5" />
-      <path d="M20 21a8 8 0 1 0-16 0" />
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h13A2.5 2.5 0 0 1 21 7.5V8H5a1 1 0 0 0 0 2h16v8.5A2.5 2.5 0 0 1 18.5 21h-13A2.5 2.5 0 0 1 3 18.5z" fill={fill === "none" ? "none" : "rgba(0,255,136,0.18)"} />
+      <circle cx="17" cy="14.5" r="1.4" fill={stroke} stroke="none" />
     </svg>
   );
 }
@@ -63,14 +65,15 @@ interface TabDef {
   href: string;
   isCenter?: boolean;
   icon: (active: boolean) => React.ReactNode;
+  showBadge?: boolean;
 }
 
 const TABS: TabDef[] = [
-  { id: "watch", label: "Watch", href: "/watch", icon: (a) => <MapIcon active={a} /> },
+  { id: "watch", label: "Map", href: "/map", icon: (a) => <MapIcon active={a} /> },
   { id: "live", label: "Live", href: "/live", icon: (a) => <LiveFeedIcon active={a} /> },
   { id: "spawn", label: "Spawn", href: "/spawn", isCenter: true, icon: () => <SpawnIcon /> },
+  { id: "wallet", label: "Wallet", href: "/wallet", icon: (a) => <WalletIcon active={a} />, showBadge: true },
   { id: "messages", label: "Messages", href: "/messages", icon: (a) => <ChatIcon active={a} /> },
-  { id: "profile", label: "Profile", href: "/profile", icon: (a) => <PersonIcon active={a} /> },
 ];
 
 const SIDEBAR_WIDTH = 72;
@@ -80,24 +83,33 @@ export { SIDEBAR_WIDTH };
 export default function BottomNav() {
   const pathname = usePathname();
   const { user } = useAuth();
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const { isDesktop, isTablet } = useIsDesktop();
   const [hoveredTab, setHoveredTab] = useState<string | null>(null);
+  const [walletBadge, setWalletBadge] = useState(0);
 
-  useEffect(() => {
+  // Count of unclaimed received gifts (badge on Wallet tab)
+  const fetchUnreadGifts = useCallback(async () => {
     if (!user) return;
-    supabase
-      .from("profiles")
-      .select("avatar_url")
-      .eq("id", user.id)
-      .single()
-      .then(({ data }) => {
-        if (data?.avatar_url) setAvatarUrl(data.avatar_url);
-      });
+    try {
+      const { count } = await supabase
+        .from("gifts")
+        .select("id", { count: "exact", head: true })
+        .eq("recipient_id", user.id)
+        .eq("status", "pending");
+      if (typeof count === "number") setWalletBadge(count);
+    } catch {
+      /* badge is best-effort */
+    }
   }, [user]);
 
+  useEffect(() => {
+    fetchUnreadGifts();
+    const t = setInterval(fetchUnreadGifts, 45_000);
+    return () => clearInterval(t);
+  }, [fetchUnreadGifts]);
+
   const isActive = (href: string) => {
-    if (href === "/watch") return pathname === "/watch" || pathname === "/map";
+    if (href === "/map") return pathname === "/map" || pathname === "/watch";
     return pathname.startsWith(href);
   };
 
@@ -144,7 +156,7 @@ export default function BottomNav() {
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/blink-logo.png" alt="BLINK" style={{ width: 26, height: 26, objectFit: "contain", filter: "drop-shadow(0 0 8px rgba(0,255,136,0.6))" }} />
+            <img src="/blink-logo.webp" alt="BLINK" style={{ width: 26, height: 26, objectFit: "contain", filter: "drop-shadow(0 0 8px rgba(0,255,136,0.6))" }} />
           </Link>
 
           {/* Tab items */}
@@ -232,21 +244,33 @@ export default function BottomNav() {
                       }}
                     />
                   )}
-                  {tab.id === "profile" && avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt="Profile"
-                      style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: "50%",
-                        objectFit: "cover",
-                        border: `2px solid ${active ? C.primary : "transparent"}`,
-                      }}
-                    />
-                  ) : (
-                    tab.icon(active)
-                  )}
+                  <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {tab.icon(active)}
+                    {tab.showBadge && walletBadge > 0 && (
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: -4,
+                          right: -8,
+                          minWidth: 16,
+                          height: 16,
+                          padding: "0 4px",
+                          borderRadius: 8,
+                          background: C.primary,
+                          color: "#0a0a0f",
+                          fontSize: 10,
+                          fontWeight: 800,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          boxShadow: `0 0 8px ${C.primary}`,
+                          lineHeight: 1,
+                        }}
+                      >
+                        {walletBadge > 9 ? "9+" : walletBadge}
+                      </span>
+                    )}
+                  </div>
                   <span
                     style={{
                       fontSize: 9,
@@ -383,21 +407,33 @@ export default function BottomNav() {
                     }}
                   />
                 )}
-                {tab.id === "profile" && avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt="Profile"
-                    style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: "50%",
-                      objectFit: "cover",
-                      border: `2px solid ${active ? C.primary : "transparent"}`,
-                    }}
-                  />
-                ) : (
-                  tab.icon(active)
-                )}
+                <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {tab.icon(active)}
+                  {tab.showBadge && walletBadge > 0 && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: -5,
+                        right: -9,
+                        minWidth: 16,
+                        height: 16,
+                        padding: "0 4px",
+                        borderRadius: 8,
+                        background: C.primary,
+                        color: "#0a0a0f",
+                        fontSize: 10,
+                        fontWeight: 800,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        boxShadow: `0 0 8px ${C.primary}`,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {walletBadge > 9 ? "9+" : walletBadge}
+                    </span>
+                  )}
+                </div>
                 <span
                   style={{
                     fontSize: 10,

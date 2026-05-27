@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════════════════════════
 // BLINK — Telegram Bot Helpers
 // Bot: @TheEyeBlinkBot
-// Group: https://t.me/+7Xj6CKZs9iVmMDhh
+// Group: https://t.me/blinkworldeth
 // ══════════════════════════════════════════════════════════════
 
 function getAPI() {
