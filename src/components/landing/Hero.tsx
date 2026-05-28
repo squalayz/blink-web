@@ -46,17 +46,6 @@ const TICKER_ITEMS = [
 ];
 
 const KEYFRAMES = `
-@keyframes auroraBreath {
-  0%   { transform: rotate(0deg) scale(1);    opacity: 0.10; }
-  33%  { transform: rotate(120deg) scale(1.15); opacity: 0.15; }
-  66%  { transform: rotate(240deg) scale(0.95); opacity: 0.09; }
-  100% { transform: rotate(360deg) scale(1);    opacity: 0.10; }
-}
-@keyframes auroraBreath2 {
-  0%   { transform: rotate(0deg) scale(1.1);    opacity: 0.07; }
-  50%  { transform: rotate(-180deg) scale(0.9); opacity: 0.13; }
-  100% { transform: rotate(-360deg) scale(1.1); opacity: 0.07; }
-}
 @keyframes liveDotPulse {
   0%, 100% { transform: scale(1);   box-shadow: 0 0 6px rgba(0,255,136,0.9); }
   50%       { transform: scale(1.5); box-shadow: 0 0 14px rgba(0,255,136,1), 0 0 28px rgba(0,255,136,0.6); }
@@ -69,10 +58,85 @@ const KEYFRAMES = `
   from { opacity: 0; transform: scale(0.92); }
   to   { opacity: 1; transform: scale(1); }
 }
+@keyframes cardDriftA {
+  0%   { transform: translate(-50%, -50%) translate(-120px, -90px) rotate(-6deg); }
+  25%  { transform: translate(-50%, -50%) translate(-90px, -130px) rotate(-3deg); }
+  50%  { transform: translate(-50%, -50%) translate(-140px, -60px) rotate(-8deg); }
+  75%  { transform: translate(-50%, -50%) translate(-110px, -110px) rotate(-4deg); }
+  100% { transform: translate(-50%, -50%) translate(-120px, -90px) rotate(-6deg); }
+}
+@keyframes cardDriftB {
+  0%   { transform: translate(-50%, -50%) translate(130px, -70px) rotate(5deg); }
+  25%  { transform: translate(-50%, -50%) translate(160px, -110px) rotate(7deg); }
+  50%  { transform: translate(-50%, -50%) translate(110px, -90px) rotate(3deg); }
+  75%  { transform: translate(-50%, -50%) translate(150px, -50px) rotate(6deg); }
+  100% { transform: translate(-50%, -50%) translate(130px, -70px) rotate(5deg); }
+}
+@keyframes cardDriftC {
+  0%   { transform: translate(-50%, -50%) translate(-150px, 70px) rotate(4deg); }
+  25%  { transform: translate(-50%, -50%) translate(-110px, 110px) rotate(2deg); }
+  50%  { transform: translate(-50%, -50%) translate(-170px, 40px) rotate(6deg); }
+  75%  { transform: translate(-50%, -50%) translate(-130px, 90px) rotate(3deg); }
+  100% { transform: translate(-50%, -50%) translate(-150px, 70px) rotate(4deg); }
+}
+@keyframes cardDriftD {
+  0%   { transform: translate(-50%, -50%) translate(140px, 100px) rotate(-5deg); }
+  25%  { transform: translate(-50%, -50%) translate(170px, 60px) rotate(-7deg); }
+  50%  { transform: translate(-50%, -50%) translate(120px, 130px) rotate(-3deg); }
+  75%  { transform: translate(-50%, -50%) translate(160px, 80px) rotate(-6deg); }
+  100% { transform: translate(-50%, -50%) translate(140px, 100px) rotate(-5deg); }
+}
+@keyframes cardDriftE {
+  0%   { transform: translate(-50%, -50%) translate(0px, -150px) rotate(2deg); }
+  25%  { transform: translate(-50%, -50%) translate(30px, -170px) rotate(4deg); }
+  50%  { transform: translate(-50%, -50%) translate(-30px, -130px) rotate(0deg); }
+  75%  { transform: translate(-50%, -50%) translate(20px, -160px) rotate(3deg); }
+  100% { transform: translate(-50%, -50%) translate(0px, -150px) rotate(2deg); }
+}
+@keyframes cardDriftF {
+  0%   { transform: translate(-50%, -50%) translate(20px, 160px) rotate(-3deg); }
+  25%  { transform: translate(-50%, -50%) translate(-20px, 140px) rotate(-5deg); }
+  50%  { transform: translate(-50%, -50%) translate(40px, 170px) rotate(-1deg); }
+  75%  { transform: translate(-50%, -50%) translate(0px, 150px) rotate(-4deg); }
+  100% { transform: translate(-50%, -50%) translate(20px, 160px) rotate(-3deg); }
+}
+@keyframes creatureFloat1 {
+  0%, 100% { transform: translateY(0px) rotate(-4deg); }
+  50%      { transform: translateY(-18px) rotate(-2deg); }
+}
+@keyframes creatureFloat2 {
+  0%, 100% { transform: translateY(0px) rotate(5deg); }
+  50%      { transform: translateY(-14px) rotate(3deg); }
+}
+@keyframes creatureFloat3 {
+  0%, 100% { transform: translateY(0px) rotate(3deg); }
+  50%      { transform: translateY(-20px) rotate(6deg); }
+}
+@keyframes creatureFloat4 {
+  0%, 100% { transform: translateY(0px) rotate(-5deg); }
+  50%      { transform: translateY(-16px) rotate(-7deg); }
+}
 @media (prefers-reduced-motion: reduce) {
-  .hero-aurora, .hero-aurora-2, .hero-live-dot { animation: none !important; }
+  .hero-live-dot, .hero-card { animation: none !important; }
 }
 `;
+
+type CreatureCard = {
+  name: string;
+  color: string;
+  anim: string;
+  duration: number;
+  delay: number;
+};
+
+const CREATURE_CARDS: CreatureCard[] = [
+  { name: "BLINK CREATURE", color: "#00FF88", anim: "cardDriftA", duration: 14, delay: 0 },
+  { name: "BLINK CREATURE", color: "#88FF00", anim: "cardDriftB", duration: 16, delay: 1.5 },
+  { name: "BLINK CREATURE", color: "#00C4FF", anim: "cardDriftC", duration: 18, delay: 3.0 },
+  { name: "BLINK CREATURE", color: "#FFB400", anim: "cardDriftD", duration: 15, delay: 4.5 },
+  { name: "BLINK CREATURE", color: "#FF4FD8", anim: "cardDriftE", duration: 17, delay: 6.0 },
+  { name: "BLINK CREATURE", color: "#A66BFF", anim: "cardDriftF", duration: 19, delay: 7.5 },
+];
 
 const wordVariants: Variants = {
   hidden: { y: 52, opacity: 0 },
@@ -159,7 +223,24 @@ export function Hero() {
     >
       <style>{KEYFRAMES}</style>
 
-      {/* ── SVG grid overlay ── */}
+      {/* ── Battle poster background (replaces aurora blobs) ── */}
+      <img
+        src="/og-battle.jpg"
+        alt=""
+        aria-hidden
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          opacity: 0.28,
+          pointerEvents: "none",
+          zIndex: 1,
+        }}
+      />
+
+      {/* ── SVG grid overlay (texture over battle poster) ── */}
       <svg
         aria-hidden
         style={{
@@ -168,7 +249,7 @@ export function Hero() {
           width: "100%",
           height: "100%",
           pointerEvents: "none",
-          zIndex: 0,
+          zIndex: 1,
           opacity: 0.025,
         }}
       >
@@ -179,43 +260,6 @@ export function Hero() {
         </defs>
         <rect width="100%" height="100%" fill="url(#hero-grid)" />
       </svg>
-
-      {/* ── Breathing aurora blobs ── */}
-      <div
-        className="hero-aurora"
-        aria-hidden
-        style={{
-          position: "absolute",
-          top: "8%",
-          left: "50%",
-          width: 700,
-          height: 700,
-          borderRadius: "50%",
-          background: `radial-gradient(circle at center, ${GREEN}1A 0%, ${GREEN}00 70%)`,
-          transform: "translateX(-50%)",
-          filter: "blur(90px)",
-          animation: "auroraBreath 14s ease-in-out infinite",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
-      <div
-        className="hero-aurora-2"
-        aria-hidden
-        style={{
-          position: "absolute",
-          bottom: "15%",
-          right: "-10%",
-          width: 500,
-          height: 500,
-          borderRadius: "50%",
-          background: `radial-gradient(circle at center, ${GREEN2}14 0%, ${GREEN2}00 70%)`,
-          filter: "blur(110px)",
-          animation: "auroraBreath2 18s ease-in-out infinite",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
 
       {/* ── Mouse-tracking orb ── */}
       <motion.div
@@ -283,7 +327,68 @@ export function Hero() {
               pointerEvents: "none",
             }}
           />
-          <HeroMapPreview />
+          <div style={{ opacity: 0.15, width: "100%", height: "100%" }}>
+            <HeroMapPreview />
+          </div>
+
+          {/* Floating creature cards */}
+          {[
+            { top: "12%", left: "8%", anim: "creatureFloat1", duration: "5.5s", delay: "0s" },
+            { top: "18%", right: "6%", anim: "creatureFloat2", duration: "6.2s", delay: "0.6s" },
+            { bottom: "14%", left: "10%", anim: "creatureFloat3", duration: "5.8s", delay: "1.2s" },
+            { bottom: "10%", right: "8%", anim: "creatureFloat4", duration: "6.5s", delay: "0.3s" },
+          ].map((card, i) => {
+            const { anim, duration, delay, ...pos } = card;
+            return (
+              <div
+                key={i}
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  width: 110,
+                  height: 150,
+                  borderRadius: 14,
+                  background: "rgba(10,10,15,0.78)",
+                  border: `1px solid ${GREEN}55`,
+                  boxShadow: `0 0 20px ${GREEN}33, 0 0 44px ${GREEN}1a, inset 0 0 18px rgba(0,255,136,0.06)`,
+                  backdropFilter: "blur(6px)",
+                  WebkitBackdropFilter: "blur(6px)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 10,
+                  zIndex: 3,
+                  pointerEvents: "none",
+                  animation: `${anim} ${duration} ease-in-out infinite`,
+                  animationDelay: delay,
+                  ...pos,
+                }}
+              >
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: GREEN,
+                    boxShadow: `0 0 10px ${GREEN}, 0 0 22px ${GREEN}aa`,
+                  }}
+                />
+                <span
+                  style={{
+                    fontFamily: "Space Grotesk, Inter, sans-serif",
+                    fontSize: 11,
+                    fontWeight: 900,
+                    letterSpacing: "0.22em",
+                    color: GREEN,
+                    textShadow: `0 0 10px ${GREEN}aa`,
+                  }}
+                >
+                  BLINK
+                </span>
+              </div>
+            );
+          })}
         </motion.div>
 
         {/* ── TEXT SIDE ── */}

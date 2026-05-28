@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-const BG = "#0a0a0f";
 const GREEN = "#00FF88";
 
 const STORAGE_KEY = "blink:landing-cinematic:v1";
@@ -34,8 +33,8 @@ export function CinematicLoad() {
       /* ignore */
     }
 
-    const fadeAt = window.setTimeout(() => setFadingOut(true), 720);
-    const removeAt = window.setTimeout(() => setVisible(false), 1180);
+    const fadeAt = window.setTimeout(() => setFadingOut(true), 1200);
+    const removeAt = window.setTimeout(() => setVisible(false), 1800);
     return () => {
       window.clearTimeout(fadeAt);
       window.clearTimeout(removeAt);
@@ -51,49 +50,78 @@ export function CinematicLoad() {
         position: "fixed",
         inset: 0,
         zIndex: 9999,
-        background: BG,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        flexDirection: "column",
         opacity: fadingOut ? 0 : 1,
-        transition: "opacity 0.42s ease",
+        transition: "opacity 0.6s ease",
         pointerEvents: fadingOut ? "none" : "auto",
       }}
     >
+      {/* Full-screen battle poster */}
+      <img
+        src="/og-battle.jpg"
+        alt=""
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+        }}
+      />
+
+      {/* Dark cinematic overlay */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "rgba(0,0,0,0.55)",
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* BLINK wordmark + tagline */}
       <div
         style={{
           position: "relative",
-          width: 84,
-          height: 84,
-          animation: "blinkCinematicEye 0.9s ease-in-out 1 both",
+          zIndex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 18,
         }}
       >
         <div
           style={{
-            position: "absolute",
-            inset: 0,
-            borderRadius: "50%",
-            border: `2px solid ${GREEN}`,
-            boxShadow: `0 0 36px ${GREEN}aa, 0 0 80px ${GREEN}55`,
+            fontFamily: "Space Grotesk, Inter, sans-serif",
+            fontWeight: 900,
+            fontSize: 80,
+            letterSpacing: "0.04em",
+            color: "#fff",
+            lineHeight: 1,
+            margin: 0,
+            textShadow: `0 0 24px ${GREEN}cc, 0 0 56px ${GREEN}88, 0 0 112px ${GREEN}55`,
           }}
-        />
+        >
+          BLINK
+        </div>
         <div
           style={{
-            position: "absolute",
-            inset: "30%",
-            borderRadius: "50%",
-            background: `radial-gradient(circle at 35% 35%, #fff 0%, ${GREEN} 60%, ${BG} 100%)`,
+            fontFamily: "Space Grotesk, Inter, sans-serif",
+            fontSize: 12,
+            letterSpacing: "0.42em",
+            textTransform: "uppercase",
+            color: GREEN,
+            fontWeight: 700,
+            textShadow: `0 0 14px ${GREEN}aa`,
           }}
-        />
+        >
+          Every Blink, a Legend
+        </div>
       </div>
-      <style>{`
-        @keyframes blinkCinematicEye {
-          0% { transform: scale(0.85); opacity: 0; }
-          40% { transform: scale(1.05); opacity: 1; }
-          75% { transform: scale(0.9); opacity: 1; }
-          100% { transform: scale(1); opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 }
