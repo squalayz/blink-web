@@ -61,7 +61,7 @@ export function CinematicLoad() {
     >
       {/* Full-screen battle poster */}
       <img
-        src="/og-battle.jpg"
+        src="/splash_battle.jpg"
         alt=""
         style={{
           position: "absolute",

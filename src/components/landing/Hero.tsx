@@ -225,7 +225,7 @@ export function Hero() {
 
       {/* ── Battle poster background (replaces aurora blobs) ── */}
       <img
-        src="/og-battle.jpg"
+        src="/splash_battle.jpg"
         alt=""
         aria-hidden
         style={{
