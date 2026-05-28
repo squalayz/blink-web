@@ -23,7 +23,7 @@ import {
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const EPOCH_SECONDS = 300; // 5 min
-export const DESPAWN_MS = 30 * 60_000; // 30 min default — overridden per-spawn by pickSpawnTtlMs
+export const DESPAWN_MS = 4 * 60 * 60_000; // 4 hr default — overridden per-spawn by pickSpawnTtlMs
 export const CELL_DEG = 0.01;
 const MIN_PER_CELL = 8;
 const MAX_PER_CELL = 15;
@@ -31,10 +31,10 @@ const MAX_PER_CELL = 15;
 // Pokémon GO-style spawn windows — creatures despawn and respawn on a cycle
 // Each spawn point gets a random TTL type determined by its seed
 export const SPAWN_TYPES = [
-  { ttlMs: 15 * 60_000, weight: 40 },   // 15 min — most common, high urgency
-  { ttlMs: 30 * 60_000, weight: 35 },   // 30 min — common
-  { ttlMs: 45 * 60_000, weight: 15 },   // 45 min — uncommon
-  { ttlMs: 60 * 60_000, weight: 10 },   // 60 min — rare, rare creatures
+  { ttlMs: 4 * 60 * 60_000, weight: 40 },   // 4 hr — most common
+  { ttlMs: 4 * 60 * 60_000, weight: 35 },   // 4 hr — common
+  { ttlMs: 4 * 60 * 60_000, weight: 15 },   // 4 hr — uncommon
+  { ttlMs: 4 * 60 * 60_000, weight: 10 },   // 4 hr — rare
 ] as const;
 
 export function pickSpawnTtlMs(rng: () => number): number {
@@ -313,10 +313,11 @@ export async function upsertSpawnsForCells(
     all.push(...generateCellSpawns(cellId, bucket));
   }
   if (all.length === 0) return { inserted: 0 };
-  // ON CONFLICT DO NOTHING via Supabase: use upsert with ignoreDuplicates.
+  // UPSERT (UPDATE on conflict) so coords refresh each epoch instead of being
+  // pinned to whatever the first-ever insert wrote for this (cell, bucket, idx).
   const { error } = await supabaseAdmin
     .from("wild_spawns")
-    .upsert(all, { onConflict: "s2_cell_id,epoch_bucket,spawn_index", ignoreDuplicates: true });
+    .upsert(all, { onConflict: "s2_cell_id,epoch_bucket,spawn_index", ignoreDuplicates: false });
   if (error) return { inserted: 0, error: error.message };
   return { inserted: all.length };
 }

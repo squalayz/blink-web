@@ -523,6 +523,14 @@ const HUNT_CSS = `
 .mapboxgl-ctrl-logo { display: none !important; }
 .mapboxgl-ctrl-attrib { display: none !important; }
 .mapboxgl-ctrl-group { display: none !important; }
+.mapboxgl-ctrl-top-left { display: none !important; }
+.mapboxgl-ctrl-top-right { display: none !important; }
+.mapboxgl-ctrl-bottom-left { display: none !important; }
+.mapboxgl-ctrl-bottom-right { display: none !important; }
+.mapboxgl-ctrl-top-left { display: none !important; }
+.mapboxgl-ctrl-top-right { display: none !important; }
+.mapboxgl-ctrl-bottom-left { display: none !important; }
+.mapboxgl-ctrl-bottom-right { display: none !important; }
 `;
 
 function wildRarityColor(rarity: string): string {
