@@ -889,6 +889,10 @@ export default function MapPage() {
         0%, 100% { transform: translateY(0px); }
         50% { transform: translateY(-4px); }
       }
+      @keyframes claimPulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,136,0.4); }
+        50% { box-shadow: 0 0 0 8px rgba(0,255,136,0); }
+      }
     `;
     document.head.appendChild(style);
   }, []);
@@ -1050,6 +1054,34 @@ export default function MapPage() {
           </Link>
         </div>
       </div>
+
+      {/* ========== CLAIM REWARDS BUTTON ========== */}
+      <button
+        type="button"
+        onClick={() => router.push("/claim")}
+        style={{
+          position: "fixed",
+          top: "calc(env(safe-area-inset-top, 0px) + 64px)",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 60,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "10px 24px",
+          borderRadius: 999,
+          background: "rgba(0,255,136,0.15)",
+          border: "1.5px solid #00FF88",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          cursor: "pointer",
+          animation: "claimPulse 2s infinite",
+        }}
+      >
+        <span style={{ fontSize: 14 }}>🎁</span>
+        <span style={{ color: "#00FF88", fontWeight: 800, fontSize: 14 }}>Claim Rewards</span>
+        <span style={{ color: "#FFFFFF", fontSize: 14, fontWeight: 600 }}>→</span>
+      </button>
 
       {/* ========== HOT/COLD COMPASS ========== */}
       {/* Spawn notifier — silent side effect component */}
