@@ -8,7 +8,7 @@ import dynamic from "next/dynamic";
 import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
 import { Orb as ThemeOrb } from "@/lib/theme";
-import { MapPin, Filter, Plus, X, ChevronUp, User, Crosshair, Camera } from "lucide-react";
+import { MapPin, Plus, X, User, Crosshair, Camera } from "lucide-react";
 import UserAvatar from "@/components/UserAvatar";
 import UserProfileCard from "@/components/UserProfileCard";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
@@ -225,7 +225,7 @@ export default function MapPage() {
   const [orbsLoading, setOrbsLoading] = useState(true);
   const [orbsError, setOrbsError] = useState(false);
   const [activeFilter, setActiveFilter] = useState("All");
-  const [sheetExpanded, setSheetExpanded] = useState(false);
+  const [nearbyPlayersOpen, setNearbyPlayersOpen] = useState(false);
   const [selectedOrb, setSelectedOrb] = useState<Orb | null>(null);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [confirmOrb, setConfirmOrb] = useState<Orb | null>(null);
@@ -501,11 +501,6 @@ export default function MapPage() {
     const creature = BESTIARY.find((c) => c.name === creatureName);
     return { ...o, distance, bearing, tier, creatureImage: creature?.image ?? null };
   }), [filteredOrbs, position]);
-
-  const sortedOrbs = useMemo(() => [...orbsWithDistance].sort((a, b) => a.distance - b.distance), [orbsWithDistance]);
-  const deferredOrbs = useDeferredValue(sortedOrbs);
-
-  const nearbyCount = useMemo(() => orbsWithDistance.filter((o) => o.distance < 500).length, [orbsWithDistance]);
 
   /* ---- Presence + wild spawns (privacy-blurred) ---- */
   const { players, wildSpawns } = usePresence(position);
@@ -992,23 +987,23 @@ export default function MapPage() {
             background: COLORS.glassStrong,
             backdropFilter: "blur(24px)",
             WebkitBackdropFilter: "blur(24px)",
-            border: `1px solid ${nearbyCount > 0 ? "rgba(0,255,136,0.22)" : "rgba(255,255,255,0.06)"}`,
+            border: `1px solid ${catchableSpawns.length > 0 ? "rgba(0,255,136,0.22)" : "rgba(255,255,255,0.06)"}`,
             boxShadow: "0 2px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             gap: 6,
           }}>
-            {nearbyCount > 0 && (
+            {catchableSpawns.length > 0 && (
               <span className="mm-sense-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: "#00FF88", flexShrink: 0 }} />
             )}
             <span style={{
-              color: nearbyCount > 0 ? COLORS.text : COLORS.textMuted,
+              color: catchableSpawns.length > 0 ? COLORS.text : COLORS.textMuted,
               fontSize: 12,
-              fontWeight: nearbyCount > 0 ? 700 : 500,
+              fontWeight: catchableSpawns.length > 0 ? 700 : 500,
               letterSpacing: "0.01em",
             }}>
-              {nearbyCount > 0 ? `${nearbyCount} creature${nearbyCount !== 1 ? "s" : ""} nearby` : "The Eye is quiet"}
+              {catchableSpawns.length > 0 ? `✨ ${catchableSpawns.length} nearby` : "The Eye is quiet"}
             </span>
           </div>
 
@@ -1431,250 +1426,160 @@ export default function MapPage() {
         )}
       </AnimatePresence>
 
-      {/* ========== BOTTOM SHEET (Apple-style frosted glass) ========== */}
-      <motion.div
-        animate={{ height: sheetExpanded ? `calc(62dvh - ${NAV_H}px)` : 84 }}
-        transition={{ type: "spring", damping: 32, stiffness: 320, restDelta: 0.5 }}
-        style={{
-          position: "absolute",
-          bottom: `calc(${NAV_H}px + env(safe-area-inset-bottom, 0px))`,
-          left: 8,
-          right: 8,
-          background: COLORS.glassStrong,
-          backdropFilter: "blur(32px)",
-          WebkitBackdropFilter: "blur(32px)",
-          borderRadius: 22,
-          border: "1px solid rgba(255,255,255,0.08)",
-          boxShadow: "0 -2px 40px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.07)",
-          zIndex: 30,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          willChange: "height",
-          transform: "translateZ(0)",
-        }}
-      >
-        {/* Sheet handle (peek) */}
-        <div
-          onClick={() => setSheetExpanded(!sheetExpanded)}
-          role="button"
-          aria-expanded={sheetExpanded}
-          aria-label={sheetExpanded ? "Collapse nearby creatures" : "Expand nearby creatures"}
-          style={{
-            padding: "10px 16px 8px",
-            cursor: "pointer",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 6,
-            flexShrink: 0,
-          }}
-        >
-          <div
+      {/* ========== NEARBY PLAYERS PILL ========== */}
+      <AnimatePresence>
+        {players.length > 0 && (
+          <motion.button
+            key="nearby-players-pill"
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 20, opacity: 0 }}
+            transition={{ type: "spring", damping: 26, stiffness: 320 }}
+            onClick={() => setNearbyPlayersOpen(true)}
+            aria-label={`${players.length} players nearby — tap to view`}
             style={{
-              width: 40,
-              height: 4,
-              borderRadius: 2,
-              background: "rgba(255,255,255,0.15)",
-            }}
-          />
-          <div
-            style={{
+              position: "absolute",
+              bottom: `calc(${NAV_H + 8}px + env(safe-area-inset-bottom, 0px))`,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 30,
+              height: 48,
+              maxWidth: 280,
+              padding: "0 18px",
+              borderRadius: 999,
+              background: "rgba(10,10,20,0.78)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              border: "1px solid rgba(0,255,136,0.4)",
+              boxShadow: "0 4px 24px rgba(0,0,0,0.5), 0 0 18px rgba(0,255,136,0.18)",
+              color: "#00FF88",
+              fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: "0.01em",
+              fontFamily: "inherit",
+              cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
-              width: "100%",
+              justifyContent: "center",
+              gap: 6,
+              whiteSpace: "nowrap",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span
-                style={{ color: COLORS.text, fontSize: 14, fontWeight: 700, letterSpacing: "0.02em" }}
-              >
-                {deferredOrbs.length} BLINK{deferredOrbs.length !== 1 ? "S" : ""} nearby
-              </span>
-            </div>
+            <span>👥 {players.length} player{players.length !== 1 ? "s" : ""} nearby</span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* ========== NEARBY PLAYERS LIST SHEET ========== */}
+      <AnimatePresence>
+        {nearbyPlayersOpen && (
+          <motion.div
+            key="nearby-players-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setNearbyPlayersOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.65)",
+              zIndex: 78,
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "center",
+            }}
+          >
             <motion.div
-              animate={{ rotate: sheetExpanded ? 180 : 0 }}
-              transition={{ duration: 0.25 }}
-              style={{ display: "flex", alignItems: "center", gap: 6 }}
+              key="nearby-players-sheet"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "100%",
+                maxWidth: 480,
+                background: COLORS.glassStrong,
+                backdropFilter: "blur(32px)",
+                WebkitBackdropFilter: "blur(32px)",
+                borderTopLeftRadius: 28,
+                borderTopRightRadius: 28,
+                border: "1px solid rgba(0,255,136,0.18)",
+                borderBottom: "none",
+                boxShadow: "0 -4px 48px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07)",
+                padding: "20px 16px calc(28px + env(safe-area-inset-bottom, 0px))",
+                color: COLORS.text,
+                maxHeight: "62dvh",
+                overflowY: "auto",
+              }}
             >
-              <ChevronUp size={18} color={COLORS.primary} />
-            </motion.div>
-          </div>
-        </div>
-
-        {/* Orb list */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "0 12px 16px",
-          }}
-        >
-          {orbsLoading && (
-            <div style={{ textAlign: "center", padding: 20, color: COLORS.textMuted, fontSize: 13 }}>
-              Loading creatures...
-            </div>
-          )}
-
-          {orbsError && (
-            <div style={{ textAlign: "center", padding: 20 }}>
-              <p style={{ color: COLORS.textMuted, fontSize: 13, margin: "0 0 12px" }}>
-                Failed to load creatures.
-              </p>
-              <button
-                onClick={fetchOrbs}
-                style={{
-                  padding: "8px 24px",
-                  borderRadius: 10,
-                  border: "none",
-                  background: COLORS.primary,
-                  color: "#fff",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Retry
-              </button>
-            </div>
-          )}
-
-          {!orbsLoading && !orbsError && deferredOrbs.length === 0 && (
-            <div style={{ textAlign: "center", padding: 24 }}>
-              <p style={{ color: COLORS.textMuted, fontSize: 14, margin: "0 0 12px" }}>
-                No creatures nearby. Be the first to spawn one!
-              </p>
-              <Link
-                href="/spawn"
-                style={{
-                  display: "inline-block",
-                  padding: "10px 24px",
-                  borderRadius: 10,
-                  background: COLORS.accent,
-                  color: COLORS.bg,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  textDecoration: "none",
-                }}
-              >
-                Find Creatures Near You
-              </Link>
-            </div>
-          )}
-
-          {deferredOrbs.map((orb) => {
-            const dist = orb.distance;
-            const claimable = dist <= CLAIM_RADIUS_M;
-            const color = RARITY_COLORS[orb.rarity] || RARITY_COLORS.common;
-            return (
-              <motion.div
-                key={orb.id}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setSelectedOrb(orb)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "11px 13px",
-                  borderRadius: 14,
-                  marginBottom: 6,
-                  background: "rgba(255,255,255,0.04)",
-                  cursor: "pointer",
-                  border: "1px solid rgba(255,255,255,0.07)",
-                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                }}
-              >
-                {/* rarity dot */}
-                <div
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: color,
-                    boxShadow: `0 0 6px ${color}80`,
-                    flexShrink: 0,
-                  }}
-                />
-                {/* currency badge */}
-                <span
-                  style={{
-                    background: COLORS.surface,
-                    color: COLORS.text,
-                    fontSize: 11,
-                    fontWeight: 700,
-                    padding: "2px 8px",
-                    borderRadius: 6,
-                    flexShrink: 0,
-                  }}
-                >
-                  {orb.currency}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.01em" }}>
+                  👥 {players.length} player{players.length !== 1 ? "s" : ""} nearby
                 </span>
-                {/* distance */}
-                <span
-                  style={{
-                    color: claimable ? COLORS.accent : COLORS.textMuted,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    flexShrink: 0,
-                    minWidth: 42,
-                  }}
-                >
-                  {formatDistance(dist)}
-                </span>
-                {/* dropper */}
-                <span
-                  style={{
-                    color: COLORS.textMuted,
-                    fontSize: 12,
-                    flex: 1,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {orb.dropper_name}
-                </span>
-                {/* fee */}
-                <span
-                  style={{
-                    color: COLORS.textMuted,
-                    fontSize: 11,
-                    flexShrink: 0,
-                  }}
-                >
-                  ${orb.claim_fee_usd?.toFixed(2)}
-                </span>
-                {/* CTA */}
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (claimable) setConfirmOrb(orb);
-                  }}
-                  disabled={!claimable}
+                  onClick={() => setNearbyPlayersOpen(false)}
+                  aria-label="Close"
                   style={{
-                    padding: "6px 14px",
-                    borderRadius: 8,
+                    background: "transparent",
                     border: "none",
-                    background: COLORS.accent,
-                    color: COLORS.bg,
-                    fontWeight: 700,
-                    fontSize: 12,
-                    cursor: claimable ? "pointer" : "default",
-                    opacity: claimable ? 1 : 0.3,
-                    flexShrink: 0,
-                    whiteSpace: "nowrap",
+                    color: COLORS.textMuted,
+                    fontSize: 24,
+                    cursor: "pointer",
+                    lineHeight: 1,
+                    padding: 0,
                   }}
                 >
-                  Catch It
+                  ×
                 </button>
-              </motion.div>
-            );
-          })}
-        </div>
-      </motion.div>
+              </div>
+              {players.length === 0 ? (
+                <p style={{ color: COLORS.textMuted, fontSize: 13, textAlign: "center", padding: 16 }}>
+                  No players nearby right now.
+                </p>
+              ) : (
+                players.map((p) => (
+                  <button
+                    key={p.user_id}
+                    onClick={() => {
+                      setNearbyPlayersOpen(false);
+                      setSelectedPlayer(p);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      width: "100%",
+                      padding: "10px 12px",
+                      marginBottom: 6,
+                      borderRadius: 14,
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.07)",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      textAlign: "left",
+                    }}
+                  >
+                    <UserAvatar
+                      profilePicUrl={p.avatar_url}
+                      handle={p.handle || "anon"}
+                      size={36}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: COLORS.text, fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        @{p.handle || "anon"}
+                      </div>
+                      <div style={{ color: COLORS.textMuted, fontSize: 12 }}>
+                        {p.is_friend ? "Friend · " : ""}~{p.fuzzy_radius_m}m
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ========== SPAWN FAB (bottom-left, idle-fade) ========== */}
       <Link
@@ -2254,7 +2159,7 @@ export default function MapPage() {
         )}
       </AnimatePresence>
 
-      {/* ========== LEGACY CATCHABLE WILD SPAWN SHEET (tap from map marker) ========== */}
+      {/* ========== CREATURE ENCOUNTER STRIP ========== */}
       <AnimatePresence>
         {selectedCatchable && !cinematicOpen && (() => {
           const dist = position
@@ -2263,148 +2168,136 @@ export default function MapPage() {
           const inRange = dist <= CATCH_PROXIMITY_M;
           const tierLabel = TIER_LABELS[selectedCatchable.tier] ?? selectedCatchable.tier;
           const accent = selectedCatchable.tier_color || "#00FF88";
+          const bottomOffset = NAV_H + (players.length > 0 ? 64 : 8);
           return (
             <motion.div
-              key="catch-overlay"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => { if (!catching) setSelectedCatchable(null); }}
+              key="creature-encounter-strip"
+              initial={{ y: 120, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 120, opacity: 0 }}
+              transition={{ type: "spring", damping: 26, stiffness: 280 }}
+              onClick={(e) => e.stopPropagation()}
               style={{
-                position: "fixed",
-                inset: 0,
-                background: "rgba(0,0,0,0.7)",
-                zIndex: 80,
+                position: "absolute",
+                bottom: `calc(${bottomOffset}px + env(safe-area-inset-bottom, 0px))`,
+                left: 16,
+                right: 16,
+                maxWidth: 480,
+                marginLeft: "auto",
+                marginRight: "auto",
+                zIndex: 32,
+                height: 80,
+                padding: "12px 16px",
+                background: "rgba(10,10,20,0.95)",
+                backdropFilter: "blur(20px)",
+                WebkitBackdropFilter: "blur(20px)",
+                borderRadius: 18,
+                border: `1.5px solid ${accent}`,
+                boxShadow: `0 0 24px ${accent}4D, 0 4px 20px rgba(0,0,0,0.6)`,
                 display: "flex",
-                alignItems: "flex-end",
-                justifyContent: "center",
+                alignItems: "center",
+                gap: 12,
+                color: COLORS.text,
               }}
             >
-              <motion.div
-                key="catch-sheet"
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "100%" }}
-                transition={{ type: "spring", damping: 28, stiffness: 300 }}
-                onClick={(e) => e.stopPropagation()}
+              {/* Creature image */}
+              <div
                 style={{
-                  width: "100%",
-                  maxWidth: 480,
-                  background: COLORS.glassStrong,
-                  backdropFilter: "blur(32px)",
-                  WebkitBackdropFilter: "blur(32px)",
-                  borderTopLeftRadius: 28,
-                  borderTopRightRadius: 28,
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  borderBottom: "none",
-                  boxShadow: "0 -4px 48px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07)",
-                  padding: "22px 22px calc(28px + env(safe-area-inset-bottom, 0px))",
-                  color: COLORS.text,
+                  width: 56,
+                  height: 56,
+                  borderRadius: 10,
+                  background: `radial-gradient(circle at 35% 35%, ${accent}33, #0a0a0f)`,
+                  border: `1px solid ${accent}66`,
+                  overflow: "hidden",
+                  flexShrink: 0,
+                  boxShadow: `0 0 12px ${accent}55`,
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <div
-                    style={{
-                      width: 64,
-                      height: 64,
-                      borderRadius: 16,
-                      background: `radial-gradient(circle at 35% 35%, ${accent}, #0a0a0f)`,
-                      border: `2px solid ${accent}`,
-                      overflow: "hidden",
-                      flexShrink: 0,
-                      boxShadow: `0 0 18px ${accent}66`,
-                    }}
-                  >
-                    {selectedCatchable.image_url && (
-                      <img
-                        src={selectedCatchable.image_url}
-                        alt=""
-                        loading="lazy"
-                        decoding="async"
-                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                      />
-                    )}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.01em" }}>
-                      Wild {selectedCatchable.name}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                      <span
-                        style={{
-                          background: `${accent}22`,
-                          color: accent,
-                          fontSize: 12,
-                          fontWeight: 700,
-                          padding: "3px 10px",
-                          borderRadius: 8,
-                          textTransform: "capitalize",
-                        }}
-                      >
-                        {tierLabel}
-                      </span>
-                      <span style={{ color: COLORS.textMuted, fontSize: 12 }}>
-                        {inRange ? "In range" : `${Math.round(dist)}m away`}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => { if (!catching) setSelectedCatchable(null); }}
-                    aria-label="Close"
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      color: COLORS.textMuted,
-                      fontSize: 22,
-                      cursor: catching ? "default" : "pointer",
-                      lineHeight: 1,
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-
-                <p style={{ color: "#cfd3dd", fontSize: 13, lineHeight: 1.55, margin: "14px 0 18px" }}>
-                  {inRange
-                    ? "You're close enough. Catch this creature to mint a real NFT to your wallet."
-                    : `Walk closer to catch — ${Math.round(dist)}m away. You need to be within ${CATCH_PROXIMITY_M}m.`}
-                </p>
-
-                {catchError && (
-                  <p
-                    style={{
-                      color: "#F87171",
-                      fontSize: 13,
-                      margin: "0 0 12px",
-                      background: "rgba(248,113,113,0.08)",
-                      border: "1px solid rgba(248,113,113,0.25)",
-                      borderRadius: 10,
-                      padding: "10px 12px",
-                    }}
-                  >
-                    {catchError}
-                  </p>
+                {selectedCatchable.image_url && (
+                  <img
+                    src={selectedCatchable.image_url}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  />
                 )}
+              </div>
 
-                <button
-                  onClick={() => { if (inRange) setCinematicOpen(true); }}
-                  disabled={!inRange || catching}
-                  style={{
-                    width: "100%",
-                    padding: "14px 0",
-                    borderRadius: 14,
-                    border: "none",
-                    background: inRange ? COLORS.accent : COLORS.card,
-                    color: inRange ? COLORS.bg : COLORS.textMuted,
-                    fontSize: 15,
-                    fontWeight: 800,
-                    cursor: inRange && !catching ? "pointer" : "default",
-                    opacity: catching ? 0.6 : 1,
-                  }}
-                >
-                  {inRange ? "Catch" : `Walk closer — ${Math.round(dist)}m away`}
-                </button>
-              </motion.div>
+              {/* Name + tier + distance */}
+              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: "-0.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {selectedCatchable.name}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span
+                    style={{
+                      background: `${accent}22`,
+                      color: accent,
+                      fontSize: 10,
+                      fontWeight: 800,
+                      padding: "2px 8px",
+                      borderRadius: 6,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    {tierLabel}
+                  </span>
+                  <span style={{ color: COLORS.textMuted, fontSize: 11, fontWeight: 600 }}>
+                    {Math.round(dist)}m away
+                  </span>
+                </div>
+              </div>
+
+              {/* CATCH! button */}
+              <button
+                onClick={() => { if (inRange) setCinematicOpen(true); }}
+                disabled={!inRange}
+                aria-label={inRange ? "Catch creature" : "Too far to catch"}
+                style={{
+                  flexShrink: 0,
+                  padding: "10px 14px",
+                  borderRadius: 12,
+                  border: "none",
+                  background: inRange ? accent : "rgba(255,255,255,0.06)",
+                  color: inRange ? "#000" : COLORS.textMuted,
+                  fontSize: 12,
+                  fontWeight: 900,
+                  letterSpacing: "0.06em",
+                  cursor: inRange ? "pointer" : "default",
+                  whiteSpace: "nowrap",
+                  fontFamily: "inherit",
+                  boxShadow: inRange ? `0 0 14px ${accent}77` : "none",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {inRange ? "CATCH!" : "50m away"}
+              </button>
+
+              {/* Dismiss X */}
+              <button
+                onClick={() => setSelectedCatchable(null)}
+                aria-label="Dismiss"
+                style={{
+                  flexShrink: 0,
+                  width: 24,
+                  height: 24,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "transparent",
+                  border: "none",
+                  color: COLORS.textMuted,
+                  fontSize: 20,
+                  lineHeight: 1,
+                  cursor: "pointer",
+                  padding: 0,
+                  fontFamily: "inherit",
+                }}
+              >
+                ×
+              </button>
             </motion.div>
           );
         })()}
