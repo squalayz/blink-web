@@ -331,33 +331,71 @@ export function Hero() {
             <HeroMapPreview />
           </div>
 
-          {/* Floating creature cards */}
+          {/* Floating creature NFT cards */}
           {[
-            { top: "12%", left: "8%", anim: "creatureFloat1", duration: "5.5s", delay: "0s" },
-            { top: "18%", right: "6%", anim: "creatureFloat2", duration: "6.2s", delay: "0.6s" },
-            { bottom: "14%", left: "10%", anim: "creatureFloat3", duration: "5.8s", delay: "1.2s" },
-            { bottom: "10%", right: "8%", anim: "creatureFloat4", duration: "6.5s", delay: "0.3s" },
+            {
+              top: "12%",
+              left: "8%",
+              anim: "creatureFloat1",
+              duration: "5.5s",
+              delay: "0s",
+              img: "/cards/020_firsteye.webp",
+              name: "The First Eye",
+              tier: "MYTHIC",
+              color: "#FF00FF",
+            },
+            {
+              top: "18%",
+              right: "6%",
+              anim: "creatureFloat2",
+              duration: "6.2s",
+              delay: "0.6s",
+              img: "/cards/019_phoenix.webp",
+              name: "The Phoenix",
+              tier: "LEGENDARY",
+              color: "#FF8800",
+            },
+            {
+              bottom: "14%",
+              left: "10%",
+              anim: "creatureFloat3",
+              duration: "5.8s",
+              delay: "1.2s",
+              img: "/cards/016_cyclops.webp",
+              name: "Cyclops",
+              tier: "RARE",
+              color: "#00AAFF",
+            },
+            {
+              bottom: "10%",
+              right: "8%",
+              anim: "creatureFloat4",
+              duration: "6.5s",
+              delay: "0.3s",
+              img: "/cards/018_oracle.webp",
+              name: "Oracle",
+              tier: "LEGENDARY",
+              color: "#AA00FF",
+            },
           ].map((card, i) => {
-            const { anim, duration, delay, ...pos } = card;
+            const { anim, duration, delay, img, name, tier, color, ...pos } = card;
             return (
               <div
                 key={i}
                 aria-hidden
                 style={{
                   position: "absolute",
-                  width: 110,
-                  height: 150,
+                  width: 130,
+                  height: 185,
                   borderRadius: 14,
-                  background: "rgba(10,10,15,0.78)",
-                  border: `1px solid ${GREEN}55`,
-                  boxShadow: `0 0 20px ${GREEN}33, 0 0 44px ${GREEN}1a, inset 0 0 18px rgba(0,255,136,0.06)`,
-                  backdropFilter: "blur(6px)",
-                  WebkitBackdropFilter: "blur(6px)",
+                  background: "rgba(5,5,15,0.92)",
+                  border: `1.5px solid ${color}99`,
+                  boxShadow: `0 0 20px ${color}44, 0 0 40px ${color}22`,
+                  backdropFilter: "blur(2px)",
+                  WebkitBackdropFilter: "blur(2px)",
+                  overflow: "hidden",
                   display: "flex",
                   flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 10,
                   zIndex: 3,
                   pointerEvents: "none",
                   animation: `${anim} ${duration} ease-in-out infinite`,
@@ -365,27 +403,86 @@ export function Hero() {
                   ...pos,
                 }}
               >
-                <span
+                {/* Creature image — top 65% */}
+                <div style={{ height: "65%", width: "100%", overflow: "hidden" }}>
+                  <img
+                    src={img}
+                    alt=""
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      display: "block",
+                    }}
+                  />
+                </div>
+
+                {/* Info strip — bottom 35% */}
+                <div
                   style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: "50%",
-                    background: GREEN,
-                    boxShadow: `0 0 10px ${GREEN}, 0 0 22px ${GREEN}aa`,
-                  }}
-                />
-                <span
-                  style={{
-                    fontFamily: "Space Grotesk, Inter, sans-serif",
-                    fontSize: 11,
-                    fontWeight: 900,
-                    letterSpacing: "0.22em",
-                    color: GREEN,
-                    textShadow: `0 0 10px ${GREEN}aa`,
+                    height: "35%",
+                    padding: 8,
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
                   }}
                 >
-                  BLINK
-                </span>
+                  <span
+                    style={{
+                      alignSelf: "flex-start",
+                      padding: "2px 6px",
+                      borderRadius: 999,
+                      background: `${color}33`,
+                      border: `1px solid ${color}`,
+                      color: color,
+                      fontFamily: "Space Grotesk, Inter, sans-serif",
+                      fontSize: 9,
+                      fontWeight: 800,
+                      letterSpacing: "0.2em",
+                      textTransform: "uppercase",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {tier}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "Space Grotesk, Inter, sans-serif",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: "#FFFFFF",
+                      lineHeight: 1.1,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {name}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "Space Grotesk, Inter, sans-serif",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: color,
+                      letterSpacing: "0.08em",
+                    }}
+                  >
+                    #BLINK
+                  </span>
+                </div>
+
+                {/* Holographic shimmer overlay */}
+                <div
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background:
+                      "linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.04) 50%, transparent 60%)",
+                    pointerEvents: "none",
+                  }}
+                />
               </div>
             );
           })}
