@@ -146,19 +146,38 @@ export default function AuthModal({ open, initialMode = "signup", onClose, onSuc
       >
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-          <span
-            style={{
-              fontFamily: "'Space Grotesk', 'Inter', sans-serif",
-              fontWeight: 800,
-              fontSize: 13,
-              color: GREEN,
-              letterSpacing: "0.32em",
-              textTransform: "uppercase",
-              textShadow: "0 0 12px rgba(0,255,136,0.45)",
-            }}
-          >
-            Enter the World
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/logo-orb-transparent.png"
+              alt=""
+              aria-hidden
+              width={28}
+              height={28}
+              style={{
+                width: 28,
+                height: 28,
+                objectFit: "cover",
+                borderRadius: "50%",
+                flexShrink: 0,
+                filter: "drop-shadow(0 0 8px rgba(0,255,136,0.6))",
+              }}
+            />
+            <span
+              style={{
+                fontFamily: "'Space Grotesk', 'Inter', sans-serif",
+                fontWeight: 800,
+                fontSize: 13,
+                color: GREEN,
+                letterSpacing: "0.32em",
+                textTransform: "uppercase",
+                textShadow: "0 0 12px rgba(0,255,136,0.45)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Enter the World
+            </span>
+          </div>
           <button
             type="button"
             aria-label="Close"

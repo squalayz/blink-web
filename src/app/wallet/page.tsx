@@ -1487,7 +1487,7 @@ function BlinkLogo() {
     <IconRing>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/blink-logo.webp"
+        src="/brand/logo-orb-transparent.png"
         alt="BLINK"
         loading="lazy"
         width={40}
@@ -1496,6 +1496,7 @@ function BlinkLogo() {
           width: "100%",
           height: "100%",
           objectFit: "cover",
+          borderRadius: "50%",
           display: "block",
         }}
       />

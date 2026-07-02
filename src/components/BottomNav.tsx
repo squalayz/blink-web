@@ -156,7 +156,7 @@ export default function BottomNav() {
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/blink-logo.webp" alt="BLINK" style={{ width: 26, height: 26, objectFit: "contain", filter: "drop-shadow(0 0 8px rgba(0,255,136,0.6))" }} />
+            <img src="/brand/logo-orb-transparent.png" alt="BLINK" style={{ width: 26, height: 26, objectFit: "cover", borderRadius: "50%", filter: "drop-shadow(0 0 8px rgba(0,255,136,0.6))" }} />
           </Link>
 
           {/* Tab items */}

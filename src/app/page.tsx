@@ -186,7 +186,7 @@ export default function HomePage() {
           }}
         >
           <Image
-            src="/blink-logo.webp"
+            src="/brand/logo-orb-transparent.png"
             alt="BLINK"
             width={32}
             height={32}
@@ -194,7 +194,8 @@ export default function HomePage() {
             priority
             fetchPriority="high"
             style={{
-              objectFit: "contain",
+              objectFit: "cover",
+              borderRadius: "50%",
               filter: "drop-shadow(0 0 8px rgba(0,255,136,0.7))",
               flexShrink: 0,
             }}
@@ -614,11 +615,11 @@ export default function HomePage() {
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <Image
-              src="/blink-logo.webp"
+              src="/brand/logo-orb-transparent.png"
               alt="BLINK"
               width={28}
               height={28}
-              style={{ objectFit: "contain" }}
+              style={{ objectFit: "cover", borderRadius: "50%" }}
             />
             <span
               style={{

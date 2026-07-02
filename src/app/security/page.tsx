@@ -108,11 +108,11 @@ export default function SecurityPage() {
           }}
         >
           <Image
-            src="/blink-logo.webp"
+            src="/brand/logo-orb-transparent.png"
             alt="BLINK"
             width={38}
             height={38}
-            style={{ objectFit: "contain" }}
+            style={{ objectFit: "cover", borderRadius: "50%" }}
           />
           <span
             style={{

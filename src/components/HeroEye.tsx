@@ -142,14 +142,15 @@ export default function HeroEye({
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/blink-logo.webp"
+          src="/brand/logo-orb-transparent.png"
           alt="BLINK"
           fetchPriority="high"
           decoding="async"
           style={{
             width: "100%",
             height: "100%",
-            objectFit: "contain",
+            objectFit: "cover",
+            borderRadius: "50%",
           }}
         />
       </div>

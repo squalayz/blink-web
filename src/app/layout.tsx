@@ -41,7 +41,7 @@ export const metadata: Metadata = {
       "Catch what others can't see. Mystical creatures spawn on a real-world map every minute.",
     images: ["/og-battle.jpg"],
   },
-  icons: { icon: "/blink-logo.webp" },
+  icons: { icon: "/brand/logo-orb-transparent.png" },
   manifest: "/manifest.json",
 };
 
@@ -62,7 +62,7 @@ export default function RootLayout({
         <link
           rel="preload"
           as="image"
-          href="/blink-logo.webp"
+          href="/brand/logo-orb-transparent.png"
           fetchPriority="high"
         />
       </head>

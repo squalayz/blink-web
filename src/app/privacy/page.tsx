@@ -1,99 +1,267 @@
-"use client";
-import LegalLayout, { Section, P } from "../legal-layout";
+import { Metadata } from "next";
+import type { CSSProperties, ReactNode } from "react";
+import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy - BlinkWorld",
+  description:
+    "BlinkWorld privacy policy - How we handle your data in our location-based AR creature-catching game",
+};
+
+const GREEN = "#00FF88";
+const BG = "#0a0a0f";
+const WHITE = "#FFFFFF";
+const MUTED = "#8a8a99";
+const BORDER = "rgba(0,255,136,0.14)";
+
+const h2Style: CSSProperties = {
+  fontFamily: "Space Grotesk, Inter, sans-serif",
+  fontSize: 20,
+  fontWeight: 700,
+  color: WHITE,
+  margin: "36px 0 12px",
+};
+
+const h3Style: CSSProperties = {
+  fontFamily: "Space Grotesk, Inter, sans-serif",
+  fontSize: 16,
+  fontWeight: 700,
+  color: WHITE,
+  margin: "20px 0 6px",
+};
+
+const pStyle: CSSProperties = {
+  color: MUTED,
+  fontSize: 15,
+  lineHeight: 1.7,
+  margin: "0 0 12px",
+};
+
+const ulStyle: CSSProperties = {
+  color: MUTED,
+  fontSize: 15,
+  lineHeight: 1.7,
+  margin: "0 0 12px",
+  paddingLeft: 22,
+};
+
+function Strong({ children }: { children: ReactNode }) {
+  return <strong style={{ color: WHITE, fontWeight: 700 }}>{children}</strong>;
+}
 
 export default function PrivacyPage() {
   return (
-    <LegalLayout title="Privacy Policy" lastUpdated="March 30, 2026">
-      <Section title="1. Introduction">
-        <P>BLINK (&ldquo;we,&rdquo; &ldquo;us,&rdquo; &ldquo;our&rdquo;) is committed to protecting your privacy. This Privacy Policy explains what data we collect, how we use it, and your rights regarding your personal information. By using the Platform, you consent to the practices described herein.</P>
-      </Section>
+    <main
+      style={{
+        minHeight: "100vh",
+        background: BG,
+        color: WHITE,
+        fontFamily: "Inter, -apple-system, sans-serif",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 820,
+          margin: "0 auto",
+          padding: "clamp(32px, 6vw, 64px) clamp(20px, 5vw, 32px) 64px",
+        }}
+      >
+        <h1
+          style={{
+            fontFamily: "Space Grotesk, Inter, sans-serif",
+            fontSize: "clamp(28px, 5vw, 38px)",
+            fontWeight: 900,
+            letterSpacing: "-0.02em",
+            margin: "0 0 8px",
+            textShadow: "0 0 32px rgba(0,255,136,0.25)",
+          }}
+        >
+          BlinkWorld Privacy Policy
+        </h1>
+        <p style={{ color: MUTED, fontSize: 14, margin: "0 0 32px" }}>
+          Effective Date: May 30, 2026
+        </p>
 
-      <Section title="2. Data We Collect">
-        <P><strong style={{color:"#FFFFFF"}}>Account Information:</strong> Name, email address, username, profile photo, and any profile information you choose to provide (bio, social handles).</P>
-        <P><strong style={{color:"#FFFFFF"}}>Wallet Addresses:</strong> Your connected Ethereum wallet address. Wallet addresses are public on the Ethereum blockchain. We store your wallet address to associate it with your account.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Location Data:</strong> Precise GPS coordinates from your device. Location data is required for core Platform functionality, including spawning and discovering Creatures, verifying proximity for witnessing Creatures and task completion, and displaying nearby Creatures and tasks on The Eye Map. Location data is stored in association with Creatures you create, tasks you post or complete, and stories you share.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Camera and Photos:</strong> Photos and images you capture or upload for task proof submission and Stories. Photos may include embedded metadata (EXIF data including location and timestamp).</P>
-        <P><strong style={{color:"#FFFFFF"}}>Creature and Task Data:</strong> Details of Creatures you create or witness, tasks you post or complete, transaction amounts, timestamps, and completion status.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Social and Squad Data:</strong> Squad memberships, Stories you post, Council participation, and interactions with other users.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Activity History:</strong> Your activity on the Platform, including Creatures witnessed, tasks completed, NFTs earned, and reputation data.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Technical Data:</strong> IP address, browser type, device information, operating system, and access times, collected automatically for security and analytics purposes.</P>
-      </Section>
+        <p style={pStyle}>
+          Welcome to BlinkWorld! We respect your privacy and want you to
+          understand how we handle your information. This policy explains what
+          data we collect, why we need it, and how we protect it.
+        </p>
 
-      <Section title="3. Data We Do NOT Collect or Store">
-        <P><strong style={{color:"#FFFFFF"}}>Private Keys:</strong> BLINK is fully non-custodial. We never have access to, store, or transmit your wallet private keys, seed phrases, or recovery phrases.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Payment Card Data:</strong> We do not collect or store credit card numbers, bank account details, or any traditional payment information. All transactions occur on-chain through your connected wallet.</P>
-      </Section>
+        <section>
+          <h2 style={h2Style}>What Information We Collect</h2>
 
-      <Section title="4. How We Use Your Data">
-        <P>Your data is used to: operate and improve the Platform; display Creatures and tasks on The Eye Map based on your location; verify your physical proximity to Creatures and task locations; process and record on-chain transactions; facilitate task proof submission and dispute resolution; deliver social features (Squads, Stories, Council); mint and deliver NFT rewards; send push notifications (with your consent); comply with legal obligations; and detect and prevent fraud, GPS spoofing, and other prohibited conduct.</P>
-      </Section>
+          <h3 style={h3Style}>1. Your Location (While Playing)</h3>
+          <p style={pStyle}>
+            We access your precise location only when the app is open and
+            you&rsquo;re playing. We use this to show creatures, Power Spots,
+            and other players near you on the game map. We do NOT sell your
+            location data, use it for ads, or keep a history of where
+            you&rsquo;ve been.
+          </p>
 
-      <Section title="5. Third-Party Data Processors">
-        <P>We use the following third-party services to operate the Platform:</P>
-        <P><strong style={{color:"#FFFFFF"}}>Supabase</strong> &mdash; Database hosting, authentication, and file storage (including task proof photos and story media).</P>
-        <P><strong style={{color:"#FFFFFF"}}>Vercel</strong> &mdash; Application hosting and serverless functions.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Pinata</strong> &mdash; IPFS pinning service for NFT metadata and decentralized content storage.</P>
-        <P>Blockchain transactions are recorded on the public Ethereum network. Wallet addresses and transaction details are publicly visible on Ethereum. We do not control blockchain data once a transaction is broadcast.</P>
-      </Section>
+          <h3 style={h3Style}>2. Device Identifier</h3>
+          <p style={pStyle}>
+            We use a unique identifier for your device to save your game
+            progress (creatures, candy, points, trophy rating) and sync social
+            features. We do NOT use this for advertising or to track you across
+            other apps.
+          </p>
 
-      <Section title="6. Data Sharing">
-        <P>We do not sell, rent, or trade your personal information to third parties for marketing or advertising purposes. We may share data with law enforcement if required by valid legal process, or to protect the safety and security of our users and the Platform.</P>
-      </Section>
+          <h3 style={h3Style}>3. Camera (During AR Duels)</h3>
+          <p style={pStyle}>
+            When you battle in AR mode, we access your camera to place
+            creatures in the real world. The camera feed is processed live on
+            your device. We do NOT store, save, or upload any camera images.
+          </p>
 
-      <Section title="7. Analytics">
-        <P>We collect anonymous, aggregated usage analytics to understand how the Platform is used and to improve our services. Analytics data does not include personally identifiable information. We do not use tracking cookies for advertising purposes.</P>
-      </Section>
+          <h3 style={h3Style}>4. Game Account Information</h3>
+          <p style={pStyle}>If you use social features, we store:</p>
+          <ul style={ulStyle}>
+            <li>Your in-game username</li>
+            <li>Trainer code</li>
+            <li>Trophy rating</li>
+            <li>Friends list</li>
+            <li>Battle results</li>
+          </ul>
+          <p style={pStyle}>
+            This lets us show leaderboards and allows friends to challenge you.
+          </p>
 
-      <Section title="8. Push Notifications">
-        <P>BLINK may send push notifications to your device for events such as: a Creature you spawned being witnessed, task acceptance or completion updates, dispute outcomes, Squad activity, and Council events. Push notifications are opt-in. You may enable or disable them at any time through your device settings or in-app preferences.</P>
-      </Section>
+          <h3 style={h3Style}>5. Gameplay Data</h3>
+          <p style={pStyle}>
+            We save your game progress including creatures caught, items
+            collected, points earned, and battle history. This is essential to
+            running the game.
+          </p>
 
-      <Section title="9. Data Retention">
-        <P><strong style={{color:"#FFFFFF"}}>Stories:</strong> Stories are automatically deleted 24 hours after posting.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Account Data:</strong> We retain your personal data for as long as your account is active. Upon account deletion request, we will delete your personal data within 30 days, except where retention is required by law or for legitimate business purposes (e.g., transaction records for tax compliance).</P>
-        <P><strong style={{color:"#FFFFFF"}}>Blockchain Data:</strong> On-chain transactions (including wallet addresses and transfer amounts) are permanent and cannot be deleted by BLINK or any party.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Task Proof Photos:</strong> Retained for 90 days after task completion for dispute resolution purposes, then deleted.</P>
-      </Section>
+          <h3 style={h3Style}>6. Crash Reports (TestFlight Only)</h3>
+          <p style={pStyle}>
+            If you&rsquo;re testing via Apple TestFlight, Apple may share crash
+            logs with us to help fix bugs.
+          </p>
+        </section>
 
-      <Section title="10. Data Security">
-        <P>We implement industry-standard security measures including: HTTPS encryption for all data in transit, encryption at rest for stored data, row-level security policies in our database, and access controls limiting data access to authorized services only.</P>
-        <P>However, no method of electronic transmission or storage is 100% secure. We cannot guarantee absolute security of your data.</P>
-      </Section>
+        <section>
+          <h2 style={h2Style}>What We DON&rsquo;T Do</h2>
+          <ul style={ulStyle}>
+            <li>We do NOT use advertising tracking or collect your Ad ID</li>
+            <li>We do NOT track you across other apps or websites</li>
+            <li>We do NOT sell your personal data to anyone</li>
+            <li>
+              We do NOT access your photos, contacts, microphone, or health
+              data
+            </li>
+          </ul>
+        </section>
 
-      <Section title="11. Your Rights (GDPR)">
-        <P>If you are located in the European Economic Area (EEA), United Kingdom, or other jurisdiction with similar data protection laws, you have the following rights:</P>
-        <P><strong style={{color:"#FFFFFF"}}>Access:</strong> You may request a copy of all personal data we hold about you.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Correction:</strong> You may update or correct your personal data through your account settings or by contacting us.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Deletion:</strong> You may request complete deletion of your account and associated data.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Portability:</strong> You may request a full export of your data in a machine-readable format.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Restriction:</strong> You may request that we restrict processing of your personal data in certain circumstances.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Objection:</strong> You may object to the processing of your personal data for certain purposes.</P>
-        <P>For EU/EEA residents: You have the right to lodge a complaint with your local data protection authority.</P>
-      </Section>
+        <section>
+          <h2 style={h2Style}>Who We Share With</h2>
+          <p style={pStyle}>
+            We only share your data with service providers who help run the
+            game:
+          </p>
+          <ul style={ulStyle}>
+            <li>
+              <Strong>Supabase:</Strong> Our database provider that stores your
+              account and game data
+            </li>
+            <li>
+              <Strong>Apple:</Strong> For app distribution through the App
+              Store and TestFlight crash reports
+            </li>
+          </ul>
+        </section>
 
-      <Section title="12. Your Rights (CCPA)">
-        <P>If you are a California resident, you have the following rights under the California Consumer Privacy Act:</P>
-        <P><strong style={{color:"#FFFFFF"}}>Right to Know:</strong> You may request disclosure of the categories and specific pieces of personal information we have collected about you.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Right to Delete:</strong> You may request deletion of your personal information, subject to certain exceptions.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Right to Opt-Out:</strong> We do not sell personal information. As such, this right is automatically satisfied.</P>
-        <P><strong style={{color:"#FFFFFF"}}>Non-Discrimination:</strong> We will not discriminate against you for exercising any of your CCPA rights.</P>
-      </Section>
+        <section>
+          <h2 style={h2Style}>How Long We Keep Your Data</h2>
+          <p style={pStyle}>
+            We keep your account and game data as long as you play BlinkWorld.
+            If you want to delete your account and all associated data, email
+            us at diamondautob@gmail.com from the email associated with your
+            account.
+          </p>
+        </section>
 
-      <Section title="13. International Data Transfers">
-        <P>Your data may be processed in the United States and other jurisdictions where our service providers operate. By using the Platform, you consent to such transfers. We ensure appropriate safeguards are in place for international data transfers in compliance with applicable data protection laws.</P>
-      </Section>
+        <section>
+          <h2 style={h2Style}>Your Privacy Rights</h2>
+          <p style={pStyle}>You have the right to:</p>
+          <ul style={ulStyle}>
+            <li>Access your personal data</li>
+            <li>Correct inaccurate data</li>
+            <li>Delete your data</li>
+            <li>Opt out of data sales (though we don&rsquo;t sell your data)</li>
+          </ul>
+          <p style={pStyle}>
+            To exercise these rights, contact us at diamondautob@gmail.com.
+          </p>
+        </section>
 
-      <Section title="14. Children's Privacy">
-        <P>The Platform is not intended for users under 18 years of age. We do not knowingly collect personal data from minors. If you believe a minor has provided us with personal data, please contact us and we will delete such data promptly.</P>
-      </Section>
+        <section>
+          <h2 style={h2Style}>Children&rsquo;s Privacy</h2>
+          <p style={pStyle}>
+            BlinkWorld is not intended for children under 13. We do not
+            knowingly collect personal information from children under 13. If
+            we discover we&rsquo;ve collected data from a child under 13, we
+            will delete it immediately.
+          </p>
+        </section>
 
-      <Section title="15. Changes to This Policy">
-        <P>We may update this Privacy Policy from time to time. We will notify active users of material changes via email or in-app notification at least 14 days before the changes take effect. Continued use of the Platform after changes constitutes acceptance of the updated policy.</P>
-      </Section>
+        <section>
+          <h2 style={h2Style}>Data Security</h2>
+          <p style={pStyle}>
+            We use industry-standard security measures to protect your data,
+            including encryption for data transmission and secure servers for
+            storage. However, no system is 100% secure, and we cannot guarantee
+            absolute security.
+          </p>
+        </section>
 
-      <Section title="16. Contact">
-        <P>For privacy-related inquiries, data requests, or complaints, please contact: legal@blinkworld.xyz.</P>
-      </Section>
-    </LegalLayout>
+        <section>
+          <h2 style={h2Style}>Changes to This Policy</h2>
+          <p style={pStyle}>
+            We may update this privacy policy from time to time. When we do,
+            we&rsquo;ll change the date at the top. Continued use of BlinkWorld
+            after changes means you accept the updated policy.
+          </p>
+        </section>
+
+        <section>
+          <h2 style={h2Style}>Contact Us</h2>
+          <p style={pStyle}>
+            If you have questions about this privacy policy or how we handle
+            your data, please contact us:
+          </p>
+          <p style={{ ...pStyle, marginBottom: 0 }}>
+            <Strong>Pasquale Celi</Strong>
+            <br />
+            Email: diamondautob@gmail.com
+            <br />
+            Governing Law: United States
+          </p>
+        </section>
+
+        <div
+          style={{
+            marginTop: 48,
+            paddingTop: 32,
+            borderTop: `1px solid ${BORDER}`,
+          }}
+        >
+          <Link
+            href="/"
+            style={{
+              color: GREEN,
+              textDecoration: "none",
+              fontSize: 14,
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+            }}
+          >
+            &larr; Back to Game
+          </Link>
+        </div>
+      </div>
+    </main>
   );
 }

@@ -61,6 +61,21 @@ export default function SignInPage() {
       >
         <BlinkEye />
 
+        <h1
+          style={{
+            fontFamily: "'Space Grotesk', 'Inter', sans-serif",
+            fontSize: "clamp(34px, 5vw, 48px)",
+            fontWeight: 900,
+            letterSpacing: "0.06em",
+            color: WHITE,
+            margin: 0,
+            lineHeight: 1,
+            textShadow: "0 0 32px rgba(0,255,136,0.35)",
+          }}
+        >
+          BLINK
+        </h1>
+
         <p
           style={{
             fontFamily: "'Space Grotesk', 'Inter', sans-serif",
@@ -188,6 +203,7 @@ function BlinkEye() {
     >
       <div
         aria-hidden
+        className="blink-signin-anim"
         style={{
           position: "absolute",
           inset: -28,
@@ -198,39 +214,26 @@ function BlinkEye() {
           animation: "blinkHalo 2.6s ease-in-out infinite",
         }}
       />
-      <svg
-        width="128"
-        height="128"
-        viewBox="0 0 200 200"
-        fill="none"
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        className="blink-signin-anim"
+        src="/brand/logo-orb-transparent.png"
+        alt="BLINK"
+        fetchPriority="high"
+        decoding="async"
+        width={148}
+        height={148}
         style={{
           position: "relative",
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          borderRadius: "50%",
+          animation: "blinkIrisPulse 3s ease-in-out infinite",
           filter:
-            "drop-shadow(0 0 28px rgba(0,255,136,0.65)) drop-shadow(0 0 64px rgba(0,255,136,0.25))",
+            "drop-shadow(0 0 28px rgba(0,255,136,0.55)) drop-shadow(0 0 64px rgba(0,255,136,0.22))",
         }}
-      >
-        <defs>
-          <radialGradient id="blink-signin-iris" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={GREEN2} />
-            <stop offset="60%" stopColor={GREEN} />
-            <stop offset="100%" stopColor="#003a1f" />
-          </radialGradient>
-          <radialGradient id="blink-signin-iris-core" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#FFFFFF" />
-            <stop offset="100%" stopColor="#000000" />
-          </radialGradient>
-        </defs>
-        <ellipse cx="100" cy="100" rx="92" ry="48" stroke={GREEN} strokeWidth="3" />
-        <circle
-          cx="100"
-          cy="100"
-          r="38"
-          fill="url(#blink-signin-iris)"
-          style={{ animation: "blinkIrisPulse 3s ease-in-out infinite" }}
-        />
-        <circle cx="100" cy="100" r="14" fill="url(#blink-signin-iris-core)" />
-        <circle cx="92" cy="92" r="5" fill="rgba(255,255,255,0.85)" />
-      </svg>
+      />
     </div>
   );
 }
@@ -283,5 +286,8 @@ const KEYFRAMES = `
     radial-gradient(ellipse at 70% 70%, rgba(136,255,0,0.10), transparent 55%);
   filter: blur(40px);
   animation: blinkAuroraDrift 18s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .blink-star-layer, .blink-aurora, .blink-signin-anim { animation: none; }
 }
 `;
