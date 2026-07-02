@@ -30,20 +30,25 @@ function LiveFeedIcon({ active }: { active: boolean }) {
   );
 }
 
-// "Spawn" center button — stylized eye glyph
-function SpawnIcon() {
+// "Claim" center button — the BLINK orb, the same mark the app cradles in
+// its catch flow. Sits on the gradient disc like the app's primary CTA.
+function ClaimIcon() {
   return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0a0a0f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" fill="rgba(10,10,15,0.25)" />
-      <circle cx="12" cy="12" r="3" fill="#0a0a0f" />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/brand/logo-orb-transparent.png"
+      alt=""
+      style={{ width: 30, height: 30, borderRadius: "50%", filter: "drop-shadow(0 1px 3px rgba(10,10,15,0.5))" }}
+    />
   );
 }
 
-function ChatIcon({ active }: { active: boolean }) {
+function ProfileIcon({ active }: { active: boolean }) {
+  const stroke = active ? C.primary : C.muted;
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? C.primary : "none"} stroke={active ? C.primary : C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+    <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? "rgba(0,255,136,0.18)" : "none"} stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" />
     </svg>
   );
 }
@@ -68,12 +73,14 @@ interface TabDef {
   showBadge?: boolean;
 }
 
+// Mirrors the iOS app's MainTabView order: Map first, Profile last, with the
+// claim CTA on the center disc (the web's centerpiece — points → $BLINK).
 const TABS: TabDef[] = [
   { id: "watch", label: "Map", href: "/map", icon: (a) => <MapIcon active={a} /> },
-  { id: "live", label: "Live", href: "/live", icon: (a) => <LiveFeedIcon active={a} /> },
-  { id: "spawn", label: "Spawn", href: "/spawn", isCenter: true, icon: () => <SpawnIcon /> },
+  { id: "live", label: "Feed", href: "/live", icon: (a) => <LiveFeedIcon active={a} /> },
+  { id: "claim", label: "Claim", href: "/claim", isCenter: true, icon: () => <ClaimIcon /> },
   { id: "wallet", label: "Wallet", href: "/wallet", icon: (a) => <WalletIcon active={a} />, showBadge: true },
-  { id: "messages", label: "Messages", href: "/messages", icon: (a) => <ChatIcon active={a} /> },
+  { id: "profile", label: "Profile", href: "/profile", icon: (a) => <ProfileIcon active={a} /> },
 ];
 
 const SIDEBAR_WIDTH = 72;

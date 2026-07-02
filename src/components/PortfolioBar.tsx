@@ -68,6 +68,7 @@ export default function PortfolioBar() {
     avatar_url: string | null;
     display_name: string | null;
     handle: string | null;
+    claimable_points?: number | null;
   }>({ eth_address: null, avatar_url: null, display_name: null, handle: null });
 
   // 24h change %: cached snapshot in localStorage to derive direction
@@ -98,7 +99,7 @@ export default function PortfolioBar() {
     if (!user) return;
     const { data } = await supabase
       .from("profiles")
-      .select("eth_address, avatar_url, display_name, handle")
+      .select("eth_address, avatar_url, display_name, handle, claimable_points")
       .eq("id", user.id)
       .single();
     if (data) setProfile(data);
@@ -288,6 +289,45 @@ export default function PortfolioBar() {
               </div>
             </div>
           </div>
+
+          {/* Orb balance chip — app's OrbBalanceChip: orb badge + points → /claim */}
+          <Link
+            href="/claim"
+            aria-label="BLINK points — claim $BLINK"
+            title="BLINK points — claim $BLINK"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              height: 36,
+              padding: "0 12px 0 8px",
+              borderRadius: 999,
+              background: "rgba(10,10,15,0.35)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              border: `1px solid ${C.primary}55`,
+              textDecoration: "none",
+              flexShrink: 0,
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/logo-orb-transparent.png"
+              alt=""
+              style={{ width: 17, height: 17, borderRadius: "50%", filter: "drop-shadow(0 0 6px rgba(0,255,136,0.55))" }}
+            />
+            <span
+              style={{
+                color: C.text,
+                fontSize: 14,
+                fontWeight: 800,
+                fontVariantNumeric: "tabular-nums",
+                lineHeight: 1,
+              }}
+            >
+              {Number(profile.claimable_points || 0).toLocaleString()}
+            </span>
+          </Link>
 
           {/* RIGHT: gift quick-action + avatar with dropdown */}
           <style>{`@keyframes mishGiftPulse {

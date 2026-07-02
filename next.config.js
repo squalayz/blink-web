@@ -45,6 +45,17 @@ const nextConfig = {
     config.resolve.fallback = {
       ...(config.resolve.fallback || {}),
       "@react-native-async-storage/async-storage": false,
+      // @wagmi/connectors dynamically imports every wallet SDK it supports.
+      // We only ship injected + Coinbase Wallet; stub the optional packages
+      // we don't install so webpack can resolve the barrel file.
+      porto: false,
+      "porto/internal": false,
+      "@metamask/connect-evm": false,
+      "@base-org/account": false,
+      "@safe-global/safe-apps-sdk": false,
+      "@safe-global/safe-apps-provider": false,
+      "@walletconnect/ethereum-provider": false,
+      accounts: false,
     };
     return config;
   },

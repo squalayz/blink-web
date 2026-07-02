@@ -12,6 +12,7 @@
     "test:catch-identity": "tsx scripts/test-catch-identity.ts"
   },
   "dependencies": {
+    "@coinbase/wallet-sdk": "^4.3.7",
     "@gsap/react": "^2.1.2",
     "@lottiefiles/react-lottie-player": "^3.6.0",
     "@next-auth/supabase-adapter": "^0.2.1",
@@ -80,7 +81,7 @@
     "tsparticles": "^4.0.5",
     "use-sound": "^5.0.0",
     "vaul": "^1.1.2",
-    "viem": "^2.19.0",
+    "viem": "^2.54.1",
     "wagmi": "^3.6.16",
     "zustand": "^4.5.0"
   },

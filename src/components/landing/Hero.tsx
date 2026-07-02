@@ -252,12 +252,14 @@ export function Hero() {
         <h1
           className="hero-fade-2"
           style={{
-            fontFamily: "Space Grotesk, Inter, sans-serif",
+            fontFamily: "Space Grotesk, ui-rounded, 'SF Pro Rounded', Inter, sans-serif",
             fontWeight: 900,
-            fontSize: "clamp(64px, 13vw, 150px)",
-            lineHeight: 0.9,
-            letterSpacing: "0.02em",
-            margin: "0 0 18px",
+            fontSize: "clamp(58px, 12vw, 140px)",
+            lineHeight: 0.95,
+            // The app's splash wordmark: weight .black, wide tracking.
+            letterSpacing: "0.14em",
+            marginLeft: "0.14em",
+            margin: "0 0 12px",
             color: WHITE,
             textShadow:
               "0 6px 50px rgba(0,0,0,0.85), 0 0 80px rgba(0,255,136,0.25)",
@@ -269,14 +271,30 @@ export function Hero() {
         <p
           className="hero-fade-3"
           style={{
-            fontFamily: "Space Grotesk, Inter, sans-serif",
-            fontSize: "clamp(18px, 3vw, 28px)",
-            fontWeight: 800,
-            letterSpacing: "0.06em",
+            fontFamily: "Space Grotesk, ui-rounded, 'SF Pro Rounded', Inter, sans-serif",
+            fontSize: "clamp(13px, 2vw, 17px)",
+            fontWeight: 900,
+            letterSpacing: "0.42em",
             textTransform: "uppercase",
-            margin: "0 0 14px",
+            margin: "0 0 18px",
             color: GREEN,
             textShadow: "0 0 28px rgba(0,255,136,0.55), 0 2px 24px rgba(0,0,0,0.8)",
+          }}
+        >
+          The World Is Alive
+        </p>
+
+        <p
+          className="hero-fade-3"
+          style={{
+            fontFamily: "Space Grotesk, Inter, sans-serif",
+            fontSize: "clamp(16px, 2.4vw, 24px)",
+            fontWeight: 800,
+            letterSpacing: "0.05em",
+            textTransform: "uppercase",
+            margin: "0 0 14px",
+            color: WHITE,
+            textShadow: "0 2px 24px rgba(0,0,0,0.8)",
           }}
         >
           Catch creatures. Earn $BLINK. Win real ETH.
@@ -318,7 +336,8 @@ export function Hero() {
               padding: "18px 44px",
               borderRadius: 999,
               border: "none",
-              background: GREEN,
+              // The app's "Continue" CTA: lime→green gradient, black label.
+              background: "linear-gradient(90deg, #88FF00, #00FF88)",
               color: BG,
               fontSize: "clamp(14px, 1.8vw, 16px)",
               fontWeight: 900,

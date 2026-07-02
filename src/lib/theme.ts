@@ -1,7 +1,10 @@
-// BLINK palette — green / white / black. All cyan/purple/indigo collapsed to green per Phase 1.
+import type React from 'react';
+
+// BLINK palette — mirrors the native iOS app's BlinkTheme.swift exactly.
+// background #0a0a0f · surface #12121a · primary #00FF88 · secondary #88FF00
 export const C = {
   bg: '#0a0a0f',
-  surface: '#0d0d14',
+  surface: '#12121a',
   s2: '#1a1a24',
   card: 'rgba(255,255,255,0.04)',
   cardSolid: '#1a1a24',
@@ -11,6 +14,8 @@ export const C = {
   accent: '#00FF88',
   gold: '#88FF00',
   text: '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.7)',
+  textTertiary: 'rgba(255,255,255,0.5)',
   muted: '#8a8a99',
   rareBlue: '#88FF00',
   border: 'rgba(255,255,255,0.06)',
@@ -19,12 +24,79 @@ export const C = {
   ethBlue: '#88FF00',
   solPurple: '#00FF88',
   glass: 'rgba(255,255,255,0.04)',
-  glassBorder: 'rgba(0,255,136,0.08)',
+  glassBorder: 'rgba(255,255,255,0.08)',
   indigo: '#00FF88',
   cyan: '#00FF88',
   glow: 'rgba(0,255,136,0.4)',
   glowSoft: 'rgba(0,255,136,0.18)',
 };
+
+// ── App design system (ported from ios-blink BlinkTheme.swift) ──────────────
+
+// Rarity tints — identical to the app's Rarity.color switch.
+export const RARITY_COLOR: Record<string, string> = {
+  common: '#9aa3b2',
+  uncommon: '#00FF88',
+  rare: '#88FF00',
+  legendary: '#ffd166',
+  mythic: '#ff8ae0',
+};
+
+// Web equivalent of the app's `.glassCard(cornerRadius:glow:)` modifier:
+// ultraThinMaterial + 1px white 0.08 border + soft glow shadow (r24 y8).
+export function glassCard(cornerRadius = 20, glow = C.primary): React.CSSProperties {
+  return {
+    background: 'rgba(18,18,26,0.66)',
+    backdropFilter: 'blur(22px)',
+    WebkitBackdropFilter: 'blur(22px)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: cornerRadius,
+    boxShadow: `0 8px 24px ${glow}2e`,
+  };
+}
+
+// The app's rounded-black display face (SF Rounded, weight .black).
+export const FONT_DISPLAY =
+  "'Space Grotesk', ui-rounded, 'SF Pro Rounded', 'Inter', system-ui, sans-serif";
+export const FONT_BODY = "'Inter', system-ui, sans-serif";
+
+// Heavy all-caps label, e.g. "BLINK ORBS", "RECENT ACTIVITY".
+export function capsLabel(size = 11, color: string = C.textSecondary): React.CSSProperties {
+  return {
+    fontSize: size,
+    fontWeight: 800,
+    letterSpacing: '0.18em',
+    textTransform: 'uppercase',
+    color,
+    fontFamily: FONT_DISPLAY,
+  };
+}
+
+// Monospaced-digit counter, e.g. the orb balance hero number.
+export function counterFont(size = 38): React.CSSProperties {
+  return {
+    fontSize: size,
+    fontWeight: 900,
+    fontFamily: FONT_DISPLAY,
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '-0.02em',
+    lineHeight: 1.05,
+  };
+}
+
+// Primary CTA — the app's lime→green gradient "Continue" button.
+export function primaryCta(): React.CSSProperties {
+  return {
+    background: `linear-gradient(90deg, ${C.primary2}, ${C.primary})`,
+    color: '#0a0a0f',
+    fontWeight: 900,
+    fontFamily: FONT_DISPLAY,
+    borderRadius: 999,
+    border: 'none',
+    boxShadow: '0 6px 18px rgba(0,255,136,0.45)',
+    cursor: 'pointer',
+  };
+}
 
 export const FEE = {
   platformDeploy: 0.10,

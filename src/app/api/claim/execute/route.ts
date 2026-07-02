@@ -3,6 +3,7 @@ import { createHash } from "crypto";
 import { ethers } from "ethers";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { isValidAddress } from "@/lib/production";
+import { getAuthUser } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -49,26 +50,50 @@ export async function POST(req: NextRequest) {
     const password: string = (body?.password || "").toString();
     ethAddress = (body?.eth_address || "").toString().trim();
 
-    if (!claimCode || !password || !ethAddress) {
+    if (!ethAddress) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
     if (!isValidAddress(ethAddress)) {
       return NextResponse.json({ error: "Invalid Ethereum address" }, { status: 400 });
     }
 
-    const { data: profile, error: profErr } = await supabaseAdmin
-      .from("profiles")
-      .select("id, claimable_points, claim_password_hash, total_claimed_tokens")
-      .eq("claim_code", claimCode)
-      .maybeSingle();
+    // Two ways in: a logged-in web session (Authorization bearer), or the
+    // legacy claim-code + password pair issued by the iOS app. Both resolve
+    // to the same profile row and share the transfer/ledger logic below.
+    let profile:
+      | { id: string; claimable_points: number | null; claim_password_hash?: string | null; total_claimed_tokens: number | null }
+      | null = null;
 
-    if (profErr || !profile) {
-      return NextResponse.json({ error: "Invalid code or password" }, { status: 401 });
-    }
+    if (claimCode && password) {
+      const { data, error: profErr } = await supabaseAdmin
+        .from("profiles")
+        .select("id, claimable_points, claim_password_hash, total_claimed_tokens")
+        .eq("claim_code", claimCode)
+        .maybeSingle();
 
-    const ok = await verifyPassword(password, profile.claim_password_hash || "");
-    if (!ok) {
-      return NextResponse.json({ error: "Invalid code or password" }, { status: 401 });
+      if (profErr || !data) {
+        return NextResponse.json({ error: "Invalid code or password" }, { status: 401 });
+      }
+
+      const ok = await verifyPassword(password, data.claim_password_hash || "");
+      if (!ok) {
+        return NextResponse.json({ error: "Invalid code or password" }, { status: 401 });
+      }
+      profile = data;
+    } else {
+      const authUser = await getAuthUser(req);
+      if (!authUser) {
+        return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      }
+      const { data, error: profErr } = await supabaseAdmin
+        .from("profiles")
+        .select("id, claimable_points, total_claimed_tokens")
+        .eq("id", authUser.id)
+        .maybeSingle();
+      if (profErr || !data) {
+        return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+      }
+      profile = data;
     }
 
     profileId = profile.id;

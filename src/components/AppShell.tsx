@@ -6,7 +6,7 @@ import PortfolioBar from "./PortfolioBar";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import { C } from "@/lib/theme";
 
-const SHOW_SHELL_PATHS = ["/watch", "/live", "/spawn", "/messages", "/profile", "/council", "/wallet", "/missions", "/tasks", "/squads", "/market", "/trails", "/travel", "/map", "/friends", "/gifts"];
+const SHOW_SHELL_PATHS = ["/watch", "/live", "/spawn", "/messages", "/profile", "/council", "/wallet", "/missions", "/tasks", "/squads", "/market", "/trails", "/travel", "/map", "/friends", "/gifts", "/claim"];
 const HIDE_SHELL_PREFIXES = ["/onboarding", "/auth", "/catch", "/orb"];
 
 function shouldShowShell(pathname: string): boolean {

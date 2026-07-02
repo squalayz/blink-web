@@ -1007,7 +1007,7 @@ export default function MapPage() {
               fontWeight: catchableSpawns.length > 0 ? 700 : 500,
               letterSpacing: "0.01em",
             }}>
-              {catchableSpawns.length > 0 ? `✨ ${catchableSpawns.length} nearby` : "The Eye is quiet"}
+              {catchableSpawns.length > 0 ? `${catchableSpawns.length} nearby` : "The Eye is quiet"}
             </span>
           </div>
 
@@ -1026,10 +1026,15 @@ export default function MapPage() {
               alignItems: "center",
               gap: 5,
             }}>
-              <span style={{ fontSize: 14, lineHeight: 1 }}>⚡</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/brand/logo-orb-transparent.png"
+                alt=""
+                style={{ width: 17, height: 17, borderRadius: "50%", filter: "drop-shadow(0 0 6px rgba(0,255,136,0.55))" }}
+              />
               {blinkBalance === null
                 ? <span style={{ color: COLORS.textMuted, fontSize: 13, fontWeight: 700 }}>···</span>
-                : <span style={{ color: COLORS.text, fontSize: 13, fontWeight: 700 }}>{blinkBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                : <span style={{ color: COLORS.text, fontSize: 14, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{blinkBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
               }
             </div>
           </Link>
@@ -1078,9 +1083,13 @@ export default function MapPage() {
           animation: "claimPulse 2s infinite",
         }}
       >
-        <span style={{ fontSize: 14 }}>🎁</span>
-        <span style={{ color: "#00FF88", fontWeight: 800, fontSize: 14 }}>Claim Rewards</span>
-        <span style={{ color: "#FFFFFF", fontSize: 14, fontWeight: 600 }}>→</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/logo-orb-transparent.png"
+          alt=""
+          style={{ width: 18, height: 18, borderRadius: "50%", filter: "drop-shadow(0 0 6px rgba(0,255,136,0.6))" }}
+        />
+        <span style={{ color: "#00FF88", fontWeight: 900, fontSize: 13, letterSpacing: "0.12em", textTransform: "uppercase" }}>Claim Rewards</span>
       </button>
 
       {/* ========== HOT/COLD COMPASS ========== */}

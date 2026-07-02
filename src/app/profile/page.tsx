@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
-import { C, truncateAddress } from "@/lib/theme";
+import { C, truncateAddress, capsLabel, counterFont, primaryCta } from "@/lib/theme";
 import type { UserProfile, Orb, OrbCurrency } from "@/lib/theme";
 import GlassCard from "@/components/GlassCard";
 import Skeleton from "@/components/Skeleton";
@@ -828,6 +829,47 @@ export default function ProfilePage() {
   /* ============================================================ */
   const leftColumn = (
     <>
+      {/* Orb Bank — points balance + claim CTA (mirrors the app's OrbBankCard) */}
+      <GlassCard style={{ marginBottom: 14, padding: "18px 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ ...capsLabel(11, C.primary), textShadow: "0 0 12px rgba(0,255,136,0.5)" }}>
+            BLINK Points
+          </span>
+          <span style={{ ...capsLabel(9, C.textTertiary) }}>Only you</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/logo-orb-transparent.png"
+            alt=""
+            style={{ width: 40, height: 40, borderRadius: "50%", filter: "drop-shadow(0 0 10px rgba(0,255,136,0.55))" }}
+          />
+          <span style={counterFont(34)}>
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            {Number((profile as any).claimable_points || 0).toLocaleString()}
+          </span>
+        </div>
+        <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 8, lineHeight: 1.5 }}>
+          Earned walking and catching. 1,000 points = 1 $BLINK on Ethereum mainnet.
+        </div>
+        <Link
+          href="/claim"
+          style={{
+            ...primaryCta(),
+            display: "block",
+            marginTop: 14,
+            padding: "13px 18px",
+            textAlign: "center",
+            textDecoration: "none",
+            fontSize: 12,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+          }}
+        >
+          Claim $BLINK
+        </Link>
+      </GlassCard>
+
       {/* Score Section */}
       <GlassCard
         style={{
