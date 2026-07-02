@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
-import { C, truncateAddress, capsLabel, counterFont, primaryCta } from "@/lib/theme";
+import { C, truncateAddress, capsLabel, counterFont, primaryCta, glassCard, FONT_DISPLAY } from "@/lib/theme";
 import type { UserProfile, Orb, OrbCurrency } from "@/lib/theme";
 import GlassCard from "@/components/GlassCard";
 import Skeleton from "@/components/Skeleton";
@@ -28,14 +28,14 @@ type Tier = { label: string; color: string; bg: string };
 
 function getTier(score: number): Tier {
   if (score >= 1000)
-    return { label: "Legend", color: "#EF4444", bg: "rgba(239,68,68,0.12)" };
+    return { label: "Legend", color: "#FFD166", bg: "rgba(255,209,102,0.12)" };
   if (score >= 500)
-    return { label: "Elite", color: C.gold, bg: "rgba(245,158,11,0.12)" };
+    return { label: "Elite", color: "#FFCC4D", bg: "rgba(255,204,77,0.12)" };
   if (score >= 200)
     return { label: "Veteran", color: C.primary, bg: "rgba(0,255,136,0.12)" };
   if (score >= 50)
     return { label: "Watcher", color: C.accent, bg: "rgba(0,255,136,0.12)" };
-  return { label: "Newcomer", color: C.muted, bg: "rgba(156,163,175,0.10)" };
+  return { label: "Newcomer", color: "#9AA3B2", bg: "rgba(154,163,178,0.10)" };
 }
 
 function rarityColor(r: string): string {
@@ -228,7 +228,7 @@ interface ChainMeta {
 // BLINK: ETH-only — Solana/Bitcoin chain rows hidden. Underlying multi-chain code preserved for future L2 work.
 const CHAINS: ChainMeta[] = [
   // { key: "solana", currency: "SOL", name: "Solana", color: C.solPurple, gradient: "linear-gradient(135deg, #1a0533 0%, #2d1060 100%)" }, // BLINK: ETH-only — disabled
-  { key: "ethereum", currency: "ETH", name: "Ethereum", color: C.primary, gradient: "linear-gradient(135deg, #0a1628 0%, #1a2d5a 100%)" },
+  { key: "ethereum", currency: "ETH", name: "Ethereum", color: C.primary, gradient: "linear-gradient(135deg, rgba(0,255,136,0.10) 0%, rgba(255,255,255,0.03) 100%)" },
   // { key: "bitcoin", currency: "BTC", name: "Bitcoin", color: C.btcOrange, gradient: "linear-gradient(135deg, #1a0d00 0%, #3d1f00 100%)" }, // BLINK: ETH-only — disabled
 ];
 
@@ -399,8 +399,10 @@ function AnimatedStatCard({
         <div style={{ color: accent, marginBottom: 2 }}>{icon}</div>
         <span
           style={{
-            fontSize: 22,
-            fontWeight: 800,
+            fontSize: 19,
+            fontWeight: 900,
+            fontFamily: FONT_DISPLAY,
+            fontVariantNumeric: "tabular-nums",
             color: accent,
             lineHeight: 1,
           }}
@@ -409,12 +411,13 @@ function AnimatedStatCard({
         </span>
         <span
           style={{
-            fontSize: 11,
-            color: C.muted,
+            fontSize: 9,
+            color: "rgba(255,255,255,0.7)",
             textAlign: "center",
             textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            fontWeight: 600,
+            letterSpacing: "0.8px",
+            fontWeight: 800,
+            fontFamily: FONT_DISPLAY,
           }}
         >
           {label}
@@ -436,8 +439,8 @@ function OrbRow({ orb }: { orb: Orb }) {
       style={{
         display: "flex",
         alignItems: "center",
-        padding: "14px 16px",
-        background: hovered ? "rgba(255,255,255,0.06)" : C.glass,
+        padding: "12px 14px",
+        background: hovered ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.04)",
         borderRadius: 14,
         border: `1px solid ${hovered ? `${cc}30` : C.glassBorder}`,
         gap: 12,
@@ -448,34 +451,38 @@ function OrbRow({ orb }: { orb: Orb }) {
     >
       <span
         style={{
-          fontSize: 11,
-          fontWeight: 700,
+          width: 38,
+          height: 38,
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 10,
+          fontWeight: 900,
+          fontFamily: FONT_DISPLAY,
           color: cc,
-          background: `${cc}18`,
-          border: `1px solid ${cc}40`,
-          borderRadius: 6,
-          padding: "2px 8px",
-          minWidth: 36,
-          textAlign: "center",
+          background: `${cc}29`,
+          flexShrink: 0,
         }}
       >
         {orb.currency}
       </span>
-      <span style={{ color: C.text, fontWeight: 600, fontSize: 14, flex: 1 }}>
+      <span style={{ color: C.text, fontWeight: 800, fontSize: 13.5, fontFamily: FONT_DISPLAY, flex: 1 }}>
         {orb.amount} {orb.currency}
       </span>
-      <span style={{ fontSize: 11, color: rc, fontWeight: 600 }}>
+      <span style={{ fontSize: 10, color: rc, fontWeight: 800, textTransform: "uppercase", letterSpacing: "1px", fontFamily: FONT_DISPLAY }}>
         {orb.rarity}
       </span>
       <span
         style={{
-          fontSize: 11,
+          fontSize: 10,
+          fontWeight: 700,
           color:
             orb.status === "claimed" || orb.status === "cracked"
-              ? C.accent
+              ? C.primary
               : orb.status === "pending"
-              ? C.gold
-              : C.muted,
+              ? "#FFD166"
+              : "rgba(255,255,255,0.5)",
           textTransform: "capitalize",
           minWidth: 54,
           textAlign: "right",
@@ -483,7 +490,7 @@ function OrbRow({ orb }: { orb: Orb }) {
       >
         {orb.status}
       </span>
-      <span style={{ fontSize: 11, color: C.muted, whiteSpace: "nowrap" }}>
+      <span style={{ fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.5)", whiteSpace: "nowrap" }}>
         {dateStr}
       </span>
     </div>
@@ -830,40 +837,56 @@ export default function ProfilePage() {
   const leftColumn = (
     <>
       {/* Orb Bank — points balance + claim CTA (mirrors the app's OrbBankCard) */}
-      <GlassCard style={{ marginBottom: 14, padding: "18px 16px" }}>
+      <GlassCard style={{ ...glassCard(24), marginBottom: 14, padding: "18px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ ...capsLabel(11, C.primary), textShadow: "0 0 12px rgba(0,255,136,0.5)" }}>
+          <span style={{ ...capsLabel(12, C.primary), fontWeight: 900, letterSpacing: "2.2px", textShadow: "0 0 7px rgba(0,255,136,0.7)" }}>
             BLINK Points
           </span>
           <span style={{ ...capsLabel(9, C.textTertiary) }}>Only you</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            marginTop: 12,
+            padding: "14px 16px",
+            borderRadius: 18,
+            background: "linear-gradient(135deg, rgba(0,255,136,0.12), rgba(255,255,255,0.03))",
+            border: "1px solid rgba(0,255,136,0.28)",
+          }}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/brand/logo-orb-transparent.png"
             alt=""
-            style={{ width: 40, height: 40, borderRadius: "50%", filter: "drop-shadow(0 0 10px rgba(0,255,136,0.55))" }}
+            style={{ width: 40, height: 40, borderRadius: "50%", objectFit: "cover", filter: "drop-shadow(0 0 10px rgba(0,255,136,0.55))" }}
           />
-          <span style={counterFont(34)}>
+          <span style={{ ...counterFont(38), color: "#fff" }}>
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {Number((profile as any).claimable_points || 0).toLocaleString()}
           </span>
         </div>
-        <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 8, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 11, fontWeight: 500, color: C.textTertiary, marginTop: 10, lineHeight: 1.5 }}>
           Earned walking and catching. 1,000 points = 1 $BLINK on Ethereum mainnet.
         </div>
         <Link
           href="/claim"
           style={{
             ...primaryCta(),
-            display: "block",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: 44,
             marginTop: 14,
-            padding: "13px 18px",
+            padding: "0 18px",
             textAlign: "center",
             textDecoration: "none",
-            fontSize: 12,
+            fontSize: 13,
+            fontWeight: 800,
             letterSpacing: "0.14em",
             textTransform: "uppercase",
+            boxShadow: "0 0 10px rgba(0,255,136,0.4)",
           }}
         >
           Claim $BLINK
@@ -873,6 +896,7 @@ export default function ProfilePage() {
       {/* Score Section */}
       <GlassCard
         style={{
+          ...glassCard(20),
           marginBottom: 14,
           display: "flex",
           alignItems: "center",
@@ -883,22 +907,21 @@ export default function ProfilePage() {
         <div>
           <p
             style={{
-              fontSize: 11,
-              color: C.muted,
+              fontSize: 10,
+              color: "rgba(255,255,255,0.5)",
               textTransform: "uppercase",
-              letterSpacing: "0.06em",
+              letterSpacing: "1.6px",
               marginBottom: 4,
-              fontWeight: 600,
+              fontWeight: 800,
+              fontFamily: FONT_DISPLAY,
             }}
           >
             BLINK Score
           </p>
           <p
             style={{
-              fontSize: 38,
-              fontWeight: 800,
+              ...counterFont(38),
               color: C.text,
-              lineHeight: 1,
             }}
           >
             {score.toLocaleString()}
@@ -918,7 +941,8 @@ export default function ProfilePage() {
               <span
                 style={{
                   fontSize: 13,
-                  fontWeight: 700,
+                  fontWeight: 800,
+                  fontFamily: FONT_DISPLAY,
                   color: C.gold,
                 }}
               >
@@ -939,11 +963,12 @@ export default function ProfilePage() {
           <span
             style={{
               fontSize: 13,
-              fontWeight: 700,
+              fontWeight: 800,
+              fontFamily: FONT_DISPLAY,
               color: tier.color,
               background: tier.bg,
               border: `1px solid ${tier.color}40`,
-              borderRadius: 10,
+              borderRadius: 999,
               padding: "6px 16px",
             }}
           >

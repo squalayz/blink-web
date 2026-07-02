@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import { motion, useInView } from "framer-motion";
 
 const SURFACE = "#0d0d14";
@@ -11,25 +11,54 @@ const WHITE = "#FFFFFF";
 const MUTED = "#8a8a99";
 const BORDER = "rgba(0,255,136,0.10)";
 
-type Step = { num: string; title: string; copy: string; icon: string };
+type Step = { num: string; title: string; copy: string; icon: ReactNode };
+
+const ICON_PROPS = {
+  width: 40,
+  height: 40,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: GREEN,
+  strokeWidth: 2,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+  style: { filter: `drop-shadow(0 0 10px ${GREEN}80)` },
+  "aria-hidden": true,
+};
 
 const STEPS: Step[] = [
   {
     num: "01",
     title: "WATCH",
-    icon: "◉",
+    icon: (
+      <svg {...ICON_PROPS}>
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    ),
     copy: "Creatures appear on a live map around you. Common, Rare, Legendary, Mythic.",
   },
   {
     num: "02",
     title: "HUNT",
-    icon: "◎",
+    icon: (
+      <svg {...ICON_PROPS}>
+        <path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z" />
+        <circle cx="12" cy="10" r="3" />
+      </svg>
+    ),
     copy: "Walk to them. The closer you get, the brighter they glow.",
   },
   {
     num: "03",
     title: "CATCH",
-    icon: "●",
+    icon: (
+      <svg {...ICON_PROPS}>
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="3.5" fill={GREEN} stroke="none" />
+        <path d="M3 12h5.5M15.5 12H21" />
+      </svg>
+    ),
     copy: "Tap to catch. Keep the creature. Earn $BLINK. Sometimes win ETH.",
   },
 ];
@@ -104,16 +133,7 @@ function StepCard({ step, index, inView }: { step: Step; index: number; inView: 
       </span>
 
       {/* Icon */}
-      <span
-        style={{
-          fontSize: 40,
-          color: GREEN,
-          textShadow: `0 0 20px ${GREEN}80`,
-          lineHeight: 1,
-        }}
-      >
-        {step.icon}
-      </span>
+      <span style={{ lineHeight: 1, display: "inline-flex" }}>{step.icon}</span>
 
       {/* Title */}
       <h3

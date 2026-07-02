@@ -41,7 +41,13 @@ export const metadata: Metadata = {
       "Catch what others can't see. Mystical creatures spawn on a real-world map every minute.",
     images: ["/og-battle.jpg"],
   },
-  icons: { icon: "/brand/logo-orb-transparent.png" },
+  icons: {
+    icon: [
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/brand/logo-orb-transparent.png", sizes: "669x669", type: "image/png" },
+    ],
+    apple: "/apple-icon.png",
+  },
   manifest: "/manifest.json",
 };
 

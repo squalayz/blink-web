@@ -205,6 +205,8 @@ export function Hero() {
                 height: "100%",
                 opacity,
                 display: "block",
+                objectFit: "cover",
+                borderRadius: "50%",
               }}
             />
           </div>

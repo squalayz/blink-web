@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { C } from "@/lib/theme";
+import { C, FONT_DISPLAY } from "@/lib/theme";
 import type { ActivityRow } from "@/lib/theme";
 import GlassCard from "@/components/GlassCard";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
@@ -119,6 +119,14 @@ function IconAntenna({ size = 40, color = C.muted }: { size?: number; color?: st
       <circle cx="12" cy="12" r="2" />
       <path d="M12 14v8" />
       <path d="M9 22h6" />
+    </svg>
+  );
+}
+
+function IconChevronLeft({ size = 16, color = "#fff" }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6" />
     </svg>
   );
 }
@@ -360,12 +368,12 @@ function ActivityCard({ item, index, isNew }: { item: ActivityRow; index: number
         display: "flex",
         alignItems: "center",
         gap: 14,
-        background: C.glass,
-        border: `1px solid ${isNew ? `${color}44` : C.glassBorder}`,
-        borderLeft: `3px solid ${color}`,
-        borderRadius: 16,
-        padding: "14px 16px",
-        marginBottom: 10,
+        background: C.surface,
+        border: `1px solid ${isNew ? `${color}44` : "rgba(255,255,255,0.06)"}`,
+        borderRadius: 24,
+        boxShadow: "0 8px 18px rgba(0,0,0,0.4)",
+        padding: "16px 18px",
+        marginBottom: 22,
         opacity: visible ? 1 : 0,
         transform: visible ? "translateY(0)" : "translateY(16px)",
         transition: "opacity 0.35s ease, transform 0.35s ease, box-shadow 0.2s ease",
@@ -374,22 +382,37 @@ function ActivityCard({ item, index, isNew }: { item: ActivityRow; index: number
         cursor: "default",
       }}
     >
-      {/* Icon circle */}
-      <div
-        style={{
-          width: 42,
-          height: 42,
-          borderRadius: "50%",
-          background: `${color}15`,
-          border: `1.5px solid ${color}33`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        {typeIcon(item.type)}
-      </div>
+      {/* Avatar / icon circle — 38, accent ring */}
+      {item.related_profile_avatar_url ? (
+        <img
+          src={item.related_profile_avatar_url}
+          alt=""
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: "50%",
+            objectFit: "cover",
+            border: `1.5px solid ${color}8c`,
+            flexShrink: 0,
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: "50%",
+            background: `${color}15`,
+            border: `1.5px solid ${color}8c`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          {typeIcon(item.type)}
+        </div>
+      )}
 
       {/* Content */}
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -397,7 +420,8 @@ function ActivityCard({ item, index, isNew }: { item: ActivityRow; index: number
           style={{
             color: C.text,
             fontSize: 14,
-            fontWeight: 600,
+            fontWeight: 800,
+            fontFamily: FONT_DISPLAY,
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -409,8 +433,9 @@ function ActivityCard({ item, index, isNew }: { item: ActivityRow; index: number
         {item.subtitle && (
           <div
             style={{
-              color: C.muted,
-              fontSize: 12,
+              color: "rgba(255,255,255,0.92)",
+              fontSize: 14,
+              fontWeight: 500,
               marginTop: 3,
               whiteSpace: "nowrap",
               overflow: "hidden",
@@ -420,7 +445,14 @@ function ActivityCard({ item, index, isNew }: { item: ActivityRow; index: number
             {rebrandActivityText(item.subtitle)}
           </div>
         )}
-        <div style={{ color: C.muted, fontSize: 11, marginTop: 4, opacity: 0.7 }}>
+        <div
+          style={{
+            color: C.textTertiary,
+            fontSize: 11,
+            fontWeight: 600,
+            marginTop: 4,
+          }}
+        >
           {relativeTime(item.created_at)}
         </div>
       </div>
@@ -429,9 +461,11 @@ function ActivityCard({ item, index, isNew }: { item: ActivityRow; index: number
       {item.amount_text && (
         <div
           style={{
-            color: isPositiveAmount(item.amount_text) ? C.accent : C.danger,
+            color: isPositiveAmount(item.amount_text) ? C.accent : C.lossRed,
             fontSize: 14,
-            fontWeight: 700,
+            fontWeight: 900,
+            fontFamily: FONT_DISPLAY,
+            fontVariantNumeric: "tabular-nums",
             flexShrink: 0,
             textAlign: "right",
           }}
@@ -760,54 +794,73 @@ export default function LiveFeedPage() {
         }
       `}</style>
 
-      {/* ── Header ── */}
+      {/* ── Header (iOS FriendsFeedView chrome) ── */}
       <div
         style={{
-          padding: isDesktop ? "20px 40px 16px" : "60px 20px 16px",
+          padding: isDesktop ? "20px 40px 14px" : "58px 20px 14px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          background: C.surface,
-          borderBottom: `1px solid ${C.glassBorder}`,
+          gap: 12,
+          background: "transparent",
         }}
       >
-        <h1 style={{ color: C.text, fontSize: isDesktop ? 24 : 28, fontWeight: 700, margin: 0 }}>
-          Live Feed
-        </h1>
-
-        {/* Live indicator */}
-        <div
+        {/* Back — 38 glass circle */}
+        <a
+          href="/map"
+          aria-label="Back to map"
           style={{
+            width: 38,
+            height: 38,
+            borderRadius: "50%",
+            background: "rgba(255,255,255,0.06)",
+            backdropFilter: "blur(18px)",
+            WebkitBackdropFilter: "blur(18px)",
+            border: "1px solid rgba(255,255,255,0.1)",
             display: "flex",
             alignItems: "center",
-            gap: 7,
-            background: `${C.accent}15`,
-            border: `1px solid ${C.accent}33`,
-            borderRadius: 20,
-            padding: "5px 12px",
+            justifyContent: "center",
+            textDecoration: "none",
+            flexShrink: 0,
           }}
         >
-          <div
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: C.accent,
-              boxShadow: `0 0 8px ${C.accent}`,
-              animation: "pulseDot 1.4s ease-in-out infinite",
-            }}
-          />
-          <span
-            style={{
-              color: C.accent,
-              fontSize: 12,
-              fontWeight: 700,
-              letterSpacing: "0.06em",
-            }}
-          >
-            LIVE
-          </span>
-        </div>
+          <IconChevronLeft size={16} color="#fff" />
+        </a>
+
+        <h1
+          style={{
+            color: C.text,
+            fontSize: 18,
+            fontWeight: 900,
+            fontFamily: FONT_DISPLAY,
+            letterSpacing: "-0.01em",
+            margin: 0,
+            flex: 1,
+            textAlign: "center",
+          }}
+        >
+          Feed
+        </h1>
+
+        {/* Compose — 38 solid green circle w/ glow */}
+        <a
+          href="/spawn"
+          aria-label="Spawn a BLINK"
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: "50%",
+            background: C.primary,
+            boxShadow: "0 0 18px rgba(0,255,136,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            textDecoration: "none",
+            flexShrink: 0,
+          }}
+        >
+          <IconPlus size={18} color="#0a0a0f" />
+        </a>
       </div>
 
       {/* ── Pull to refresh indicator ── */}
@@ -884,12 +937,16 @@ export default function LiveFeedPage() {
                   onClick={() => setChainFilter(ch)}
                   style={{
                     padding: "7px 16px",
-                    borderRadius: 20,
-                    border: active ? `1.5px solid ${pillColor}` : `1px solid ${C.glassBorder}`,
-                    background: active ? `${pillColor}1a` : "transparent",
-                    color: active ? pillColor : C.muted,
-                    fontSize: 13,
-                    fontWeight: 600,
+                    borderRadius: 999,
+                    border: active ? `1px solid ${pillColor}73` : "1px solid rgba(255,255,255,0.1)",
+                    background: active ? `${pillColor}1f` : "rgba(255,255,255,0.04)",
+                    backdropFilter: "blur(18px)",
+                    WebkitBackdropFilter: "blur(18px)",
+                    color: active ? pillColor : C.textTertiary,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    fontFamily: FONT_DISPLAY,
+                    letterSpacing: "0.04em",
                     cursor: "pointer",
                     flexShrink: 0,
                     transition: "all 0.2s ease",
@@ -899,6 +956,43 @@ export default function LiveFeedPage() {
                 </button>
               );
             })}
+
+            {/* Live indicator */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                background: "rgba(0,255,136,0.10)",
+                border: "1px solid rgba(0,255,136,0.3)",
+                borderRadius: 999,
+                padding: "5px 12px",
+                marginLeft: "auto",
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: C.accent,
+                  boxShadow: `0 0 8px ${C.accent}`,
+                  animation: "pulseDot 1.4s ease-in-out infinite",
+                }}
+              />
+              <span
+                style={{
+                  color: C.accent,
+                  fontSize: 11,
+                  fontWeight: 800,
+                  fontFamily: FONT_DISPLAY,
+                  letterSpacing: "0.14em",
+                }}
+              >
+                LIVE
+              </span>
+            </div>
           </div>
 
           {/* Feed content */}

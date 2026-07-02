@@ -24,7 +24,7 @@ export interface CaptureOrbProps {
   onTap?: () => void;
 }
 
-const ORB_SRC = "/blink-orb-256.webp";
+const ORB_SRC = "/brand/logo-orb-transparent.png";
 const ORB_CSS_ID = "ar-capture-orb-styles";
 // Throw + shake animations. The arc is a CSS keyframe with a translate that
 // goes bottom-of-screen → centre-of-screen, with a slight horizontal swing

@@ -63,14 +63,16 @@ export default function SignInPage() {
 
         <h1
           style={{
-            fontFamily: "'Space Grotesk', 'Inter', sans-serif",
-            fontSize: "clamp(34px, 5vw, 48px)",
+            fontFamily: "ui-rounded, 'SF Pro Rounded', 'Space Grotesk', 'Inter', sans-serif",
+            fontSize: "clamp(44px, 6vw, 58px)",
             fontWeight: 900,
-            letterSpacing: "0.06em",
+            letterSpacing: "0.17em",
             color: WHITE,
             margin: 0,
+            marginRight: "-0.17em",
             lineHeight: 1,
-            textShadow: "0 0 32px rgba(0,255,136,0.35)",
+            textShadow:
+              "0 0 18px rgba(0,255,136,0.85), 0 2px 8px rgba(0,0,0,0.6)",
           }}
         >
           BLINK
@@ -78,18 +80,31 @@ export default function SignInPage() {
 
         <p
           style={{
-            fontFamily: "'Space Grotesk', 'Inter', sans-serif",
-            fontSize: "clamp(18px, 2.4vw, 22px)",
-            fontWeight: 700,
-            letterSpacing: "0.06em",
-            color: WHITE,
+            fontFamily: "ui-rounded, 'SF Pro Rounded', 'Space Grotesk', 'Inter', sans-serif",
+            fontSize: 12,
+            fontWeight: 800,
+            letterSpacing: "6px",
+            color: GREEN,
             textTransform: "uppercase",
             textAlign: "center",
             margin: 0,
-            maxWidth: 520,
+            textShadow: "0 1px 4px rgba(0,0,0,0.6)",
           }}
         >
-          The Bestiary remembers your name.
+          The World Is Alive
+        </p>
+
+        <p
+          style={{
+            fontSize: 14.5,
+            fontWeight: 600,
+            color: "rgba(255,255,255,0.7)",
+            textAlign: "center",
+            margin: 0,
+            textShadow: "0 1px 6px rgba(0,0,0,0.7)",
+          }}
+        >
+          Walk. Discover. Connect.
         </p>
 
         <p
@@ -115,18 +130,17 @@ export default function SignInPage() {
               sounds.play("tick");
             }}
             style={{
-              fontFamily: "'Space Grotesk', 'Inter', sans-serif",
-              padding: "14px 32px",
-              borderRadius: 999,
+              fontFamily: "ui-rounded, 'SF Pro Rounded', 'Space Grotesk', 'Inter', sans-serif",
+              height: 56,
+              padding: "0 32px",
+              borderRadius: 16,
               border: "none",
-              background: `linear-gradient(135deg, ${GREEN}, ${GREEN2})`,
-              color: BG,
-              fontSize: 14,
-              fontWeight: 900,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
+              background: `linear-gradient(90deg, ${GREEN2}, ${GREEN})`,
+              color: "#000",
+              fontSize: 17,
+              fontWeight: 800,
               cursor: "pointer",
-              boxShadow: "0 0 22px rgba(0,255,136,0.45)",
+              boxShadow: "0 6px 18px rgba(0,255,136,0.45)",
             }}
           >
             Create Account
@@ -139,16 +153,17 @@ export default function SignInPage() {
               sounds.play("tick");
             }}
             style={{
-              fontFamily: "'Space Grotesk', 'Inter', sans-serif",
-              padding: "14px 32px",
-              borderRadius: 999,
-              border: `1px solid ${GREEN}`,
-              background: "rgba(0,255,136,0.06)",
-              color: GREEN,
-              fontSize: 14,
-              fontWeight: 900,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
+              fontFamily: "ui-rounded, 'SF Pro Rounded', 'Space Grotesk', 'Inter', sans-serif",
+              height: 56,
+              padding: "0 32px",
+              borderRadius: 16,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.06)",
+              backdropFilter: "blur(22px)",
+              WebkitBackdropFilter: "blur(22px)",
+              color: WHITE,
+              fontSize: 17,
+              fontWeight: 800,
               cursor: "pointer",
             }}
           >

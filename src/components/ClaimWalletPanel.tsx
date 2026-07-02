@@ -30,9 +30,18 @@ import { supabase } from "@/lib/supabase";
 import { C, capsLabel, primaryCta, FONT_DISPLAY } from "@/lib/theme";
 
 const ETH_RE = /^0x[0-9a-fA-F]{40}$/;
-const RED = "#ff5572";
+const RED = "#FF8099";
 const BORDER = "rgba(0,255,136,0.20)";
 const SOFT_BORDER = "rgba(255,255,255,0.10)";
+
+// Focus ring for the manual-address field — inline styles can't express
+// :focus, so this one rule rides along with the panel (style-only).
+const FIELD_FOCUS_CSS = `
+.blinkClaimField:focus {
+  border-color: rgba(0,255,136,0.7) !important;
+  box-shadow: 0 0 0 3px rgba(0,255,136,0.12) !important;
+}
+`;
 
 const REWARDS_ABI = [
   {
@@ -248,6 +257,7 @@ export function WalletClaim({
 
   return (
     <div>
+      <style>{FIELD_FOCUS_CSS}</style>
       <div style={{ ...capsLabel(10, C.textTertiary), marginBottom: 8 }}>Your wallet</div>
 
       {!manualMode ? (
@@ -266,18 +276,22 @@ export function WalletClaim({
             onChange={(e) => setManualAddress(e.target.value)}
             placeholder="0x..."
             spellCheck={false}
+            className="blinkClaimField"
             style={{
               width: "100%",
               padding: "15px 16px",
               borderRadius: 16,
-              background: "rgba(255,255,255,0.05)",
+              background: "rgba(255,255,255,0.06)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
               border: "1px solid rgba(255,255,255,0.12)",
               color: C.text,
               fontSize: 16,
-              fontWeight: 600,
+              fontWeight: 700,
+              fontFamily: "ui-monospace, monospace",
               outline: "none",
               boxSizing: "border-box",
-              fontFamily: "inherit",
+              transition: "border-color 160ms ease, box-shadow 160ms ease",
             }}
           />
           {manualAddress && !manualValid && (
@@ -348,11 +362,12 @@ export function WalletClaim({
           style={{
             marginTop: 14,
             padding: "10px 14px",
-            borderRadius: 10,
-            background: "rgba(255,85,114,0.08)",
-            border: "1px solid rgba(255,85,114,0.3)",
+            borderRadius: 12,
+            background: "rgba(255,128,153,0.12)",
+            border: "1px solid rgba(255,128,153,0.35)",
             color: RED,
             fontSize: 13,
+            fontWeight: 600,
             textAlign: "center",
           }}
         >
@@ -551,10 +566,12 @@ function WalletButton({
         alignItems: "center",
         gap: 12,
         width: "100%",
-        padding: "14px 16px",
+        padding: 14,
         borderRadius: 16,
-        background: "rgba(0,255,136,0.05)",
-        border: `1px solid ${BORDER}`,
+        background: "rgba(255,255,255,0.05)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+        border: "1px solid rgba(255,255,255,0.08)",
         color: C.text,
         cursor: busy ? "wait" : "pointer",
         fontFamily: "inherit",
@@ -566,9 +583,9 @@ function WalletButton({
         style={{
           width: 34,
           height: 34,
-          borderRadius: 10,
+          borderRadius: "50%",
           background: "rgba(0,255,136,0.10)",
-          border: `1px solid ${BORDER}`,
+          border: "1px solid rgba(0,255,136,0.35)",
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
@@ -584,6 +601,9 @@ function WalletButton({
       <span
         style={{
           marginLeft: "auto",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 5,
           fontSize: 10,
           color: C.primary,
           fontWeight: 800,
@@ -593,7 +613,16 @@ function WalletButton({
           flexShrink: 0,
         }}
       >
-        {busy ? <Spinner /> : "Connect"}
+        {busy ? (
+          <Spinner />
+        ) : (
+          <>
+            Connect
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </>
+        )}
       </span>
     </button>
   );
@@ -615,7 +644,7 @@ function TxStatus({ phase, txHash }: { phase: TxPhase; txHash: string | null }) 
       style={{
         marginTop: 16,
         padding: "12px 14px",
-        borderRadius: 12,
+        borderRadius: 14,
         background: "rgba(0,255,136,0.05)",
         border: `1px solid ${BORDER}`,
         display: "flex",

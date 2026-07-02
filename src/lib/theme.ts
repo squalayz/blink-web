@@ -19,7 +19,9 @@ export const C = {
   muted: '#8a8a99',
   rareBlue: '#88FF00',
   border: 'rgba(255,255,255,0.06)',
-  danger: '#EF4444',
+  danger: '#FF6B80',
+  dangerText: '#FF8094',
+  lossRed: '#FF6B75',
   btcOrange: '#88FF00',
   ethBlue: '#88FF00',
   solPurple: '#00FF88',
@@ -57,7 +59,7 @@ export function glassCard(cornerRadius = 20, glow = C.primary): React.CSSPropert
 
 // The app's rounded-black display face (SF Rounded, weight .black).
 export const FONT_DISPLAY =
-  "'Space Grotesk', ui-rounded, 'SF Pro Rounded', 'Inter', system-ui, sans-serif";
+  "ui-rounded, 'SF Pro Rounded', 'Space Grotesk', 'Inter', system-ui, sans-serif";
 export const FONT_BODY = "'Inter', system-ui, sans-serif";
 
 // Heavy all-caps label, e.g. "BLINK ORBS", "RECENT ACTIVITY".

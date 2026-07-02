@@ -12,7 +12,7 @@ const WHITE = "#FFFFFF";
 const MUTED = "#8a8a99";
 const BORDER = "rgba(0,255,136,0.18)";
 const BORDER_DIM = "rgba(255,255,255,0.08)";
-const RED = "#FF6B6B";
+const RED = "#FF8099";
 
 type Mode = "signup" | "signin";
 
@@ -183,16 +183,23 @@ export default function AuthModal({ open, initialMode = "signup", onClose, onSuc
             aria-label="Close"
             onClick={onClose}
             style={{
-              background: "transparent",
-              border: "none",
-              color: MUTED,
-              fontSize: 22,
-              lineHeight: 1,
+              width: 34,
+              height: 34,
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: WHITE,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               cursor: "pointer",
-              padding: 4,
+              padding: 0,
+              flexShrink: 0,
             }}
           >
-            ×
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden>
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
@@ -289,7 +296,7 @@ export default function AuthModal({ open, initialMode = "signup", onClose, onSuc
           {error && (
             <div
               style={{
-                background: "rgba(255,107,107,0.10)",
+                background: "rgba(255,128,153,0.10)",
                 border: `1px solid ${RED}55`,
                 color: RED,
                 fontSize: 13,
@@ -306,18 +313,17 @@ export default function AuthModal({ open, initialMode = "signup", onClose, onSuc
             disabled={loading}
             style={{
               marginTop: 6,
-              padding: "14px 20px",
-              borderRadius: 999,
+              height: 56,
+              padding: "0 20px",
+              borderRadius: 16,
               border: "none",
-              background: loading ? "rgba(0,255,136,0.45)" : `linear-gradient(135deg, ${GREEN}, ${GREEN2})`,
-              color: BG,
-              fontSize: 15,
-              fontWeight: 900,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
+              background: loading ? "rgba(0,255,136,0.45)" : `linear-gradient(90deg, ${GREEN2}, ${GREEN})`,
+              color: "#000",
+              fontSize: 17,
+              fontWeight: 800,
               cursor: loading ? "wait" : "pointer",
-              fontFamily: "'Space Grotesk', 'Inter', sans-serif",
-              boxShadow: loading ? "none" : "0 0 22px rgba(0,255,136,0.45)",
+              fontFamily: "ui-rounded, 'SF Pro Rounded', 'Space Grotesk', 'Inter', sans-serif",
+              boxShadow: loading ? "none" : "0 6px 18px rgba(0,255,136,0.45)",
               transition: "transform 0.15s, box-shadow 0.15s",
             }}
           >
@@ -344,6 +350,12 @@ export default function AuthModal({ open, initialMode = "signup", onClose, onSuc
           from { opacity: 0; }
           to { opacity: 1; }
         }
+        .blink-auth-field:focus-within {
+          border-color: rgba(0,255,136,0.7) !important;
+          box-shadow: 0 0 0 0.5px rgba(0,255,136,0.7);
+        }
+        .blink-auth-field input { caret-color: ${GREEN}; font-weight: 600; }
+        .blink-auth-field input::placeholder { color: rgba(255,255,255,0.5); }
       `}</style>
     </div>
   );
@@ -382,13 +394,19 @@ function Field({
         {label}
       </span>
       <div
+        className="blink-auth-field"
         style={{
           display: "flex",
           alignItems: "center",
-          background: SURFACE2,
-          border: `1px solid ${BORDER_DIM}`,
-          borderRadius: 12,
-          padding: "12px 14px",
+          height: 56,
+          boxSizing: "border-box",
+          background: "rgba(255,255,255,0.06)",
+          backdropFilter: "blur(22px)",
+          WebkitBackdropFilter: "blur(22px)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 16,
+          padding: "0 16px",
+          transition: "border-color 0.18s ease",
         }}
       >
         <input

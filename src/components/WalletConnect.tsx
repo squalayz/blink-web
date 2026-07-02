@@ -35,6 +35,30 @@ function truncate(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
+function EthGlyph({ size = 14, color = C.accent }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M12 2 5 12.2l7 4.1 7-4.1L12 2z" fill={color} fillOpacity="0.9" />
+      <path d="M5 13.6 12 22l7-8.4-7 4.1-7-4.1z" fill={color} fillOpacity="0.55" />
+    </svg>
+  );
+}
+
+function ChainGlyph({ chain, size = 15 }: { chain: "sol" | "btc"; size?: number }) {
+  if (chain === "sol") {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" aria-hidden>
+        <path d="M5 7h12l2 2H7L5 7z" /><path d="M5 15h12l2 2H7l-2-2z" /><path d="M19 11H7l-2 2h12l2-2z" />
+      </svg>
+    );
+  }
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="9" /><path d="M9.5 7.5h4a2 2 0 0 1 0 4h-4zm0 4h4.5a2 2 0 0 1 0 4H9.5zM10.5 6v1.5M13 6v1.5M10.5 16.5V18M13 16.5V18" />
+    </svg>
+  );
+}
+
 export default function WalletConnect({
   userId,
   chain = "eth",
@@ -101,7 +125,7 @@ export default function WalletConnect({
           fontWeight: 500,
         }}
       >
-        <span style={{ fontSize: 16 }}>{chain === "sol" ? "◎" : "₿"}</span>
+        <ChainGlyph chain={chain} />
         {chain.toUpperCase()} — Coming Soon
       </div>
     );
@@ -125,7 +149,7 @@ export default function WalletConnect({
             fontFamily: "monospace",
           }}
         >
-          <span style={{ fontSize: 14 }}>⬡</span>
+          <EthGlyph />
           {truncate(address)}
         </div>
         <button
@@ -155,18 +179,19 @@ export default function WalletConnect({
           display: "inline-flex",
           alignItems: "center",
           gap: 8,
-          padding: "10px 20px",
-          borderRadius: 10,
+          padding: "12px 22px",
+          borderRadius: 999,
           background: connecting ? `${C.primary}80` : C.primary,
           border: "none",
-          color: C.text,
+          color: "#000",
           fontSize: 14,
-          fontWeight: 600,
+          fontWeight: 800,
           cursor: connecting ? "wait" : "pointer",
           transition: "opacity 0.15s",
+          boxShadow: "0 0 14px rgba(0,255,136,0.4)",
         }}
       >
-        <span style={{ fontSize: 16 }}>⬡</span>
+        <EthGlyph color="#000" />
         {connecting ? "Connecting..." : "Connect ETH Wallet"}
       </button>
       {error && (

@@ -10,11 +10,19 @@ export default function InvitePage({ params }: { params: { code: string } }) {
     }}>
       <div style={{ textAlign: 'center', padding: '20px' }}>
         <div style={{
-          fontSize: '72px',
           marginBottom: '20px',
+          display: 'flex',
+          justifyContent: 'center',
           filter: 'drop-shadow(0 0 20px #00FF88)'
         }}>
-          👁️
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/logo-orb-transparent.png"
+            alt=""
+            width={96}
+            height={96}
+            style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: '50%', display: 'block' }}
+          />
         </div>
         
         <h1 style={{
@@ -63,7 +71,8 @@ export default function InvitePage({ params }: { params: { code: string } }) {
           style={{
             display: 'inline-block',
             padding: '16px 32px',
-            borderRadius: '12px',
+            borderRadius: '999px',
+            boxShadow: '0 0 18px rgba(0,255,136,0.45)',
             background: '#00FF88',
             color: '#0a0a0f',
             fontSize: '18px',

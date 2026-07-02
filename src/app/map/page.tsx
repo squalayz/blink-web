@@ -1506,7 +1506,8 @@ export default function MapPage() {
               whiteSpace: "nowrap",
             }}
           >
-            <span>👥 {players.length} player{players.length !== 1 ? "s" : ""} nearby</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00FF88" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>{players.length} player{players.length !== 1 ? "s" : ""} nearby</span>
           </motion.button>
         )}
       </AnimatePresence>
@@ -1555,8 +1556,9 @@ export default function MapPage() {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.01em" }}>
-                  👥 {players.length} player{players.length !== 1 ? "s" : ""} nearby
+                <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.01em", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00FF88" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  {players.length} player{players.length !== 1 ? "s" : ""} nearby
                 </span>
                 <button
                   onClick={() => setNearbyPlayersOpen(false)}
@@ -2445,18 +2447,19 @@ export default function MapPage() {
           transition={{ delay: 0.3, type: "spring", stiffness: 300 }}
           style={{
             display: "inline-block",
-            background: accent,
+            background: "linear-gradient(90deg, #00FF88, #88FF00)",
             color: "#000",
             fontSize: 11,
             fontWeight: 900,
             letterSpacing: 3,
-            padding: "4px 14px",
-            borderRadius: 20,
+            padding: "5px 14px",
+            borderRadius: 999,
             marginBottom: 16,
             textTransform: "uppercase",
+            boxShadow: "0 0 12px rgba(0,255,136,0.6)",
           }}
         >
-          ⚡ CAUGHT!
+          CAUGHT!
         </motion.div>
 
         {/* Creature card image */}
@@ -2484,7 +2487,9 @@ export default function MapPage() {
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             />
           ) : (
-            <div style={{ width: "100%", height: "100%", background: `radial-gradient(circle, ${accent}44, #0a0a0f)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 48 }}>👁</div>
+            <div style={{ width: "100%", height: "100%", background: `radial-gradient(circle, ${accent}44, #0a0a0f)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3" fill={accent} stroke="none"/></svg>
+            </div>
           )}
           {/* Shine sweep */}
           <motion.div
@@ -2562,7 +2567,7 @@ export default function MapPage() {
           {/* Share button */}
           <button
             onClick={() => {
-              const text = `🔥 Just caught ${catchResult.name} on @blinkworldeth and earned ${catchResult.blinkRewarded.toLocaleString()} $BLINK tokens!\n\nReal crypto. Real NFTs. Real money.\n\nhttps://blinkworld.xyz`;
+              const text = `Just caught ${catchResult.name} on @blinkworldeth and earned ${catchResult.blinkRewarded.toLocaleString()} $BLINK tokens!\n\nReal crypto. Real NFTs. Real money.\n\nhttps://blinkworld.xyz`;
               if (navigator.share) {
                 navigator.share({ text }).catch(() => {});
               } else {
@@ -2571,18 +2576,19 @@ export default function MapPage() {
             }}
             style={{
               width: "100%",
-              padding: "14px 0",
-              borderRadius: 14,
+              padding: "15px 0",
+              borderRadius: 999,
               border: "none",
               background: accent,
               color: "#000",
-              fontSize: 14,
+              fontSize: 15,
               fontWeight: 900,
               cursor: "pointer",
               letterSpacing: 0.5,
+              boxShadow: `0 0 16px ${accent}80`,
             }}
           >
-            📢 Share Your Catch
+            Share Your Catch
           </button>
 
           {catchResult.openseaUrl && (

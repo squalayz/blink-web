@@ -30,16 +30,32 @@ function LiveFeedIcon({ active }: { active: boolean }) {
   );
 }
 
-// "Claim" center button — the BLINK orb, the same mark the app cradles in
-// its catch flow. Sits on the gradient disc like the app's primary CTA.
-function ClaimIcon() {
+// "Claim" center button — the BLINK orb rendered the way the app's
+// BlinkOrbBadge does: circle-clipped mark + green ring + breathing halo.
+function ClaimIcon({ size = 44 }: { size?: number }) {
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src="/brand/logo-orb-transparent.png"
-      alt=""
-      style={{ width: 30, height: 30, borderRadius: "50%", filter: "drop-shadow(0 1px 3px rgba(10,10,15,0.5))" }}
-    />
+    <span
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        overflow: "hidden",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        border: "2px solid rgba(0,255,136,0.45)",
+        background: "#0a0a0f",
+        boxShadow: `0 0 18px ${C.primary}59, 0 0 40px ${C.primary}26`,
+        flexShrink: 0,
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/brand/logo-orb-transparent.png"
+        alt=""
+        style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%", display: "block" }}
+      />
+    </span>
   );
 }
 
@@ -132,10 +148,8 @@ export default function BottomNav() {
             bottom: 0,
             width: SIDEBAR_WIDTH,
             zIndex: 900,
-            background: "rgba(13,13,20,0.92)",
-            backdropFilter: "blur(24px)",
-            WebkitBackdropFilter: "blur(24px)",
-            borderRight: "1px solid rgba(0,255,136,0.08)",
+            background: "#0a0a0f",
+            borderRight: "1px solid rgba(255,255,255,0.06)",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
@@ -192,24 +206,14 @@ export default function BottomNav() {
                   >
                     <div
                       style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: "50%",
-                        background: `linear-gradient(135deg, ${C.primary}, ${C.primary2})`,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        boxShadow: isHovered
-                          ? `0 4px 24px ${C.primary}90, 0 0 48px ${C.primary}40`
-                          : `0 4px 20px ${C.primary}70, 0 0 40px ${C.primary}30`,
-                        border: "2px solid rgba(0,0,0,0.4)",
                         transform: isHovered ? "scale(1.08)" : "scale(1)",
-                        transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                        transition: "transform 0.2s ease",
+                        display: "flex",
                       }}
                     >
-                      {tab.icon(active)}
+                      <ClaimIcon size={44} />
                     </div>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: C.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    <span style={{ fontSize: 9, fontWeight: 600, color: C.primary, letterSpacing: "0.01em" }}>
                       {tab.label}
                     </span>
                   </Link>
@@ -263,14 +267,13 @@ export default function BottomNav() {
                           height: 16,
                           padding: "0 4px",
                           borderRadius: 8,
-                          background: C.primary,
-                          color: "#0a0a0f",
+                          background: "#FF3B30",
+                          color: "#fff",
                           fontSize: 10,
-                          fontWeight: 800,
+                          fontWeight: 700,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          boxShadow: `0 0 8px ${C.primary}`,
                           lineHeight: 1,
                         }}
                       >
@@ -281,8 +284,8 @@ export default function BottomNav() {
                   <span
                     style={{
                       fontSize: 9,
-                      fontWeight: active ? 700 : 500,
-                      color: active ? C.text : C.muted,
+                      fontWeight: active ? 600 : 500,
+                      color: active ? C.primary : C.muted,
                       letterSpacing: "0.02em",
                     }}
                   >
@@ -304,148 +307,57 @@ export default function BottomNav() {
     );
   }
 
-  /* ===== MOBILE / TABLET: Bottom pill nav ===== */
+  /* ===== MOBILE / TABLET: opaque full-width tab bar (mirrors iOS UITabBar:
+     #0A0A0F opaque, 1px white@0.06 hairline top, green selected / gray idle) ===== */
   return (
-    <>
-      <nav
+    <nav
+      style={{
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 900,
+        background: "#0a0a0f",
+        borderTop: "1px solid rgba(255,255,255,0.06)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+      }}
+    >
+      <div
         style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 900,
-          paddingBottom: "env(safe-area-inset-bottom, 0px)",
-          background: "transparent",
-          pointerEvents: "none",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-around",
+          maxWidth: isTablet ? 600 : 480,
+          margin: "0 auto",
+          padding: "5px 4px 4px",
+          minHeight: 49,
         }}
       >
-        <div
-          style={{
-            pointerEvents: "auto",
-            width: "calc(100% - 32px)",
-            maxWidth: isTablet ? 600 : 480,
-            margin: "0 auto 12px",
-            background: "rgba(13,13,20,0.88)",
-            backdropFilter: "blur(24px)",
-            WebkitBackdropFilter: "blur(24px)",
-            borderRadius: 32,
-            border: "1px solid rgba(0,255,136,0.10)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-around",
-            padding: "6px 4px",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-          }}
-        >
-          {TABS.map((tab) => {
-            const active = isActive(tab.href);
+        {TABS.map((tab) => {
+          const active = isActive(tab.href);
 
-            if (tab.isCenter) {
-              return (
-                <Link
-                  key={tab.id}
-                  href={tab.href}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 2,
-                    textDecoration: "none",
-                    flex: 1,
-                    position: "relative",
-                    top: -14,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 52,
-                      height: 52,
-                      borderRadius: "50%",
-                      background: `linear-gradient(135deg, ${C.primary}, ${C.primary2})`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      boxShadow: `0 4px 20px ${C.primary}70, 0 0 40px ${C.primary}30`,
-                      border: "2px solid rgba(0,0,0,0.4)",
-                      animation: "btnGlow 3s ease-in-out infinite",
-                    }}
-                  >
-                    {tab.icon(active)}
-                  </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: C.primary, marginTop: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    {tab.label}
-                  </span>
-                </Link>
-              );
-            }
-
-            const isHovered = hoveredTab === tab.id;
-
+          if (tab.isCenter) {
             return (
               <Link
                 key={tab.id}
                 href={tab.href}
-                onMouseEnter={() => setHoveredTab(tab.id)}
-                onMouseLeave={() => setHoveredTab(null)}
                 style={{
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
                   gap: 3,
-                  padding: "8px 4px 6px",
                   textDecoration: "none",
                   flex: 1,
                   position: "relative",
-                  opacity: isHovered && !active ? 0.85 : 1,
-                  transform: isHovered ? "scale(1.08)" : "scale(1)",
-                  transition: "opacity 0.15s, transform 0.15s",
+                  top: -10,
                 }}
               >
-                {active && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 2,
-                      width: 4,
-                      height: 4,
-                      borderRadius: "50%",
-                      background: C.primary,
-                      boxShadow: `0 0 6px ${C.primary}`,
-                    }}
-                  />
-                )}
-                <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {tab.icon(active)}
-                  {tab.showBadge && walletBadge > 0 && (
-                    <span
-                      style={{
-                        position: "absolute",
-                        top: -5,
-                        right: -9,
-                        minWidth: 16,
-                        height: 16,
-                        padding: "0 4px",
-                        borderRadius: 8,
-                        background: C.primary,
-                        color: "#0a0a0f",
-                        fontSize: 10,
-                        fontWeight: 800,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        boxShadow: `0 0 8px ${C.primary}`,
-                        lineHeight: 1,
-                      }}
-                    >
-                      {walletBadge > 9 ? "9+" : walletBadge}
-                    </span>
-                  )}
-                </div>
+                <ClaimIcon size={46} />
                 <span
                   style={{
                     fontSize: 10,
-                    fontWeight: active ? 700 : 500,
-                    color: active ? C.text : C.muted,
+                    fontWeight: 600,
+                    color: C.primary,
                     letterSpacing: "0.01em",
                   }}
                 >
@@ -453,16 +365,69 @@ export default function BottomNav() {
                 </span>
               </Link>
             );
-          })}
-        </div>
-      </nav>
+          }
 
-      <style>{`
-        @keyframes btnGlow {
-          0%, 100% { box-shadow: 0 4px 20px ${C.primary}60, 0 0 40px ${C.primary}30; }
-          50% { box-shadow: 0 4px 28px ${C.primary}90, 0 0 56px ${C.primary}50; }
-        }
-      `}</style>
-    </>
+          const isHovered = hoveredTab === tab.id;
+
+          return (
+            <Link
+              key={tab.id}
+              href={tab.href}
+              onMouseEnter={() => setHoveredTab(tab.id)}
+              onMouseLeave={() => setHoveredTab(null)}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 3,
+                padding: "6px 4px 4px",
+                textDecoration: "none",
+                flex: 1,
+                position: "relative",
+                opacity: isHovered && !active ? 0.85 : 1,
+                transition: "opacity 0.15s",
+              }}
+            >
+              <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {tab.icon(active)}
+                {tab.showBadge && walletBadge > 0 && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: -5,
+                      right: -9,
+                      minWidth: 16,
+                      height: 16,
+                      padding: "0 4px",
+                      borderRadius: 8,
+                      background: "#FF3B30",
+                      color: "#fff",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {walletBadge > 9 ? "9+" : walletBadge}
+                  </span>
+                )}
+              </div>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: active ? 600 : 500,
+                  color: active ? C.primary : C.muted,
+                  letterSpacing: "0.01em",
+                }}
+              >
+                {tab.label}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
