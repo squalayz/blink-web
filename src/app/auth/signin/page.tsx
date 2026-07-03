@@ -232,7 +232,7 @@ function BlinkEye() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         className="blink-signin-anim"
-        src="/brand/logo-orb-transparent.png"
+        src="/brand/logo-orb-glow.png"
         alt="BLINK"
         fetchPriority="high"
         decoding="async"
@@ -242,8 +242,7 @@ function BlinkEye() {
           position: "relative",
           width: "100%",
           height: "100%",
-          objectFit: "cover",
-          borderRadius: "50%",
+          objectFit: "contain",
           animation: "blinkIrisPulse 3s ease-in-out infinite",
           filter:
             "drop-shadow(0 0 28px rgba(0,255,136,0.55)) drop-shadow(0 0 64px rgba(0,255,136,0.22))",

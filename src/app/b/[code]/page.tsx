@@ -17,11 +17,11 @@ export default function InvitePage({ params }: { params: { code: string } }) {
         }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/brand/logo-orb-transparent.png"
+            src="/brand/logo-orb-glow.png"
             alt=""
             width={96}
             height={96}
-            style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: '50%', display: 'block' }}
+            style={{ width: 96, height: 96, objectFit: 'contain', display: 'block' }}
           />
         </div>
         

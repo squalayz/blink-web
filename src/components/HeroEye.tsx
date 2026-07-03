@@ -7,11 +7,14 @@
  * Inline styles only (no Tailwind) per project rules.
  */
 
+// The app's welcome-slide orbiter table (WelcomeSlideView.swift): the same
+// four creatures, same glow tints, rendered from the app's own transparent
+// cutout art — free-floating sprites, not photos in circles.
 const CREATURES = [
-  { name: "Sprite", img: "/creatures/sprite.jpg", angle: 0 },
-  { name: "Cyclops", img: "/creatures/cyclops.jpg", angle: 90 },
-  { name: "Cat", img: "/creatures/cat.jpg", angle: 180 },
-  { name: "Serpent", img: "/creatures/serpent.jpg", angle: 270 },
+  { name: "Sprite", img: "/brand/app/creatures/sprite.webp", glow: "#00FF88" },
+  { name: "Cyclops", img: "/brand/app/creatures/cyclops.webp", glow: "#88FF00" },
+  { name: "Cat", img: "/brand/app/creatures/cat.webp", glow: "#9aa3b2" },
+  { name: "Oracle", img: "/brand/app/creatures/oracle.webp", glow: "#ffd166" },
 ];
 
 const KEYFRAMES = `
@@ -142,15 +145,14 @@ export default function HeroEye({
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/brand/logo-orb-transparent.png"
+          src="/brand/logo-orb-glow.png"
           alt="BLINK"
           fetchPriority="high"
           decoding="async"
           style={{
             width: "100%",
             height: "100%",
-            objectFit: "cover",
-            borderRadius: "50%",
+            objectFit: "contain",
           }}
         />
       </div>
@@ -180,22 +182,34 @@ export default function HeroEye({
                 left: "50%",
                 width: creatureSize,
                 height: creatureSize,
-                borderRadius: "50%",
-                overflow: "hidden",
-                border: "2px solid rgba(0,255,136,0.6)",
-                animation: `heroCreatureFloat ${3 + i * 0.4}s ease-in-out ${i * 0.3}s infinite, heroCreatureGlow ${2.5 + i * 0.2}s ease-in-out infinite`,
+                animation: `heroCreatureFloat ${3 + i * 0.4}s ease-in-out ${i * 0.3}s infinite`,
                 transform: "translate(-50%, -50%)",
               }}
             >
+              {/* Soft per-creature glow behind the cutout — the app's
+                  OrbiterView halo. */}
+              <span
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  inset: "6%",
+                  borderRadius: "50%",
+                  background: c.glow,
+                  opacity: 0.35,
+                  filter: "blur(12px)",
+                }}
+              />
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={c.img}
                 alt={c.name}
                 style={{
+                  position: "relative",
                   width: "100%",
                   height: "100%",
-                  objectFit: "cover",
+                  objectFit: "contain",
                   display: "block",
+                  filter: `drop-shadow(0 0 12px ${c.glow})`,
                 }}
               />
             </div>

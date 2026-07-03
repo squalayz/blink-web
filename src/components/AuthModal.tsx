@@ -149,7 +149,7 @@ export default function AuthModal({ open, initialMode = "signup", onClose, onSuc
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/brand/logo-orb-transparent.png"
+              src="/brand/logo-orb-glow.png"
               alt=""
               aria-hidden
               width={28}
@@ -157,10 +157,9 @@ export default function AuthModal({ open, initialMode = "signup", onClose, onSuc
               style={{
                 width: 28,
                 height: 28,
-                objectFit: "cover",
-                borderRadius: "50%",
+                objectFit: "contain",
                 flexShrink: 0,
-                filter: "drop-shadow(0 0 8px rgba(0,255,136,0.6))",
+                filter: "drop-shadow(0 0 8px rgba(0,255,136,0.5))",
               }}
             />
             <span

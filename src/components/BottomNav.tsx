@@ -8,41 +8,68 @@ import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 
+// The app's REAL tab bar artwork (Assets.xcassets tab_*.imageset, template
+// rendering) recreated on web: the alpha PNG becomes a CSS mask so the glyph
+// is tinted exactly like UITabBar does — BLINK green selected, gray idle.
+function AppTabIcon({ src, active, size = 24 }: { src: string; active: boolean; size?: number }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: size,
+        height: size,
+        display: "block",
+        backgroundColor: active ? C.primary : C.muted,
+        WebkitMaskImage: `url(${src})`,
+        maskImage: `url(${src})`,
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+      }}
+    />
+  );
+}
+
 function MapIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? C.primary : "none"} stroke={active ? C.primary : C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
-      <line x1="9" y1="3" x2="9" y2="18" />
-      <line x1="15" y1="6" x2="15" y2="21" />
-    </svg>
-  );
+  return <AppTabIcon src="/brand/app/tabs/tab_map.png" active={active} />;
 }
 
+// The app's Feed tab uses SF "bubble.left.and.bubble.right.fill" — matched
+// here as two filled chat bubbles.
 function LiveFeedIcon({ active }: { active: boolean }) {
+  const fill = active ? C.primary : C.muted;
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? C.primary : C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
-      <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.4" />
-      <circle cx="12" cy="12" r="2" fill={active ? C.primary : C.muted} />
-      <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.4" />
-      <path d="M19.1 4.9C23 8.8 23 15.2 19.1 19.1" />
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M2 8.4C2 6 4 4.2 6.5 4.2h5C14 4.2 16 6 16 8.4c0 2.4-2 4.2-4.5 4.2H8l-3.4 2.6c-.5.4-1.1 0-1.1-.6v-2.8C2.6 11 2 9.8 2 8.4Z"
+        fill={fill}
+      />
+      <path
+        d="M17.2 9.1c2.7.3 4.8 2.2 4.8 4.6 0 1.4-.7 2.6-1.7 3.4v2.4c0 .6-.7 1-1.2.6L16.4 18h-2c-1.9 0-3.6-1-4.3-2.5h1.4c3.2 0 5.8-2.3 5.8-5.3 0-.4 0-.8-.1-1.1Z"
+        fill={fill}
+      />
     </svg>
   );
 }
 
-// "Claim" center button — the BLINK orb rendered the way the app's
-// BlinkOrbBadge does: circle-clipped mark + green ring + breathing halo.
+// "Claim" center button — the BLINK orb exactly as the app renders it in
+// BlinkOrbBadge + MiniOrbToken: the real blink_logo artwork overscanned 1.62×
+// inside a circular clip (the sphere fills the circle edge-to-edge, no black
+// corners), green ring, breathing green glow.
+const ORB_ART_OVERSCAN = 1.62;
 function ClaimIcon({ size = 44 }: { size?: number }) {
   return (
     <span
       style={{
+        position: "relative",
         width: size,
         height: size,
         borderRadius: "50%",
         overflow: "hidden",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        display: "block",
         border: "2px solid rgba(0,255,136,0.45)",
         background: "#0a0a0f",
         boxShadow: `0 0 18px ${C.primary}59, 0 0 40px ${C.primary}26`,
@@ -51,22 +78,24 @@ function ClaimIcon({ size = 44 }: { size?: number }) {
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/brand/logo-orb-transparent.png"
+        src="/brand/app/blink-logo-orb.webp"
         alt=""
-        style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%", display: "block" }}
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          width: size * ORB_ART_OVERSCAN,
+          height: size * ORB_ART_OVERSCAN,
+          transform: "translate(-50%, -50%)",
+          display: "block",
+        }}
       />
     </span>
   );
 }
 
 function ProfileIcon({ active }: { active: boolean }) {
-  const stroke = active ? C.primary : C.muted;
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? "rgba(0,255,136,0.18)" : "none"} stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" />
-    </svg>
-  );
+  return <AppTabIcon src="/brand/app/tabs/tab_profile.png" active={active} />;
 }
 
 function WalletIcon({ active }: { active: boolean }) {
@@ -159,25 +188,28 @@ export default function BottomNav() {
             boxShadow: "4px 0 32px rgba(0,0,0,0.3)",
           }}
         >
-          {/* BLINK logo mark at top */}
+          {/* BLINK logo mark at top — the orb sits flush on the bar, exactly
+              like the app's BlinkLogoMark: true-alpha glow art, no box. */}
           <Link
             href="/"
+            aria-label="BLINK home"
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 10,
+              width: 44,
+              height: 44,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              marginBottom: 28,
+              marginBottom: 24,
               flexShrink: 0,
-              background: "rgba(0,255,136,0.06)",
-              border: `1px solid ${C.primary}30`,
               textDecoration: "none",
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/logo-orb-transparent.png" alt="BLINK" style={{ width: 26, height: 26, objectFit: "cover", borderRadius: "50%", filter: "drop-shadow(0 0 8px rgba(0,255,136,0.6))" }} />
+            <img
+              src="/brand/logo-orb-glow.png"
+              alt=""
+              style={{ width: 40, height: 40, objectFit: "contain", display: "block" }}
+            />
           </Link>
 
           {/* Tab items */}

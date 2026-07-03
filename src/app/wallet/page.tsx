@@ -1483,21 +1483,24 @@ function IconRing({ children }: { children: React.ReactNode }) {
 }
 
 function BlinkLogo() {
+  // The $BLINK token row wears the app's blink_token coin art
+  // (TreasureCaptureView): sphere on black, overscanned so it fills the
+  // circular ring edge-to-edge with no dark corners.
   return (
     <IconRing>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/brand/logo-orb-transparent.png"
+        src="/brand/app/blink-token.webp"
         alt="BLINK"
         loading="lazy"
-        width={40}
-        height={40}
+        width={52}
+        height={52}
         style={{
-          width: "100%",
-          height: "100%",
+          width: 52,
+          height: 52,
           objectFit: "cover",
-          borderRadius: "50%",
           display: "block",
+          flexShrink: 0,
         }}
       />
     </IconRing>

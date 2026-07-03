@@ -51,6 +51,22 @@ const TYPE_HINT: Record<number, string> = {
   20: "Ancestral",
 };
 
+// Creatures that ship with the iOS app's own transparent cutout artwork
+// (Assets.xcassets → /public/brand/app/creatures). Floating/ambient surfaces
+// prefer these so the web shows the exact art the app renders; cards and
+// NFT metadata are untouched.
+const APP_CUTOUT_SLUGS = new Set([
+  "sprite", "pixie", "emberling", "dustfox", "pebblekin", "speckle",
+  "shimmer", "silkmoth", "cat", "cyclops", "aethermane", "oracle",
+  "firsteye", "omen",
+]);
+
+function floatingArt(card: string, animated: string): string {
+  const stem = card.split("/").pop() ?? "";
+  const slug = stem.replace(/^\d+_/, "").replace(/\.\w+$/, "");
+  return APP_CUTOUT_SLUGS.has(slug) ? `/brand/app/creatures/${slug}.webp` : animated;
+}
+
 export const BESTIARY: Creature[] = ALL_CREATURES.map((c) => ({
   id: c.id,
   name: c.name.toUpperCase(),
@@ -59,7 +75,7 @@ export const BESTIARY: Creature[] = ALL_CREATURES.map((c) => ({
   power: c.powers.name,
   powerDesc: c.powers.description,
   image: c.visual.card,
-  floating: c.visual.animated,
+  floating: floatingArt(c.visual.card, c.visual.animated),
   lore: c.lore,
 }));
 

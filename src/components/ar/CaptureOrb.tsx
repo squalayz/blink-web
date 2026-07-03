@@ -24,7 +24,7 @@ export interface CaptureOrbProps {
   onTap?: () => void;
 }
 
-const ORB_SRC = "/brand/logo-orb-transparent.png";
+const ORB_SRC = "/brand/logo-orb-glow.png";
 const ORB_CSS_ID = "ar-capture-orb-styles";
 // Throw + shake animations. The arc is a CSS keyframe with a translate that
 // goes bottom-of-screen → centre-of-screen, with a slight horizontal swing
@@ -160,11 +160,9 @@ export default function CaptureOrb({
             width: "100%",
             height: "100%",
             display: "block",
-            borderRadius: "50%",
-            boxShadow:
-              "0 0 24px #00FF88cc, 0 0 48px #00FF8866, inset 0 0 20px #0a0a0f",
-            filter: "drop-shadow(0 8px 20px rgba(0,0,0,0.55))",
-            objectFit: "cover",
+            objectFit: "contain",
+            filter:
+              "drop-shadow(0 0 24px rgba(0,255,136,0.8)) drop-shadow(0 8px 20px rgba(0,0,0,0.55))",
           }}
         />
         {/* The vertical 'seam' that splits when the orb opens. Pure CSS

@@ -72,18 +72,31 @@ export function CinematicLoad() {
         }}
       />
 
-      {/* Dark cinematic overlay */}
+      {/* The app SplashView's readability veil — heavier top/bottom so the
+          wordmark pops over the busy art. */}
       <div
         aria-hidden
         style={{
           position: "absolute",
           inset: 0,
-          background: "rgba(0,0,0,0.55)",
+          background:
+            "linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0.25) 33%, rgba(0,0,0,0.55) 66%, rgba(0,0,0,0.85))",
+          pointerEvents: "none",
+        }}
+      />
+      {/* BLINK-green color wash ties the art to the brand palette. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "rgba(0,255,136,0.06)",
+          mixBlendMode: "overlay",
           pointerEvents: "none",
         }}
       />
 
-      {/* BLINK wordmark + tagline */}
+      {/* Brand mark + wordmark + tagline — the app's staged splash reveal. */}
       <div
         style={{
           position: "relative",
@@ -91,37 +104,70 @@ export function CinematicLoad() {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 18,
+          gap: 20,
         }}
       >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/logo-orb-glow.png"
+          alt=""
+          style={{
+            width: 130,
+            height: 130,
+            objectFit: "contain",
+            animation: "clMarkIn 0.9s ease-out both, clBreathe 2.6s ease-in-out 0.9s infinite",
+          }}
+        />
         <div
           style={{
-            fontFamily: "Space Grotesk, Inter, sans-serif",
+            fontFamily: "ui-rounded, 'SF Pro Rounded', 'Space Grotesk', Inter, sans-serif",
             fontWeight: 900,
-            fontSize: 80,
-            letterSpacing: "0.04em",
+            fontSize: 58,
+            letterSpacing: "0.18em",
+            marginRight: "-0.18em",
             color: "#fff",
             lineHeight: 1,
-            margin: 0,
-            textShadow: `0 0 24px ${GREEN}cc, 0 0 56px ${GREEN}88, 0 0 112px ${GREEN}55`,
+            textShadow: `0 0 18px ${GREEN}d9, 0 2px 8px rgba(0,0,0,0.6)`,
+            animation: "clTitleIn 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both",
           }}
         >
           BLINK
         </div>
         <div
           style={{
-            fontFamily: "Space Grotesk, Inter, sans-serif",
+            fontFamily: "ui-rounded, 'SF Pro Rounded', 'Space Grotesk', Inter, sans-serif",
             fontSize: 12,
-            letterSpacing: "0.42em",
+            letterSpacing: "0.5em",
+            marginRight: "-0.5em",
             textTransform: "uppercase",
             color: GREEN,
-            fontWeight: 700,
-            textShadow: `0 0 14px ${GREEN}aa`,
+            fontWeight: 800,
+            textShadow: "0 1px 4px rgba(0,0,0,0.6)",
+            animation: "clTagIn 0.9s ease-out 0.6s both",
           }}
         >
-          Every Blink, a Legend
+          The World Is Alive
         </div>
       </div>
+
+      <style>{`
+        @keyframes clMarkIn {
+          from { opacity: 0; transform: scale(0.82); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes clBreathe {
+          0%, 100% { transform: scale(0.99); }
+          50%      { transform: scale(1.02); }
+        }
+        @keyframes clTitleIn {
+          from { opacity: 0; transform: scale(0.92); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes clTagIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

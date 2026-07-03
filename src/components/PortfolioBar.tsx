@@ -312,9 +312,9 @@ export default function PortfolioBar() {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/brand/logo-orb-transparent.png"
+              src="/brand/logo-orb-glow.png"
               alt=""
-              style={{ width: 17, height: 17, borderRadius: "50%", filter: "drop-shadow(0 0 6px rgba(0,255,136,0.55))" }}
+              style={{ width: 17, height: 17, objectFit: "contain", filter: "drop-shadow(0 0 6px rgba(0,255,136,0.5))" }}
             />
             <span
               style={{

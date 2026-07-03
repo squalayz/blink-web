@@ -132,7 +132,7 @@ export default function WalkThereButton({
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/brand/logo-orb-transparent.png"
+            src="/brand/logo-orb-glow.png"
             alt=""
             width={18}
             height={18}
@@ -140,8 +140,7 @@ export default function WalkThereButton({
               width: 18,
               height: 18,
               display: "block",
-              borderRadius: "50%",
-              objectFit: "cover",
+              objectFit: "contain",
             }}
           />
         </span>

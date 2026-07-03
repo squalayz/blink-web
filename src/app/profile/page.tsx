@@ -858,9 +858,9 @@ export default function ProfilePage() {
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/brand/logo-orb-transparent.png"
+            src="/brand/logo-orb-glow.png"
             alt=""
-            style={{ width: 40, height: 40, borderRadius: "50%", objectFit: "cover", filter: "drop-shadow(0 0 10px rgba(0,255,136,0.55))" }}
+            style={{ width: 40, height: 40, objectFit: "contain", filter: "drop-shadow(0 0 10px rgba(0,255,136,0.5))" }}
           />
           <span style={{ ...counterFont(38), color: "#fff" }}>
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}

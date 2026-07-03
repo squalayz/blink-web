@@ -1218,15 +1218,15 @@ function OpeningCinematic({ fadingOut }: { fadingOut: boolean }) {
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/brand/logo-orb-transparent.png"
+          src="/brand/logo-orb-glow.png"
           alt=""
           width={140}
           height={140}
           style={{
             width: 140,
             height: 140,
-            borderRadius: "50%",
-            filter: "drop-shadow(0 0 30px rgba(0,255,136,0.7))",
+            objectFit: "contain",
+            filter: "drop-shadow(0 0 30px rgba(0,255,136,0.55))",
           }}
         />
       </div>
@@ -1381,7 +1381,7 @@ function OpeningCinematic({ fadingOut }: { fadingOut: boolean }) {
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/brand/logo-orb-transparent.png"
+          src="/brand/logo-orb-glow.png"
           alt=""
           width={110}
           height={110}
@@ -1389,7 +1389,7 @@ function OpeningCinematic({ fadingOut }: { fadingOut: boolean }) {
             width: 110,
             height: 110,
             display: "block",
-            borderRadius: "50%",
+            objectFit: "contain",
           }}
         />
       </div>

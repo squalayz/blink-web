@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
+import BlinkTokenCoin from "@/components/BlinkTokenCoin";
 import {
   ClaimProviders,
   WalletClaim,
@@ -302,9 +303,9 @@ function AuthedClaim() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/brand/logo-orb-transparent.png"
+              src="/brand/logo-orb-glow.png"
               alt=""
-              style={{ width: 44, height: 44, borderRadius: "50%", filter: "drop-shadow(0 0 10px rgba(0,255,136,0.6))" }}
+              style={{ width: 44, height: 44, objectFit: "contain", filter: "drop-shadow(0 0 10px rgba(0,255,136,0.5))" }}
             />
             <div style={counterFont(44)}>
               {me ? points.toLocaleString() : "—"}
@@ -323,7 +324,8 @@ function AuthedClaim() {
               justifyContent: "space-between",
             }}
           >
-            <span style={{ fontSize: 16, fontWeight: 800, fontFamily: FONT_DISPLAY }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 800, fontFamily: FONT_DISPLAY }}>
+              <BlinkTokenCoin size={22} />
               = {tokens.toLocaleString()} $BLINK
             </span>
             <span style={{ fontSize: 11, color: C.textTertiary }}>1,000 points = 1 $BLINK</span>

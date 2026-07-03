@@ -44,7 +44,7 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/brand/logo-orb-transparent.png", sizes: "669x669", type: "image/png" },
+      { url: "/brand/logo-orb-glow.png", sizes: "784x800", type: "image/png" },
     ],
     apple: "/apple-icon.png",
   },
@@ -68,7 +68,7 @@ export default function RootLayout({
         <link
           rel="preload"
           as="image"
-          href="/brand/logo-orb-transparent.png"
+          href="/brand/logo-orb-glow.png"
           fetchPriority="high"
         />
       </head>

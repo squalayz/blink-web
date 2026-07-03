@@ -193,7 +193,7 @@ export function Hero() {
             />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/brand/logo-orb-transparent.png"
+              src="/brand/logo-orb-glow.png"
               alt=""
               loading={i < 2 ? "eager" : "lazy"}
               decoding="async"
@@ -205,8 +205,7 @@ export function Hero() {
                 height: "100%",
                 opacity,
                 display: "block",
-                objectFit: "cover",
-                borderRadius: "50%",
+                objectFit: "contain",
               }}
             />
           </div>

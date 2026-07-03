@@ -1028,9 +1028,9 @@ export default function MapPage() {
             }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/brand/logo-orb-transparent.png"
+                src="/brand/logo-orb-glow.png"
                 alt=""
-                style={{ width: 17, height: 17, borderRadius: "50%", filter: "drop-shadow(0 0 6px rgba(0,255,136,0.55))" }}
+                style={{ width: 17, height: 17, objectFit: "contain", filter: "drop-shadow(0 0 6px rgba(0,255,136,0.5))" }}
               />
               {blinkBalance === null
                 ? <span style={{ color: COLORS.textMuted, fontSize: 13, fontWeight: 700 }}>···</span>
@@ -1085,9 +1085,9 @@ export default function MapPage() {
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/brand/logo-orb-transparent.png"
+          src="/brand/logo-orb-glow.png"
           alt=""
-          style={{ width: 18, height: 18, borderRadius: "50%", filter: "drop-shadow(0 0 6px rgba(0,255,136,0.6))" }}
+          style={{ width: 18, height: 18, objectFit: "contain", filter: "drop-shadow(0 0 6px rgba(0,255,136,0.5))" }}
         />
         <span style={{ color: "#00FF88", fontWeight: 900, fontSize: 13, letterSpacing: "0.12em", textTransform: "uppercase" }}>Claim Rewards</span>
       </button>

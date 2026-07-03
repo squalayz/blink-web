@@ -24,6 +24,28 @@ export type ResolvedCreatureArt = {
   fellBack: boolean;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// The iOS app's bundled creature cutouts (Assets.xcassets → copied to
+// /public/brand/app/creatures). Mirrors CreatureImage.bundledSlugs in the app:
+// when a creature ships with the app's own transparent artwork, FLOATING
+// display surfaces (AR camera, map hero moments) prefer it — the exact art
+// the app renders. Cards and NFT metadata are untouched.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const APP_CUTOUT_SLUGS = new Set([
+  "sprite", "pixie", "emberling", "dustfox", "pebblekin", "speckle",
+  "shimmer", "silkmoth", "cat", "cyclops", "aethermane", "oracle",
+  "firsteye", "omen",
+]);
+
+/** App-bundled transparent cutout for a registry entry, if one ships. */
+function appCutoutFor(entry: CreatureRegistryEntry): string | null {
+  // Slug from the card path: "/cards/016_cyclops.webp" → "cyclops".
+  const stem = entry.visual.card.split("/").pop() ?? "";
+  const slug = stem.replace(/^\d+_/, "").replace(/\.\w+$/, "");
+  return APP_CUTOUT_SLUGS.has(slug) ? `/brand/app/creatures/${slug}.webp` : null;
+}
+
 function tierTone(tier: string | null | undefined): {
   rarity: Rarity;
   color: string;
@@ -41,7 +63,7 @@ function artFromEntry(
   const tone = tierTone(tier ?? entry.tier);
   return {
     card: entry.visual.card,
-    floating: entry.visual.animated,
+    floating: appCutoutFor(entry) ?? entry.visual.animated,
     rarity: entry.tier,
     color: tone.color,
     creatureId: entry.id,
