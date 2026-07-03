@@ -6,6 +6,8 @@ import { C, FONT_DISPLAY } from "@/lib/theme";
 import type { ActivityRow } from "@/lib/theme";
 import GlassCard from "@/components/GlassCard";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
+import { useAuth } from "@/components/providers";
+import { EchoFeedView, EchoComposer, FeedScopeTabs, type EchoScope } from "@/components/EchoFeed";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -648,12 +650,17 @@ function TrendingSidebar() {
 
 export default function LiveFeedPage() {
   const { isDesktop } = useIsDesktop();
+  const { user } = useAuth();
   const [activities, setActivities] = useState<ActivityRow[]>([]);
   const [storyUsers, setStoryUsers] = useState<StoryUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const [chainFilter, setChainFilter] = useState<ChainFilter>("All");
   const [refreshing, setRefreshing] = useState(false);
+  // The app's FeedView scopes: Live (world ticker) / Following / Nearby.
+  const [scope, setScope] = useState<EchoScope>("live");
+  const [showComposer, setShowComposer] = useState(false);
+  const [echoRefresh, setEchoRefresh] = useState(0);
   const mountedRef = useRef(false);
   const touchStartY = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -827,40 +834,78 @@ export default function LiveFeedPage() {
           <IconChevronLeft size={16} color="#fff" />
         </a>
 
-        <h1
-          style={{
-            color: C.text,
-            fontSize: 18,
-            fontWeight: 900,
-            fontFamily: FONT_DISPLAY,
-            letterSpacing: "-0.01em",
-            margin: 0,
-            flex: 1,
-            textAlign: "center",
-          }}
-        >
-          Feed
-        </h1>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+          <h1
+            style={{
+              color: C.text,
+              fontSize: 18,
+              fontWeight: 900,
+              fontFamily: FONT_DISPLAY,
+              letterSpacing: "-0.01em",
+              margin: 0,
+            }}
+          >
+            Feed
+          </h1>
+          {/* FeedView's scope subtitle. */}
+          <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: C.muted }}>
+            {scope === "live" && (
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.primary, animation: "pulseDot 2s ease-in-out infinite" }} />
+            )}
+            {scope === "live" ? "Live across BlinkWorld" : "Moments from the walk"}
+          </span>
+        </div>
 
-        {/* Compose — 38 solid green circle w/ glow */}
-        <a
-          href="/spawn"
-          aria-label="Spawn a BLINK"
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: "50%",
-            background: C.primary,
-            boxShadow: "0 0 18px rgba(0,255,136,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            textDecoration: "none",
-            flexShrink: 0,
-          }}
-        >
-          <IconPlus size={18} color="#0a0a0f" />
-        </a>
+        {/* Compose — 38 solid green circle w/ glow. Signed in it opens the
+            Echo composer (the app's square.and.pencil); logged out it walks
+            to the spawn flow. */}
+        {user ? (
+          <button
+            onClick={() => setShowComposer(true)}
+            aria-label="Share an Echo"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: "50%",
+              border: "none",
+              background: C.primary,
+              boxShadow: "0 0 18px rgba(0,255,136,0.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            <IconPlus size={18} color="#0a0a0f" />
+          </button>
+        ) : (
+          <a
+            href="/spawn"
+            aria-label="Spawn a BLINK"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: "50%",
+              background: C.primary,
+              boxShadow: "0 0 18px rgba(0,255,136,0.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              textDecoration: "none",
+              flexShrink: 0,
+            }}
+          >
+            <IconPlus size={18} color="#0a0a0f" />
+          </a>
+        )}
+      </div>
+
+      {/* ── Scope tabs (FeedView: Live / Following / Nearby) ── */}
+      <div style={{ padding: isDesktop ? "0 40px 12px" : "0 20px 12px", maxWidth: isDesktop ? 1280 : "100%", width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+        <div style={{ maxWidth: 480 }}>
+          <FeedScopeTabs scope={scope} onChange={setScope} />
+        </div>
       </div>
 
       {/* ── Pull to refresh indicator ── */}
@@ -885,11 +930,32 @@ export default function LiveFeedPage() {
         </div>
       )}
 
+      {/* ── Following / Nearby: the Living Echoes feed ── */}
+      {scope !== "live" && (
+        <div style={{ flex: 1, maxWidth: isDesktop ? 720 : "100%", width: "100%", margin: "0 auto", padding: isDesktop ? "0 40px" : 0, boxSizing: "border-box" }}>
+          {user ? (
+            <EchoFeedView
+              key={`${scope}-${echoRefresh}`}
+              scope={scope}
+              userId={user.id}
+              onCompose={() => setShowComposer(true)}
+            />
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "14vh 28px", textAlign: "center" }}>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: C.muted }}>Sign in to see echoes from your walks and friends.</p>
+              <a href="/" style={{ padding: "12px 24px", borderRadius: 999, background: C.primary, color: "#000", fontSize: 13, fontWeight: 900, fontFamily: FONT_DISPLAY, textDecoration: "none" }}>
+                Join BLINK
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Main content area ── */}
       <div
         style={{
           flex: 1,
-          display: "flex",
+          display: scope === "live" ? "flex" : "none",
           flexDirection: "row",
           maxWidth: isDesktop ? 1280 : "100%",
           width: "100%",
@@ -1071,6 +1137,18 @@ export default function LiveFeedPage() {
         {/* ── Right / Sidebar column (desktop only) ── */}
         {isDesktop && <TrendingSidebar />}
       </div>
+
+      {/* ── Echo composer (Share an Echo) ── */}
+      {showComposer && user && (
+        <EchoComposer
+          userId={user.id}
+          onClose={() => setShowComposer(false)}
+          onPosted={() => {
+            setScope("following");
+            setEchoRefresh((n) => n + 1);
+          }}
+        />
+      )}
     </div>
   );
 }
