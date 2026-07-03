@@ -73,6 +73,25 @@ function timeAgo(iso: string): string {
 /* ------------------------------------------------------------------ */
 /*  Inline SVG Icons                                                    */
 /* ------------------------------------------------------------------ */
+function ChevronRightMini({ color, pushRight }: { color: string; pushRight?: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      style={{ marginLeft: pushRight ? "auto" : 0, flexShrink: 0 }}
+    >
+      <path d="m9 5 7 7-7 7" />
+    </svg>
+  );
+}
+
 function GearIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -581,6 +600,9 @@ export default function ProfilePage() {
   const [loadingData, setLoadingData] = useState(true);
   const [freeCatchesRemaining, setFreeCatchesRemaining] = useState<number | null>(null);
   const [wildCatchTotal, setWildCatchTotal] = useState<number | null>(null);
+  const [friendsCount, setFriendsCount] = useState<number | null>(null);
+  const [trainerCode, setTrainerCode] = useState<string | null>(null);
+  const [codeCopied, setCodeCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<"drops" | "claims" | "moments">(
     "drops"
   );
@@ -716,6 +738,33 @@ export default function ProfilePage() {
       .select("id", { count: "exact", head: true })
       .eq("caught_by", user.id);
     if (typeof catchCount === "number") setWildCatchTotal(catchCount);
+
+    // Accepted friends count — the app's Friends stat pill.
+    const { count: friendCount } = await supabase
+      .from("friendships")
+      .select("id", { count: "exact", head: true })
+      .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`)
+      .eq("status", "accepted");
+    if (typeof friendCount === "number") setFriendsCount(friendCount);
+
+    // Buddy Code (the app's permanent trainer code) — generated once
+    // server-side if the profile doesn't have one yet.
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (token) {
+        const res = await fetch("/api/profile/trainer-code", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const d = await res.json();
+          if (d.trainer_code) setTrainerCode(d.trainer_code);
+        }
+      }
+    } catch {
+      /* code card simply hides */
+    }
 
     setLoadingData(false);
   }, [user]);
@@ -1783,7 +1832,177 @@ export default function ProfilePage() {
               {isLive ? "Live" : "Ghost"}
             </span>
           </div>
+
+          {/* The app's ProfileView stat pills: Caught / Friends / Trophies
+              (value 19pt black rounded over a tracked uppercase label). */}
+          <div style={{ display: "flex", gap: 4, marginTop: 14, width: "100%", maxWidth: 360 }}>
+            {[
+              { value: wildCatchTotal ?? 0, label: "CAUGHT", href: "/creatures" },
+              { value: friendsCount ?? 0, label: "FRIENDS", href: "/battles" },
+              { value: profile.trophy_rating ?? 1000, label: "TROPHIES", href: null },
+            ].map((pill) => (
+              <button
+                key={pill.label}
+                onClick={() => pill.href && router.push(pill.href)}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 2,
+                  padding: "10px 4px",
+                  borderRadius: 14,
+                  background: "rgba(255,255,255,0.04)",
+                  border: `1px solid ${C.glassBorder}`,
+                  color: C.text,
+                  cursor: pill.href ? "pointer" : "default",
+                  fontFamily: "inherit",
+                }}
+              >
+                <span style={{ fontSize: 19, fontWeight: 900, fontFamily: FONT_DISPLAY }}>
+                  {typeof pill.value === "number" ? pill.value.toLocaleString() : pill.value}
+                </span>
+                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.07em", color: C.muted }}>{pill.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
+      </div>
+
+      {/* ============================================================ */}
+      {/*  App profile cards: Blink Pulse · Travel Journal · Buddy Code */}
+      {/*  (ProfileView.swift order, real streak/cities/trainer_code)   */}
+      {/* ============================================================ */}
+      <div style={{ padding: "20px 16px 0", maxWidth: 960, margin: "0 auto", display: "flex", flexDirection: "column", gap: 10 }}>
+        {/* Pulse card — "+streak" energy entry into the daily loop. */}
+        <button
+          onClick={() => router.push("/missions")}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 13,
+            padding: 14,
+            borderRadius: 18,
+            background: "rgba(18,18,26,0.66)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            color: C.text,
+            cursor: "pointer",
+            textAlign: "left",
+            fontFamily: "inherit",
+          }}
+        >
+          <span style={{ width: 44, height: 44, borderRadius: "50%", background: `${C.primary}26`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill={C.primary} aria-hidden>
+              <path d="M13.6 2.1c.5-.6 1.5-.2 1.4.6l-1 6.3h5c.65 0 1 .75.6 1.25L10.4 21.9c-.5.6-1.5.2-1.4-.6l1-6.3H5c-.65 0-1-.75-.6-1.25L13.6 2.1Z" />
+            </svg>
+          </span>
+          <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+            <span style={{ fontSize: 15, fontWeight: 800, fontFamily: FONT_DISPLAY }}>Blink Pulse</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>
+              {(profile.current_streak ?? 0) > 0
+                ? `Day ${profile.current_streak} streak`
+                : "Earn BLINK for living — walk, catch, explore"}
+            </span>
+          </span>
+          {(profile.current_streak ?? 0) > 0 && (
+            <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, color: "#FF9933", fontSize: 13, fontWeight: 900, fontFamily: FONT_DISPLAY }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M13.5 1.5s.8 2.6-.7 4.9C11.4 8.6 9 9.4 9 12.1c0 1.4.8 2.6 2 3.2-.3-1 0-2 .7-2.8.5-.6 1.3-1 1.6-2 1.6 1.2 3.2 3.3 3.2 5.4A4.8 4.8 0 0 1 12 21a6.4 6.4 0 0 1-6.4-6.5c0-3.3 2-5 3.2-7C10.3 5 10.4 2.7 13.5 1.5Z" />
+              </svg>
+              {profile.current_streak}
+            </span>
+          )}
+          <ChevronRightMini color={C.primary} pushRight={(profile.current_streak ?? 0) === 0} />
+        </button>
+
+        {/* Travel Journal card. */}
+        <button
+          onClick={() => router.push("/travel")}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 13,
+            padding: 14,
+            borderRadius: 18,
+            background: "rgba(18,18,26,0.66)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            color: C.text,
+            cursor: "pointer",
+            textAlign: "left",
+            fontFamily: "inherit",
+          }}
+        >
+          <span style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(255,209,102,0.16)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#ffd166" aria-hidden>
+              <path d="M5 3h13a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm2 2v14h11V5H7ZM5 5v14h.5V5H5Zm5 4h5v2h-5V9Z" />
+            </svg>
+          </span>
+          <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+            <span style={{ fontSize: 15, fontWeight: 800, fontFamily: FONT_DISPLAY }}>Travel Journal</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>
+              {(profile.cities_visited ?? 0) > 0 ? `${profile.cities_visited} cities · Explorer` : "Your journeys, stamped on the map"}
+            </span>
+          </span>
+          <ChevronRightMini color="#ffd166" pushRight />
+        </button>
+
+        {/* Buddy Code card — the app's owner-only trainer code. */}
+        {trainerCode && (
+          <div
+            style={{
+              padding: 14,
+              borderRadius: 18,
+              background: "rgba(18,18,26,0.66)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 9, fontWeight: 800, letterSpacing: "0.14em", color: C.muted }}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm3 8V7a3 3 0 1 0-6 0v3h6Z" />
+              </svg>
+              ONLY YOU CAN SEE THIS
+            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+                <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: C.muted }}>BUDDY CODE</span>
+                <span style={{ fontSize: 17, fontWeight: 900, fontFamily: "ui-monospace, monospace", color: C.text }}>{trainerCode}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>Share to add friends</span>
+              </span>
+              <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(trainerCode);
+                      setCodeCopied(true);
+                      setTimeout(() => setCodeCopied(false), 1600);
+                    } catch { /* clipboard unavailable */ }
+                  }}
+                  style={{ padding: "9px 14px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.06)", color: C.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  {codeCopied ? "Copied" : "Copy"}
+                </button>
+                <button
+                  onClick={async () => {
+                    const text = `Add me on BLINK — my Buddy Code is ${trainerCode}`;
+                    try {
+                      if (navigator.share) await navigator.share({ title: "BLINK", text, url: "https://blinkworld.xyz" });
+                      else await navigator.clipboard.writeText(`${text} · https://blinkworld.xyz`);
+                    } catch { /* cancelled */ }
+                  }}
+                  aria-label="Share Buddy Code"
+                  style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: C.primary, color: "#000", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+                  </svg>
+                </button>
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ============================================================ */}

@@ -208,6 +208,11 @@ export interface UserProfile {
   vibe_line: string | null;
   interest_tags: string[] | null;
   dms_open: boolean | null;
+  /** The app's permanent shareable Buddy Code (BattleSystems.trainerCode). */
+  trainer_code?: string | null;
+  /** ELO-style battle rating (BattleSystems.trophyRating, base 1000). */
+  trophy_rating?: number | null;
+  cities_visited?: number | null;
 }
 
 export interface ActivityRow {

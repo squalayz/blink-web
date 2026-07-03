@@ -677,6 +677,15 @@ export default function SettingsSheet({ isOpen, onClose }: SettingsSheetProps) {
       <div style={{ height: 8 }} />
       <SectionHeader label="About" />
       <SectionContainer isDesktop={isDesktop}>
+        {/* The app's ProfileSettingsView "How to Play" — replays the
+            cinematic walkthrough. */}
+        <NavRow
+          icon={<span style={{ fontSize: 14, color: MUTED }}>?</span>}
+          iconColor={MUTED}
+          title="How to Play"
+          subtitle="Replay the walkthrough"
+          onClick={() => handleNav("/onboarding?replay=1")}
+        />
         <InfoRow
           icon={<span style={{ fontSize: 14, color: MUTED }}>v</span>}
           iconColor={MUTED}
