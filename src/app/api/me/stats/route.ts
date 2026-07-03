@@ -60,15 +60,22 @@ export async function GET(req: NextRequest) {
     .eq("wallet", wallet)
     .not("claimed_at", "is", null);
 
-  const [total, today, recent, claimed] = await Promise.all([
+  const unclaimedQ = supabaseAdmin
+    .from("blink_catches")
+    .select("*", { count: "exact", head: true })
+    .eq("wallet", wallet)
+    .is("claimed_at", null);
+
+  const [total, today, recent, claimed, unclaimed] = await Promise.all([
     totalQ,
     todayQ,
     recentQ,
     claimedQ,
+    unclaimedQ,
   ]);
 
   const firstErr =
-    total.error || today.error || recent.error || claimed.error;
+    total.error || today.error || recent.error || claimed.error || unclaimed.error;
   if (firstErr) {
     return NextResponse.json(
       { error: "stats query failed", detail: firstErr.message },
@@ -97,5 +104,6 @@ export async function GET(req: NextRequest) {
     catchesToday: today.count ?? 0,
     streakDays,
     lifetimeBlinkEarned: lifetimeWei.toString(),
+    unclaimedCatches: unclaimed.count ?? 0,
   });
 }

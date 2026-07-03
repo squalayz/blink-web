@@ -57,6 +57,12 @@ const nextConfig = {
       "@walletconnect/ethereum-provider": false,
       accounts: false,
     };
+    // viem's tempo chain support (ox virtualMasterPool) uses a dynamic
+    // require webpack can't statically resolve — harmless, code path unused.
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      { module: /node_modules[\\/]ox[\\/]/, message: /Critical dependency/ },
+    ];
     return config;
   },
   async headers() {
@@ -64,6 +70,14 @@ const nextConfig = {
       { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
     ];
     return [
+      {
+        // Universal links: iOS requires this served as JSON (file has no extension).
+        source: "/.well-known/apple-app-site-association",
+        headers: [
+          { key: "Content-Type", value: "application/json" },
+          { key: "Cache-Control", value: "public, max-age=3600" },
+        ],
+      },
       {
         // CDN-cache the marketing landing at the edge for 60s with 10-min SWR.
         source: "/",

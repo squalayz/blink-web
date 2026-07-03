@@ -12,6 +12,10 @@ export type BlinkSound =
 
 const STORAGE_KEY = "blink:sound:enabled";
 
+// Broadcast on window whenever the enabled flag flips, so listeners outside
+// this module (e.g. the background-music hook) can react to SoundToggle.
+export const SOUND_ENABLED_EVENT = "blink:sound:enabled-changed";
+
 const SOUND_FILES: Record<BlinkSound, string> = {
   awaken: "/sounds/awaken.mp3",
   reveal: "/sounds/reveal.mp3",
@@ -455,6 +459,11 @@ export const sounds = {
     initOnce();
     state.enabled = enabled;
     writeEnabled(enabled);
+    try {
+      window.dispatchEvent(new CustomEvent(SOUND_ENABLED_EVENT, { detail: { enabled } }));
+    } catch {
+      /* no-op */
+    }
   },
   get enabled(): boolean {
     if (!isBrowser()) return true;

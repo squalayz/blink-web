@@ -7,7 +7,7 @@ export async function GET() {
       details: [
         {
           appID: "739VNPUXRN.app.rork.1vx41jwdq3oy9ersn4acm",
-          paths: ["/b/*", "/battle/*", "/join/*", "/duel/*"]
+          paths: ["/b/*", "/battle/*", "/join/*", "/duel/*", "/u/*"]
         }
       ]
     }

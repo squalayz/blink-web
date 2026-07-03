@@ -27,10 +27,10 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/og-battle.jpg",
-        width: 1200,
-        height: 630,
-        alt: "BLINK — Don't blink. The Eye is open.",
+        url: "https://blinkworld.xyz/og-image.jpg",
+        width: 1280,
+        height: 720,
+        alt: "BLINK — Catch glowing B orbs in the real world",
       },
     ],
   },
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     title: "BLINK — Don't blink. The Eye is open.",
     description:
       "Catch what others can't see. Mystical creatures spawn on a real-world map every minute.",
-    images: ["/og-battle.jpg"],
+    images: ["https://blinkworld.xyz/og-image.jpg"],
   },
   icons: {
     icon: [

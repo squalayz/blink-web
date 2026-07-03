@@ -328,6 +328,9 @@ export default function HomePage() {
           >
             How it works
           </Link>
+          <p style={{ margin: "6px 0 0", fontSize: 11, fontWeight: 500, color: "#666" }}>
+            Music: &quot;Floating Cities&quot; by Kevin MacLeod (incompetech.com), Licensed under CC BY 4.0
+          </p>
         </div>
       </div>
 

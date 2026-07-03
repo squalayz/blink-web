@@ -1,13 +1,11 @@
 // BLINK Mapbox theming — "The Eye is Open".
 //
-// Akira-meets-Pokémon: black-on-black streets with neon green outline glows,
-// dark green water, bioluminescent parks, hidden POI/highway noise. Applied
-// at runtime over `mapbox://styles/mapbox/dark-v11` so we never have to ship a
-// Studio style. Idempotent — safe to call on every style.load.
-//
-// On the Standard style (`mapbox://styles/mapbox/standard`) most layers are
-// internal/sealed so paint properties can't be overridden directly — for that
-// case we fall back to config-property tweaks (light preset, label hiding).
+// The map screen now mirrors the iOS app 1:1: PURE satellite imagery
+// (`mapbox://styles/mapbox/satellite-v9`, the app's `.mapStyle(.imagery)`)
+// with a dark-mode grade — raster dimmed slightly so the neon pins carry the
+// light — plus the green atmospheric fog on the horizon. The vector-layer
+// overrides below are kept for any classic style (dark-v11) fallback and
+// no-op safely on the raster style. Idempotent — safe on every style.load.
 
 import mapboxgl from "mapbox-gl";
 
@@ -145,6 +143,16 @@ export function applyBlinkMapStyle(
   for (const layer of style.layers) {
     if (!layer || typeof layer.id !== "string") continue;
     const id = layer.id;
+
+    // Satellite raster — the dark-mode grade: dim the imagery a touch and
+    // pull saturation back so the world reads night-ish and the neon
+    // markers are the brightest thing on screen (the app's `.colorScheme(.dark)`).
+    if (layer.type === "raster") {
+      safeSet(() => map.setPaintProperty(id, "raster-brightness-max", phase === "day" ? 0.88 : 0.72));
+      safeSet(() => map.setPaintProperty(id, "raster-saturation", -0.15));
+      safeSet(() => map.setPaintProperty(id, "raster-contrast", 0.06));
+      continue;
+    }
 
     // Background (deep black)
     if (id === "background" || id === "land") {

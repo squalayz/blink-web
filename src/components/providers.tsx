@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { User, Session } from "@supabase/supabase-js";
 import SoundToggle from "./SoundToggle";
+import MusicManager from "./MusicManager";
 import { sounds } from "@/lib/sounds";
 
 interface AuthContextType {
@@ -132,6 +133,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{ user, session, loading, signOut }}>
       <SoundToggle />
+      <MusicManager />
       {children}
     </AuthContext.Provider>
   );

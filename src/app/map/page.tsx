@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback, useRef, useMemo, useDeferredValue } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -8,15 +8,14 @@ import dynamic from "next/dynamic";
 import { useAuth } from "@/components/providers";
 import { supabase } from "@/lib/supabase";
 import { Orb as ThemeOrb } from "@/lib/theme";
-import { MapPin, Plus, X, User, Crosshair, Camera } from "lucide-react";
+import { MapPin, X } from "lucide-react";
 import UserAvatar from "@/components/UserAvatar";
 import UserProfileCard from "@/components/UserProfileCard";
-import { useIsDesktop } from "@/hooks/useIsDesktop";
 
-import { BlinkCompass, type CompassReading, type CompassTier } from "@/components/BlinkCompass";
-import { CreatureRadar, type RadarCreature } from "@/components/CreatureRadar";
+import { type RadarCreature } from "@/components/CreatureRadar";
 import { SpawnNotifier, useNotificationPermission } from "@/components/SpawnNotifier";
 import { BESTIARY } from "@/lib/bestiary";
+import { resolveByCreatureId } from "@/lib/bestiary-art";
 import { usePresence } from "@/lib/use-presence";
 import type {
   NearbyPlayer,
@@ -24,6 +23,7 @@ import type {
   CatchableSpawn,
   NearbyWatcher,
   NearbyRecentCatch,
+  PanState,
 } from "@/components/HuntMap";
 import PrivacyIntroModal from "@/components/PrivacyIntroModal";
 import PresenceLegend from "@/components/PresenceLegend";
@@ -148,19 +148,11 @@ const RARITY_COLORS: Record<string, string> = {
   legendary: "#88FF00",
 };
 
-// BLINK: ETH-only — Solana/Bitcoin filter pills hidden. Underlying chain map kept for legacy DB rows.
-const FILTER_OPTIONS = ["All", "ETH", "Tasks"];
-
+// BLINK: ETH-only — chain map kept for legacy DB rows.
 const CHAIN_FILTER_MAP: Record<string, string> = {
   SOL: "solana",
   ETH: "ethereum",
   BTC: "bitcoin",
-};
-
-const CHAIN_PILL_COLORS: Record<string, string> = {
-  SOL: "#00FF88",
-  ETH: "#00FF88",
-  BTC: "#88FF00",
 };
 
 const CLAIM_RADIUS_M = 100;
@@ -188,27 +180,6 @@ function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(1)}km`;
 }
 
-const toolRailBtn: React.CSSProperties = {
-  width: 40,
-  height: 40,
-  borderRadius: 12,
-  background: "rgba(10,10,20,0.75)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  color: "#00FF88",
-  fontSize: 16,
-  fontWeight: 700,
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontFamily: "inherit",
-  padding: 0,
-  transition: "all 0.15s ease",
-  boxShadow: "0 2px 12px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)",
-};
-
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
@@ -216,7 +187,6 @@ const toolRailBtn: React.CSSProperties = {
 export default function MapPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { isDesktop } = useIsDesktop();
 
   /* ---- State ---- */
   const [position, setPosition] = useState<Position | null>(null);
@@ -224,8 +194,7 @@ export default function MapPage() {
   const [orbs, setOrbs] = useState<Orb[]>([]);
   const [orbsLoading, setOrbsLoading] = useState(true);
   const [orbsError, setOrbsError] = useState(false);
-  const [activeFilter, setActiveFilter] = useState("All");
-  const [nearbyPlayersOpen, setNearbyPlayersOpen] = useState(false);
+  const [activeFilter] = useState("All");
   const [selectedOrb, setSelectedOrb] = useState<Orb | null>(null);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [confirmOrb, setConfirmOrb] = useState<Orb | null>(null);
@@ -233,37 +202,89 @@ export default function MapPage() {
   const [profileCardUserId, setProfileCardUserId] = useState<string | null>(null);
   const [cameraGranted, setCameraGranted] = useState(true); // assume granted until checked
   const [cameraToast, setCameraToast] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [fabDim, setFabDim] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<NearbyPlayer | null>(null);
   const [selectedWild, setSelectedWild] = useState<WildSpawn | null>(null);
   const [privacyForceOpen, setPrivacyForceOpen] = useState(false);
   const [catchableSpawns, setCatchableSpawns] = useState<CatchableSpawn[]>([]);
   const [selectedCatchable, setSelectedCatchable] = useState<CatchableSpawn | null>(null);
-  const [catching, setCatching] = useState(false);
-  const [catchError, setCatchError] = useState<string | null>(null);
-  const [catchResult, setCatchResult] = useState<CatchResult | null>(null);
   const [cinematicOpen, setCinematicOpen] = useState(false);
   const [arSpawn, setArSpawn] = useState<CatchableSpawn | null>(null);
   const [arOpen, setArOpen] = useState(false);
   const [blinkBalance, setBlinkBalance] = useState<number | null>(null);
+  // App-HUD state: the single top-bar menu fan, the one banner slot's
+  // transient "walk closer" nudge, camera-follow pan state (drives the
+  // Recenter button), and the bottom Nearby tray.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [nudge, setNudge] = useState<{ tint: string; title: string; subtitle: string } | null>(null);
+  const nudgeTokenRef = useRef(0);
+  const [panState, setPanState] = useState<PanState | null>(null);
+  const [nearbyExpanded, setNearbyExpanded] = useState(false);
+  // Real daily-energy analog (app: WalkEnergyBar): free catches left today +
+  // the day streak, from /api/me/stats. `null` until the first fetch lands —
+  // the bar renders nothing rather than fake numbers.
+  const [playerStats, setPlayerStats] = useState<{
+    catchesToday: number;
+    streakDays: number;
+    unclaimedCatches: number;
+  } | null>(null);
+  // WalkEnergyBar presentation state — opens full for a few seconds so the
+  // day's state reads at a glance, then slims into the tiny quiet pill.
+  const [energyExpanded, setEnergyExpanded] = useState(true);
+  const [energyDetail, setEnergyDetail] = useState(false);
+  const energyQuietTokenRef = useRef(0);
   const leafletMapRef = useRef<any>(null);
   const watchIdRef = useRef<number | null>(null);
-  const fabIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /* ---- FAB idle fade ---- */
-  const wakeFab = useCallback(() => {
-    setFabDim(false);
-    if (fabIdleTimerRef.current) clearTimeout(fabIdleTimerRef.current);
-    fabIdleTimerRef.current = setTimeout(() => setFabDim(true), 3000);
+  /* ---- The unified "walk closer" nudge (app: MapHomeView.showNudge) ---- */
+  const showNudge = useCallback((tint: string, title: string, subtitle: string) => {
+    setNudge({ tint, title, subtitle });
+    nudgeTokenRef.current += 1;
+    const token = nudgeTokenRef.current;
+    setTimeout(() => {
+      if (token === nudgeTokenRef.current) setNudge(null);
+    }, 3200);
+  }, []);
+
+  /* ---- Player stats: daily energy + streak + claimable dot ---- */
+  const fetchPlayerStats = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/me/stats", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      if (typeof json.catchesToday === "number") {
+        setPlayerStats({
+          catchesToday: json.catchesToday,
+          streakDays: json.streakDays ?? 0,
+          unclaimedCatches: json.unclaimedCatches ?? 0,
+        });
+      }
+    } catch {
+      /* silent — the bar simply stays hidden */
+    }
   }, []);
 
   useEffect(() => {
-    wakeFab();
-    return () => {
-      if (fabIdleTimerRef.current) clearTimeout(fabIdleTimerRef.current);
-    };
-  }, [wakeFab]);
+    if (user) fetchPlayerStats();
+  }, [user, fetchPlayerStats]);
+
+  /* ---- WalkEnergyBar quiet cycle (app: scheduleQuiet) ---- */
+  const scheduleEnergyQuiet = useCallback((afterMs: number) => {
+    energyQuietTokenRef.current += 1;
+    const token = energyQuietTokenRef.current;
+    setTimeout(() => {
+      if (token !== energyQuietTokenRef.current) return;
+      setEnergyDetail(false);
+      setEnergyExpanded(false);
+    }, afterMs);
+  }, []);
+
+  useEffect(() => {
+    scheduleEnergyQuiet(6000);
+  }, [scheduleEnergyQuiet]);
 
   /* ---- Auth redirect ---- */
   useEffect(() => {
@@ -334,15 +355,22 @@ export default function MapPage() {
 
   /* ---- Camera permission check ---- */
   useEffect(() => {
+    let status: PermissionStatus | null = null;
+    // Safari <16 / some WebViews have no Permissions API — query() would throw synchronously.
+    if (typeof navigator.permissions?.query !== "function") return;
     navigator.permissions
       .query({ name: "camera" as PermissionName })
-      .then((status) => {
-        setCameraGranted(status.state === "granted");
-        status.onchange = () => setCameraGranted(status.state === "granted");
+      .then((s) => {
+        status = s;
+        setCameraGranted(s.state === "granted");
+        s.onchange = () => setCameraGranted(s.state === "granted");
       })
       .catch(() => {
         // permissions API not supported for camera, keep hidden
       });
+    return () => {
+      if (status) status.onchange = null;
+    };
   }, []);
 
   /* ---- Fetch orbs ---- */
@@ -418,12 +446,10 @@ export default function MapPage() {
         return;
       }
       const json = await res.json();
-      console.log('[ambient] raw spawns:', json.spawns?.length ?? 0, 'pos:', position?.lat, position?.lng);
       const spawnsWithDistance = (json.spawns ?? []).map((s: CatchableSpawn) => ({
         ...s,
         distanceM: position ? haversine(position.lat, position.lng, s.lat, s.lng) : 9999,
       }));
-      console.log('[ambient] setCatchableSpawns:', spawnsWithDistance.length);
       setCatchableSpawns(spawnsWithDistance as CatchableSpawn[]);
     } catch (err) {
       console.error('[fetchCatchableSpawns error]', err);
@@ -436,51 +462,6 @@ export default function MapPage() {
     const id = setInterval(fetchCatchableSpawns, AMBIENT_POLL_MS);
     return () => clearInterval(id);
   }, [position?.lat, position?.lng, fetchCatchableSpawns]);
-
-  /* ---- Catch flow ---- */
-  const performCatch = useCallback(async (override?: CatchableSpawn) => {
-    const target = override ?? selectedCatchable;
-    if (!target || !position) return;
-    setCatching(true);
-    setCatchError(null);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        setCatchError("Not authenticated.");
-        setCatching(false);
-        return;
-      }
-      const res = await fetch("/api/spawns/catch", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          spawnId: target.id,
-          lat: position.lat,
-          lng: position.lng,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setCatchError(json.error || "Catch failed.");
-        setCatching(false);
-        return;
-      }
-      setCatchResult(json as CatchResult);
-      if (typeof json.blinkRewarded === "number" && json.blinkRewarded > 0) {
-        setBlinkBalance((prev) => (prev !== null ? prev + json.blinkRewarded : json.blinkRewarded));
-      }
-      setSelectedCatchable(null);
-      // Re-poll immediately so the caught spawn drops off.
-      await fetchCatchableSpawns();
-    } catch (err) {
-      setCatchError(err instanceof Error ? err.message : "Catch failed.");
-    } finally {
-      setCatching(false);
-    }
-  }, [selectedCatchable, position, fetchCatchableSpawns]);
 
   /* ---- Derived ---- */
   // Render real spawns only — no mock fallback in production.
@@ -791,19 +772,46 @@ export default function MapPage() {
     return { nearest, distM, intensity };
   }, [radarCreatures, position]);
 
-  const compassReading: CompassReading = (() => {
-    if (!position || orbsWithDistance.length === 0) {
-      return { tier: "none", distanceM: Infinity, bearingDeg: 0 };
+  /* ---- App-HUD derived state ---- */
+  // Catchable spawns with live distance, nearest first — feeds the banner
+  // slot, the Lens badge, and the Nearby tray's CREATURES section.
+  const spawnsByDistance = useMemo(() => {
+    if (!position) return [] as (CatchableSpawn & { distanceM: number })[];
+    return catchableSpawns
+      .map((s) => ({ ...s, distanceM: haversine(position.lat, position.lng, s.lat, s.lng) }))
+      .sort((a, b) => a.distanceM - b.distanceM);
+  }, [catchableSpawns, position]);
+
+  // The nearest creature actually within catch range — drives the "in reach"
+  // banner (app: catchableCreature) and gates the catch flow.
+  const inReachSpawn = spawnsByDistance.find((s) => s.distanceM <= CATCH_PROXIMITY_M) ?? null;
+  const lensBadgeCount = spawnsByDistance.filter((s) => s.distanceM <= CATCH_PROXIMITY_M).length;
+
+  // Mythic within 100m — the screen-edge pink pulse moment.
+  const mythicNear = spawnsByDistance.some(
+    (s) => (s.tier || "").toLowerCase() === "mythic" && s.distanceM <= 100,
+  );
+
+  // Orb drops sorted by distance for the tray's TREASURE section.
+  const orbsByDistance = useMemo(
+    () => [...orbsWithDistance].filter((o) => o.status !== "claimed").sort((a, b) => a.distance - b.distance),
+    [orbsWithDistance],
+  );
+
+  /* ---- Catch proximity gate (app: MapHomeView.tapCreature) ---- */
+  // Every creature tap routes through this: within range opens the catch
+  // flow; farther away surfaces the calm "walk closer" nudge.
+  const tapCatchable = useCallback((s: CatchableSpawn) => {
+    const dist = position ? haversine(position.lat, position.lng, s.lat, s.lng) : Infinity;
+    if (dist <= CATCH_PROXIMITY_M) {
+      setSelectedCatchable(s);
+      setCinematicOpen(true);
+      return;
     }
-    const nearest = orbsWithDistance.reduce((a, b) =>
-      a.distance < b.distance ? a : b,
-    );
-    return {
-      tier: nearest.tier as CompassTier,
-      distanceM: nearest.distance,
-      bearingDeg: nearest.bearing,
-    };
-  })();
+    const toGo = Math.max(1, Math.round(dist - CATCH_PROXIMITY_M));
+    const tint = s.tier_color || "#00FF88";
+    showNudge(tint, `Get closer to catch ${s.name}`, `Walk about ${formatDistance(toGo)} closer to reach it`);
+  }, [position, showNudge]);
 
   /* ---- Claim flow ---- */
   const [crackError, setCrackError] = useState<string | null>(null);
@@ -877,21 +885,25 @@ export default function MapPage() {
         0%, 100% { transform: scale(1); opacity: 1; }
         50% { transform: scale(1.6); opacity: 0.5; }
       }
-      @keyframes mmRing {
-        0% { transform: scale(1); opacity: 0.6; }
-        100% { transform: scale(3); opacity: 0; }
+      @keyframes mmBannerShimmer {
+        0%, 100% { transform: scale(0.9); opacity: 0.9; }
+        50% { transform: scale(1.15); opacity: 0.3; }
       }
-      @keyframes mmGlow {
-        0%, 100% { box-shadow: 0 0 8px 2px var(--glow-color); }
-        50% { box-shadow: 0 0 20px 6px var(--glow-color); }
+      @keyframes mmLensBreathe {
+        0%, 100% { transform: scale(0.94); opacity: 0.85; }
+        50% { transform: scale(1.16); opacity: 0.35; }
       }
-      @keyframes mmFloat {
-        0%, 100% { transform: translateY(0px); }
-        50% { transform: translateY(-4px); }
+      @keyframes mmRecenterPing {
+        0% { transform: scale(1); opacity: 1; }
+        100% { transform: scale(1.25); opacity: 0; }
       }
-      @keyframes claimPulse {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,136,0.4); }
-        50% { box-shadow: 0 0 0 8px rgba(0,255,136,0); }
+      @keyframes mmMythicEdge {
+        0%, 100% { opacity: 0; }
+        50% { opacity: 1; }
+      }
+      @keyframes mmLiveDot {
+        0%, 100% { transform: scale(0.9); }
+        50% { transform: scale(1.3); }
       }
     `;
     document.head.appendChild(style);
@@ -931,8 +943,10 @@ export default function MapPage() {
           '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
       }}
     >
-      {/* ========== FLOATING TOP BAR ========== */}
-      {/* Full-screen map underneath — all UI floats as absolute overlays */}
+      {/* ========== TOP HUD — ONE calm status row + ONE banner slot ========== */}
+      {/* App-identical: the live Orb Balance chip on the left, the single
+          menu button on the right, and at most one contextual banner below.
+          The world gets the screen. */}
       <div
         style={{
           position: "absolute",
@@ -940,196 +954,561 @@ export default function MapPage() {
           left: 0,
           right: 0,
           zIndex: 40,
-          paddingTop: "max(env(safe-area-inset-top, 0px), 12px)",
-          padding: "max(env(safe-area-inset-top, 0px), 12px) 12px 0",
+          padding: "calc(max(env(safe-area-inset-top, 0px), 10px) + 6px) 16px 0",
           pointerEvents: "none",
           display: "flex",
           flexDirection: "column",
-          gap: 8,
+          gap: 10,
         }}
       >
-        {/* Main pill: logo + sense count + profile */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            pointerEvents: "auto",
-          }}
-        >
-          {/* Logo pill */}
-          <Link href="/" style={{ textDecoration: "none", flexShrink: 0 }}>
-            <div style={{
-              height: 40,
-              padding: "0 14px",
-              borderRadius: 999,
-              background: COLORS.glassStrong,
-              backdropFilter: "blur(24px)",
-              WebkitBackdropFilter: "blur(24px)",
-              border: "1px solid rgba(0,255,136,0.18)",
-              boxShadow: "0 2px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}>
-              <span style={{
-                fontSize: 15,
-                fontWeight: 800,
-                letterSpacing: "-0.02em",
-                background: "linear-gradient(135deg, #00FF88, #88FF00)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}>BLINK</span>
-            </div>
-          </Link>
-
-          {/* Sense status pill — center, flex grows */}
-          <div style={{
-            flex: 1,
-            height: 40,
-            borderRadius: 999,
-            background: COLORS.glassStrong,
-            backdropFilter: "blur(24px)",
-            WebkitBackdropFilter: "blur(24px)",
-            border: `1px solid ${catchableSpawns.length > 0 ? "rgba(0,255,136,0.22)" : "rgba(255,255,255,0.06)"}`,
-            boxShadow: "0 2px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-          }}>
-            {catchableSpawns.length > 0 && (
-              <span className="mm-sense-dot" style={{ width: 7, height: 7, borderRadius: "50%", background: "#00FF88", flexShrink: 0 }} />
-            )}
-            <span style={{
-              color: catchableSpawns.length > 0 ? COLORS.text : COLORS.textMuted,
-              fontSize: 12,
-              fontWeight: catchableSpawns.length > 0 ? 700 : 500,
-              letterSpacing: "0.01em",
-            }}>
-              {catchableSpawns.length > 0 ? `${catchableSpawns.length} nearby` : "The Eye is quiet"}
-            </span>
-          </div>
-
-          {/* BLINK balance pill */}
-          <Link href="/wallet" style={{ textDecoration: "none", flexShrink: 0 }} aria-label="Wallet">
-            <div style={{
-              height: 40,
-              padding: "0 12px",
-              borderRadius: 999,
-              background: COLORS.glassStrong,
-              backdropFilter: "blur(24px)",
-              WebkitBackdropFilter: "blur(24px)",
-              border: "1px solid rgba(0,255,136,0.18)",
-              boxShadow: "0 2px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",
-              display: "flex",
-              alignItems: "center",
-              gap: 5,
-            }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, pointerEvents: "auto" }}>
+          {/* Orb balance chip — black glass capsule, brand orb + balance */}
+          <Link href="/wallet" style={{ textDecoration: "none", flexShrink: 0 }} aria-label="Open your Orb Bank">
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "4px 12px 4px 5px",
+                borderRadius: 999,
+                background: "rgba(10,10,15,0.55)",
+                backdropFilter: "blur(24px)",
+                WebkitBackdropFilter: "blur(24px)",
+                border: "1px solid rgba(0,255,136,0.45)",
+                boxShadow: "0 0 8px rgba(0,255,136,0.22)",
+              }}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/brand/logo-orb-glow.png"
+                src="/brand/app/energy-orb-b.png"
                 alt=""
-                style={{ width: 17, height: 17, objectFit: "contain", filter: "drop-shadow(0 0 6px rgba(0,255,136,0.5))" }}
+                style={{ width: 17, height: 17, objectFit: "contain" }}
               />
-              {blinkBalance === null
-                ? <span style={{ color: COLORS.textMuted, fontSize: 13, fontWeight: 700 }}>···</span>
-                : <span style={{ color: COLORS.text, fontSize: 14, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{blinkBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-              }
+              <span
+                style={{
+                  color: COLORS.text,
+                  fontSize: 14,
+                  fontWeight: 900,
+                  fontVariantNumeric: "tabular-nums",
+                  lineHeight: "17px",
+                }}
+              >
+                {blinkBalance === null
+                  ? "···"
+                  : blinkBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </span>
             </div>
           </Link>
 
-          {/* Profile avatar */}
-          <Link href="/profile" style={{ textDecoration: "none", flexShrink: 0 }} aria-label="Profile">
-            <div style={{
+          <div style={{ flex: 1 }} />
+
+          {/* The one menu button — rotates into an X when the fan is open.
+              A single dot means "something inside is waiting" (app:
+              menuHasAttention) — here, real unclaimed catch rewards. */}
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            style={{
               width: 40,
               height: 40,
               borderRadius: "50%",
-              background: COLORS.glassStrong,
+              background: "rgba(20,20,28,0.6)",
               backdropFilter: "blur(24px)",
               WebkitBackdropFilter: "blur(24px)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              boxShadow: "0 2px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.25)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-            }}>
-              <User size={16} color={COLORS.textMuted} />
-            </div>
-          </Link>
+              cursor: "pointer",
+              padding: 0,
+              position: "relative",
+            }}
+          >
+            <span
+              style={{
+                display: "flex",
+                transform: menuOpen ? "rotate(90deg)" : "rotate(0deg)",
+                transition: "transform 0.35s cubic-bezier(0.34, 1.4, 0.64, 1)",
+              }}
+            >
+              {menuOpen ? (
+                <svg width="15" height="15" viewBox="0 0 15 15" aria-hidden="true">
+                  <path d="M2 2 L13 13 M13 2 L2 13" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg width="15" height="15" viewBox="0 0 15 15" aria-hidden="true">
+                  <path d="M1.5 3 H13.5 M1.5 7.5 H13.5 M1.5 12 H13.5" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
+                </svg>
+              )}
+            </span>
+            {!menuOpen && (playerStats?.unclaimedCatches ?? 0) > 0 && (
+              <span
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  top: -1,
+                  right: -1,
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  background: "#00FF88",
+                  boxShadow: "0 0 0 2px #0a0a0f",
+                }}
+              />
+            )}
+          </button>
         </div>
+
+        {/* ---- WalkEnergyBar (app: WalkEnergyBar) ----
+            The daily energy meter backed by REAL data: free catches left
+            today (DAILY_FREE_LIMIT = 2 in /api/spawns/catch) + the streak
+            from /api/me/stats. Opens full for a few seconds, then slims into
+            the tiny quiet pill; stays open while low or empty. */}
+        {playerStats && (() => {
+          const DAILY_FREE = 2;
+          const remaining = Math.max(0, DAILY_FREE - playerStats.catchesToday);
+          const fraction = remaining / DAILY_FREE;
+          const isEmpty = remaining === 0;
+          const isLow = remaining === 1;
+          const mustStayOpen = isEmpty || isLow;
+          const isOpen = energyExpanded || mustStayOpen;
+          const barTint = isEmpty ? "#9ea8bd" : isLow ? "#ffb840" : "#00FF88";
+          const gold = "#ffd152";
+          const streak = playerStats.streakDays;
+          const detailText = isEmpty
+            ? "Today's free catches are used — they refill at midnight, so come back tomorrow for a fresh run."
+            : isLow
+              ? `Almost done for today: ${remaining} free catch left. Refills fully at midnight.`
+              : `Energy: ${remaining} of ${DAILY_FREE} free catches left today. Every catch spends one — it refills at midnight.`;
+          const onTap = () => {
+            if (isOpen) setEnergyDetail((v) => !v);
+            else {
+              setEnergyExpanded(true);
+              setEnergyDetail(true);
+            }
+            scheduleEnergyQuiet(4500);
+          };
+          const boltSvg = (size: number, tint: string) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill={tint} aria-hidden="true" style={{ flexShrink: 0 }}>
+              <path d="M13 2L4.5 13.5H11L9.5 22 19 10.5h-6.5z" />
+            </svg>
+          );
+          const moonSvg = (
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="#9ea8bd" aria-hidden="true" style={{ flexShrink: 0 }}>
+              <path d="M20.4 14.6A8.6 8.6 0 0 1 9.4 3.6 8.6 8.6 0 1 0 20.4 14.6z" />
+            </svg>
+          );
+          const flameSvg = (size: number) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill={gold} aria-hidden="true" style={{ flexShrink: 0 }}>
+              <path d="M12 22c4.2 0 7-2.8 7-6.6 0-2.7-1.5-4.8-3-6.6-1.4-1.6-2.7-3.1-3-5.3-.1-.6-.7-.7-1-.2-1.1 1.5-1.6 3.2-1.5 4.9C8.4 7 7.4 6 6.8 4.9c-.3-.5-.9-.4-1 .1C5.3 7.2 5 9.4 5 11.5 5 17.9 7.8 22 12 22z" />
+            </svg>
+          );
+          return !isOpen ? (
+            <button
+              type="button"
+              onClick={onTap}
+              aria-label={`Energy ${remaining} of ${DAILY_FREE}. Day streak ${streak}.`}
+              style={{
+                alignSelf: "center",
+                pointerEvents: "auto",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "4.5px 9px",
+                borderRadius: 999,
+                background: "rgba(0,0,0,0.5)",
+                border: `1px solid ${barTint}40`,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {boltSvg(9, barTint)}
+              <span style={{ position: "relative", width: 30, height: 4, borderRadius: 999, background: "rgba(255,255,255,0.14)", overflow: "hidden" }}>
+                <span
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: Math.max(3, 30 * fraction),
+                    borderRadius: 999,
+                    background: barTint,
+                    transition: "width 0.6s ease",
+                  }}
+                />
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                {flameSvg(8)}
+                <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 9, fontWeight: 900, fontVariantNumeric: "tabular-nums" }}>
+                  {streak}
+                </span>
+              </span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onTap}
+              aria-label={isEmpty ? `Energy empty. Refills at midnight. Day streak ${streak}.` : `Energy ${remaining} of ${DAILY_FREE}. Day streak ${streak}.`}
+              style={{
+                pointerEvents: "auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: 7,
+                width: "100%",
+                padding: `${energyDetail ? 9 : 7}px 12px`,
+                borderRadius: 14,
+                background: "rgba(0,0,0,0.55)",
+                border: `1px solid ${barTint}${isLow ? "99" : "4D"}`,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                textAlign: "left",
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 9, width: "100%" }}>
+                {isEmpty ? moonSvg : boltSvg(11, barTint)}
+                {isEmpty ? (
+                  <span style={{ flex: 1, color: "rgba(255,255,255,0.7)", fontSize: 10, fontWeight: 900, letterSpacing: "0.12em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    ENERGY REFILLS AT MIDNIGHT
+                  </span>
+                ) : (
+                  <span style={{ flex: 1, position: "relative", height: 7, borderRadius: 999, background: "rgba(255,255,255,0.12)", overflow: "visible" }}>
+                    <span
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: `${Math.max(4, fraction * 100)}%`,
+                        borderRadius: 999,
+                        background: `linear-gradient(90deg, ${barTint}BF, ${barTint})`,
+                        boxShadow: `0 0 4px ${barTint}99`,
+                        transition: "width 0.6s ease",
+                      }}
+                    />
+                  </span>
+                )}
+                <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                  {flameSvg(10)}
+                  <span style={{ color: "#fff", fontSize: 11, fontWeight: 900, fontVariantNumeric: "tabular-nums" }}>
+                    {streak}
+                  </span>
+                </span>
+              </span>
+              {energyDetail && (
+                <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: 600, width: "100%" }}>
+                  {detailText}
+                </span>
+              )}
+            </button>
+          );
+        })()}
+
+        {/* ONE banner slot — a transient nudge takes priority, then the
+            in-reach catch banner. Two messages never stack. */}
+        <AnimatePresence>
+          {nudge ? (
+            <motion.div
+              key="map-nudge"
+              initial={{ y: -24, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -24, opacity: 0 }}
+              transition={{ type: "spring", damping: 24, stiffness: 320 }}
+              style={{
+                pointerEvents: "auto",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "10px 12px",
+                borderRadius: 16,
+                background: "rgba(16,16,24,0.78)",
+                backdropFilter: "blur(24px)",
+                WebkitBackdropFilter: "blur(24px)",
+                border: `1.2px solid ${nudge.tint}B3`,
+                boxShadow: `0 0 18px ${nudge.tint}66`,
+              }}
+            >
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: `${nudge.tint}38`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                {/* Walking figure — the app's "figure.walk" glyph */}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="13" cy="4" r="2" fill="#fff" stroke="none" />
+                  <path d="M13 7l-2 5 3 3v6M11 12l-3 2-2 4M14 10l3 2 3 1" />
+                </svg>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: COLORS.text, fontSize: 13, fontWeight: 900, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {nudge.title}
+                </div>
+                <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 2 }}>
+                  {nudge.subtitle}
+                </div>
+              </div>
+              {/* Trailing context glyph — the app's pawprint, tinted to the nudge */}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={nudge.tint} aria-hidden="true" style={{ flexShrink: 0 }}>
+                <ellipse cx="7" cy="8" rx="2" ry="2.6" />
+                <ellipse cx="12" cy="6.4" rx="2" ry="2.7" />
+                <ellipse cx="17" cy="8" rx="2" ry="2.6" />
+                <path d="M12 11c-3 0-5.6 2.2-5.6 4.9 0 1.7 1.3 2.8 3 2.8 1 0 1.8-.4 2.6-.4s1.6.4 2.6.4c1.7 0 3-1.1 3-2.8C17.6 13.2 15 11 12 11z" />
+              </svg>
+            </motion.div>
+          ) : inReachSpawn ? (
+            <motion.button
+              key={`in-reach-${inReachSpawn.id}`}
+              type="button"
+              initial={{ y: -24, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -24, opacity: 0 }}
+              transition={{ type: "spring", damping: 24, stiffness: 320 }}
+              onClick={() => tapCatchable(inReachSpawn)}
+              style={{
+                pointerEvents: "auto",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "10px 12px",
+                borderRadius: 16,
+                background: "rgba(16,16,24,0.78)",
+                backdropFilter: "blur(24px)",
+                WebkitBackdropFilter: "blur(24px)",
+                border: `1.2px solid ${(inReachSpawn.tier_color || "#00FF88")}B3`,
+                boxShadow: `0 0 18px ${(inReachSpawn.tier_color || "#00FF88")}73`,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                textAlign: "left",
+                width: "100%",
+              }}
+            >
+              <div style={{ position: "relative", width: 44, height: 44, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    borderRadius: "50%",
+                    background: `${inReachSpawn.tier_color || "#00FF88"}40`,
+                    animation: "mmBannerShimmer 1s ease-in-out infinite",
+                  }}
+                />
+                {(() => {
+                  const art = resolveByCreatureId(inReachSpawn.creature_id, {
+                    name: inReachSpawn.name,
+                    tier: inReachSpawn.tier,
+                    imageCid: inReachSpawn.image_url,
+                  });
+                  const src = art.floating || art.card || inReachSpawn.image_url;
+                  return src ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={src}
+                      alt=""
+                      style={{
+                        position: "relative",
+                        width: 38,
+                        height: 38,
+                        objectFit: "contain",
+                        filter: `drop-shadow(0 0 8px ${inReachSpawn.tier_color || "#00FF88"})`,
+                      }}
+                    />
+                  ) : null;
+                })()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: COLORS.text, fontSize: 13, fontWeight: 900 }}>
+                  A {TIER_LABELS[inReachSpawn.tier] ?? inReachSpawn.tier} is in reach
+                </div>
+                <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: 600, marginTop: 2 }}>
+                  Tap to catch {inReachSpawn.name}
+                </div>
+              </div>
+              <svg width="8" height="14" viewBox="0 0 8 14" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+                <path d="M1 1l6 6-6 6" stroke={inReachSpawn.tier_color || "#00FF88"} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </motion.button>
+          ) : null}
+        </AnimatePresence>
       </div>
 
-      {/* ========== CLAIM REWARDS BUTTON ========== */}
-      <button
-        type="button"
-        onClick={() => router.push("/claim")}
-        style={{
-          position: "fixed",
-          top: "calc(env(safe-area-inset-top, 0px) + 64px)",
-          left: "50%",
-          transform: "translateX(-50%)",
-          zIndex: 60,
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: "10px 24px",
-          borderRadius: 999,
-          background: "rgba(0,255,136,0.15)",
-          border: "1.5px solid #00FF88",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          cursor: "pointer",
-          animation: "claimPulse 2s infinite",
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/brand/logo-orb-glow.png"
-          alt=""
-          style={{ width: 18, height: 18, objectFit: "contain", filter: "drop-shadow(0 0 6px rgba(0,255,136,0.5))" }}
-        />
-        <span style={{ color: "#00FF88", fontWeight: 900, fontSize: 13, letterSpacing: "0.12em", textTransform: "uppercase" }}>Claim Rewards</span>
-      </button>
-
-      {/* ========== HOT/COLD COMPASS ========== */}
-      {/* Spawn notifier — silent side effect component */}
-      <SpawnNotifier spawns={notifySpawns} enabled={notifPermission === "granted"} />
-
-      {/* Creature radar — shows when spawns are within 1km */}
+      {/* ========== MAP MENU FAN ========== */}
+      {/* The single map menu, fanned open over a light scrim — label capsule
+          + circular icon rows, entering with a soft stagger. */}
       <AnimatePresence>
-        {radarCreatures.length > 0 && (
-          <div style={{ position: "absolute", bottom: `calc(${NAV_H + 96}px + env(safe-area-inset-bottom, 0px))`, right: 16, zIndex: 50 }}>
-            <CreatureRadar
-              creatures={radarCreatures}
-              onCreatureSelect={(id) => {
-                const spawn = catchableSpawns.find((s) => s.id === id);
-                if (spawn) {
-                  setSelectedCatchable(spawn);
-                  if (position) {
-                    const d = haversine(position.lat, position.lng, spawn.lat, spawn.lng);
-                    if (d <= CATCH_PROXIMITY_M) setCinematicOpen(true);
-                  }
-                }
+        {menuOpen && (
+          <motion.div
+            key="map-menu-fan"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setMenuOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 55,
+              background: "rgba(0,0,0,0.35)",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: "calc(max(env(safe-area-inset-top, 0px), 10px) + 56px)",
+                right: 16,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-end",
+                gap: 10,
               }}
-            />
-          </div>
+            >
+              {/* Same three rows as the app's MapMenuFan: Pulse (pink,
+                  bolt.heart.fill), Invite & Earn (gold, person.2.fill),
+                  Quests (green, list.bullet.clipboard.fill) — wired to the
+                  web homes of those hubs. */}
+              {([
+                {
+                  label: "Pulse",
+                  tint: "#ff738c",
+                  href: "/live",
+                  icon: (
+                    <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 21C12 21 4 15.3 4 9.8 4 7 6.2 5 8.5 5 10 5 11.3 5.8 12 7c.7-1.2 2-2 3.5-2C17.8 5 20 7 20 9.8 20 15.3 12 21 12 21Z" fill="#ff738c" />
+                      <path d="M13 8.2 10.2 12.4h1.9l-1 3.6 3.7-4.8h-1.9l1-3z" fill="#0e0e14" />
+                    </svg>
+                  ),
+                },
+                {
+                  label: "Invite & Earn",
+                  tint: "#ffd166",
+                  href: "/friends",
+                  icon: (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="#ffd166" aria-hidden="true">
+                      <circle cx="16.2" cy="8.6" r="2.6" opacity="0.6" />
+                      <path d="M13.4 19.5c.3-2.8 1.9-4.5 4-4.9 1.9.3 3.6 1.8 3.6 4.2 0 .4-.3.7-.7.7h-6.9Z" opacity="0.6" />
+                      <circle cx="9" cy="8" r="3.1" />
+                      <path d="M3.2 19.6c0-3.2 2.6-5.1 5.8-5.1s5.8 1.9 5.8 5.1c0 .5-.4.9-.9.9H4.1c-.5 0-.9-.4-.9-.9Z" />
+                    </svg>
+                  ),
+                },
+                {
+                  label: "Quests",
+                  tint: "#00FF88",
+                  href: "/missions",
+                  icon: (
+                    <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
+                      <rect x="4.5" y="3.8" width="15" height="18" rx="2.4" fill="#00FF88" />
+                      <rect x="8.6" y="2" width="6.8" height="3.6" rx="1.3" fill="#00FF88" stroke="#0e0e14" strokeWidth="1" />
+                      <circle cx="8.3" cy="10.2" r="1" fill="#0e0e14" />
+                      <rect x="10.4" y="9.5" width="5.8" height="1.4" rx="0.7" fill="#0e0e14" />
+                      <circle cx="8.3" cy="14" r="1" fill="#0e0e14" />
+                      <rect x="10.4" y="13.3" width="5.8" height="1.4" rx="0.7" fill="#0e0e14" />
+                      <circle cx="8.3" cy="17.8" r="1" fill="#0e0e14" />
+                      <rect x="10.4" y="17.1" width="5.8" height="1.4" rx="0.7" fill="#0e0e14" />
+                    </svg>
+                  ),
+                },
+              ] as const).map((row, i) => (
+                <motion.button
+                  key={row.label}
+                  type="button"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05, type: "spring", damping: 22, stiffness: 300 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    router.push(row.href);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    background: "transparent",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.4))",
+                  }}
+                >
+                  <span
+                    style={{
+                      padding: "7px 12px",
+                      borderRadius: 999,
+                      background: "rgba(0,0,0,0.7)",
+                      border: "1px solid rgba(255,255,255,0.14)",
+                      color: "#fff",
+                      fontSize: 13,
+                      fontWeight: 900,
+                    }}
+                  >
+                    {row.label}
+                  </span>
+                  <span
+                    style={{
+                      position: "relative",
+                      width: 44,
+                      height: 44,
+                      borderRadius: "50%",
+                      background: "rgba(14,14,20,0.75)",
+                      backdropFilter: "blur(24px)",
+                      WebkitBackdropFilter: "blur(24px)",
+                      border: `1px solid ${row.tint}8C`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {row.icon}
+                    {row.href === "/missions" && (playerStats?.unclaimedCatches ?? 0) > 0 && (
+                      <span
+                        aria-hidden
+                        style={{
+                          position: "absolute",
+                          top: -1,
+                          right: -1,
+                          width: 10,
+                          height: 10,
+                          borderRadius: "50%",
+                          background: row.tint,
+                          boxShadow: "0 0 0 2px #0a0a0f",
+                        }}
+                      />
+                    )}
+                  </span>
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Legacy compass — show only when no radar creatures (no spawns in 1km) */}
-      {radarCreatures.length === 0 && (
+      {/* ========== MYTHIC EDGE PULSE ========== */}
+      {/* Screen-edge pink vignette when a mythic is within 100m. */}
+      {mythicNear && (
         <div
+          aria-hidden
           style={{
             position: "absolute",
-            bottom: `calc(${NAV_H + 160}px + env(safe-area-inset-bottom, 0px))`,
-            right: 16,
-            zIndex: 50,
+            inset: 0,
+            zIndex: 12,
+            pointerEvents: "none",
+            background: "radial-gradient(ellipse at 50% 50%, transparent 52%, rgba(255,138,224,0.18) 78%, rgba(255,138,224,0.34) 100%)",
+            animation: "mmMythicEdge 2.4s ease-in-out infinite",
           }}
-        >
-          <BlinkCompass reading={compassReading} />
-        </div>
+        />
       )}
+
+      {/* Spawn notifier — silent side effect component */}
+      <SpawnNotifier spawns={notifySpawns} enabled={notifPermission === "granted"} />
 
       {/* ========== MAP AREA (full-screen behind all overlays) ========== */}
       <div
@@ -1171,7 +1550,6 @@ export default function MapPage() {
               onSelectOrb={(orb: ThemeOrb) => {
                 const local = orbsWithDistance.find((o) => o.id === orb.id);
                 if (local) setSelectedOrb(local);
-                wakeFab();
               }}
               mapRef={leafletMapRef}
               players={players}
@@ -1179,18 +1557,10 @@ export default function MapPage() {
               catchableSpawns={catchableSpawns}
               watchers={watchers}
               recentCatches={recentCatchesList}
-              onSelectPlayer={(p) => { setSelectedPlayer(p); wakeFab(); }}
-              onSelectWildSpawn={(s) => { setSelectedWild(s); wakeFab(); }}
-              onSelectCatchable={(s) => {
-                setSelectedCatchable(s);
-                setCatchError(null);
-                wakeFab();
-                // If already in range, skip the sheet and go straight to cinematic
-                if (position) {
-                  const d = haversine(position.lat, position.lng, s.lat, s.lng);
-                  if (d <= CATCH_PROXIMITY_M) setCinematicOpen(true);
-                }
-              }}
+              onSelectPlayer={(p) => setSelectedPlayer(p)}
+              onSelectWildSpawn={(s) => setSelectedWild(s)}
+              onSelectCatchable={tapCatchable}
+              onPanState={setPanState}
               approachIntensity={approachIntensity}
             />
           </ErrorBoundary>
@@ -1203,7 +1573,7 @@ export default function MapPage() {
             aria-label={isDenied ? "Location blocked" : "Enable location"}
             style={{
               position: "absolute",
-              bottom: `calc(${NAV_H + 92}px + env(safe-area-inset-bottom, 0px))`,
+              bottom: `calc(${NAV_H + 210}px + env(safe-area-inset-bottom, 0px))`,
               left: "50%",
               transform: "translateX(-50%)",
               zIndex: 50,
@@ -1231,13 +1601,13 @@ export default function MapPage() {
           </button>
         )}
 
-        {/* ---- Watchers nearby chip ---- */}
+        {/* ---- Nearby watchers pill (app: NearbyTrainersPill) ---- */}
         {(watchers.length > 0 || recentCatchesList.length > 0) && (
           <div
             style={{
               position: "absolute",
-              top: 64,
-              left: 12,
+              top: "calc(max(env(safe-area-inset-top, 0px), 10px) + 112px)",
+              left: 16,
               zIndex: 18,
               maxWidth: "calc(100% - 80px)",
             }}
@@ -1248,29 +1618,48 @@ export default function MapPage() {
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 6,
-                padding: "6px 12px",
+                gap: 7,
+                padding: "7px 11px",
                 borderRadius: 999,
-                background: "rgba(10,10,15,0.85)",
-                border: "1px solid rgba(0,255,136,0.45)",
-                color: "#00FF88",
+                background: "rgba(16,16,24,0.6)",
+                border: "1px solid rgba(0,255,136,0.4)",
+                color: "#fff",
                 fontSize: 12,
-                fontWeight: 700,
+                fontWeight: 800,
                 cursor: "pointer",
                 fontFamily: "inherit",
-                boxShadow: "0 0 14px rgba(0,255,136,0.18)",
-                backdropFilter: "blur(8px)",
-                WebkitBackdropFilter: "blur(8px)",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+                backdropFilter: "blur(20px)",
+                WebkitBackdropFilter: "blur(20px)",
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M12 5C7 5 3 12 3 12s4 7 9 7 9-7 9-7-4-7-9-7Z" stroke="#00FF88" strokeWidth="1.8"/>
-                <circle cx="12" cy="12" r="3" fill="#00FF88"/>
-              </svg>
+              <span style={{ position: "relative", display: "flex" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
+                  <circle cx="9" cy="8" r="3.4" />
+                  <path d="M2.5 19c0-3.3 2.9-5.4 6.5-5.4s6.5 2.1 6.5 5.4z" />
+                  <circle cx="17" cy="8.5" r="2.6" opacity="0.7" />
+                  <path d="M14.8 13.4c2.9 0.2 5.7 2 5.7 4.8h-4" opacity="0.7" />
+                </svg>
+                {watchers.length > 0 && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      right: -3,
+                      top: -3,
+                      width: 7,
+                      height: 7,
+                      borderRadius: "50%",
+                      background: "#00FF88",
+                      animation: "mmLiveDot 1.1s ease-in-out infinite",
+                    }}
+                  />
+                )}
+              </span>
               <span>
-                {watchers.length} Watcher{watchers.length !== 1 ? "s" : ""} nearby
+                {watchers.length > 0 ? `${watchers.length} live` : ""}
+                {watchers.length > 0 && recentCatchesList.length > 0 ? " · " : ""}
                 {recentCatchesList.length > 0
-                  ? ` · ${recentCatchesList.length} recent catch${recentCatchesList.length !== 1 ? "es" : ""}`
+                  ? `${recentCatchesList.length} recent catch${recentCatchesList.length !== 1 ? "es" : ""}`
                   : ""}
               </span>
             </button>
@@ -1341,97 +1730,557 @@ export default function MapPage() {
           </div>
         )}
 
-        {/* ---- Tool rail (top-right, below top bar) ---- */}
+      </div>
+
+      {/* ========== BOTTOM DOCK + NEARBY TRAY ========== */}
+      {/* App-identical bottom stack: the Recenter control (when panned away)
+          and the hero LENS button float right, above the Nearby tray, clear
+          of the tab bar. */}
+      <div
+        style={{
+          position: "absolute",
+          left: 16,
+          right: 16,
+          bottom: `calc(${NAV_H}px + env(safe-area-inset-bottom, 0px))`,
+          zIndex: 30,
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          maxWidth: 520,
+          margin: "0 auto",
+          pointerEvents: "none",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, pointerEvents: "auto" }}>
+            {/* Recenter — fades in when the user pans away; the arrow points
+                back toward them. */}
+            <AnimatePresence>
+              {panState?.away && !nearbyExpanded && (
+                <motion.button
+                  key="recenter"
+                  type="button"
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.6, opacity: 0 }}
+                  transition={{ type: "spring", damping: 22, stiffness: 300 }}
+                  onClick={() => {
+                    const fn = leafletMapRef.current?._mmRecenter;
+                    if (typeof fn === "function") fn();
+                    else if (position) {
+                      leafletMapRef.current?.easeTo?.({ center: [position.lng, position.lat], zoom: 16.2, pitch: 55, bearing: 0, duration: 800 });
+                    }
+                    setPanState(null);
+                  }}
+                  aria-label="Recenter on me"
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 6,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  <span style={{ position: "relative", width: 64, height: 64, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        borderRadius: "50%",
+                        background: "rgba(0,255,136,0.18)",
+                        animation: "mmRecenterPing 1.4s ease-out infinite",
+                      }}
+                    />
+                    <span
+                      style={{
+                        width: 52,
+                        height: 52,
+                        borderRadius: "50%",
+                        background: "rgba(16,16,24,0.6)",
+                        backdropFilter: "blur(24px)",
+                        WebkitBackdropFilter: "blur(24px)",
+                        border: "1.2px solid rgba(0,255,136,0.7)",
+                        boxShadow: "0 0 14px rgba(0,255,136,0.55)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="#00FF88"
+                        aria-hidden="true"
+                        style={{
+                          transform: `rotate(${panState.bearingRad}rad)`,
+                          transition: "transform 0.5s ease",
+                        }}
+                      >
+                        <path d="M12 2l7 20-7-5-7 5z" />
+                      </svg>
+                    </span>
+                  </span>
+                  {panState.distanceM >= 1 && (
+                    <span
+                      style={{
+                        padding: "3px 8px",
+                        borderRadius: 999,
+                        background: "rgba(16,16,24,0.6)",
+                        backdropFilter: "blur(20px)",
+                        WebkitBackdropFilter: "blur(20px)",
+                        border: "0.8px solid rgba(0,255,136,0.5)",
+                        color: "#fff",
+                        fontSize: 11,
+                        fontWeight: 900,
+                        letterSpacing: "0.06em",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {formatDistance(panState.distanceM)}
+                    </span>
+                  )}
+                </motion.button>
+              )}
+            </AnimatePresence>
+
+            {/* The hero LENS button — opens the AR camera that reveals the
+                creatures around you. Badge counts what is standing in reach. */}
+            {!nearbyExpanded && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!cameraGranted) {
+                    handleCameraRequest();
+                    return;
+                  }
+                  let nearest: CatchableSpawn | null = null;
+                  if (position && catchableSpawns.length > 0) {
+                    let bestDist = Infinity;
+                    for (const s of catchableSpawns) {
+                      const d = haversine(position.lat, position.lng, s.lat, s.lng);
+                      if (d < bestDist) {
+                        bestDist = d;
+                        nearest = s;
+                      }
+                    }
+                  }
+                  const target = nearest ?? selectedCatchable ?? catchableSpawns[0] ?? null;
+                  setArSpawn(target);
+                  setArOpen(true);
+                }}
+                aria-label={cameraGranted ? "Open the Lens camera" : "Enable camera"}
+                style={{
+                  position: "relative",
+                  width: 76,
+                  height: 76,
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontFamily: "inherit",
+                  filter: "drop-shadow(0 0 14px rgba(0,255,136,0.45))",
+                }}
+              >
+                <span
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    borderRadius: "50%",
+                    background: "rgba(0,255,136,0.20)",
+                    animation: "mmLensBreathe 1.6s ease-in-out infinite",
+                  }}
+                />
+                <span
+                  style={{
+                    position: "relative",
+                    width: 62,
+                    height: 62,
+                    borderRadius: "50%",
+                    background: "rgba(10,10,16,0.72)",
+                    backdropFilter: "blur(24px)",
+                    WebkitBackdropFilter: "blur(24px)",
+                    border: "1.6px solid rgba(0,255,136,0.85)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 2,
+                  }}
+                >
+                  {/* camera.viewfinder */}
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#00FF88" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2" />
+                    <path d="M9 9.5A1.5 1.5 0 0110.5 8h3A1.5 1.5 0 0115 9.5" />
+                    <circle cx="12" cy="13" r="3" />
+                  </svg>
+                  <span style={{ color: "#fff", fontSize: 8, fontWeight: 900, letterSpacing: "0.175em" }}>LENS</span>
+                </span>
+                {lensBadgeCount > 0 && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: 2,
+                      right: 2,
+                      padding: "2px 6px",
+                      borderRadius: 999,
+                      background: "#00FF88",
+                      border: "1px solid rgba(0,0,0,0.4)",
+                      color: "#000",
+                      fontSize: 11,
+                      fontWeight: 900,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {lensBadgeCount}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ---- Nearby tray — floating card, rounded on ALL corners ---- */}
         <div
           style={{
-            position: "absolute",
-            top: 64,
-            right: 12,
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-            zIndex: 15,
-            padding: 5,
-            background: COLORS.glassStrong,
-            backdropFilter: "blur(24px)",
-            WebkitBackdropFilter: "blur(24px)",
-            borderRadius: 16,
-            border: "1px solid rgba(255,255,255,0.07)",
-            boxShadow: "0 4px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)",
+            pointerEvents: "auto",
+            width: "100%",
+            borderRadius: 24,
+            background: "rgba(0,0,0,0.82)",
+            border: "0.5px solid rgba(255,255,255,0.1)",
+            boxShadow: "0 8px 20px rgba(0,0,0,0.45)",
+            overflow: "hidden",
           }}
         >
+          {/* Drag handle */}
+          <div style={{ display: "flex", justifyContent: "center", paddingTop: 9, paddingBottom: 8 }}>
+            <div style={{ width: 40, height: 5, borderRadius: 999, background: "rgba(255,255,255,0.3)" }} />
+          </div>
+
+          {/* Header — tap toggles the expanded list */}
           <button
-            onClick={() => {
-              if (leafletMapRef.current && position) {
-                leafletMapRef.current.flyTo({ center: [position.lng, position.lat], zoom: 16, duration: 800 });
-              } else {
-                requestLocation();
-              }
-              wakeFab();
-            }}
-            aria-label="Recenter on me"
+            type="button"
+            onClick={() => setNearbyExpanded((v) => !v)}
+            aria-expanded={nearbyExpanded}
             style={{
-              ...toolRailBtn,
-              border: `1px solid ${position ? "rgba(0,255,136,0.45)" : "rgba(255,255,255,0.10)"}`,
-              boxShadow: position ? "0 0 10px rgba(0,255,136,0.22)" : "none",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              width: "100%",
+              padding: `0 16px ${nearbyExpanded ? 8 : 14}px`,
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              textAlign: "left",
             }}
           >
-            <Crosshair size={16} color={position ? "#00FF88" : COLORS.textMuted} />
-          </button>
-          {/* Zoom controls — desktop only; pinch-zoom covers mobile. */}
-          {isDesktop && (
-            <>
-              <button
-                onClick={() => { leafletMapRef.current?.zoomIn?.(); wakeFab(); }}
-                aria-label="Zoom in"
-                style={toolRailBtn}
+            {/* Lead icon — the brand orb, or the nearest creature */}
+            <span
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: "50%",
+                background: "rgba(255,255,255,0.08)",
+                border: `1.5px solid ${(spawnsByDistance[0]?.tier_color || "#00FF88")}A6`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              {orbsByDistance.length > 0 || spawnsByDistance.length === 0 ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src="/brand/app/energy-orb-b.png" alt="" style={{ width: 36, height: 36, objectFit: "contain" }} />
+              ) : (
+                (() => {
+                  const s = spawnsByDistance[0];
+                  const art = resolveByCreatureId(s.creature_id, { name: s.name, tier: s.tier, imageCid: s.image_url });
+                  const src = art.floating || art.card || s.image_url;
+                  return src ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={src} alt="" style={{ width: 36, height: 36, objectFit: "contain" }} />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src="/brand/app/energy-orb-b.png" alt="" style={{ width: 36, height: 36, objectFit: "contain" }} />
+                  );
+                })()
+              )}
+            </span>
+
+            <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+              <span style={{ color: "#fff", fontSize: 19, fontWeight: 900, letterSpacing: "-0.01em" }}>Nearby</span>
+              <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {(() => {
+                  const t = orbsByDistance.length;
+                  const c = spawnsByDistance.length;
+                  const p = players.length;
+                  if (t === 0 && c === 0 && p === 0) return "Scanning the area…";
+                  const parts: string[] = [];
+                  if (t > 0) parts.push(`${t} treasure${t === 1 ? "" : "s"}`);
+                  if (c > 0) parts.push(`${c} creature${c === 1 ? "" : "s"}`);
+                  if (p > 0) parts.push(`${p} player${p === 1 ? "" : "s"}`);
+                  return parts.join(" · ");
+                })()}
+              </span>
+            </span>
+
+            {orbsByDistance.length + spawnsByDistance.length + players.length > 0 && (
+              <span
+                style={{
+                  padding: "3px 9px",
+                  borderRadius: 999,
+                  background: "#00FF88",
+                  color: "#000",
+                  fontSize: 13,
+                  fontWeight: 900,
+                  boxShadow: "0 0 6px rgba(0,255,136,0.4)",
+                  flexShrink: 0,
+                }}
               >
-                +
-              </button>
-              <button
-                onClick={() => { leafletMapRef.current?.zoomOut?.(); wakeFab(); }}
-                aria-label="Zoom out"
-                style={toolRailBtn}
+                {orbsByDistance.length + spawnsByDistance.length + players.length}
+              </span>
+            )}
+
+            <span
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                background: "rgba(255,255,255,0.08)",
+                border: "0.5px solid rgba(255,255,255,0.12)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <svg
+                width="12"
+                height="8"
+                viewBox="0 0 12 8"
+                fill="none"
+                aria-hidden="true"
+                style={{ transform: nearbyExpanded ? "rotate(180deg)" : "none", transition: "transform 0.3s ease" }}
               >
-                −
-              </button>
-            </>
-          )}
-          <button
-            onClick={() => {
-              wakeFab();
-              if (!cameraGranted) {
-                handleCameraRequest();
-                return;
-              }
-              // Always open the AR overlay. If a catchable spawn is nearby,
-              // pre-select the nearest one so the Pokémon-GO flow runs; if
-              // not, open with arSpawn = null and let the overlay render its
-              // "no creatures within 200m" empty state.
-              let nearest: CatchableSpawn | null = null;
-              if (position && catchableSpawns.length > 0) {
-                let bestDist = Infinity;
-                for (const s of catchableSpawns) {
-                  const d = haversine(position.lat, position.lng, s.lat, s.lng);
-                  if (d < bestDist) {
-                    bestDist = d;
-                    nearest = s;
-                  }
-                }
-              }
-              const target = nearest ?? selectedCatchable ?? catchableSpawns[0] ?? null;
-              setArSpawn(target);
-              setArOpen(true);
-            }}
-            aria-label={cameraGranted ? "Open AR camera" : "Enable camera"}
-            style={{
-              ...toolRailBtn,
-              border: `1px solid ${catchableSpawns.length > 0 ? "rgba(0,255,136,0.45)" : "rgba(255,255,255,0.10)"}`,
-              boxShadow: catchableSpawns.length > 0 ? "0 0 10px rgba(0,255,136,0.22)" : "none",
-            }}
-          >
-            <Camera size={16} color={catchableSpawns.length > 0 ? "#00FF88" : COLORS.textMuted} />
+                <path d="M1 7l5-5 5 5" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
           </button>
+
+          {/* Expandable list */}
+          <AnimatePresence>
+            {nearbyExpanded && (
+              <motion.div
+                key="nearby-list"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ type: "spring", damping: 26, stiffness: 300 }}
+                style={{ overflow: "hidden" }}
+              >
+                <div style={{ height: 0.5, background: "rgba(255,255,255,0.08)", margin: "0 16px" }} />
+                <div style={{ maxHeight: 300, overflowY: "auto", padding: "12px 14px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  {orbsByDistance.length === 0 && spawnsByDistance.length === 0 && players.length === 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "28px 0" }}>
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#00FF88" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                        <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4" />
+                        <circle cx="12" cy="12" r="3.4" />
+                      </svg>
+                      <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, fontWeight: 600 }}>Scanning the streets…</span>
+                    </div>
+                  )}
+
+                  {orbsByDistance.length > 0 && (
+                    <>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 2 }}>
+                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#00FF88" }} />
+                        <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 10, fontWeight: 900, letterSpacing: "0.16em" }}>TREASURE</span>
+                      </div>
+                      {orbsByDistance.slice(0, 6).map((o) => {
+                        const inReach = o.distance <= CLAIM_RADIUS_M;
+                        const tint = "#00FF88";
+                        return (
+                          <button
+                            key={o.id}
+                            type="button"
+                            onClick={() => {
+                              setNearbyExpanded(false);
+                              setSelectedOrb(o);
+                            }}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 12,
+                              width: "100%",
+                              padding: 10,
+                              borderRadius: 14,
+                              background: "rgba(255,255,255,0.05)",
+                              border: `1px solid ${inReach ? `${tint}99` : "rgba(255,255,255,0.07)"}`,
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                              textAlign: "left",
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 44,
+                                height: 44,
+                                borderRadius: "50%",
+                                background: "rgba(255,255,255,0.08)",
+                                border: `1.2px solid ${tint}A6`,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src="/brand/app/energy-orb-b.png" alt="" style={{ width: 32, height: 32, objectFit: "contain" }} />
+                            </span>
+                            <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                              <span style={{ color: "#fff", fontSize: 14, fontWeight: 900, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {o.amount} {o.currency}
+                              </span>
+                              <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                Dropped by @{o.dropper_handle || o.dropper_name || "anon"}
+                              </span>
+                            </span>
+                            {inReach ? (
+                              <span style={{ padding: "3px 8px", borderRadius: 999, background: tint, color: "#000", fontSize: 10, fontWeight: 900, letterSpacing: "0.1em", flexShrink: 0 }}>
+                                GRAB
+                              </span>
+                            ) : (
+                              <span style={{ color: tint, fontSize: 12, fontWeight: 900, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+                                {formatDistance(o.distance)}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  {spawnsByDistance.length > 0 && (
+                    <>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 2 }}>
+                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#88FF00" }} />
+                        <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 10, fontWeight: 900, letterSpacing: "0.16em" }}>CREATURES</span>
+                      </div>
+                      {spawnsByDistance.map((s) => {
+                        const tint = s.tier_color || "#00FF88";
+                        const art = resolveByCreatureId(s.creature_id, { name: s.name, tier: s.tier, imageCid: s.image_url });
+                        const src = art.floating || art.card || s.image_url;
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => {
+                              setNearbyExpanded(false);
+                              tapCatchable(s);
+                            }}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 12,
+                              width: "100%",
+                              padding: 10,
+                              borderRadius: 14,
+                              background: "rgba(255,255,255,0.05)",
+                              border: "1px solid rgba(255,255,255,0.07)",
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                              textAlign: "left",
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 44,
+                                height: 44,
+                                borderRadius: "50%",
+                                background: "rgba(255,255,255,0.08)",
+                                border: `1.2px solid ${tint}B3`,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                                overflow: "hidden",
+                              }}
+                            >
+                              {src ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={src} alt="" style={{ width: 34, height: 34, objectFit: "contain" }} />
+                              ) : null}
+                            </span>
+                            <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                              <span style={{ color: "#fff", fontSize: 14, fontWeight: 900, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {s.name}
+                              </span>
+                              <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.12em", color: tint }}>
+                                {(TIER_LABELS[s.tier] ?? s.tier).toUpperCase()}
+                              </span>
+                            </span>
+                            <span style={{ color: s.distanceM <= CATCH_PROXIMITY_M ? tint : "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: 900, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+                              {s.distanceM <= CATCH_PROXIMITY_M ? "IN REACH" : formatDistance(s.distanceM)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  {players.length > 0 && (
+                    <>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 2 }}>
+                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ffd166" }} />
+                        <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 10, fontWeight: 900, letterSpacing: "0.16em" }}>PLAYERS</span>
+                      </div>
+                      {players.map((p) => (
+                        <button
+                          key={p.user_id}
+                          type="button"
+                          onClick={() => {
+                            setNearbyExpanded(false);
+                            setSelectedPlayer(p);
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                            width: "100%",
+                            padding: 10,
+                            borderRadius: 14,
+                            background: "rgba(255,255,255,0.05)",
+                            border: "1px solid rgba(255,255,255,0.07)",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                            textAlign: "left",
+                          }}
+                        >
+                          <UserAvatar profilePicUrl={p.avatar_url} handle={p.handle || "anon"} size={36} />
+                          <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                            <span style={{ color: "#fff", fontSize: 14, fontWeight: 900, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              @{p.handle || "anon"}
+                            </span>
+                            <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: 600 }}>
+                              {p.is_friend ? "Friend · " : ""}around here (~{p.fuzzy_radius_m}m)
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -1466,202 +2315,6 @@ export default function MapPage() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* ========== NEARBY PLAYERS PILL ========== */}
-      <AnimatePresence>
-        {players.length > 0 && (
-          <motion.button
-            key="nearby-players-pill"
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 20, opacity: 0 }}
-            transition={{ type: "spring", damping: 26, stiffness: 320 }}
-            onClick={() => setNearbyPlayersOpen(true)}
-            aria-label={`${players.length} players nearby — tap to view`}
-            style={{
-              position: "absolute",
-              bottom: `calc(${NAV_H + 8}px + env(safe-area-inset-bottom, 0px))`,
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 30,
-              height: 48,
-              maxWidth: 280,
-              padding: "0 18px",
-              borderRadius: 999,
-              background: "rgba(10,10,20,0.78)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-              border: "1px solid rgba(0,255,136,0.4)",
-              boxShadow: "0 4px 24px rgba(0,0,0,0.5), 0 0 18px rgba(0,255,136,0.18)",
-              color: "#00FF88",
-              fontSize: 13,
-              fontWeight: 700,
-              letterSpacing: "0.01em",
-              fontFamily: "inherit",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-              whiteSpace: "nowrap",
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00FF88" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <span>{players.length} player{players.length !== 1 ? "s" : ""} nearby</span>
-          </motion.button>
-        )}
-      </AnimatePresence>
-
-      {/* ========== NEARBY PLAYERS LIST SHEET ========== */}
-      <AnimatePresence>
-        {nearbyPlayersOpen && (
-          <motion.div
-            key="nearby-players-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setNearbyPlayersOpen(false)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,0.65)",
-              zIndex: 78,
-              display: "flex",
-              alignItems: "flex-end",
-              justifyContent: "center",
-            }}
-          >
-            <motion.div
-              key="nearby-players-sheet"
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: "100%",
-                maxWidth: 480,
-                background: COLORS.glassStrong,
-                backdropFilter: "blur(32px)",
-                WebkitBackdropFilter: "blur(32px)",
-                borderTopLeftRadius: 28,
-                borderTopRightRadius: 28,
-                border: "1px solid rgba(0,255,136,0.18)",
-                borderBottom: "none",
-                boxShadow: "0 -4px 48px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07)",
-                padding: "20px 16px calc(28px + env(safe-area-inset-bottom, 0px))",
-                color: COLORS.text,
-                maxHeight: "62dvh",
-                overflowY: "auto",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.01em", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00FF88" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                  {players.length} player{players.length !== 1 ? "s" : ""} nearby
-                </span>
-                <button
-                  onClick={() => setNearbyPlayersOpen(false)}
-                  aria-label="Close"
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: COLORS.textMuted,
-                    fontSize: 24,
-                    cursor: "pointer",
-                    lineHeight: 1,
-                    padding: 0,
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-              {players.length === 0 ? (
-                <p style={{ color: COLORS.textMuted, fontSize: 13, textAlign: "center", padding: 16 }}>
-                  No players nearby right now.
-                </p>
-              ) : (
-                players.map((p) => (
-                  <button
-                    key={p.user_id}
-                    onClick={() => {
-                      setNearbyPlayersOpen(false);
-                      setSelectedPlayer(p);
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      width: "100%",
-                      padding: "10px 12px",
-                      marginBottom: 6,
-                      borderRadius: 14,
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.07)",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                      textAlign: "left",
-                    }}
-                  >
-                    <UserAvatar
-                      profilePicUrl={p.avatar_url}
-                      handle={p.handle || "anon"}
-                      size={36}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: COLORS.text, fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        @{p.handle || "anon"}
-                      </div>
-                      <div style={{ color: COLORS.textMuted, fontSize: 12 }}>
-                        {p.is_friend ? "Friend · " : ""}~{p.fuzzy_radius_m}m
-                      </div>
-                    </div>
-                  </button>
-                ))
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ========== SPAWN FAB (bottom-left, idle-fade) ========== */}
-      <Link
-        href="/spawn"
-        aria-label="Find creatures near you"
-        style={{ textDecoration: "none" }}
-        onClick={wakeFab}
-      >
-        <motion.div
-          onMouseEnter={wakeFab}
-          onFocus={wakeFab}
-          onTouchStart={wakeFab}
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.95 }}
-          animate={{
-            opacity: fabDim ? 0.45 : 0.95,
-            width: fabDim ? 44 : 50,
-            height: fabDim ? 44 : 50,
-          }}
-          transition={{ duration: 0.35, ease: "easeOut" }}
-          style={{
-            position: "absolute",
-            bottom: `calc(${NAV_H + 96}px + env(safe-area-inset-bottom, 0px))`,
-            left: 16,
-            borderRadius: "50%",
-            background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.gold})`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            zIndex: 35,
-            boxShadow: `0 4px 24px ${COLORS.primary}50, 0 0 40px ${COLORS.primary}20`,
-            border: "1px solid rgba(255,255,255,0.18)",
-            color: COLORS.bg,
-          }}
-        >
-          <Plus size={22} color={COLORS.bg} />
-        </motion.div>
-      </Link>
 
       {/* ========== ORB DETAIL MODAL ========== */}
       <AnimatePresence>
@@ -2129,8 +2782,17 @@ export default function MapPage() {
             });
             const json = await res.json();
             if (!res.ok) return { error: json.error || "Catch failed." };
+            // Reflect the reward in the HUD balance right away.
+            if (typeof json.blinkRewarded === "number") {
+              setBlinkBalance((p) => (p ?? 0) + json.blinkRewarded);
+            }
             // Drop the caught spawn from the map immediately.
             void fetchCatchableSpawns();
+            // A catch spent energy — peek the bar so the drain reads, then
+            // settle back to quiet (app: onChange of energyRemaining).
+            void fetchPlayerStats();
+            setEnergyExpanded(true);
+            scheduleEnergyQuiet(3000);
             return json as CatchResult;
           } catch (err) {
             return { error: err instanceof Error ? err.message : "Catch failed." };
@@ -2185,13 +2847,21 @@ export default function MapPage() {
                 throw new DailyLimitError(json.error || "Daily free catch limit reached");
               }
               if (!res.ok) throw new Error(json.error || "Catch failed.");
+              // Reflect the reward in the HUD balance right away.
+              if (typeof json.blinkRewarded === "number") {
+                setBlinkBalance((p) => (p ?? 0) + json.blinkRewarded);
+              }
               void fetchCatchableSpawns();
+              // A catch spent energy — peek the bar so the drain reads, then
+              // settle back to quiet (app: onChange of energyRemaining).
+              void fetchPlayerStats();
+              setEnergyExpanded(true);
+              scheduleEnergyQuiet(3000);
               return json as CatchResult;
             }}
             onDismiss={() => {
               setCinematicOpen(false);
               setSelectedCatchable(null);
-              setCatchResult(null);
             }}
             onShare={(result) => {
               const text = `Just caught ${result.name} on @blinkworldeth and earned ${result.blinkRewarded.toLocaleString()} $BLINK tokens!\n\nReal crypto. Real NFTs. Real money.\n\nhttps://blinkworld.xyz`;
@@ -2200,439 +2870,6 @@ export default function MapPage() {
             }}
           />
         )}
-      </AnimatePresence>
-
-      {/* ========== CREATURE ENCOUNTER STRIP ========== */}
-      <AnimatePresence>
-        {selectedCatchable && !cinematicOpen && (() => {
-          const dist = position
-            ? haversine(position.lat, position.lng, selectedCatchable.lat, selectedCatchable.lng)
-            : Infinity;
-          const inRange = dist <= CATCH_PROXIMITY_M;
-          const tierLabel = TIER_LABELS[selectedCatchable.tier] ?? selectedCatchable.tier;
-          const accent = selectedCatchable.tier_color || "#00FF88";
-          const bottomOffset = NAV_H + (players.length > 0 ? 64 : 8);
-          return (
-            <motion.div
-              key="creature-encounter-strip"
-              initial={{ y: 120, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 120, opacity: 0 }}
-              transition={{ type: "spring", damping: 26, stiffness: 280 }}
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                position: "absolute",
-                bottom: `calc(${bottomOffset}px + env(safe-area-inset-bottom, 0px))`,
-                left: 16,
-                right: 16,
-                maxWidth: 480,
-                marginLeft: "auto",
-                marginRight: "auto",
-                zIndex: 32,
-                height: 80,
-                padding: "12px 16px",
-                background: "rgba(10,10,20,0.95)",
-                backdropFilter: "blur(20px)",
-                WebkitBackdropFilter: "blur(20px)",
-                borderRadius: 18,
-                border: `1.5px solid ${accent}`,
-                boxShadow: `0 0 24px ${accent}4D, 0 4px 20px rgba(0,0,0,0.6)`,
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                color: COLORS.text,
-              }}
-            >
-              {/* Creature image */}
-              <div
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 10,
-                  background: `radial-gradient(circle at 35% 35%, ${accent}33, #0a0a0f)`,
-                  border: `1px solid ${accent}66`,
-                  overflow: "hidden",
-                  flexShrink: 0,
-                  boxShadow: `0 0 12px ${accent}55`,
-                }}
-              >
-                {selectedCatchable.image_url && (
-                  <img
-                    src={selectedCatchable.image_url}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                  />
-                )}
-              </div>
-
-              {/* Name + tier + distance */}
-              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: "-0.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {selectedCatchable.name}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span
-                    style={{
-                      background: `${accent}22`,
-                      color: accent,
-                      fontSize: 10,
-                      fontWeight: 800,
-                      padding: "2px 8px",
-                      borderRadius: 6,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                    }}
-                  >
-                    {tierLabel}
-                  </span>
-                  <span style={{ color: COLORS.textMuted, fontSize: 11, fontWeight: 600 }}>
-                    {Math.round(dist)}m away
-                  </span>
-                </div>
-              </div>
-
-              {/* CATCH! button */}
-              <button
-                onClick={() => { if (inRange) setCinematicOpen(true); }}
-                disabled={!inRange}
-                aria-label={inRange ? "Catch creature" : "Too far to catch"}
-                style={{
-                  flexShrink: 0,
-                  padding: "10px 14px",
-                  borderRadius: 12,
-                  border: "none",
-                  background: inRange ? accent : "rgba(255,255,255,0.06)",
-                  color: inRange ? "#000" : COLORS.textMuted,
-                  fontSize: 12,
-                  fontWeight: 900,
-                  letterSpacing: "0.06em",
-                  cursor: inRange ? "pointer" : "default",
-                  whiteSpace: "nowrap",
-                  fontFamily: "inherit",
-                  boxShadow: inRange ? `0 0 14px ${accent}77` : "none",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                {inRange ? "CATCH!" : "50m away"}
-              </button>
-
-              {/* Dismiss X */}
-              <button
-                onClick={() => setSelectedCatchable(null)}
-                aria-label="Dismiss"
-                style={{
-                  flexShrink: 0,
-                  width: 24,
-                  height: 24,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: "transparent",
-                  border: "none",
-                  color: COLORS.textMuted,
-                  fontSize: 20,
-                  lineHeight: 1,
-                  cursor: "pointer",
-                  padding: 0,
-                  fontFamily: "inherit",
-                }}
-              >
-                ×
-              </button>
-            </motion.div>
-          );
-        })()}
-      </AnimatePresence>
-
-      {/* ========== CATCH SUCCESS MODAL ========== */}
-      <AnimatePresence>
-        {catchResult && (() => {
-  const accent = (() => {
-    const map: Record<string, string> = {
-      common: "#FFFFFF",
-      uncommon: "#66E3FF",
-      rare: "#6BB5FF",
-      legendary: "#FFD773",
-      mythic: "#FF66CC",
-    };
-    return map[catchResult.tier] || COLORS.accent;
-  })();
-
-  return (
-    <motion.div
-      key="catch-success-overlay"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={() => setCatchResult(null)}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.92)",
-        zIndex: 85,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-        overflow: "hidden",
-      }}
-    >
-      {/* Confetti particles */}
-      {Array.from({ length: 24 }).map((_, i) => {
-        const colors = [accent, "#00FF88", "#ffffff", "#FFD700", "#ff6b6b"];
-        const color = colors[i % colors.length];
-        const startX = Math.random() * 100;
-        const delay = Math.random() * 0.6;
-        const duration = 1.2 + Math.random() * 1.2;
-        const size = 6 + Math.random() * 8;
-        return (
-          <motion.div
-            key={i}
-            initial={{ y: -20, x: `${startX}vw`, opacity: 1, rotate: 0, scale: 1 }}
-            animate={{ y: "110vh", x: `calc(${startX}vw + ${(Math.random() - 0.5) * 120}px)`, opacity: 0, rotate: Math.random() * 720 - 360, scale: 0.3 }}
-            transition={{ delay, duration, ease: "easeIn" }}
-            style={{
-              position: "fixed",
-              top: 0,
-              width: size,
-              height: size * (Math.random() > 0.5 ? 1 : 2.5),
-              background: color,
-              borderRadius: Math.random() > 0.5 ? "50%" : 2,
-              zIndex: 86,
-              pointerEvents: "none",
-            }}
-          />
-        );
-      })}
-
-      {/* Main card */}
-      <motion.div
-        initial={{ scale: 0.3, opacity: 0, rotateY: 180 }}
-        animate={{ scale: 1, opacity: 1, rotateY: 0 }}
-        exit={{ scale: 0.8, opacity: 0 }}
-        transition={{ type: "spring", damping: 20, stiffness: 200, delay: 0.1 }}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "100%",
-          maxWidth: 340,
-          background: `linear-gradient(160deg, #0d0d18 0%, #0a0a0f 100%)`,
-          borderRadius: 24,
-          padding: "28px 22px 24px",
-          textAlign: "center",
-          border: `2px solid ${accent}`,
-          boxShadow: `0 0 60px ${accent}55, 0 0 120px ${accent}22, inset 0 1px 0 ${accent}33`,
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        {/* Background glow pulse */}
-        <motion.div
-          animate={{ opacity: [0.15, 0.35, 0.15] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: `radial-gradient(ellipse at 50% 30%, ${accent}33 0%, transparent 70%)`,
-            pointerEvents: "none",
-            borderRadius: 24,
-          }}
-        />
-
-        {/* "CAUGHT!" badge */}
-        <motion.div
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.3, type: "spring", stiffness: 300 }}
-          style={{
-            display: "inline-block",
-            background: "linear-gradient(90deg, #00FF88, #88FF00)",
-            color: "#000",
-            fontSize: 11,
-            fontWeight: 900,
-            letterSpacing: 3,
-            padding: "5px 14px",
-            borderRadius: 999,
-            marginBottom: 16,
-            textTransform: "uppercase",
-            boxShadow: "0 0 12px rgba(0,255,136,0.6)",
-          }}
-        >
-          CAUGHT!
-        </motion.div>
-
-        {/* Creature card image */}
-        <motion.div
-          initial={{ scale: 0.6, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.25, type: "spring", damping: 16, stiffness: 220 }}
-          style={{
-            width: 160,
-            height: 160,
-            borderRadius: 20,
-            margin: "0 auto 18px",
-            overflow: "hidden",
-            border: `3px solid ${accent}`,
-            boxShadow: `0 0 40px ${accent}66, 0 8px 32px rgba(0,0,0,0.6)`,
-            position: "relative",
-          }}
-        >
-          {catchResult.image_url ? (
-            <img
-              src={catchResult.image_url}
-              alt={catchResult.name}
-              loading="lazy"
-              decoding="async"
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-            />
-          ) : (
-            <div style={{ width: "100%", height: "100%", background: `radial-gradient(circle, ${accent}44, #0a0a0f)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3" fill={accent} stroke="none"/></svg>
-            </div>
-          )}
-          {/* Shine sweep */}
-          <motion.div
-            initial={{ x: "-100%", opacity: 0.6 }}
-            animate={{ x: "200%", opacity: 0 }}
-            transition={{ delay: 0.5, duration: 0.8, ease: "easeOut" }}
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.5) 50%, transparent 70%)",
-              pointerEvents: "none",
-            }}
-          />
-        </motion.div>
-
-        {/* Creature name */}
-        <motion.h2
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          style={{ color: "#fff", fontSize: 26, fontWeight: 900, margin: "0 0 4px", letterSpacing: 1 }}
-        >
-          {catchResult.name}
-        </motion.h2>
-
-        {/* Tier badge */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          style={{ color: accent, fontSize: 13, fontWeight: 700, marginBottom: 20, textTransform: "uppercase", letterSpacing: 2 }}
-        >
-          {catchResult.tierLabel}
-        </motion.div>
-
-        {/* BLINK reward — BIG */}
-        <motion.div
-          initial={{ scale: 0.5, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.55, type: "spring", stiffness: 300, damping: 18 }}
-          style={{
-            background: "rgba(0,255,136,0.08)",
-            border: "1px solid #00FF8844",
-            borderRadius: 16,
-            padding: "14px 16px",
-            marginBottom: 14,
-          }}
-        >
-          <div style={{ color: "#ffffff88", fontSize: 11, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>You Earned</div>
-          <div style={{ color: "#00FF88", fontSize: 32, fontWeight: 900, letterSpacing: 1 }}>
-            +{catchResult.blinkRewarded.toLocaleString()}
-          </div>
-          <div style={{ color: "#00FF88aa", fontSize: 13, fontWeight: 700 }}>$BLINK TOKENS</div>
-        </motion.div>
-
-        {/* NFT info row */}
-        {catchResult.tokenId && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.65 }}
-            style={{ color: "#ffffff55", fontSize: 12, marginBottom: 20 }}
-          >
-            NFT minted to your wallet · Token #{catchResult.tokenId}
-          </motion.div>
-        )}
-
-        {/* Action buttons */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7 }}
-          style={{ display: "flex", flexDirection: "column", gap: 10 }}
-        >
-          {/* Share button */}
-          <button
-            onClick={() => {
-              const text = `Just caught ${catchResult.name} on @blinkworldeth and earned ${catchResult.blinkRewarded.toLocaleString()} $BLINK tokens!\n\nReal crypto. Real NFTs. Real money.\n\nhttps://blinkworld.xyz`;
-              if (navigator.share) {
-                navigator.share({ text }).catch(() => {});
-              } else {
-                navigator.clipboard.writeText(text).catch(() => {});
-              }
-            }}
-            style={{
-              width: "100%",
-              padding: "15px 0",
-              borderRadius: 999,
-              border: "none",
-              background: accent,
-              color: "#000",
-              fontSize: 15,
-              fontWeight: 900,
-              cursor: "pointer",
-              letterSpacing: 0.5,
-              boxShadow: `0 0 16px ${accent}80`,
-            }}
-          >
-            Share Your Catch
-          </button>
-
-          {catchResult.openseaUrl && (
-            <a
-              href={catchResult.openseaUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "block",
-                padding: "12px 0",
-                borderRadius: 14,
-                background: "rgba(255,255,255,0.06)",
-                color: "#fff",
-                fontSize: 13,
-                fontWeight: 700,
-                textDecoration: "none",
-                border: "1px solid rgba(255,255,255,0.1)",
-              }}
-            >
-              View on OpenSea
-            </a>
-          )}
-
-          <button
-            onClick={() => setCatchResult(null)}
-            style={{
-              width: "100%",
-              padding: "12px 0",
-              borderRadius: 14,
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "transparent",
-              color: "#ffffff66",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            Keep Hunting
-          </button>
-        </motion.div>
-      </motion.div>
-    </motion.div>
-  );
-})()}
       </AnimatePresence>
 
       {/* ========== WILD CREATURE SHEET ========== */}

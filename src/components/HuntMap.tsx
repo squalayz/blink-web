@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Orb, rarityColor } from '@/lib/theme';
+import { Orb } from '@/lib/theme';
 import { sounds } from '@/lib/sounds';
 import { applyBlinkMapStyle } from '@/lib/blink-map-style';
 import { resolveCreatureArt, resolveByCreatureId } from '@/lib/bestiary-art';
@@ -80,6 +80,14 @@ export type NearbyRecentCatch = {
   catcherHandle: string;
 };
 
+/** Camera-follow state reported up so the page can show the Recenter button. */
+export type PanState = {
+  away: boolean;
+  distanceM: number;
+  /** Bearing (radians, 0 = north, clockwise) from camera center back to the user. */
+  bearingRad: number;
+};
+
 interface HuntMapProps {
   orbs: HuntOrb[];
   userPosition: { lat: number; lng: number } | null;
@@ -93,14 +101,16 @@ interface HuntMapProps {
   onSelectPlayer?: (player: NearbyPlayer) => void;
   onSelectWildSpawn?: (spawn: WildSpawn) => void;
   onSelectCatchable?: (spawn: CatchableSpawn) => void;
+  /** Fired when the user pans away from (or back onto) their location. */
+  onPanState?: (state: PanState | null) => void;
   /**
    * Living-approach vignette intensity in [0,1]. Drives the green edge-glow
-   * opacity (0 → 0.6) shown when a catchable spawn enters approach range.
-   * GPU-accelerated (opacity-only). Skipped under prefers-reduced-motion.
+   * opacity shown when a catchable spawn enters approach range.
    */
   approachIntensity?: number;
 }
 
+// App rarity palette (BlinkTheme / Rarity.color) — identical hex values.
 const RARITY_TONE: Record<string, string> = {
   Common: '#9aa3b2',
   Uncommon: '#00FF88',
@@ -114,24 +124,17 @@ const RARITY_TONE: Record<string, string> = {
   mythic: '#ff8ae0',
 };
 
+const NEON = '#00FF88';
+const GOLD = '#ffd166';
+
+// App follow camera: MapCamera(distance: 700, pitch: 55). Mapbox equivalent.
+const FOLLOW_PITCH = 55;
+const FOLLOW_ZOOM = 16.2;
+// Player reach — mirrors the app's grab-range "pool of light" (CATCH radius).
+const REACH_RADIUS_M = 50;
+
 function normalRarity(r: string): string {
   return (r || '').toLowerCase();
-}
-
-function tierGlowProfile(rarity: string): {
-  bob: boolean;
-  particles: number;
-  haloRotate: boolean;
-  scaleBreath: boolean;
-  sonarRings: number;
-  shadowPx: number;
-} {
-  const r = normalRarity(rarity);
-  if (r === 'mythic') return { bob: true, particles: 8, haloRotate: true, scaleBreath: true, sonarRings: 2, shadowPx: 36 };
-  if (r === 'legendary') return { bob: true, particles: 5, haloRotate: false, scaleBreath: true, sonarRings: 2, shadowPx: 28 };
-  if (r === 'rare') return { bob: true, particles: 0, haloRotate: false, scaleBreath: false, sonarRings: 2, shadowPx: 22 };
-  if (r === 'uncommon') return { bob: true, particles: 0, haloRotate: false, scaleBreath: false, sonarRings: 1, shadowPx: 16 };
-  return { bob: false, particles: 0, haloRotate: false, scaleBreath: false, sonarRings: 1, shadowPx: 10 };
 }
 
 function prefersReducedMotion(): boolean {
@@ -139,285 +142,363 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-function particleHTML(count: number, color: string, idSeed: string): string {
-  if (count <= 0) return '';
-  let html = '';
-  for (let i = 0; i < count; i++) {
-    const left = 15 + Math.floor((i * 73 + idSeed.charCodeAt(i % idSeed.length)) % 70);
-    const delay = ((i * 0.27) % 2.6).toFixed(2);
-    const dur = (2.2 + ((i * 0.41) % 2.0)).toFixed(2);
-    const size = 2 + (i % 3);
-    html += `<span class="mm-particle" style="left:${left}%;width:${size}px;height:${size}px;background:${color};animation-delay:${delay}s;animation-duration:${dur}s;"></span>`;
+// Deterministic per-id 0..1 so neighbouring pins never animate in sync —
+// same trick as the app's seed01 (FNV-ish hash of the id).
+function seed01(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 16777619);
   }
-  return `<div class="mm-particle-aura">${html}</div>`;
+  return (Math.abs(h) % 1000) / 1000;
 }
 
-function orbMarkerConfig(rarity: string) {
-  if (rarity === 'Legendary') return { size: 32, ring: 56, sonarDelay: '0s' };
-  if (rarity === 'Rare') return { size: 26, ring: 46, sonarDelay: '0.3s' };
-  return { size: 20, ring: 36, sonarDelay: '0.6s' };
+// Approximate meters → on-screen pixels at the current zoom level + latitude
+// (Web Mercator). Used to size the reach glow + privacy zones with zoom.
+function metersToPx(meters: number, lat: number, zoom: number): number {
+  const metersPerPx = (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom);
+  if (!isFinite(metersPerPx) || metersPerPx <= 0) return 80;
+  return meters / metersPerPx;
 }
 
+function haversineM(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3;
+  const p = Math.PI / 180;
+  const a =
+    0.5 -
+    Math.cos((lat2 - lat1) * p) / 2 +
+    Math.cos(lat1 * p) * Math.cos(lat2 * p) * (1 - Math.cos((lon2 - lon1) * p)) / 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// Initial bearing (radians, 0 = north, clockwise) from a to b.
+function bearingRad(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const lat1 = (aLat * Math.PI) / 180;
+  const lat2 = (bLat * Math.PI) / 180;
+  const dLon = ((bLng - aLng) * Math.PI) / 180;
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  return Math.atan2(y, x);
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Marker CSS — the app's pin spec translated 1:1:
+ *  • CreatureMapPin: ground shadow + glowing rarity stand ring + breathing
+ *    radial aura (per-pin timing) + scanning comet arc on legendary/mythic
+ *    + the bobbing, occasionally hopping creature sprite.
+ *  • WalkCoinPin: the glossy 3D brand orb hovering over a living ground
+ *    shadow; dim + desaturated out of range, ring + value tag in range.
+ *  • TrainerMapPin: soft presence "area" glow, avatar on a presence ring,
+ *    name tag capsule.
+ *  Transform/opacity animation only — same budget the app keeps.
+ * ──────────────────────────────────────────────────────────────────────── */
 const HUNT_CSS = `
-@keyframes mmOrbPulse {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.18); opacity: 0.88; }
-  100% { transform: scale(1); opacity: 1; }
-}
-@keyframes mmSonarRing {
-  0% { transform: translate(-50%,-50%) scale(0.5); opacity: 0.75; }
-  100% { transform: translate(-50%,-50%) scale(2.8); opacity: 0; }
-}
-@keyframes mmIrisBlink {
-  0%, 92%, 100% { transform: scaleY(1); opacity: 1; }
-  96% { transform: scaleY(0.05); opacity: 0.5; }
-}
-@keyframes mmUserBoltPulse {
-  0%, 100% { filter: drop-shadow(0 0 6px rgba(0,255,136,0.85)) drop-shadow(0 0 18px rgba(0,255,136,0.45)); transform: scale(1); }
-  50% { filter: drop-shadow(0 0 10px rgba(0,255,136,1)) drop-shadow(0 0 32px rgba(0,255,136,0.65)); transform: scale(1.05); }
-}
-@keyframes mmUserSonar {
-  0% { transform: translate(-50%,-50%) scale(0.5); opacity: 0.55; }
-  100% { transform: translate(-50%,-50%) scale(3.2); opacity: 0; }
-}
-@keyframes mmCatchablePulse {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(0,255,136,0)); }
-  50% { transform: scale(1.06); filter: drop-shadow(0 0 22px rgba(0,255,136,0.5)); }
-}
-@keyframes mmMediumDrift {
-  0%, 100% { opacity: 0.32; }
-  50% { opacity: 0.55; }
-}
-@keyframes mmEdgePulse {
-  0%, 100% { opacity: 0.35; transform: translate(0,0) scale(1); }
-  50% { opacity: 0.85; transform: translate(0,0) scale(1.08); }
-}
-@keyframes mmPlayerPulse {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(0,255,136,0.6)); }
-  50% { transform: scale(1.12); filter: drop-shadow(0 0 18px rgba(0,255,136,0.35)); }
-}
-@keyframes mmFuzzyBreath {
-  0%, 100% { opacity: 0.22; transform: scale(1); }
-  50% { opacity: 0.36; transform: scale(1.04); }
-}
-@keyframes mmWildPulse {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 8px var(--wild-color)); }
-  50% { transform: scale(1.06); filter: drop-shadow(0 0 22px var(--wild-color)); }
-}
-.mm-orb-marker {
-  border-radius: 50%;
-  animation: mmOrbPulse 2.4s ease-in-out infinite;
-  cursor: pointer;
-  position: relative;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.mm-orb-marker:hover {
-  transform: scale(1.2);
-  animation-play-state: paused;
-}
-.mm-orb-iris {
-  width: 38%;
-  height: 38%;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #FFFFFF 0%, #0a0a0f 70%);
-  animation: mmIrisBlink 4.6s ease-in-out infinite;
-}
-.mm-orb-sonar {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  border-radius: 50%;
-  border: 1.5px solid var(--orb-color);
-  opacity: 0;
-  animation: mmSonarRing 3s ease-out infinite;
-  pointer-events: none;
-}
-.mm-user-bolt {
-  position: relative;
-  z-index: 20;
-  width: 22px;
-  height: 28px;
-  animation: mmUserBoltPulse 1.8s ease-in-out infinite;
-}
-.mm-user-sonar {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(0,255,136,0.55);
-  animation: mmUserSonar 2.4s ease-out infinite;
-  pointer-events: none;
-}
-.mm-orb-claimed {
-  opacity: 0.35 !important;
-  animation: none !important;
-  filter: grayscale(0.8);
-}
-.mm-medium {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: 1.5px dashed rgba(0,255,136,0.5);
-  background: radial-gradient(circle at 50% 50%, rgba(0,255,136,0.18), rgba(0,0,0,0));
-  animation: mmMediumDrift 2.6s ease-in-out infinite;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.mm-medium-iris {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.85);
-}
-.mm-catchable-ring {
-  position: absolute;
-  inset: -8px;
-  border-radius: 50%;
-  border: 2px solid rgba(0,255,136,0.85);
-  animation: mmCatchablePulse 1.4s ease-in-out infinite;
-  pointer-events: none;
-}
-.mm-genesis-ring {
-  position: absolute;
-  inset: -18px;
-  border-radius: 50%;
-  border: 3px solid var(--genesis-color, #ffd166);
-  box-shadow: 0 0 28px var(--genesis-color, #ffd166), inset 0 0 14px var(--genesis-color, #ffd166);
-  animation: mmGenesisPulse 1.8s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 9;
-}
-@keyframes mmGenesisPulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 0.85;
-    filter: drop-shadow(0 0 18px var(--genesis-color, #ffd166));
-  }
-  50% {
-    transform: scale(1.12);
-    opacity: 1;
-    filter: drop-shadow(0 0 42px var(--genesis-color, #ffd166));
-  }
-}
-.mm-genesis-label {
-  position: absolute;
-  left: 50%;
-  top: -38px;
-  transform: translateX(-50%);
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #ffd166, #ff8ae0);
-  color: #0a0a0f;
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  box-shadow: 0 0 14px rgba(255,209,102,0.65);
-  pointer-events: none;
-  z-index: 13;
-}
-@keyframes mmOrbBob {
+.mm-ws { transform: scale(var(--mm-world-scale, 1)); transition: transform 0.4s ease; }
+
+/* ── Creature pin ── */
+@keyframes mmCpBob {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
+  50% { transform: translateY(-7px); }
 }
-@keyframes mmScaleBreath {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+@keyframes mmCpShadow {
+  0%, 100% { transform: translateX(-50%) scale(1); opacity: 1; }
+  50% { transform: translateX(-50%) scale(0.78); opacity: 0.6; }
 }
-@keyframes mmHaloSpin {
+@keyframes mmCpAura {
+  0%, 100% { opacity: 0.5; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+@keyframes mmCpStandRing {
+  0%, 100% { opacity: 0.5; transform: translateX(-50%) scale(0.85); }
+  50% { opacity: 0.95; transform: translateX(-50%) scale(1.05); }
+}
+@keyframes mmCpScan {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
-@keyframes mmParticleFloat {
-  0% { transform: translateY(0) scale(0.6); opacity: 0; }
-  20% { opacity: 0.9; }
-  100% { transform: translateY(-32px) scale(1.1); opacity: 0; }
+@keyframes mmCpHop {
+  0%, 55%, 100% { transform: scale(1, 1) translateY(0); }
+  58% { transform: scale(1.12, 0.86) translateY(3px); }
+  63% { transform: scale(0.90, 1.12) translateY(-14px); }
+  68% { transform: scale(1.14, 0.84) translateY(1px); }
+  74% { transform: scale(1, 1) translateY(0); }
 }
-@keyframes mmGhostBob {
-  0%, 100% { transform: translateY(0); opacity: 0.55; }
-  50% { transform: translateY(-3px); opacity: 0.85; }
-}
-@keyframes mmGhostFadeIn {
-  from { opacity: 0; transform: scale(0.6); }
-  to { opacity: 1; transform: scale(1); }
-}
-@keyframes mmWatcherPulse {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 6px rgba(0,255,136,0.6)); }
-  50% { transform: scale(1.25); filter: drop-shadow(0 0 12px rgba(0,255,136,0.9)); }
-}
-@keyframes mmCatchPill {
-  0%, 100% { transform: translate(-50%,-2px); }
-  50% { transform: translate(-50%,-7px); }
-}
-@keyframes mmCatchWindup {
-  0% { transform: scale(1); filter: brightness(1) drop-shadow(0 0 0 transparent); }
-  60% { transform: scale(1.35); filter: brightness(1.6) drop-shadow(0 0 28px rgba(0,255,136,0.95)); }
-  100% { transform: scale(1.15); filter: brightness(1.2) drop-shadow(0 0 12px rgba(0,255,136,0.6)); }
-}
-.mm-orb-bob { animation: mmOrbBob 2s ease-in-out infinite; will-change: transform; }
-.mm-orb-breath { animation: mmScaleBreath 3s ease-in-out infinite; }
-.mm-orb-halo {
-  position: absolute;
-  inset: -12px;
-  border-radius: 50%;
-  background: conic-gradient(from 0deg, rgba(0,255,136,0.9), rgba(136,255,0,0.5), rgba(255,138,224,0.7), rgba(0,255,136,0.9));
-  filter: blur(4px);
-  opacity: 0.55;
-  animation: mmHaloSpin 6s linear infinite;
-  pointer-events: none;
-  z-index: -1;
-}
-.mm-particle-aura {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: visible;
-  z-index: 8;
-}
-.mm-particle {
-  position: absolute;
-  bottom: 50%;
-  border-radius: 50%;
-  opacity: 0;
-  animation: mmParticleFloat 2.8s ease-in-out infinite;
-  filter: drop-shadow(0 0 4px currentColor);
-  pointer-events: none;
-}
-.mm-catch-pill {
-  position: absolute;
-  left: 50%;
-  bottom: 110%;
-  transform: translate(-50%, 0);
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: rgba(10,10,15,0.85);
-  border: 1px solid rgba(0,255,136,0.6);
-  color: #00FF88;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  animation: mmCatchPill 1.4s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 12;
-  box-shadow: 0 0 10px rgba(0,255,136,0.45);
-}
-.mm-windup { animation: mmCatchWindup 200ms ease-out forwards !important; }
-.mm-watcher-dot {
+.mm-cp {
   position: relative;
-  width: 8px;
-  height: 8px;
+  width: 88px; height: 92px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.18s ease, opacity 0.3s ease;
+}
+.mm-cp:active { transform: scale(0.85); }
+.mm-cp-shadow {
+  position: absolute; left: 50%; bottom: 8px;
+  width: 40px; height: 13px; border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0,0,0,0.45), rgba(0,0,0,0));
+  transform: translateX(-50%);
+  animation: mmCpShadow var(--bob-dur, 2.5s) ease-in-out infinite;
+}
+.mm-cp-stand {
+  position: absolute; left: 50%; bottom: 8px;
+  width: 42px; height: 14px; border-radius: 50%;
+  background: var(--tint);
+  opacity: 0.14;
+  transform: translateX(-50%);
+}
+.mm-cp-standring {
+  position: absolute; left: 50%; bottom: 7px;
+  width: 46px; height: 16px; border-radius: 50%;
+  border: 2px solid var(--tint);
+  animation: mmCpStandRing var(--glow-dur, 2.3s) ease-in-out infinite;
+}
+.mm-cp-aura {
+  position: absolute; left: 50%; top: 50%;
+  width: 88px; height: 88px; border-radius: 50%;
+  margin: -46px 0 0 -44px;
+  background: radial-gradient(circle, var(--aura-strong) 0%, transparent 68%);
+  animation: mmCpAura var(--glow-dur, 2.3s) ease-in-out infinite;
+  pointer-events: none;
+}
+.mm-cp-scan {
+  position: absolute; left: 50%; top: 50%;
+  width: 62px; height: 62px; border-radius: 50%;
+  margin: -33px 0 0 -31px;
+  background: conic-gradient(from 0deg, transparent 0deg, var(--tint) 54deg, transparent 108deg, transparent 360deg);
+  -webkit-mask: radial-gradient(closest-side, transparent 86%, #000 88%);
+  mask: radial-gradient(closest-side, transparent 86%, #000 88%);
+  animation: mmCpScan 3.4s linear infinite;
+  pointer-events: none;
+}
+.mm-cp-hop {
+  position: absolute; left: 50%; bottom: 12px;
+  width: 74px; height: 62px;
+  margin-left: -37px;
+  transform-origin: 50% 100%;
+  animation: mmCpHop var(--hop-dur, 4s) ease-in-out infinite;
+}
+.mm-cp-sprite {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  object-position: bottom;
+  animation: mmCpBob var(--bob-dur, 2.5s) ease-in-out infinite;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35));
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.mm-cp-dim { opacity: 0.35; }
+.mm-cp-genesis {
+  position: absolute; left: 50%; top: -26px;
+  transform: translateX(-50%);
+  padding: 3px 10px; border-radius: 999px;
+  background: linear-gradient(135deg, #ffd166, #ff8ae0);
+  color: #0a0a0f; font-size: 9px; font-weight: 900;
+  letter-spacing: 0.18em; text-transform: uppercase; white-space: nowrap;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  box-shadow: 0 0 14px rgba(255,209,102,0.65);
+  pointer-events: none;
+}
+
+/* ── Orb pickup pin (WalkCoinPin.coinView) ── */
+@keyframes mmOrbBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes mmOrbShadow {
+  0%, 100% { transform: translateX(-50%) scale(1); opacity: 0.95; }
+  50% { transform: translateX(-50%) scale(0.72); opacity: 0.5; }
+}
+@keyframes mmOrbInvite {
+  0% { transform: translate(-50%,-50%) scale(0.9); opacity: 0.85; }
+  100% { transform: translate(-50%,-50%) scale(1.5); opacity: 0; }
+}
+@keyframes mmOrbWiggle {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+}
+.mm-op {
+  position: relative;
+  width: 64px; height: 64px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.35s ease, opacity 0.35s ease, filter 0.35s ease;
+}
+.mm-op-out { opacity: 0.55; filter: saturate(0.72); transform: scale(0.86); }
+.mm-op-claimed { opacity: 0.3; filter: grayscale(0.8); }
+.mm-op-halo {
+  position: absolute; left: 50%; top: 50%;
+  width: 48px; height: 48px; border-radius: 50%;
+  transform: translate(-50%,-50%);
+  background: radial-gradient(circle, var(--halo) 0%, transparent 66%);
+  pointer-events: none;
+}
+.mm-op-shadow {
+  position: absolute; left: 50%; bottom: 6px;
+  width: 32px; height: 11px; border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0,0,0,0.42), rgba(0,0,0,0));
+  transform: translateX(-50%);
+  animation: mmOrbShadow var(--bob-dur, 1.9s) ease-in-out infinite;
+}
+.mm-op-bubble {
+  position: absolute; left: 50%; bottom: 12px;
+  width: var(--dia, 34px); height: var(--dia, 34px);
+  margin-left: calc(var(--dia, 34px) / -2);
+  object-fit: contain;
+  animation: mmOrbBob var(--bob-dur, 1.9s) ease-in-out infinite;
+  pointer-events: none; user-select: none; -webkit-user-drag: none;
+}
+.mm-op-invite {
+  position: absolute; left: 50%; top: 50%;
+  width: 46px; height: 46px; border-radius: 50%;
+  border: 2px solid var(--tint);
+  animation: mmOrbInvite 1.5s ease-out infinite;
+  pointer-events: none;
+}
+.mm-op-value {
+  position: absolute; left: 50%; top: -4px;
+  transform: translateX(-50%);
+  padding: 1px 5px; border-radius: 999px;
+  background: var(--tint); color: #000;
+  font-size: 8.5px; font-weight: 900; white-space: nowrap;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  pointer-events: none;
+}
+.mm-op-wiggle { animation: mmOrbWiggle 0.3s ease-in-out; }
+
+/* ── Distant orb glint (OrbGlintPin) — static on purpose ── */
+.mm-glint {
+  position: relative; width: 20px; height: 20px; pointer-events: none;
+}
+.mm-glint-halo {
+  position: absolute; inset: 1px; border-radius: 50%;
+  background: radial-gradient(circle, var(--halo) 0%, transparent 66%);
+}
+.mm-glint-dot {
+  position: absolute; left: 50%; top: 50%; width: 5px; height: 5px;
+  margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--tint);
+}
+.mm-glint-spec {
+  position: absolute; left: 50%; top: 50%; width: 2px; height: 2px;
+  margin: -1.8px 0 0 -1.8px; border-radius: 50%; background: rgba(255,255,255,0.9);
+}
+
+/* ── Trainer / player pin ── */
+@keyframes mmTpBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@keyframes mmTpArea {
+  0%, 100% { transform: translate(-50%,-50%) scale(0.9); opacity: 0.7; }
+  50% { transform: translate(-50%,-50%) scale(1.06); opacity: 1; }
+}
+.mm-tp {
+  position: relative; width: 116px; height: 118px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: transform 0.18s ease;
+}
+.mm-tp:active { transform: scale(0.88); }
+.mm-tp-area {
+  position: absolute; left: 50%; top: 42px;
+  width: 104px; height: 104px; border-radius: 50%;
+  background: radial-gradient(circle, var(--presence-glow) 0%, transparent 66%);
+  animation: mmTpArea 1.9s ease-in-out infinite;
+  pointer-events: none;
+}
+.mm-tp-shadow {
+  position: absolute; left: 50%; top: 68px;
+  width: 38px; height: 12px; border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0,0,0,0.4), rgba(0,0,0,0));
+  transform: translateX(-50%);
+}
+.mm-tp-core {
+  position: absolute; left: 50%; top: 14px;
+  width: 52px; height: 52px; margin-left: -26px;
+  animation: mmTpBob var(--bob-dur, 2.6s) ease-in-out infinite;
+}
+.mm-tp-avatar {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: #12121a;
+  border: 2.5px solid var(--presence);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 20px; font-weight: 900;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.mm-tp-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.mm-tp-badge {
+  position: absolute; right: -4px; top: -4px;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: #0a0a0f;
+  display: flex; align-items: center; justify-content: center;
+}
+.mm-tp-name {
+  position: absolute; left: 50%; bottom: 8px;
+  transform: translateX(-50%);
+  max-width: 112px; overflow: hidden; text-overflow: ellipsis;
+  padding: 2.5px 7px; border-radius: 999px;
+  background: rgba(0,0,0,0.62);
+  border: 0.75px solid var(--presence-border);
+  color: #fff; font-size: 10.5px; font-weight: 800; white-space: nowrap;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ── User beacon (UserLocationDot) — static, the art carries it ── */
+.mm-user {
+  position: relative; width: 60px; height: 60px;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.mm-user-glow {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,255,136,0.4) 8%, transparent 62%);
+}
+.mm-user-art {
+  position: relative; width: 46px; height: 46px; object-fit: contain;
+  user-select: none; -webkit-user-drag: none;
+}
+
+/* ── Reach glow — the collection range as a soft pool of light ── */
+.mm-reach { position: relative; pointer-events: none; }
+.mm-reach-outer {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: rgba(0,255,136,0.08);
+}
+.mm-reach-inner {
+  position: absolute; left: 22.5%; top: 22.5%; width: 55%; height: 55%;
   border-radius: 50%;
+  background: rgba(0,255,136,0.06);
+}
+
+/* ── Wild spawn zone + timer tag ── */
+@keyframes mmZoneBreath {
+  0%, 100% { opacity: 0.22; transform: scale(1); }
+  50% { opacity: 0.36; transform: scale(1.04); }
+}
+.mm-wild-zone {
+  border-radius: 50%;
+  animation: mmZoneBreath 5s ease-in-out infinite;
+  pointer-events: none;
+}
+.mm-wild-timer {
+  position: absolute; left: 50%; bottom: -4px;
+  transform: translateX(-50%);
+  padding: 2px 6px; border-radius: 999px;
+  background: rgba(0,0,0,0.7);
+  color: var(--timer-color); font-size: 9px; font-weight: 800; white-space: nowrap;
+  border: 1px solid var(--timer-border);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  pointer-events: none;
+}
+
+/* ── Watcher dot + recent-catch ghost ── */
+@keyframes mmWatcherPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.25); }
+}
+.mm-watcher-dot {
+  position: relative; width: 8px; height: 8px; border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, #ccffe6, #00FF88 70%);
   box-shadow: 0 0 8px rgba(0,255,136,0.75);
   animation: mmWatcherPulse 1.2s ease-in-out infinite;
@@ -425,62 +506,42 @@ const HUNT_CSS = `
 }
 .mm-watcher-dot::after {
   content: attr(data-handle);
-  position: absolute;
-  left: 50%;
-  bottom: 130%;
+  position: absolute; left: 50%; bottom: 130%;
   transform: translateX(-50%);
-  padding: 3px 7px;
-  border-radius: 6px;
+  padding: 3px 7px; border-radius: 6px;
   background: rgba(10,10,15,0.9);
   border: 1px solid rgba(0,255,136,0.4);
-  color: #00FF88;
-  font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
-  opacity: 0;
-  transition: opacity 120ms ease;
-  pointer-events: none;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: #00FF88; font-size: 10px; font-weight: 700; white-space: nowrap;
+  opacity: 0; transition: opacity 120ms ease; pointer-events: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 .mm-watcher-dot:hover::after { opacity: 1; }
+@keyframes mmGhostBob {
+  0%, 100% { transform: translateY(0); opacity: 0.55; }
+  50% { transform: translateY(-3px); opacity: 0.85; }
+}
 .mm-ghost-catch {
-  position: relative;
-  width: 28px;
-  height: 28px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: mmGhostFadeIn 320ms ease-out, mmGhostBob 3s ease-in-out 320ms infinite;
+  position: relative; width: 28px; height: 28px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  animation: mmGhostBob 3s ease-in-out infinite;
 }
 .mm-ghost-catch svg { filter: drop-shadow(0 0 6px rgba(0,255,136,0.85)); }
 .mm-ghost-catch::after {
   content: attr(data-label);
-  position: absolute;
-  left: 50%;
-  bottom: 110%;
+  position: absolute; left: 50%; bottom: 110%;
   transform: translateX(-50%);
-  padding: 3px 8px;
-  border-radius: 6px;
+  padding: 3px 8px; border-radius: 6px;
   background: rgba(10,10,15,0.92);
   border: 1px solid rgba(0,255,136,0.4);
-  color: #00FF88;
-  font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
-  opacity: 0;
-  transition: opacity 140ms ease;
-  pointer-events: none;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: #00FF88; font-size: 10px; font-weight: 700; white-space: nowrap;
+  opacity: 0; transition: opacity 140ms ease; pointer-events: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 .mm-ghost-catch:hover::after { opacity: 1; }
+
+/* ── Living-approach vignette ── */
 .mm-approach-vignette {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 6;
-  /* Inset green glow on the screen edges. Driven by --approach-intensity.
-   * Pure opacity + box-shadow → GPU compositor friendly. */
+  position: absolute; inset: 0; pointer-events: none; z-index: 6;
   box-shadow: inset 0 0 120px 30px rgba(0, 255, 136, 0.85);
   opacity: calc(var(--approach-intensity, 0) * 0.6);
   transition: opacity 280ms ease;
@@ -489,10 +550,8 @@ const HUNT_CSS = `
 }
 .mm-approach-vignette::after {
   content: "";
-  position: absolute;
-  inset: 0;
+  position: absolute; inset: 0;
   background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 255, 136, 0.45) 100%);
-  opacity: 1;
   animation: mmVignetteBreath 1.8s ease-in-out infinite;
   will-change: opacity;
 }
@@ -500,25 +559,12 @@ const HUNT_CSS = `
   0%, 100% { opacity: 0.85; }
   50% { opacity: 1; }
 }
+
 @media (prefers-reduced-motion: reduce) {
+  .mm-cp-shadow, .mm-cp-aura, .mm-cp-standring, .mm-cp-scan, .mm-cp-hop,
+  .mm-cp-sprite, .mm-op-shadow, .mm-op-bubble, .mm-op-invite, .mm-tp-area,
+  .mm-tp-core, .mm-wild-zone, .mm-watcher-dot, .mm-ghost-catch,
   .mm-approach-vignette::after { animation: none !important; }
-  .mm-orb-bob,
-  .mm-orb-breath,
-  .mm-orb-halo,
-  .mm-particle,
-  .mm-orb-sonar,
-  .mm-watcher-dot,
-  .mm-ghost-catch,
-  .mm-orb-marker,
-  .mm-catchable-ring,
-  .mm-genesis-ring,
-  .mm-user-bolt,
-  .mm-user-sonar,
-  .mm-medium,
-  .mm-orb-iris,
-  .mm-catch-pill { animation: none !important; }
-  .mm-particle-aura { display: none !important; }
-  .mm-orb-halo { display: none !important; }
 }
 .mapboxgl-ctrl-logo { display: none !important; }
 .mapboxgl-ctrl-attrib { display: none !important; }
@@ -527,37 +573,79 @@ const HUNT_CSS = `
 .mapboxgl-ctrl-top-right { display: none !important; }
 .mapboxgl-ctrl-bottom-left { display: none !important; }
 .mapboxgl-ctrl-bottom-right { display: none !important; }
-.mapboxgl-ctrl-top-left { display: none !important; }
-.mapboxgl-ctrl-top-right { display: none !important; }
-.mapboxgl-ctrl-bottom-left { display: none !important; }
-.mapboxgl-ctrl-bottom-right { display: none !important; }
 `;
 
 function wildRarityColor(rarity: string): string {
-  const r = rarity.toLowerCase();
-  if (r === "mythic") return "#ff8ae0";
-  if (r === "legendary") return "#ffd166";
-  if (r === "rare") return "#88FF00";
-  if (r === "uncommon") return "#00FF88";
-  return "#ffffff";
+  return RARITY_TONE[normalRarity(rarity)] || '#ffffff';
 }
 
-// Approximate meters → on-screen pixels at the current zoom level + latitude
-// (Web Mercator). Used to size privacy circles so they shrink/grow with zoom.
-function metersToPxAtZoom(meters: number, lat: number, zoom: number): number {
-  const metersPerPx = (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom);
-  if (!isFinite(metersPerPx) || metersPerPx <= 0) return 80;
-  const px = meters / metersPerPx;
-  return Math.min(280, Math.max(36, Math.round(px * 2))); // diameter
+/** Player presence color — mirrors TrainerMapPin.presenceColor. */
+function presenceColor(p: NearbyPlayer): string {
+  if (!p.last_seen) return NEON;
+  const ageMin = (Date.now() - new Date(p.last_seen).getTime()) / 60000;
+  if (ageMin < 5) return NEON; // online
+  if (ageMin < 60) return '#8cc7ff'; // recently active (0.55, 0.78, 1.0)
+  return '#8c94a8'; // away (0.55, 0.58, 0.66)
 }
 
-function silhouetteSvg(rColor: string): string {
+function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/**
+ * Escape a server-provided string before interpolating it into marker
+ * innerHTML (attribute or text position) — user-controlled values like
+ * avatar URLs must not be able to break out of the markup.
+ */
+function escHTML(v: string): string {
+  return v
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * App-identical CreatureMapPin markup: ground shadow, glowing rarity stand
+ * ring, breathing radial aura (per-creature timing), scanning comet arc on
+ * legendary/mythic, and the bobbing/hopping creature sprite.
+ */
+function creaturePinHTML(opts: {
+  id: string;
+  tint: string;
+  rarity: string;
+  sprite: string;
+  isGenesis?: boolean;
+  reduce: boolean;
+}): string {
+  const s = seed01(opts.id);
+  const bucket = Math.abs(opts.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % 5;
+  const glowDur = (2.0 + bucket * 0.3).toFixed(2);
+  const bobDur = (2.1 + s * 0.9).toFixed(2);
+  const hopDur = (3.4 + s * 3).toFixed(2);
+  const r = normalRarity(opts.rarity);
+  const legOrMythic = r === 'legendary' || r === 'mythic';
+  const auraStrong = hexToRgba(opts.tint, legOrMythic ? 0.5 : 0.32);
+  const spriteEl = opts.sprite
+    ? `<img class="mm-cp-sprite" src="${escHTML(opts.sprite)}" alt="" draggable="false" />`
+    : `<div class="mm-cp-sprite" style="display:flex;align-items:flex-end;justify-content:center;">
+         <div style="width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 35%, ${opts.tint}, #0a0a0f);border:2px solid ${opts.tint};"></div>
+       </div>`;
   return `
-    <svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
-      <ellipse cx="14" cy="14" rx="11" ry="7" fill="${rColor}" opacity="0.55"/>
-      <circle cx="14" cy="14" r="3" fill="#0a0a0f"/>
-      <circle cx="14" cy="14" r="1.3" fill="#FFFFFF"/>
-    </svg>
+    <div class="mm-cp-shadow" style="--bob-dur:${bobDur}s;"></div>
+    <div class="mm-cp-stand" style="--tint:${opts.tint};"></div>
+    <div class="mm-cp-standring" style="--tint:${opts.tint};--glow-dur:${glowDur}s;"></div>
+    <div class="mm-cp-aura" style="--aura-strong:${auraStrong};--glow-dur:${glowDur}s;"></div>
+    ${legOrMythic && !opts.reduce ? `<div class="mm-cp-scan" style="--tint:${opts.tint};"></div>` : ''}
+    <div class="mm-cp-hop" style="--hop-dur:${hopDur}s;--bob-dur:${bobDur}s;">
+      ${spriteEl}
+    </div>
+    ${opts.isGenesis ? '<div class="mm-cp-genesis">GENESIS</div>' : ''}
   `;
 }
 
@@ -574,6 +662,7 @@ function HuntMap({
   onSelectPlayer,
   onSelectWildSpawn,
   onSelectCatchable,
+  onPanState,
   approachIntensity = 0,
 }: HuntMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -585,118 +674,198 @@ function HuntMap({
   const watcherMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const ghostMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const reachMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const hasInitialView = useRef(false);
   const spottedIdsRef = useRef<Set<string>>(new Set());
   const lastSpottedAtRef = useRef<number>(0);
   const nearbyIdsRef = useRef<Set<string>>(new Set());
   const lastNearbyAtRef = useRef<number>(0);
   const reducedMotionRef = useRef<boolean>(false);
+  // Camera-follow state — mirrors the app: follow until the user pans >30m
+  // away, then surface the Recenter button (via onPanState).
+  const followRef = useRef<boolean>(true);
+  const lastEaseRef = useRef<{ lat: number; lng: number } | null>(null);
+  const userPosRef = useRef<{ lat: number; lng: number } | null>(null);
+  const onPanStateRef = useRef<typeof onPanState>(onPanState);
+  onPanStateRef.current = onPanState;
+  userPosRef.current = userPosition;
 
-  // Cache reduced-motion preference on first render.
   useEffect(() => {
     reducedMotionRef.current = prefersReducedMotion();
   }, []);
 
   /* ── Inject CSS ── */
   useEffect(() => {
-    if (!document.getElementById('mm-hunt-styles')) {
-      const style = document.createElement('style');
-      style.id = 'mm-hunt-styles';
-      style.textContent = HUNT_CSS;
-      document.head.appendChild(style);
-    }
+    const existing = document.getElementById('mm-hunt-styles');
+    if (existing) existing.remove();
+    const style = document.createElement('style');
+    style.id = 'mm-hunt-styles';
+    style.textContent = HUNT_CSS;
+    document.head.appendChild(style);
   }, []);
 
-  /* ── Init map ── */
+  /* ── Init map — PURE satellite imagery + 3D tilted follow camera,
+     matching the app's `.mapStyle(.imagery)` + MapCamera(700m, pitch 55). ── */
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    // Wait for a real position — fall back to NYC if location not enabled
     const center: [number, number] = userPosition
       ? [userPosition.lng, userPosition.lat]
       : [-74.006, 40.7128];
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: 'mapbox://styles/mapbox/dark-v11',
-      pitch: 0,
+      style: 'mapbox://styles/mapbox/satellite-v9',
+      pitch: FOLLOW_PITCH,
       bearing: 0,
       center,
-      zoom: 15,
+      zoom: FOLLOW_ZOOM,
       attributionControl: false,
       logoPosition: 'bottom-left',
       renderWorldCopies: false,
       antialias: false,
     });
 
+    // Green atmosphere fog — the satellite horizon fades into brand-dark.
     const applyStyleNow = () => applyBlinkMapStyle(map, { hour: new Date().getHours() });
     map.on('style.load', applyStyleNow);
 
-    // Re-apply each hour so the time-of-day shading stays correct.
-    const hourInterval = setInterval(() => {
-      if (map.isStyleLoaded()) applyBlinkMapStyle(map, { hour: new Date().getHours() });
-    }, 60 * 60 * 1000);
-    (map as unknown as { _mmHourTimer?: ReturnType<typeof setInterval> })._mmHourTimer = hourInterval;
+    // Manual pan disengages follow (only for user-driven moves).
+    const reportPan = (e?: { originalEvent?: Event }) => {
+      const user = userPosRef.current;
+      if (!user) return;
+      const c = map.getCenter();
+      const dist = haversineM(c.lat, c.lng, user.lat, user.lng);
+      if (followRef.current) {
+        // Our own follow/recenter easeTo also emits moveend — only a
+        // gesture-driven move (originalEvent present) may break follow.
+        if (!e?.originalEvent) return;
+        if (dist > 30) {
+          followRef.current = false;
+          onPanStateRef.current?.({
+            away: true,
+            distanceM: dist,
+            bearingRad: bearingRad(c.lat, c.lng, user.lat, user.lng),
+          });
+        }
+        return;
+      }
+      onPanStateRef.current?.({
+        away: dist > 30,
+        distanceM: dist,
+        bearingRad: bearingRad(c.lat, c.lng, user.lat, user.lng),
+      });
+    };
+    map.on('dragstart', () => {
+      followRef.current = false;
+    });
+    map.on('moveend', reportPan);
+
+    // World zoom scale — pins grow up close, shrink pulled back, exactly the
+    // app's sqrt(followDistance/distance) clamp 0.72…1.3 remapped to zoom.
+    const applyWorldScale = () => {
+      const z = map.getZoom();
+      const raw = Math.pow(2, (z - FOLLOW_ZOOM) / 2);
+      const clamped = Math.max(0.72, Math.min(1.3, raw));
+      containerRef.current?.style.setProperty('--mm-world-scale', clamped.toFixed(3));
+      // Resize the reach glow so it stays glued to real meters.
+      const user = userPosRef.current;
+      if (user && reachMarkerRef.current) {
+        const d = Math.max(24, metersToPx(REACH_RADIUS_M, user.lat, z) * 2);
+        const el = reachMarkerRef.current.getElement();
+        el.style.width = `${d}px`;
+        el.style.height = `${d}px`;
+      }
+    };
+    map.on('zoom', applyWorldScale);
+    map.on('load', applyWorldScale);
+
+    // Recenter hook the page's Recenter button calls: spring back + re-follow.
+    (map as unknown as Record<string, unknown>)._mmRecenter = () => {
+      const user = userPosRef.current;
+      followRef.current = true;
+      onPanStateRef.current?.(null);
+      if (user) {
+        map.easeTo({
+          center: [user.lng, user.lat],
+          zoom: FOLLOW_ZOOM,
+          pitch: FOLLOW_PITCH,
+          bearing: 0,
+          duration: 800,
+        });
+      }
+    };
 
     mapRef.current = map;
     if (externalMapRef) externalMapRef.current = map;
   }, [userPosition?.lat, userPosition?.lng]); // re-init if position arrives before map exists
 
-  /* ── User marker ── */
+  /* ── User beacon + reach glow ── */
   useEffect(() => {
     if (!mapRef.current || !userPosition) return;
+    const map = mapRef.current;
 
-    const el = document.createElement('div');
-    el.style.cssText = 'position:relative;width:44px;height:44px;display:flex;align-items:center;justify-content:center;';
-    el.style.willChange = 'transform';
-    el.style.transform = 'translateZ(0)';
-    el.innerHTML = `
-      <svg class="mm-user-bolt" viewBox="0 0 24 30" fill="none" aria-hidden="true">
-        <defs>
-          <linearGradient id="mm-bolt-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="#88FF00" />
-            <stop offset="100%" stop-color="#00FF88" />
-          </linearGradient>
-        </defs>
-        <path d="M13 1 L1 17 H10 L7 29 L23 11 H14 L17 1 Z" fill="url(#mm-bolt-grad)" stroke="#0a0a0f" stroke-width="1.4" stroke-linejoin="round" />
-        <circle cx="12" cy="15" r="2.6" fill="#0a0a0f" />
-        <circle cx="12" cy="15" r="1.2" fill="#FFFFFF" />
-      </svg>
-      <div class="mm-user-sonar"></div>
-    `;
-
-    if (userMarkerRef.current) {
-      userMarkerRef.current.setLngLat([userPosition.lng, userPosition.lat]);
+    if (!reachMarkerRef.current) {
+      const reachEl = document.createElement('div');
+      reachEl.className = 'mm-reach';
+      const d = Math.max(24, metersToPx(REACH_RADIUS_M, userPosition.lat, map.getZoom()) * 2);
+      reachEl.style.width = `${d}px`;
+      reachEl.style.height = `${d}px`;
+      reachEl.innerHTML = '<div class="mm-reach-outer"></div><div class="mm-reach-inner"></div>';
+      reachMarkerRef.current = new mapboxgl.Marker({ element: reachEl, anchor: 'center' })
+        .setLngLat([userPosition.lng, userPosition.lat])
+        .addTo(map);
     } else {
+      reachMarkerRef.current.setLngLat([userPosition.lng, userPosition.lat]);
+    }
+
+    if (!userMarkerRef.current) {
+      const el = document.createElement('div');
+      el.className = 'mm-user';
+      el.innerHTML = `
+        <div class="mm-user-glow"></div>
+        <img class="mm-user-art" src="/brand/app/beacon-sphere-plasma.png" alt="" draggable="false" />
+      `;
       userMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
         .setLngLat([userPosition.lng, userPosition.lat])
-        .addTo(mapRef.current);
+        .addTo(map);
+    } else {
+      userMarkerRef.current.setLngLat([userPosition.lng, userPosition.lat]);
     }
 
+    // Follow camera: ease to the user (throttled — skip <3m moves), keeping
+    // the cinematic tilt. MapKit-style: the map drives its own interpolation.
     if (!hasInitialView.current) {
-      mapRef.current.easeTo({ center: [userPosition.lng, userPosition.lat], zoom: 15, duration: 600 });
+      map.easeTo({
+        center: [userPosition.lng, userPosition.lat],
+        zoom: FOLLOW_ZOOM,
+        pitch: FOLLOW_PITCH,
+        bearing: 0,
+        duration: 600,
+      });
       hasInitialView.current = true;
+      lastEaseRef.current = userPosition;
+      return;
+    }
+    if (followRef.current) {
+      const last = lastEaseRef.current;
+      if (!last || haversineM(last.lat, last.lng, userPosition.lat, userPosition.lng) >= 3) {
+        lastEaseRef.current = userPosition;
+        map.easeTo({
+          center: [userPosition.lng, userPosition.lat],
+          duration: 800,
+        });
+      }
     }
   }, [userPosition]);
 
-  /* ── Recenter ── */
-  const recenter = useCallback(() => {
-    if (mapRef.current && userPosition) {
-      mapRef.current.flyTo({ center: [userPosition.lng, userPosition.lat], zoom: 16, duration: 800 });
-    }
-  }, [userPosition]);
-
-  useEffect(() => {
-    if (mapRef.current) {
-      (mapRef.current as unknown as Record<string, unknown>)._mmRecenter = recenter;
-    }
-  }, [recenter]);
-
-  /* ── Sync orb markers with tier-aware rendering ── */
+  /* ── Orb drop markers — the app's glossy 3D brand-orb street pickups.
+     Featured orbs render the real bubble art; far-tier collapses to the tiny
+     glint, exactly the app's declutter pass. ── */
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
 
-    const visibleOrbs = orbs.filter((o) => o.tier); // show ALL tiers including far
+    const visibleOrbs = orbs.filter((o) => o.tier);
     const currentIds = new Set(visibleOrbs.map((o) => o.id));
 
     markersRef.current.forEach((marker, id) => {
@@ -707,144 +876,80 @@ function HuntMap({
     });
 
     visibleOrbs.forEach((orb) => {
-      const rColor = rarityColor(orb.rarity);
       const isClaimed = orb.status === 'claimed';
-      const claimedClass = isClaimed ? ' mm-orb-claimed' : '';
       const tier = orb.tier ?? 'medium';
+      const r = normalRarity(orb.rarity);
+      const gold = r === 'legendary' || r === 'rare';
+      const tint = gold ? GOLD : NEON;
+      const inReach = tier === 'catchable';
+      const s = seed01(orb.id);
+      const bobDur = (1.5 + s * 0.6).toFixed(2);
 
       const el = document.createElement('div');
-      el.style.cssText = 'position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;';
-      el.style.willChange = 'transform';
-      el.style.transform = 'translateZ(0)';
       el.setAttribute('data-tier', tier);
-
-      const profile = tierGlowProfile(orb.rarity);
-      const reduce = reducedMotionRef.current;
-      const rTone = RARITY_TONE[orb.rarity] || rColor;
+      el.style.willChange = 'transform';
 
       if (tier === 'far') {
-        el.style.width = '28px';
-        el.style.height = '28px';
-        el.style.opacity = '0.35';
+        // Distant treasure — a quiet glint up the road, not a crowd.
         el.innerHTML = `
-          <div style="
-            width:22px;height:22px;border-radius:50%;
-            background:radial-gradient(circle, ${rTone}44, transparent);
-            border:1.5px solid ${rTone}55;
-            display:flex;align-items:center;justify-content:center;
-            filter:blur(0.8px);
-          ">
-            <svg viewBox="0 0 20 20" width="11" height="11">
-              <circle cx="10" cy="10" r="7" fill="${rTone}" opacity="0.5"/>
-              <circle cx="10" cy="10" r="3" fill="#0a0a0f" opacity="0.7"/>
-            </svg>
+          <div class="mm-glint" style="--tint:${tint};--halo:${hexToRgba(tint, 0.35)};">
+            <div class="mm-glint-halo"></div>
+            <div class="mm-glint-dot"></div>
+            <div class="mm-glint-spec"></div>
           </div>
         `;
-      } else if (tier === 'medium') {
-        el.style.width = '34px';
-        el.style.height = '34px';
-        el.innerHTML = `
-          <div class="mm-medium" aria-label="Faint signal">
-            <div class="mm-medium-iris"></div>
-          </div>
-        `;
-      } else if (tier === 'close') {
-        const cfg = orbMarkerConfig(orb.rarity);
-        el.style.width = `${cfg.ring}px`;
-        el.style.height = `${cfg.ring}px`;
-        const img = orb.creatureImage;
-        const innerImg = img
-          ? `<img src="${img}" alt="" style="width:60%;height:60%;object-fit:cover;border-radius:50%;display:block;box-shadow:inset 0 0 6px ${rTone}cc;" />`
-          : silhouetteSvg(rColor);
-        el.innerHTML = `
-          <div
-            class="mm-orb-marker${claimedClass}${!isClaimed && profile.bob && !reduce ? ' mm-orb-bob' : ''}"
-            style="
-              width:${cfg.size}px;
-              height:${cfg.size}px;
-              background:radial-gradient(circle at 35% 35%, ${rColor}cc, ${rColor}33);
-              border:2px solid ${rColor};
-              box-shadow: 0 0 ${profile.shadowPx * 0.6}px ${rColor}88, inset 0 0 6px ${rColor}55;
-              --orb-color:${rColor};
-            "
-          >
-            ${innerImg}
-          </div>
-          ${!isClaimed ? `<div class="mm-orb-sonar" style="width:${cfg.ring}px;height:${cfg.ring}px;--orb-color:${rColor};"></div>` : ''}
-        `;
+        el.style.cssText += 'width:20px;height:20px;cursor:pointer;';
       } else {
-        // catchable
-        const cfg = orbMarkerConfig(orb.rarity);
-        const img = orb.creatureImage;
-        el.style.width = `${cfg.ring + 12}px`;
-        el.style.height = `${cfg.ring + 12}px`;
-        const breathClass = !isClaimed && profile.scaleBreath && !reduce ? ' mm-orb-breath' : '';
-        const bobClass = !isClaimed && profile.bob && !reduce ? ' mm-orb-bob' : '';
-        const halo = !isClaimed && profile.haloRotate && !reduce ? '<div class="mm-orb-halo"></div>' : '';
-        const particles = !isClaimed && !reduce ? particleHTML(profile.particles, rTone, orb.id) : '';
-        const sonarRings = !isClaimed
-          ? Array.from({ length: profile.sonarRings }, (_, i) => `<div class="mm-orb-sonar" style="width:${cfg.ring + 12}px;height:${cfg.ring + 12}px;--orb-color:${rColor};animation-delay:${i * 0.45}s;"></div>`).join('')
-          : '';
-        const catchPill = !isClaimed ? '<div class="mm-catch-pill">Catch</div>' : '';
-        const innerImg = img
-          ? `<img src="${img}" alt="" style="width:78%;height:78%;object-fit:cover;border-radius:50%;display:block;" />`
-          : `<div class="mm-orb-iris"></div>`;
+        const dia = gold ? 44 : 34;
+        el.style.cssText += 'width:64px;height:64px;';
         el.innerHTML = `
-          ${halo}
-          ${particles}
-          <div class="mm-catchable-ring"></div>
-          <div
-            class="mm-orb-marker${claimedClass}${breathClass}${bobClass}"
-            data-tier-mark="catchable"
-            style="
-              width:${cfg.size + 10}px;
-              height:${cfg.size + 10}px;
-              background:radial-gradient(circle at 35% 35%, ${rColor}ee, ${rColor}55);
-              border:2px solid ${rColor};
-              box-shadow: 0 0 ${profile.shadowPx}px ${rColor}aa, 0 0 ${profile.shadowPx * 2}px ${rColor}55, inset 0 0 8px ${rColor}aa;
-              --orb-color:${rColor};
-              overflow:hidden;
-              display:flex;align-items:center;justify-content:center;
-            "
-          >
-            ${innerImg}
+          <div class="mm-ws">
+            <div class="mm-op${inReach ? '' : ' mm-op-out'}${isClaimed ? ' mm-op-claimed' : ''}"
+                 style="--tint:${tint};--halo:${hexToRgba(tint, 0.34)};--dia:${dia}px;--bob-dur:${bobDur}s;">
+              <div class="mm-op-halo"></div>
+              <div class="mm-op-shadow"></div>
+              <img class="mm-op-bubble" src="/brand/app/energy-orb-b.png" alt="" draggable="false"
+                   style="${gold ? 'filter:sepia(0.55) saturate(2.4) hue-rotate(-18deg) brightness(1.08);' : ''}" />
+              ${inReach && !isClaimed ? `<div class="mm-op-invite"></div><div class="mm-op-value">+${orb.amount} ${escHTML(orb.currency ?? '')}</div>` : ''}
+            </div>
           </div>
-          ${sonarRings}
-          ${catchPill}
         `;
       }
 
-      el.addEventListener('click', () => {
-        if (tier === 'far') {
-          onSelectOrb(orb); // opens info panel but can't catch
-          return;
-        }
-        if (tier === 'catchable' && !isClaimed) {
-          const inner = el.querySelector('[data-tier-mark="catchable"]') as HTMLElement | null;
-          if (inner && !reduce) {
-            inner.classList.add('mm-windup');
-            setTimeout(() => onSelectOrb(orb), 210);
-            return;
+      // .onclick (not addEventListener) so the existing-marker branch can
+      // refresh the handler each pass — otherwise clicks resolve against the
+      // orb object and onSelectOrb prop from the render the pin was born in.
+      const clickHandler = (rootEl: HTMLElement) => () => {
+        if (tier !== 'far' && !inReach && !isClaimed) {
+          // Too far — the orb wiggles, the app's "walk onto the spot" tell.
+          const pin = rootEl.querySelector('.mm-op') as HTMLElement | null;
+          if (pin && !reducedMotionRef.current) {
+            pin.classList.add('mm-op-wiggle');
+            setTimeout(() => pin.classList.remove('mm-op-wiggle'), 320);
           }
         }
         onSelectOrb(orb);
-      });
+      };
+      el.onclick = clickHandler(el);
 
       if (markersRef.current.has(orb.id)) {
-        // Update DOM if tier changed: remove old, add new.
         const existing = markersRef.current.get(orb.id)!;
         const existingEl = existing.getElement();
-        if (existingEl.getAttribute('data-tier') !== tier) {
+        const stateKey = `${tier}|${inReach}|${isClaimed}`;
+        if (existingEl.getAttribute('data-state') !== stateKey) {
           existing.remove();
           markersRef.current.delete(orb.id);
+          el.setAttribute('data-state', stateKey);
           const m = new mapboxgl.Marker({ element: el, anchor: 'center' })
             .setLngLat([orb.longitude, orb.latitude])
             .addTo(map);
           markersRef.current.set(orb.id, m);
         } else {
           existing.setLngLat([orb.longitude, orb.latitude]);
+          existingEl.onclick = clickHandler(existingEl);
         }
       } else {
+        el.setAttribute('data-state', `${tier}|${inReach}|${isClaimed}`);
         const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
           .setLngLat([orb.longitude, orb.latitude])
           .addTo(map);
@@ -870,12 +975,13 @@ function HuntMap({
     });
   }, [orbs, onSelectOrb]);
 
-  /* ── Player markers (other hunters, fuzzy) ── */
+  /* ── Player markers — the app's TrainerMapPin: presence area glow (the
+     privacy halo), avatar on a presence ring, name tag capsule. ── */
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
     const list = players ?? [];
-    const currentIds = new Set(list.map((p) => p.user_id));
+    const currentIds = new Set(list.map((p) => `tp:${p.user_id}`));
 
     playerMarkersRef.current.forEach((marker, id) => {
       if (!currentIds.has(id)) {
@@ -885,80 +991,60 @@ function HuntMap({
     });
 
     list.forEach((p) => {
-      const tone = p.is_friend ? "#88FF00" : "#00FF88";
-      const initial = (p.handle ?? "?").slice(0, 1).toUpperCase();
+      const key = `tp:${p.user_id}`;
+      const presence = presenceColor(p);
+      const online = presence === NEON;
+      const initial = (p.handle ?? '?').slice(0, 1).toUpperCase();
+      const s = seed01(p.user_id);
+      const bobDur = (2.2 + s * 0.9).toFixed(2);
 
-      // Fuzzy circle as a separate marker behind the dot.
-      const fuzzyId = `fuzzy:${p.user_id}`;
-      const dotId = `dot:${p.user_id}`;
-
-      const fuzzyEl = document.createElement("div");
-      const pxRadius = metersToPxAtZoom(p.fuzzy_radius_m, p.fuzzy_lat, map.getZoom());
-      fuzzyEl.style.cssText = `
-        width:${pxRadius}px;height:${pxRadius}px;border-radius:50%;
-        background:radial-gradient(circle, ${tone}26 0%, ${tone}10 60%, transparent 75%);
-        border:1px solid ${tone}55;
-        animation:mmFuzzyBreath 4.2s ease-in-out infinite;
-        pointer-events:none;
+      const el = document.createElement('div');
+      el.style.cssText = 'width:116px;height:118px;';
+      el.style.willChange = 'transform';
+      const badge = p.is_friend
+        ? `<div class="mm-tp-badge">
+             <svg width="9" height="9" viewBox="0 0 24 24" fill="#ffd166" aria-hidden="true">
+               <path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z"/>
+             </svg>
+           </div>`
+        : online
+          ? `<div class="mm-tp-badge"><div style="width:9px;height:9px;border-radius:50%;background:${NEON};"></div></div>`
+          : '';
+      el.innerHTML = `
+        <div class="mm-ws" style="width:116px;height:118px;">
+          <div class="mm-tp" style="--presence:${presence};--presence-glow:${hexToRgba(presence, online ? 0.34 : 0.18)};--presence-border:${hexToRgba(presence, 0.5)};">
+            <div class="mm-tp-area"></div>
+            <div class="mm-tp-shadow"></div>
+            <div class="mm-tp-core" style="--bob-dur:${bobDur}s;">
+              <div class="mm-tp-avatar">
+                ${p.avatar_url ? `<img src="${escHTML(p.avatar_url)}" alt="" draggable="false" />` : initial}
+              </div>
+              ${badge}
+            </div>
+            <div class="mm-tp-name">${(p.handle ?? 'trainer').replace(/[<>&"]/g, '')}</div>
+          </div>
+        </div>
       `;
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', `Hunter ${p.handle ?? 'anon'}`);
+      // .onclick so the update branch below replaces (not stacks) the handler.
+      el.onclick = () => onSelectPlayer?.(p);
 
-      const dotEl = document.createElement("div");
-      dotEl.style.cssText = `
-        position:relative;
-        width:24px;height:24px;border-radius:50%;
-        background:linear-gradient(135deg, ${tone}, #0a0a0f);
-        border:2px solid ${tone};
-        box-shadow:0 0 12px ${tone}aa;
-        display:flex;align-items:center;justify-content:center;
-        color:#0a0a0f;font-weight:800;font-size:11px;
-        animation:mmPlayerPulse 2.4s ease-in-out infinite;
-        cursor:pointer;
-        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-      `;
-      dotEl.style.willChange = 'transform';
-      dotEl.style.transform = 'translateZ(0)';
-      if (p.avatar_url) {
-        dotEl.innerHTML = `<img src="${p.avatar_url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`;
+      const existing = playerMarkersRef.current.get(key);
+      if (existing) {
+        existing.setLngLat([p.fuzzy_lng, p.fuzzy_lat]);
+        existing.getElement().replaceChildren(...Array.from(el.children));
+        existing.getElement().onclick = () => onSelectPlayer?.(p);
       } else {
-        dotEl.textContent = initial;
-      }
-      dotEl.setAttribute("role", "button");
-      dotEl.setAttribute("aria-label", `Hunter ${p.handle ?? "anon"}`);
-      dotEl.addEventListener("click", () => onSelectPlayer?.(p));
-
-      const existingFuzzy = playerMarkersRef.current.get(fuzzyId);
-      if (existingFuzzy) {
-        existingFuzzy.setLngLat([p.fuzzy_lng, p.fuzzy_lat]);
-        existingFuzzy.getElement().style.width = `${pxRadius}px`;
-        existingFuzzy.getElement().style.height = `${pxRadius}px`;
-      } else {
-        const m = new mapboxgl.Marker({ element: fuzzyEl, anchor: "center" })
+        const m = new mapboxgl.Marker({ element: el, anchor: 'center' })
           .setLngLat([p.fuzzy_lng, p.fuzzy_lat])
           .addTo(map);
-        playerMarkersRef.current.set(fuzzyId, m);
-      }
-
-      const existingDot = playerMarkersRef.current.get(dotId);
-      if (existingDot) {
-        existingDot.setLngLat([p.fuzzy_lng, p.fuzzy_lat]);
-        const el = existingDot.getElement();
-        el.replaceWith(dotEl);
-        // Re-create marker because Mapbox doesn't expose element swap cleanly.
-        existingDot.remove();
-        const m2 = new mapboxgl.Marker({ element: dotEl, anchor: "center" })
-          .setLngLat([p.fuzzy_lng, p.fuzzy_lat])
-          .addTo(map);
-        playerMarkersRef.current.set(dotId, m2);
-      } else {
-        const m2 = new mapboxgl.Marker({ element: dotEl, anchor: "center" })
-          .setLngLat([p.fuzzy_lng, p.fuzzy_lat])
-          .addTo(map);
-        playerMarkersRef.current.set(dotId, m2);
+        playerMarkersRef.current.set(key, m);
       }
     });
   }, [players, onSelectPlayer]);
 
-  /* ── Wild creature markers ── */
+  /* ── Wild creature markers (fuzzy search zones) ── */
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
@@ -976,48 +1062,36 @@ function HuntMap({
     list.forEach((s) => {
       const color = wildRarityColor(s.rarity);
 
-      const fuzzyEl = document.createElement("div");
-      const pxRadius = metersToPxAtZoom(s.fuzzy_radius_m, s.fuzzy_lat, map.getZoom());
-      fuzzyEl.style.cssText = `
-        width:${pxRadius}px;height:${pxRadius}px;border-radius:50%;
+      const fuzzyEl = document.createElement('div');
+      const pxRadius = Math.min(280, Math.max(36, metersToPx(s.fuzzy_radius_m, s.fuzzy_lat, map.getZoom()) * 2));
+      fuzzyEl.className = 'mm-wild-zone';
+      fuzzyEl.style.cssText += `
+        width:${pxRadius}px;height:${pxRadius}px;
         background:radial-gradient(circle, ${color}33 0%, ${color}14 55%, transparent 75%);
-        border:1px dashed ${color}88;
-        animation:mmFuzzyBreath 5s ease-in-out infinite;
-        pointer-events:none;
       `;
 
+      // Mini app-style creature pin over the zone, with the despawn timer tag.
       const art = resolveCreatureArt(s.species, s.rarity, s.id);
-      const cardSrc = art.card || s.image_url || "";
-      const wildEl = document.createElement("div");
-      wildEl.style.cssText = `
-        position:relative;
-        width:38px;height:38px;border-radius:50%;
-        background:radial-gradient(circle at 35% 35%, ${color}, #0a0a0f);
-        border:2px solid ${color};
-        --wild-color:${color};
-        animation:mmWildPulse 1.9s ease-in-out infinite;
-        cursor:pointer;
-        display:flex;align-items:center;justify-content:center;
-        overflow:visible;
-      `;
-      wildEl.style.willChange = 'transform';
-      wildEl.style.transform = 'translateZ(0)';
-      wildEl.setAttribute("role", "button");
-      wildEl.setAttribute("aria-label", `Wild ${s.species}`);
-      // Add despawn timer to create urgency
+      const sprite = art.floating || art.card || s.image_url || '';
       const now = Date.now();
-      const expiresAt = new Date(s.expires_at).getTime();
+      const expiresAt = new Date(s.expires_at ?? 0).getTime();
       const minsLeft = Math.max(0, Math.floor((expiresAt - now) / 60000));
-      const timerColor = minsLeft <= 5 ? "#ff4444" : minsLeft <= 15 ? "#ffaa00" : "#00FF88";
-      const imgHtml = cardSrc
-        ? `<img src="${cardSrc}" alt="" style="width:78%;height:78%;object-fit:cover;border-radius:50%;display:block;filter:drop-shadow(0 0 4px ${color}aa);" />`
-        : `<svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" width="70%" height="70%">
-            <ellipse cx="14" cy="14" rx="10" ry="6" fill="#0a0a0f" opacity="0.75"/>
-            <circle cx="14" cy="13" r="3.2" fill="${color}"/>
-            <circle cx="14" cy="13" r="1.4" fill="#FFFFFF"/>
-          </svg>`;
-      wildEl.innerHTML = `${imgHtml}<div style="position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:${timerColor};font-size:9px;font-weight:bold;padding:2px 5px;border-radius:8px;white-space:nowrap;border:1px solid ${timerColor}33;">${minsLeft}m</div>`;
-      wildEl.addEventListener("click", () => onSelectWildSpawn?.(s));
+      const timerColor = minsLeft <= 5 ? '#ff6b6b' : minsLeft <= 15 ? '#ffd166' : NEON;
+      const wildEl = document.createElement('div');
+      wildEl.style.cssText = 'width:88px;height:98px;cursor:pointer;';
+      wildEl.style.willChange = 'transform';
+      wildEl.innerHTML = `
+        <div class="mm-ws" style="width:88px;height:92px;">
+          <div class="mm-cp" style="width:88px;height:92px;">
+            ${creaturePinHTML({ id: s.id, tint: color, rarity: s.rarity, sprite, reduce: reducedMotionRef.current })}
+            ${s.expires_at ? `<div class="mm-wild-timer" style="--timer-color:${timerColor};--timer-border:${hexToRgba(timerColor, 0.3)};">${minsLeft}m</div>` : ''}
+          </div>
+        </div>
+      `;
+      wildEl.setAttribute('role', 'button');
+      wildEl.setAttribute('aria-label', `Wild ${s.species}`);
+      // .onclick so the update branch below replaces (not stacks) the handler.
+      wildEl.onclick = () => onSelectWildSpawn?.(s);
 
       const fId = `wild-fuzzy:${s.id}`;
       const wId = `wild:${s.id}`;
@@ -1028,7 +1102,7 @@ function HuntMap({
         existingF.getElement().style.width = `${pxRadius}px`;
         existingF.getElement().style.height = `${pxRadius}px`;
       } else {
-        const m = new mapboxgl.Marker({ element: fuzzyEl, anchor: "center" })
+        const m = new mapboxgl.Marker({ element: fuzzyEl, anchor: 'center' })
           .setLngLat([s.fuzzy_lng, s.fuzzy_lat])
           .addTo(map);
         wildMarkersRef.current.set(fId, m);
@@ -1037,8 +1111,17 @@ function HuntMap({
       const existingW = wildMarkersRef.current.get(wId);
       if (existingW) {
         existingW.setLngLat([s.fuzzy_lng, s.fuzzy_lat]);
+        const rootEl = existingW.getElement();
+        rootEl.onclick = () => onSelectWildSpawn?.(s);
+        // Keep the despawn countdown live — it was baked in at creation.
+        const timerEl = rootEl.querySelector('.mm-wild-timer') as HTMLElement | null;
+        if (timerEl) {
+          timerEl.textContent = `${minsLeft}m`;
+          timerEl.style.setProperty('--timer-color', timerColor);
+          timerEl.style.setProperty('--timer-border', hexToRgba(timerColor, 0.3));
+        }
       } else {
-        const m2 = new mapboxgl.Marker({ element: wildEl, anchor: "center" })
+        const m2 = new mapboxgl.Marker({ element: wildEl, anchor: 'center' })
           .setLngLat([s.fuzzy_lng, s.fuzzy_lat])
           .addTo(map);
         wildMarkersRef.current.set(wId, m2);
@@ -1046,7 +1129,8 @@ function HuntMap({
     });
   }, [wildSpawns, onSelectWildSpawn]);
 
-  /* ── Catchable wild spawns (catch-to-mint, exact GPS) ── */
+  /* ── Catchable wild spawns (catch-to-mint, exact GPS) — the app's
+     CreatureMapPin, standing on its glowing rarity pad. ── */
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
@@ -1061,87 +1145,40 @@ function HuntMap({
     });
 
     list.forEach((s) => {
-      const color = s.tier_color || RARITY_TONE[s.tier] || "#00FF88";
+      const tint = RARITY_TONE[normalRarity(s.tier)] || s.tier_color || NEON;
       const key = `catch:${s.id}`;
-      const profile = tierGlowProfile(s.tier);
-      const reduce = reducedMotionRef.current;
 
-      const wrap = document.createElement("div");
-      wrap.style.cssText = `position:relative;width:48px;height:48px;display:flex;align-items:center;justify-content:center;`;
-      wrap.style.willChange = 'transform';
-      wrap.style.transform = 'translateZ(0)';
-      const halo = profile.haloRotate && !reduce ? '<div class="mm-orb-halo"></div>' : '';
-      const particles = !reduce ? particleHTML(profile.particles, color, s.id) : '';
-      const breathClass = profile.scaleBreath && !reduce ? ' mm-orb-breath' : '';
-      const bobClass = profile.bob && !reduce ? ' mm-orb-bob' : '';
-      const sonar = Array.from({ length: profile.sonarRings }, (_, i) =>
-        `<div class="mm-orb-sonar" style="width:48px;height:48px;--orb-color:${color};animation-delay:${i * 0.45}s;"></div>`,
-      ).join('');
-      // IDENTITY: catchable spawns carry creature_id stamped at spawn-time.
-      // Resolve through the registry so the map marker matches the creature
-      // the AR camera + NFT mint route will show.
+      // IDENTITY: resolve through the registry so the map marker matches the
+      // creature the AR camera + NFT mint route will show. `floating` is the
+      // transparent cutout — the exact art the iOS app renders on its pins.
       const art = resolveByCreatureId(s.creature_id, {
         name: s.name,
         tier: s.tier,
         imageCid: s.image_url,
       });
-      const resolvedImg = art.card || s.image_url;
-      const inner = resolvedImg
-        ? `<img src="${resolvedImg}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" />`
-        : `<svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" width="60%" height="60%">
-             <circle cx="14" cy="14" r="6" fill="${color}" opacity="0.85"/>
-             <circle cx="14" cy="14" r="2" fill="#0a0a0f"/>
-           </svg>`;
+      const sprite = art.floating || art.card || s.image_url || '';
 
-      const genesisRing = s.is_genesis
-        ? `<div class="mm-genesis-ring" style="--genesis-color:#ffd166"></div>`
-        : "";
-      const genesisLabel = s.is_genesis
-        ? `<div class="mm-genesis-label">GENESIS</div>`
-        : "";
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'width:88px;height:92px;';
+      wrap.style.willChange = 'transform';
       wrap.innerHTML = `
-        ${halo}
-        ${particles}
-        <div class="mm-catchable-ring"></div>
-        ${genesisRing}
-        <div
-          class="mm-orb-marker${breathClass}${bobClass}"
-          data-tier-mark="catchable"
-          style="
-            position:relative;
-            width:38px;height:38px;border-radius:50%;
-            background:radial-gradient(circle at 35% 35%, ${color}ee, #0a0a0f);
-            border:2px solid ${color};
-            --orb-color:${color};
-            box-shadow: 0 0 ${profile.shadowPx}px ${color}aa, 0 0 ${profile.shadowPx * 2}px ${color}55, inset 0 0 8px ${color}aa;
-            cursor:pointer;
-            display:flex;align-items:center;justify-content:center;
-            overflow:hidden;
-          "
-        >
-          ${inner}
+        <div class="mm-ws" style="width:88px;height:92px;">
+          <div class="mm-cp" style="width:88px;height:92px;">
+            ${creaturePinHTML({ id: s.id, tint, rarity: s.tier, sprite, isGenesis: s.is_genesis, reduce: reducedMotionRef.current })}
+          </div>
         </div>
-        ${sonar}
-        ${genesisLabel}
-        <div class="mm-catch-pill">Catch</div>
       `;
-      wrap.setAttribute("role", "button");
-      wrap.setAttribute("aria-label", `Wild ${s.tier} ${s.name}`);
-      wrap.addEventListener("click", () => {
-        const innerEl = wrap.querySelector('[data-tier-mark="catchable"]') as HTMLElement | null;
-        if (innerEl && !reduce) {
-          innerEl.classList.add('mm-windup');
-          setTimeout(() => onSelectCatchable?.(s), 210);
-          return;
-        }
-        onSelectCatchable?.(s);
-      });
+      wrap.setAttribute('role', 'button');
+      wrap.setAttribute('aria-label', `Wild ${s.tier} ${s.name}`);
+      // .onclick so the update branch below replaces (not stacks) the handler.
+      wrap.onclick = () => onSelectCatchable?.(s);
 
       const existing = catchableMarkersRef.current.get(key);
       if (existing) {
         existing.setLngLat([s.lng, s.lat]);
+        existing.getElement().onclick = () => onSelectCatchable?.(s);
       } else {
-        const m = new mapboxgl.Marker({ element: wrap, anchor: "center" })
+        const m = new mapboxgl.Marker({ element: wrap, anchor: 'center' })
           .setLngLat([s.lng, s.lat])
           .addTo(map);
         catchableMarkersRef.current.set(key, m);
@@ -1165,20 +1202,19 @@ function HuntMap({
 
     list.forEach((w) => {
       const key = `watcher:${w.user_id}`;
-      const wrap = document.createElement("div");
-      wrap.style.cssText = `width:16px;height:16px;display:flex;align-items:center;justify-content:center;`;
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'width:16px;height:16px;display:flex;align-items:center;justify-content:center;';
       wrap.style.willChange = 'transform';
-      wrap.style.transform = 'translateZ(0)';
-      const dot = document.createElement("div");
-      dot.className = "mm-watcher-dot";
-      dot.setAttribute("data-handle", w.handle ? `@${w.handle}` : "A Watcher");
+      const dot = document.createElement('div');
+      dot.className = 'mm-watcher-dot';
+      dot.setAttribute('data-handle', w.handle ? `@${w.handle}` : 'A Watcher');
       wrap.appendChild(dot);
 
       const existing = watcherMarkersRef.current.get(key);
       if (existing) {
         existing.setLngLat([w.lng, w.lat]);
       } else {
-        const m = new mapboxgl.Marker({ element: wrap, anchor: "center" })
+        const m = new mapboxgl.Marker({ element: wrap, anchor: 'center' })
           .setLngLat([w.lng, w.lat])
           .addTo(map);
         watcherMarkersRef.current.set(key, m);
@@ -1203,15 +1239,14 @@ function HuntMap({
     list.forEach((g) => {
       const key = `ghost:${g.id}`;
       const ageMin = Math.max(0, Math.floor((Date.now() - new Date(g.caughtAt).getTime()) / 60000));
-      const ageLabel = ageMin === 0 ? "just now" : `${ageMin} min ago`;
-      const handle = g.catcherHandle || "A Watcher";
-      const isHandled = handle !== "A Watcher" && !handle.startsWith("@");
-      const display = handle === "A Watcher" ? handle : isHandled ? `@${handle}` : handle;
-      const tierColor = RARITY_TONE[g.tier] || "#00FF88";
+      const ageLabel = ageMin === 0 ? 'just now' : `${ageMin} min ago`;
+      const handle = g.catcherHandle || 'A Watcher';
+      const display = handle === 'A Watcher' ? handle : handle.startsWith('@') ? handle : `@${handle}`;
+      const tierColor = RARITY_TONE[normalRarity(g.tier)] || NEON;
 
-      const wrap = document.createElement("div");
-      wrap.className = "mm-ghost-catch";
-      wrap.setAttribute("data-label", `${display} caught a ${g.tier} ${ageLabel}`);
+      const wrap = document.createElement('div');
+      wrap.className = 'mm-ghost-catch';
+      wrap.setAttribute('data-label', `${display} caught a ${g.tier} ${ageLabel}`);
       wrap.innerHTML = `
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <path d="M11 2 C7 2 4 5 4 9 V19 L7 17 L9 19 L11 17 L13 19 L15 17 L18 19 V9 C18 5 15 2 11 2 Z"
@@ -1226,7 +1261,7 @@ function HuntMap({
         existing.setLngLat([g.lng, g.lat]);
         existing.remove();
       }
-      const m = new mapboxgl.Marker({ element: wrap, anchor: "center" })
+      const m = new mapboxgl.Marker({ element: wrap, anchor: 'center' })
         .setLngLat([g.lng, g.lat])
         .addTo(map);
       ghostMarkersRef.current.set(key, m);
@@ -1248,18 +1283,21 @@ function HuntMap({
       watcherMarkersRef.current.clear();
       ghostMarkersRef.current.forEach((m) => m.remove());
       ghostMarkersRef.current.clear();
+      if (reachMarkerRef.current) {
+        reachMarkerRef.current.remove();
+        reachMarkerRef.current = null;
+      }
+      if (userMarkerRef.current) {
+        userMarkerRef.current.remove();
+        userMarkerRef.current = null;
+      }
       if (mapRef.current) {
-        const timer = (mapRef.current as unknown as { _mmHourTimer?: ReturnType<typeof setInterval> })._mmHourTimer;
-        if (timer) clearInterval(timer);
         mapRef.current.remove();
         mapRef.current = null;
         if (externalMapRef) externalMapRef.current = null;
       }
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  /* ── Edge pulses for "far" spawns ── */
-  const farOrbs = orbs.filter((o) => o.tier === 'far');
 
   return (
     <div
@@ -1281,22 +1319,39 @@ function HuntMap({
           background: '#000000',
         }}
       />
+
+      {/* App-identical top/bottom vignette: black 0.45→0 over 180px on top,
+          0→0.35 over 160px at the bottom, so HUD chips stay readable without
+          dimming the world. */}
       <div
         aria-hidden
         style={{
           position: 'absolute',
-          inset: 0,
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 180,
           pointerEvents: 'none',
-          background:
-            'radial-gradient(ellipse at 50% 40%, rgba(0,255,136,0.06), transparent 55%), radial-gradient(ellipse at 80% 80%, rgba(136,255,0,0.04), transparent 60%), linear-gradient(180deg, rgba(10,10,15,0.15), rgba(10,10,15,0.35))',
-          mixBlendMode: 'screen',
+          background: 'linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0))',
+          zIndex: 5,
+        }}
+      />
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 160,
+          pointerEvents: 'none',
+          background: 'linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,0.35))',
+          zIndex: 5,
         }}
       />
 
       {/* Living-approach vignette: green edge glow that intensifies as the
-          closest catchable spawn approaches. CSS-variable driven so we never
-          touch React's commit cycle when intensity changes via the parent's
-          state — only the inline style attribute updates. */}
+          closest catchable spawn approaches. */}
       <div
         aria-hidden
         className="mm-approach-vignette"
@@ -1306,9 +1361,6 @@ function HuntMap({
           ),
         }}
       />
-
-      {/* Edge pulses — one chevron per cardinal sector for far spawns */}
-      <EdgePulses farOrbs={farOrbs} />
     </div>
   );
 }
@@ -1316,61 +1368,11 @@ function HuntMap({
 export default React.memo(HuntMap, (prev, next) =>
   prev.orbs === next.orbs &&
   prev.userPosition?.lat === next.userPosition?.lat &&
-  prev.userPosition?.lng === next.userPosition?.lng
+  prev.userPosition?.lng === next.userPosition?.lng &&
+  prev.players === next.players &&
+  prev.wildSpawns === next.wildSpawns &&
+  prev.catchableSpawns === next.catchableSpawns &&
+  prev.watchers === next.watchers &&
+  prev.recentCatches === next.recentCatches &&
+  prev.approachIntensity === next.approachIntensity
 );
-
-function EdgePulses({ farOrbs }: { farOrbs: HuntOrb[] }) {
-  // Bucket by 8-way direction so multiple far spawns in the same sector don't
-  // double-render.
-  const seen = new Set<string>();
-  const chevrons: { side: 'top' | 'right' | 'bottom' | 'left'; bearing: number }[] = [];
-  farOrbs.forEach((o) => {
-    const b = ((o.bearingDeg ?? 0) + 360) % 360;
-    let side: 'top' | 'right' | 'bottom' | 'left';
-    if (b >= 315 || b < 45) side = 'top';
-    else if (b < 135) side = 'right';
-    else if (b < 225) side = 'bottom';
-    else side = 'left';
-    if (seen.has(side)) return;
-    seen.add(side);
-    chevrons.push({ side, bearing: b });
-  });
-
-  return (
-    <>
-      {chevrons.map((c) => {
-        const pos: React.CSSProperties =
-          c.side === 'top'
-            ? { top: 12, left: '50%', transform: 'translateX(-50%) rotate(0deg)' }
-            : c.side === 'right'
-              ? { right: 12, top: '50%', transform: 'translateY(-50%) rotate(90deg)' }
-              : c.side === 'bottom'
-                ? { bottom: 12, left: '50%', transform: 'translateX(-50%) rotate(180deg)' }
-                : { left: 12, top: '50%', transform: 'translateY(-50%) rotate(270deg)' };
-        return (
-          <div
-            key={c.side}
-            aria-hidden
-            style={{
-              position: 'absolute',
-              ...pos,
-              pointerEvents: 'none',
-              zIndex: 14,
-              animation: 'mmEdgePulse 2s ease-in-out infinite',
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path
-                d="M10 3 L17 14 H3 Z"
-                fill="rgba(0,255,136,0.0)"
-                stroke="rgba(0,255,136,0.85)"
-                strokeWidth="1.4"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
-        );
-      })}
-    </>
-  );
-}

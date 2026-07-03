@@ -79,7 +79,7 @@ export default function PrivacyPage() {
           BlinkWorld Privacy Policy
         </h1>
         <p style={{ color: MUTED, fontSize: 14, margin: "0 0 32px" }}>
-          Effective Date: May 30, 2026
+          Effective Date: May 30, 2026 &middot; Last updated: July 2, 2026
         </p>
 
         <p style={pStyle}>
@@ -149,28 +149,116 @@ export default function PrivacyPage() {
             <li>We do NOT track you across other apps or websites</li>
             <li>We do NOT sell your personal data to anyone</li>
             <li>
-              We do NOT access your photos, contacts, microphone, or health
-              data
+              We do NOT access your photos or microphone. Contacts and Apple
+              Health data are only read with your explicit permission &mdash;
+              contacts are matched using scrambled one-way fingerprints (your
+              raw contact list never leaves your device), and Health data is
+              described below.
             </li>
           </ul>
         </section>
 
         <section>
-          <h2 style={h2Style}>Who We Share With</h2>
+          <h2 style={h2Style}>Contacts (Friend Matching)</h2>
+          <p style={pStyle}>
+            Friend matching is optional. If you grant Contacts permission, the
+            BLINK iOS app helps you find friends who already play &mdash;
+            without your contact list ever leaving your device.
+          </p>
+          <ul style={ulStyle}>
+            <li>
+              Contacts access is only requested with your explicit permission
+            </li>
+            <li>
+              Phone numbers and emails are converted to scrambled one-way
+              fingerprints (hashes) on your device &mdash; your raw contact
+              list never leaves your phone
+            </li>
+            <li>
+              These fingerprints are used only to show you which of your
+              friends already play BLINK
+            </li>
+            <li>
+              Contact fingerprints are never sold and never used for
+              advertising
+            </li>
+          </ul>
+          <p style={pStyle}>
+            You can revoke this permission at any time in iOS Settings &rarr;
+            Privacy &amp; Security &rarr; Contacts.
+          </p>
+        </section>
+
+        <section>
+          <h2 style={h2Style}>Apple Health (HealthKit)</h2>
+          <p style={pStyle}>
+            The BLINK iOS app reads step counts and workout data from Apple
+            Health, and only with your explicit permission. We use this data
+            solely to calculate your activity-based BLINK rewards.
+          </p>
+          <ul style={ulStyle}>
+            <li>HealthKit data is processed on your device</li>
+            <li>We never write data back to Apple Health</li>
+            <li>
+              HealthKit data is never shared with or sold to third parties
+            </li>
+            <li>
+              HealthKit data is never used for advertising or marketing
+            </li>
+          </ul>
+          <p style={pStyle}>
+            You can revoke this permission at any time in iOS Settings &rarr;
+            Health &rarr; Data Access.
+          </p>
+        </section>
+
+        <section>
+          <h2 style={h2Style}>Blockchain &amp; Wallet Data</h2>
+          <p style={pStyle}>
+            You may connect or generate a crypto wallet to use BLINK rewards.
+            If you do, we store the public wallet address linked to your
+            account.
+          </p>
+          <ul style={ulStyle}>
+            <li>
+              Blockchain transactions (catches, claims, and rewards in $BLINK)
+              are recorded on public blockchains such as Ethereum. These
+              records are permanent, publicly visible, and outside our
+              deletion control.
+            </li>
+            <li>We never have access to your private keys</li>
+            <li>Wallet addresses are not used for advertising</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2 style={h2Style}>Who We Share With (Third-Party Services)</h2>
           <p style={pStyle}>
             We only share your data with service providers who help run the
             game:
           </p>
           <ul style={ulStyle}>
             <li>
-              <Strong>Supabase:</Strong> Our database provider that stores your
-              account and game data
+              <Strong>Supabase:</Strong> Our database and authentication
+              provider that stores your account and game data
             </li>
             <li>
-              <Strong>Apple:</Strong> For app distribution through the App
-              Store and TestFlight crash reports
+              <Strong>Mapbox:</Strong> Provides the game map; receives location
+              data needed to render the map around you
+            </li>
+            <li>
+              <Strong>Vercel:</Strong> Hosts our website and services
+            </li>
+            <li>
+              <Strong>Apple:</Strong> For Sign in with Apple and Apple Health
+              (HealthKit) where applicable, plus app distribution through the
+              App Store and TestFlight crash reports
             </li>
           </ul>
+          <p style={pStyle}>
+            Each service receives only the data needed to provide its
+            function. We do not sell your personal data.
+          </p>
         </section>
 
         <section>
