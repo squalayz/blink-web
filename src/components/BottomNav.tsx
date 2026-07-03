@@ -55,58 +55,16 @@ function LiveFeedIcon({ active }: { active: boolean }) {
   );
 }
 
-// "Claim" center button — the BLINK orb exactly as the app renders it in
-// BlinkOrbBadge + MiniOrbToken: the real blink_logo artwork overscanned 1.62×
-// inside a circular clip (the sphere fills the circle edge-to-edge, no black
-// corners), green ring, breathing green glow.
-const ORB_ART_OVERSCAN = 1.62;
-function ClaimIcon({ size = 44 }: { size?: number }) {
-  return (
-    <span
-      style={{
-        position: "relative",
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        overflow: "hidden",
-        display: "block",
-        border: "2px solid rgba(0,255,136,0.45)",
-        background: "#0a0a0f",
-        boxShadow: `0 0 18px ${C.primary}59, 0 0 40px ${C.primary}26`,
-        flexShrink: 0,
-      }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/brand/app/blink-logo-orb.webp"
-        alt=""
-        style={{
-          position: "absolute",
-          left: "50%",
-          top: "50%",
-          width: size * ORB_ART_OVERSCAN,
-          height: size * ORB_ART_OVERSCAN,
-          transform: "translate(-50%, -50%)",
-          display: "block",
-        }}
-      />
-    </span>
-  );
+function BattlesIcon({ active }: { active: boolean }) {
+  return <AppTabIcon src="/brand/app/tabs/tab_battles.png" active={active} />;
+}
+
+function CreaturesIcon({ active }: { active: boolean }) {
+  return <AppTabIcon src="/brand/app/tabs/tab_creatures.png" active={active} />;
 }
 
 function ProfileIcon({ active }: { active: boolean }) {
   return <AppTabIcon src="/brand/app/tabs/tab_profile.png" active={active} />;
-}
-
-function WalletIcon({ active }: { active: boolean }) {
-  const stroke = active ? C.primary : C.muted;
-  const fill = active ? C.primary : "none";
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h13A2.5 2.5 0 0 1 21 7.5V8H5a1 1 0 0 0 0 2h16v8.5A2.5 2.5 0 0 1 18.5 21h-13A2.5 2.5 0 0 1 3 18.5z" fill={fill === "none" ? "none" : "rgba(0,255,136,0.18)"} />
-      <circle cx="17" cy="14.5" r="1.4" fill={stroke} stroke="none" />
-    </svg>
-  );
 }
 
 interface TabDef {
@@ -118,13 +76,13 @@ interface TabDef {
   showBadge?: boolean;
 }
 
-// Mirrors the iOS app's MainTabView order: Map first, Profile last, with the
-// claim CTA on the center disc (the web's centerpiece — points → $BLINK).
+// The iOS app's MainTabView, exactly: Map · Feed · Battles (badged with the
+// social count) · Creatures · Profile — same order, same tab_* artwork.
 const TABS: TabDef[] = [
   { id: "watch", label: "Map", href: "/map", icon: (a) => <MapIcon active={a} /> },
   { id: "live", label: "Feed", href: "/live", icon: (a) => <LiveFeedIcon active={a} /> },
-  { id: "claim", label: "Claim", href: "/claim", isCenter: true, icon: () => <ClaimIcon /> },
-  { id: "wallet", label: "Wallet", href: "/wallet", icon: (a) => <WalletIcon active={a} />, showBadge: true },
+  { id: "battles", label: "Battles", href: "/battles", icon: (a) => <BattlesIcon active={a} />, showBadge: true },
+  { id: "creatures", label: "Creatures", href: "/creatures", icon: (a) => <CreaturesIcon active={a} /> },
   { id: "profile", label: "Profile", href: "/profile", icon: (a) => <ProfileIcon active={a} /> },
 ];
 
@@ -139,26 +97,34 @@ export default function BottomNav() {
   const [hoveredTab, setHoveredTab] = useState<string | null>(null);
   const [walletBadge, setWalletBadge] = useState(0);
 
-  // Count of unclaimed received gifts (badge on Wallet tab)
-  const fetchUnreadGifts = useCallback(async () => {
+  // The app's socialBadgeCount on the Battles tab: waiting gifts + incoming
+  // friend requests.
+  const fetchSocialBadge = useCallback(async () => {
     if (!user) return;
     try {
-      const { count } = await supabase
-        .from("gifts")
-        .select("id", { count: "exact", head: true })
-        .eq("recipient_id", user.id)
-        .eq("status", "pending");
-      if (typeof count === "number") setWalletBadge(count);
+      const [{ count: giftCount }, { count: requestCount }] = await Promise.all([
+        supabase
+          .from("gifts")
+          .select("id", { count: "exact", head: true })
+          .eq("recipient_id", user.id)
+          .eq("status", "pending"),
+        supabase
+          .from("friendships")
+          .select("id", { count: "exact", head: true })
+          .eq("recipient_id", user.id)
+          .eq("status", "pending"),
+      ]);
+      setWalletBadge((giftCount ?? 0) + (requestCount ?? 0));
     } catch {
       /* badge is best-effort */
     }
   }, [user]);
 
   useEffect(() => {
-    fetchUnreadGifts();
-    const t = setInterval(fetchUnreadGifts, 45_000);
+    fetchSocialBadge();
+    const t = setInterval(fetchSocialBadge, 45_000);
     return () => clearInterval(t);
-  }, [fetchUnreadGifts]);
+  }, [fetchSocialBadge]);
 
   const isActive = (href: string) => {
     if (href === "/map") return pathname === "/map" || pathname === "/watch";
@@ -217,40 +183,6 @@ export default function BottomNav() {
             {TABS.map((tab) => {
               const active = isActive(tab.href);
               const isHovered = hoveredTab === tab.id;
-
-              if (tab.isCenter) {
-                return (
-                  <Link
-                    key={tab.id}
-                    href={tab.href}
-                    onMouseEnter={() => setHoveredTab(tab.id)}
-                    onMouseLeave={() => setHoveredTab(null)}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 4,
-                      textDecoration: "none",
-                      margin: "12px 0",
-                      position: "relative",
-                    }}
-                  >
-                    <div
-                      style={{
-                        transform: isHovered ? "scale(1.08)" : "scale(1)",
-                        transition: "transform 0.2s ease",
-                        display: "flex",
-                      }}
-                    >
-                      <ClaimIcon size={44} />
-                    </div>
-                    <span style={{ fontSize: 9, fontWeight: 600, color: C.primary, letterSpacing: "0.01em" }}>
-                      {tab.label}
-                    </span>
-                  </Link>
-                );
-              }
 
               return (
                 <Link
@@ -367,38 +299,6 @@ export default function BottomNav() {
       >
         {TABS.map((tab) => {
           const active = isActive(tab.href);
-
-          if (tab.isCenter) {
-            return (
-              <Link
-                key={tab.id}
-                href={tab.href}
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 3,
-                  textDecoration: "none",
-                  flex: 1,
-                  position: "relative",
-                  top: -10,
-                }}
-              >
-                <ClaimIcon size={46} />
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: C.primary,
-                    letterSpacing: "0.01em",
-                  }}
-                >
-                  {tab.label}
-                </span>
-              </Link>
-            );
-          }
-
           const isHovered = hoveredTab === tab.id;
 
           return (
