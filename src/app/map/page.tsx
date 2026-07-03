@@ -185,6 +185,81 @@ function formatDistance(meters: number): string {
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
+/* The app's FirstCatchCoach: a gold two-beat coach card above the Lens
+   button. Beat 1 names the golden Blink Orb at your feet; after 4.5s beat 2
+   points straight down at the camera button. Transform/opacity only. */
+const COACH_GOLD = "#ffd152"; // (1, 0.82, 0.32)
+
+function FirstCatchCoach() {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    const t = setTimeout(() => setStep(1), 4500);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, pointerEvents: "none" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "10px 12px",
+          borderRadius: 16,
+          background: "rgba(0,0,0,0.78)",
+          border: `1.2px solid ${COACH_GOLD}8c`,
+          boxShadow: `0 0 14px ${COACH_GOLD}59`,
+        }}
+      >
+        <span style={{ width: 38, height: 38, borderRadius: "50%", background: `${COACH_GOLD}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          {step === 0 ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill={COACH_GOLD} aria-hidden>
+              <circle cx="12" cy="12" r="7" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COACH_GOLD} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <rect x="3" y="6" width="18" height="13" rx="3" />
+              <circle cx="12" cy="12.5" r="3.4" />
+              <path d="M8.5 6 10 3.8h4L15.5 6" />
+            </svg>
+          )}
+        </span>
+        <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+          <span style={{ color: "#fff", fontSize: 13, fontWeight: 800, whiteSpace: "nowrap" }}>
+            {step === 0 ? "That golden glow is a Blink Orb" : "Open the Lens to catch it"}
+          </span>
+          <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+            {step === 0 ? "It landed right at your feet — worth +5" : "Tap the camera button, then touch the orb"}
+          </span>
+        </span>
+      </div>
+      {step === 1 && (
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={COACH_GOLD}
+          strokeWidth="3.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+          style={{ marginRight: 26, filter: `drop-shadow(0 0 6px ${COACH_GOLD}cc)`, animation: "mmCoachBounce 1.2s ease-in-out infinite" }}
+        >
+          <path d="m5 9 7 7 7-7" />
+        </svg>
+      )}
+      <style>{`
+        @keyframes mmCoachBounce {
+          0%, 100% { transform: translateY(-3px); }
+          50%      { transform: translateY(5px); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 export default function MapPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
@@ -228,6 +303,9 @@ export default function MapPage() {
     streakDays: number;
     unclaimedCatches: number;
   } | null>(null);
+  // The app's walkEngine.needsFirstCatch: true until the trainer's first
+  // catch ever banks — drives the two-beat FirstCatchCoach at the Lens.
+  const [hasEverCaught, setHasEverCaught] = useState<boolean | null>(null);
   // WalkEnergyBar presentation state — opens full for a few seconds so the
   // day's state reads at a glance, then slims into the tiny quiet pill.
   const [energyExpanded, setEnergyExpanded] = useState(true);
@@ -271,6 +349,16 @@ export default function MapPage() {
   useEffect(() => {
     if (user) fetchPlayerStats();
   }, [user, fetchPlayerStats]);
+
+  /* ---- First-catch check (FirstCatchCoach gate) ---- */
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("wild_spawns")
+      .select("id", { count: "exact", head: true })
+      .eq("caught_by", user.id)
+      .then(({ count }) => setHasEverCaught((count ?? 0) > 0));
+  }, [user]);
 
   /* ---- WalkEnergyBar quiet cycle (app: scheduleQuiet) ---- */
   const scheduleEnergyQuiet = useCallback((afterMs: number) => {
@@ -1858,6 +1946,14 @@ export default function MapPage() {
                 </motion.button>
               )}
             </AnimatePresence>
+
+            {/* Guided first catch (FirstCatchCoach.swift) — two friendly
+                beats above the Lens button, shown only until the first
+                catch ever banks. Waits its turn: never over a banner or
+                the menu fan. */}
+            {!nearbyExpanded && hasEverCaught === false && !nudge && !menuOpen && (
+              <FirstCatchCoach />
+            )}
 
             {/* The hero LENS button — opens the AR camera that reveals the
                 creatures around you. Badge counts what is standing in reach. */}
