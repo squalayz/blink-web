@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { usePathname } from "next/navigation";
 import { sounds } from "@/lib/sounds";
 
@@ -40,6 +40,15 @@ export default function SoundToggle() {
 
   const color = enabled ? GREEN : GRAY;
 
+  // The welcome page bottom-anchors all of its copy (form hint, terms, music
+  // credit), so the only word-free spot is the hero art up top. Everywhere
+  // else, sit high enough to clear the mobile bottom tab bar (~58px + safe
+  // area) and bottom-edge CTAs/HUD controls on full-screen pages.
+  const placement: CSSProperties =
+    pathname === "/"
+      ? { top: "calc(max(env(safe-area-inset-top, 0px), var(--blink-top-inset, 0px)) + 14px)", right: 18 }
+      : { bottom: "calc(env(safe-area-inset-bottom, 0px) + 96px)", right: 18 };
+
   return (
     <button
       type="button"
@@ -48,8 +57,7 @@ export default function SoundToggle() {
       title={enabled ? "Sounds on" : "Sounds off"}
       style={{
         position: "fixed",
-        bottom: 18,
-        right: 18,
+        ...placement,
         zIndex: 1500,
         width: 38,
         height: 38,
