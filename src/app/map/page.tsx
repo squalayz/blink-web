@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase";
 import { Orb as ThemeOrb } from "@/lib/theme";
 import { MapPin, X } from "lucide-react";
 import UserAvatar from "@/components/UserAvatar";
+import { hasCompletedWalkthrough } from "@/components/OnboardingWalkthrough";
 import UserProfileCard from "@/components/UserProfileCard";
 
 import { type RadarCreature } from "@/components/CreatureRadar";
@@ -290,6 +291,16 @@ export default function MapPage() {
   useEffect(() => {
     if (!authLoading && !user) {
       router.replace("/auth/signin");
+    }
+  }, [authLoading, user, router]);
+
+  /* ---- Walkthrough gate (RootView.swift) — a signed-in trainer who
+     hasn't seen the cinematic intro on this device gets it before the
+     map, exactly like the app. Also covers the homepage race where the
+     signed-in redirect can beat the is_new → /onboarding routing. ---- */
+  useEffect(() => {
+    if (!authLoading && user && !hasCompletedWalkthrough(user.id)) {
+      router.replace("/onboarding");
     }
   }, [authLoading, user, router]);
 

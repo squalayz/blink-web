@@ -4,30 +4,61 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { C, FONT_DISPLAY } from "@/lib/theme";
 
 /* ------------------------------------------------------------------ */
-/*  Persistence                                                        */
+/*  Persistence — PER ACCOUNT, mirroring the app (RootView.swift).
+    The app tracks walkthrough completion per user id on the device
+    ("blink.walkthrough.v2.completedUserIds") so every new trainer who
+    signs in sees the cinematic intro once — even on a device where
+    someone else already finished it. Same here.                       */
 /* ------------------------------------------------------------------ */
-export const ONBOARDING_STORAGE_KEY = "onboarding_complete";
-const STORAGE_KEY = ONBOARDING_STORAGE_KEY;
 
-export function useOnboardingComplete(): boolean {
-  const [done, setDone] = useState(true); // default true to avoid flash
-  useEffect(() => {
-    setDone(localStorage.getItem(STORAGE_KEY) === "true");
-  }, []);
-  return done;
+/** Legacy device-wide flag (pre-account-scoping). */
+export const ONBOARDING_STORAGE_KEY = "onboarding_complete";
+const COMPLETED_IDS_KEY = "blink.walkthrough.completedUserIds";
+
+function completedIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(COMPLETED_IDS_KEY) || "";
+    return new Set(raw.split(",").filter(Boolean));
+  } catch {
+    return new Set();
+  }
 }
 
-function markComplete() {
-  localStorage.setItem(STORAGE_KEY, "true");
+/** Has this trainer finished the walkthrough on this device? Migrates the
+    legacy device-wide flag to the current trainer once (RootView's
+    migrateLegacyWalkthrough) so existing players don't re-watch it. */
+export function hasCompletedWalkthrough(userId: string): boolean {
+  const ids = completedIds();
+  if (ids.has(userId)) return true;
+  try {
+    if (localStorage.getItem(ONBOARDING_STORAGE_KEY) === "true") {
+      localStorage.removeItem(ONBOARDING_STORAGE_KEY);
+      markWalkthroughComplete(userId);
+      return true;
+    }
+  } catch {
+    /* storage unavailable */
+  }
+  return false;
+}
+
+export function markWalkthroughComplete(userId: string) {
+  try {
+    const ids = completedIds();
+    ids.add(userId);
+    localStorage.setItem(COMPLETED_IDS_KEY, [...ids].sort().join(","));
+  } catch {
+    /* storage unavailable */
+  }
 }
 
 /* ------------------------------------------------------------------ */
 /*  The app's post-sign-in walkthrough (ios-blink OnboardingView.swift)
-    mirrored on web: four cinematic slides — the welcome portal, the
-    AR treasure hunt (real key art of a hunter catching B-orbs), the
-    earn economy, and a guided tour of the five tabs. Full-bleed app
-    artwork with readability veils, eyebrow capsules, app page dots,
-    Skip, and the lime→green capsule CTA.                              */
+    mirrored on web: four cinematic slides — the living-portal welcome,
+    the AR treasure hunt (real key art of a hunter catching B-orbs),
+    the walk-to-earn Pulse economy, and a guided tour of the five tabs.
+    Full-bleed app artwork with readability veils, eyebrow capsules,
+    app page dots, Skip, drifting ember motes, and the app's CTAs.     */
 /* ------------------------------------------------------------------ */
 
 const GOLD = "#ffd166";
@@ -35,47 +66,48 @@ const GOLD = "#ffd166";
 interface Slide {
   /** Full-bleed backdrop art (from the app's Assets.xcassets). */
   backdrop?: string;
+  /** Readability veil stops (top → bottom), matching the app's veils. */
+  veil?: string;
   eyebrow?: { label: string; color: string };
   headline: string;
   body: string;
-  /** Welcome slide renders the brand mark + wordmark up top. */
+  /** Welcome slide renders the brand mark + globe hero (WelcomeSlideView). */
   isWelcome?: boolean;
+  /** Earn slide renders the WalkEarnBadge ring meter. */
+  isEarn?: boolean;
   /** Tabs slide renders the five-tab tour. */
   isTabs?: boolean;
-  /** Earn slide renders the $BLINK token coin. */
-  isEarn?: boolean;
-  cta: string;
 }
 
 const SLIDES: Slide[] = [
   {
     backdrop: "/brand/app/splash-battle.webp",
+    // WelcomeSlideView's heavier veil so the foreground UI stays crisp.
+    veil: "linear-gradient(to bottom, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.35) 33%, rgba(0,0,0,0.55) 66%, rgba(0,0,0,0.88) 100%)",
     isWelcome: true,
     headline: "Step outside. Come alive.",
     body: "Hunt real-world treasure, earn Blink Orbs,\nand feel better with every step.",
-    cta: "Get Started",
   },
   {
     backdrop: "/brand/app/man-catching-energy-orbs.webp",
+    // OnboardingView's HeroImageBackdrop veil — light in the middle so the
+    // sunny art stays the hero, heavy at the bottom where the copy lives.
+    veil: "linear-gradient(to bottom, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.02) 33%, rgba(0,0,0,0.45) 66%, rgba(0,0,0,0.92) 100%)",
     eyebrow: { label: "AR TREASURE HUNT", color: C.primary },
     headline: "Real treasure.\nReal streets.",
     body: "Chests, timed supply drops, ancient relics and mystery geodes hide on real streets — some guarded by creatures you must defeat. Walk up, raise your camera, and touch one: it bursts into Blink Orbs you grab out of the air. And somewhere out there, a golden jackpot.",
-    cta: "Next",
   },
   {
-    backdrop: "/brand/app/intro-purpose.webp",
-    eyebrow: { label: "WALK · CATCH · EARN", color: GOLD },
-    headline: "Every catch pays you",
-    body: "Catches and walks fill your points balance. Claim converts points to real $BLINK on Ethereum mainnet — straight into the wallet built into your account.",
+    eyebrow: { label: "WALK · SWEAT · EARN", color: GOLD },
+    headline: "Every step pays you",
+    body: "Connect Apple Health and your whole day counts — steps, workouts and wandering real places fill your daily Pulse Ring. Close it for a bonus, keep a streak alive, and a multiplier boosts every Blink Orb you earn. Orbs are hard-won — that's the point.",
     isEarn: true,
-    cta: "Next",
   },
   {
     eyebrow: { label: "AND THERE'S MORE", color: C.primary2 },
     headline: "Your world in five tabs",
-    body: "Hunt the map, follow the live feed, claim your $BLINK, manage your wallet — here's where it all lives.",
+    body: "Catch rare creatures, duel friends and guardians for Blink Orbs, and share Echoes from your walks — here's where it all lives.",
     isTabs: true,
-    cta: "Enter the World",
   },
 ];
 
@@ -236,7 +268,241 @@ function HeroGlobe() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Tab tour (the app's TabTourVisual, with the web's five tabs)       */
+/*  Star field (WelcomeSlideView's StarFieldView — 18 drifting stars)  */
+/* ------------------------------------------------------------------ */
+
+interface Star {
+  left: number;
+  top: number;
+  size: number;
+  opacity: number;
+  duration: number;
+  delay: number;
+}
+
+function frac(s: number): number {
+  return s - Math.floor(s);
+}
+
+// Deterministic scatter (the app randomizes once on appear).
+const STARS: Star[] = Array.from({ length: 18 }, (_, i) => {
+  const r = (i + 1) * 61.17;
+  return {
+    left: frac(r * 0.173) * 100,
+    top: frac(r * 0.531) * 100,
+    size: 1 + frac(r * 0.29) * 2,
+    opacity: 0.15 + frac(r * 0.71) * 0.35,
+    duration: 10 + frac(r * 0.83) * 8,
+    delay: frac(r * 0.47) * 8,
+  };
+});
+
+function StarField() {
+  return (
+    <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+      {STARS.map((s, i) => (
+        <span
+          key={i}
+          className="ob-star"
+          style={{
+            position: "absolute",
+            left: `${s.left}%`,
+            top: `${s.top}%`,
+            width: s.size,
+            height: s.size,
+            borderRadius: "50%",
+            background: "#fff",
+            opacity: s.opacity,
+            animationDuration: `${s.duration}s`,
+            animationDelay: `${s.delay}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Ember field (OnboardingView's EmberField — 16 green/gold motes)    */
+/* ------------------------------------------------------------------ */
+
+interface Mote {
+  x: number;
+  y: number;
+  size: number;
+  opacity: number;
+  drift: number;
+  sway: number;
+  duration: number;
+  delay: number;
+  warm: boolean;
+}
+
+// The app's exact deterministic scatter: r = i * 73.31.
+const MOTES: Mote[] = Array.from({ length: 16 }, (_, i) => {
+  const r = i * 73.31;
+  return {
+    x: frac(r * 0.137) * 100,
+    y: frac(r * 0.613) * 100,
+    size: 2 + frac(r * 0.29) * 4,
+    opacity: 0.1 + frac(r * 0.71) * 0.38,
+    drift: 24 + frac(r * 0.51) * 48,
+    sway: 6 + frac(r * 0.33) * 14,
+    duration: 5 + frac(r * 0.83) * 6,
+    delay: frac(r * 0.47) * 4,
+    warm: frac(r * 0.91) > 0.55,
+  };
+});
+
+function EmberField() {
+  return (
+    <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
+      {MOTES.map((m, i) => (
+        <span
+          key={i}
+          className="ob-mote"
+          style={
+            {
+              position: "absolute",
+              left: `${m.x}%`,
+              top: `${m.y}%`,
+              width: m.size,
+              height: m.size,
+              borderRadius: "50%",
+              background: m.warm ? GOLD : C.primary,
+              opacity: m.opacity,
+              filter: "blur(0.8px)",
+              animationDuration: `${m.duration}s`,
+              animationDelay: `${m.delay}s`,
+              "--drift": `${m.drift}px`,
+              "--sway": `${m.sway}px`,
+            } as React.CSSProperties
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Walk-to-Earn meter (OnboardingView's WalkEarnBadge)                */
+/*                                                                     */
+/*  A circular meter that gently fills as a walking figure strides at  */
+/*  its heart, while soft gold BLINK coins rise and fade above it —    */
+/*  mirroring the live map's reward meter and coin drops.              */
+/* ------------------------------------------------------------------ */
+
+const COINS = Array.from({ length: 7 }, (_, i) => {
+  const seed = i * 47.13;
+  return {
+    startX: frac(seed * 0.13) * 54 - 27,
+    size: 9 + frac(seed * 0.27) * 7,
+    duration: 2.2 + frac(seed * 0.5) * 1.8,
+    delay: frac(seed * 0.31) * 2.4,
+  };
+});
+
+function WalkEarnBadge() {
+  const R = 55.5; // (120 - 9) / 2 — ring radius at the stroke centerline
+  const CIRC = 2 * Math.PI * R;
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "relative",
+        width: 188,
+        height: 188,
+        margin: "0 auto 24px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {/* Soft gold aura */}
+      <span
+        style={{
+          position: "absolute",
+          width: 168,
+          height: 168,
+          borderRadius: "50%",
+          background: `${GOLD}29`,
+          filter: "blur(34px)",
+        }}
+      />
+
+      {/* Gold coins drifting up out of the meter — the "earning" shimmer. */}
+      {COINS.map((c, i) => (
+        <span
+          key={i}
+          className="ob-coin"
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            width: c.size,
+            height: c.size,
+            marginLeft: c.startX - c.size / 2,
+            marginTop: -c.size / 2,
+            borderRadius: "50%",
+            background: `radial-gradient(circle at 36% 30%, #fff, ${GOLD}, ${GOLD}8c)`,
+            border: "0.6px solid rgba(255,255,255,0.45)",
+            boxShadow: `0 0 5px ${GOLD}99`,
+            animationDuration: `${c.duration}s`,
+            animationDelay: `${c.delay}s`,
+          }}
+        />
+      ))}
+
+      {/* Meter track + filling progress ring (mirrors the live map meter). */}
+      <svg width={129} height={129} viewBox="0 0 129 129" style={{ position: "absolute", transform: "rotate(-90deg)" }}>
+        <defs>
+          <linearGradient id="obEarnRing" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={C.primary} />
+            <stop offset="45%" stopColor={GOLD} />
+            <stop offset="100%" stopColor={C.primary2} />
+          </linearGradient>
+        </defs>
+        <circle cx="64.5" cy="64.5" r={R} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="9" />
+        <circle
+          className="ob-ring-fill"
+          cx="64.5"
+          cy="64.5"
+          r={R}
+          fill="none"
+          stroke="url(#obEarnRing)"
+          strokeWidth="9"
+          strokeLinecap="round"
+          strokeDasharray={CIRC}
+          style={{ filter: `drop-shadow(0 0 12px ${GOLD}80)`, ["--circ" as string]: `${CIRC}px` }}
+        />
+      </svg>
+
+      {/* Glass core + the walker. */}
+      <span
+        style={{
+          position: "absolute",
+          width: 84,
+          height: 84,
+          borderRadius: "50%",
+          background: "rgba(255,255,255,0.08)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          border: "1px solid rgba(255,255,255,0.1)",
+        }}
+      />
+      <span className="ob-walker" style={{ position: "absolute", color: C.primary, filter: `drop-shadow(0 0 12px ${C.primary})` }}>
+        {/* figure.walk */}
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="13.5" cy="3.4" r="2.1" />
+          <path d="M12.9 6.2c.9-.2 1.8.2 2.2 1l1.2 2.4 2.4 1.4c.5.3.7 1 .4 1.5s-1 .7-1.5.4l-2.7-1.6a1.6 1.6 0 0 1-.6-.6l-.5-1-1 3.5 2 2.2c.2.2.3.4.35.7l.7 3.9c.1.6-.3 1.2-.9 1.3-.6.1-1.2-.3-1.3-.9l-.65-3.6-2.3-2.5-1 2.9-2.5 3.2c-.4.5-1.1.6-1.6.2-.5-.4-.6-1.1-.2-1.6l2.3-2.9 1.7-6-1.3.7-.9 2.6c-.2.6-.8.9-1.4.7-.6-.2-.9-.8-.7-1.4l1-3c.1-.4.4-.7.75-.85l3.4-1.7c.5-.25.9-.4 1.4-.5Z" />
+        </svg>
+      </span>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Tab tour (the app's TabTourVisual — MainTabView's five tabs)       */
 /* ------------------------------------------------------------------ */
 
 interface TabInfo {
@@ -268,67 +534,71 @@ function MaskGlyph({ src, color, size = 20 }: { src: string; color: string; size
   );
 }
 
+// The app's exact TabTourVisual rows (symbol, name, blurb, tint).
+const TOUR_TABS: TabInfo[] = [
+  {
+    name: "Map",
+    blurb: "Hunt chests, geodes & Blink Orbs",
+    tint: C.primary,
+    icon: <MaskGlyph src="/brand/app/tabs/tab_map.png" color="currentColor" />,
+  },
+  {
+    name: "Feed",
+    blurb: "Share reflections & see moments from nearby",
+    tint: "#73ccff",
+    icon: (
+      // bubble.left.and.bubble.right.fill
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+        <path d="M2 8.4C2 6 4 4.2 6.5 4.2h5C14 4.2 16 6 16 8.4c0 2.4-2 4.2-4.5 4.2H8l-3.4 2.6c-.5.4-1.1 0-1.1-.6v-2.8C2.6 11 2 9.8 2 8.4Z" />
+        <path d="M17.2 9.1c2.7.3 4.8 2.2 4.8 4.6 0 1.4-.7 2.6-1.7 3.4v2.4c0 .6-.7 1-1.2.6L16.4 18h-2c-1.9 0-3.6-1-4.3-2.5h1.4c3.2 0 5.8-2.3 5.8-5.3 0-.4 0-.8-.1-1.1Z" />
+      </svg>
+    ),
+  },
+  {
+    name: "Battles",
+    blurb: "Duel friends & win Blink Orbs",
+    tint: "#ff8099",
+    icon: (
+      // bolt.fill
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+        <path d="M13.6 2.1c.5-.6 1.5-.2 1.4.6l-1 6.3h5c.65 0 1 .75.6 1.25L10.4 21.9c-.5.6-1.5.2-1.4-.6l1-6.3H5c-.65 0-1-.75-.6-1.25L13.6 2.1Z" />
+      </svg>
+    ),
+  },
+  {
+    name: "Creatures",
+    blurb: "Your full collection of caught cards",
+    tint: C.primary2,
+    icon: (
+      // square.grid.2x2.fill
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+        <rect x="3" y="3" width="8" height="8" rx="2" />
+        <rect x="13" y="3" width="8" height="8" rx="2" />
+        <rect x="3" y="13" width="8" height="8" rx="2" />
+        <rect x="13" y="13" width="8" height="8" rx="2" />
+      </svg>
+    ),
+  },
+  {
+    name: "Profile",
+    blurb: "Blink Orbs, Pulse stats & trainer code",
+    tint: GOLD,
+    icon: <MaskGlyph src="/brand/app/tabs/tab_profile.png" color="currentColor" />,
+  },
+];
+
 function TabTour({ active }: { active: boolean }) {
   const [highlight, setHighlight] = useState(0);
 
   useEffect(() => {
     if (!active) return;
-    const t = setInterval(() => setHighlight((h) => (h + 1) % 5), 1150);
+    const t = setInterval(() => setHighlight((h) => (h + 1) % TOUR_TABS.length), 1150);
     return () => clearInterval(t);
   }, [active]);
 
-  const tabs: TabInfo[] = [
-    {
-      name: "Map",
-      blurb: "Hunt creatures & ETH drops near you",
-      tint: C.primary,
-      icon: <MaskGlyph src="/brand/app/tabs/tab_map.png" color="currentColor" />,
-    },
-    {
-      name: "Feed",
-      blurb: "Live catches & sightings worldwide",
-      tint: "#73ccff",
-      icon: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-          <path d="M2 8.4C2 6 4 4.2 6.5 4.2h5C14 4.2 16 6 16 8.4c0 2.4-2 4.2-4.5 4.2H8l-3.4 2.6c-.5.4-1.1 0-1.1-.6v-2.8C2.6 11 2 9.8 2 8.4Z" />
-          <path d="M17.2 9.1c2.7.3 4.8 2.2 4.8 4.6 0 1.4-.7 2.6-1.7 3.4v2.4c0 .6-.7 1-1.2.6L16.4 18h-2c-1.9 0-3.6-1-4.3-2.5h1.4c3.2 0 5.8-2.3 5.8-5.3 0-.4 0-.8-.1-1.1Z" />
-        </svg>
-      ),
-    },
-    {
-      name: "Claim",
-      blurb: "Turn points into real $BLINK",
-      tint: "#ff8099",
-      icon: (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src="/brand/logo-orb-glow.png"
-          alt=""
-          style={{ width: 22, height: 22, objectFit: "contain", display: "block" }}
-        />
-      ),
-    },
-    {
-      name: "Wallet",
-      blurb: "Your $BLINK, ETH & creature NFTs",
-      tint: C.primary2,
-      icon: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h13A2.5 2.5 0 0 1 21 7.5V8H5a1 1 0 0 0 0 2h16v8.5A2.5 2.5 0 0 1 18.5 21h-13A2.5 2.5 0 0 1 3 18.5z" />
-        </svg>
-      ),
-    },
-    {
-      name: "Profile",
-      blurb: "Points, catches & your trainer stats",
-      tint: GOLD,
-      icon: <MaskGlyph src="/brand/app/tabs/tab_profile.png" color="currentColor" />,
-    },
-  ];
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 9, width: "100%", maxWidth: 380, margin: "20px auto 0" }}>
-      {tabs.map((tab, i) => {
+      {TOUR_TABS.map((tab, i) => {
         const on = i === highlight;
         return (
           <div
@@ -381,27 +651,51 @@ function TabTour({ active }: { active: boolean }) {
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 
-export default function OnboardingWalkthrough({ onComplete }: { onComplete?: () => void }) {
+export default function OnboardingWalkthrough({
+  mode = "firstRun",
+  onComplete,
+}: {
+  /** firstRun: new-trainer intro — final CTA enables alerts and enters.
+      replay: "How it works" — final CTA is just "Done". */
+  mode?: "firstRun" | "replay";
+  onComplete?: () => void;
+}) {
   const [current, setCurrent] = useState(0);
   const [animKey, setAnimKey] = useState(0);
+  const [requesting, setRequesting] = useState(false);
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
 
   const last = SLIDES.length - 1;
-
-  const close = useCallback(() => {
-    markComplete();
-    onComplete?.();
-  }, [onComplete]);
 
   function goTo(i: number) {
     setAnimKey((k) => k + 1);
     setCurrent(i);
   }
 
-  function goNext() {
-    if (current === last) close();
-    else goTo(current + 1);
+  async function goNext() {
+    if (current !== last) {
+      goTo(current + 1);
+      return;
+    }
+    if (mode === "replay") {
+      onComplete?.();
+      return;
+    }
+    // The app's "Enable Alerts & Enter": request notification permission,
+    // then finish. (The map screen asks for location itself, mirroring
+    // onEnter's location.requestAuthorization.)
+    if (requesting) return;
+    setRequesting(true);
+    try {
+      if (typeof Notification !== "undefined" && Notification.permission === "default") {
+        await Notification.requestPermission();
+      }
+    } catch {
+      /* notifications unsupported */
+    }
+    setRequesting(false);
+    onComplete?.();
   }
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -421,6 +715,14 @@ export default function OnboardingWalkthrough({ onComplete }: { onComplete?: () 
   }, [current]);
 
   const slide = SLIDES[current];
+  const isLast = current === last;
+  const cta = slide.isWelcome
+    ? "Get Started"
+    : isLast
+      ? mode === "firstRun"
+        ? "Enable Alerts & Enter"
+        : "Done"
+      : "Next";
 
   return (
     <div
@@ -455,18 +757,12 @@ export default function OnboardingWalkthrough({ onComplete }: { onComplete?: () 
               animation: "obKenBurns 14s ease-in-out infinite alternate",
             }}
           />
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background:
-                "linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.05) 40%, rgba(0,0,0,0.5) 70%, rgba(5,5,8,0.94) 100%)",
-            }}
-          />
+          <div style={{ position: "absolute", inset: 0, background: slide.veil }} />
           <div style={{ position: "absolute", inset: 0, background: "rgba(0,255,136,0.04)", mixBlendMode: "overlay" }} />
         </div>
       )}
       {!slide.backdrop && (
+        // Chapter aura glow (OnboardingView's auraGlow).
         <div
           aria-hidden
           style={{
@@ -476,9 +772,36 @@ export default function OnboardingWalkthrough({ onComplete }: { onComplete?: () 
           }}
         />
       )}
+      {/* Welcome slide's breathing aurora corners (WelcomeSlideView). */}
+      {slide.isWelcome && (
+        <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+          <span
+            className="ob-aurora-1"
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "block",
+              background: "radial-gradient(circle at 0% 100%, rgba(0,255,136,0.07) 0%, transparent 62%)",
+            }}
+          />
+          <span
+            className="ob-aurora-2"
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "block",
+              background: "radial-gradient(circle at 100% 0%, rgba(136,255,0,0.05) 0%, transparent 62%)",
+            }}
+          />
+        </div>
+      )}
 
-      {/* Top bar — Skip only on the chapter slides (the app's welcome
-          slide has no top bar; swipe to go back). */}
+      {/* Ambient particles: stars on the welcome slide, ember motes on
+          the chapter slides — only the front-most slide runs them. */}
+      {slide.isWelcome ? <StarField /> : <EmberField key={`embers-${current}`} />}
+
+      {/* Top bar — Skip only on the middle chapter slides (the app's
+          welcome slide has no top bar; the last slide hides it too). */}
       <div style={{ position: "relative", display: "flex", justifyContent: "flex-end", padding: "max(16px, env(safe-area-inset-top)) 20px 0", flexShrink: 0, zIndex: 2 }}>
         {current > 0 && current < last ? (
           <button
@@ -512,7 +835,7 @@ export default function OnboardingWalkthrough({ onComplete }: { onComplete?: () 
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          justifyContent: slide.isWelcome ? "flex-start" : "flex-end",
+          justifyContent: slide.isWelcome ? "flex-start" : slide.backdrop ? "flex-end" : "center",
           padding: "8px 24px 12px",
           overflow: "auto",
           animation: "obSlideIn 380ms cubic-bezier(0.22, 1, 0.36, 1) both",
@@ -575,36 +898,12 @@ export default function OnboardingWalkthrough({ onComplete }: { onComplete?: () 
             </span>
           )}
 
-          {slide.isEarn && (
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-              <span
-                style={{
-                  position: "relative",
-                  width: 108,
-                  height: 108,
-                  borderRadius: "50%",
-                  overflow: "hidden",
-                  border: `2px solid ${GOLD}59`,
-                  boxShadow: `0 0 28px ${GOLD}40, 0 0 56px ${C.primary}26`,
-                  display: "block",
-                  animation: "obBreathe 2.6s ease-in-out infinite",
-                }}
-              >
-                {/* The app's blink_token coin art (TreasureCaptureView). */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/brand/app/blink-token.webp"
-                  alt=""
-                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
-                />
-              </span>
-            </div>
-          )}
+          {slide.isEarn && <WalkEarnBadge />}
 
           <h1
             style={{
               color: "#fff",
-              fontSize: 30,
+              fontSize: slide.isWelcome ? 28 : 30,
               fontWeight: 900,
               fontFamily: FONT_DISPLAY,
               margin: "0 0 12px",
@@ -617,7 +916,7 @@ export default function OnboardingWalkthrough({ onComplete }: { onComplete?: () 
           </h1>
           <p
             style={{
-              color: "rgba(255,255,255,0.85)",
+              color: slide.isWelcome ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.85)",
               fontSize: 15,
               fontWeight: 500,
               lineHeight: 1.6,
@@ -677,27 +976,52 @@ export default function OnboardingWalkthrough({ onComplete }: { onComplete?: () 
           ))}
         </div>
 
+        {/* Welcome CTA is solid #00FF88 (WelcomeSlideView); chapter CTAs
+            are the lime→green gradient capsule (OnboardingView). */}
         <button
           onClick={goNext}
+          disabled={requesting}
           style={{
             width: "100%",
             height: 56,
             borderRadius: 28,
             border: "none",
-            background: `linear-gradient(90deg, ${C.primary}, ${C.primary2})`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            background: slide.isWelcome ? C.primary : `linear-gradient(90deg, ${C.primary}, ${C.primary2})`,
             color: "#000",
-            fontSize: 16,
+            fontSize: slide.isWelcome ? 17 : 16,
             fontWeight: 900,
-            letterSpacing: current === last ? "0.04em" : "0.12em",
-            cursor: "pointer",
+            letterSpacing: isLast || slide.isWelcome ? "0.06em" : "0.125em",
+            cursor: requesting ? "wait" : "pointer",
             fontFamily: FONT_DISPLAY,
-            boxShadow: `0 0 22px ${C.primary}8c`,
+            boxShadow: slide.isWelcome ? `0 6px 20px ${C.primary}59` : `0 0 22px ${C.primary}8c`,
             transition: "transform 0.15s",
           }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.02)"; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "none"; }}
         >
-          {slide.cta}
+          {requesting && (
+            <span
+              aria-hidden
+              style={{
+                width: 16,
+                height: 16,
+                borderRadius: "50%",
+                border: "2.5px solid rgba(0,0,0,0.25)",
+                borderTopColor: "#000",
+                animation: "obSpin 0.8s linear infinite",
+              }}
+            />
+          )}
+          {cta}
+          {isLast && mode === "firstRun" && !requesting && (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          )}
         </button>
       </div>
 
@@ -718,6 +1042,47 @@ export default function OnboardingWalkthrough({ onComplete }: { onComplete?: () 
           0%, 100% { transform: scale(0.99); }
           50%      { transform: scale(1.03); }
         }
+        @keyframes obSpin {
+          to { transform: rotate(360deg); }
+        }
+        /* Welcome aurora — two breathing corner glows (8s / 11s loops). */
+        @keyframes obAurora {
+          0%, 100% { transform: scale(0.85); }
+          50%      { transform: scale(1.15); }
+        }
+        .ob-aurora-1 { animation: obAurora 8s ease-in-out infinite; transform-origin: 0% 100%; }
+        .ob-aurora-2 { animation: obAurora 11s ease-in-out infinite; transform-origin: 100% 0%; }
+        /* Stars drift slowly upward and wrap (StarFieldView). */
+        @keyframes obStarDrift {
+          from { transform: translateY(0); }
+          to   { transform: translateY(-30px); }
+        }
+        .ob-star { animation-name: obStarDrift; animation-timing-function: linear; animation-iteration-count: infinite; }
+        /* Ember motes sway + drift (EmberField). */
+        @keyframes obMote {
+          0%, 100% { transform: translate(calc(var(--sway) * -1), var(--drift)); opacity: 0.3; }
+          50%      { transform: translate(var(--sway), calc(var(--drift) * -1)); opacity: 1; }
+        }
+        .ob-mote { animation-name: obMote; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+        /* WalkEarnBadge ring fill — 4% → 100% and back, 2.6s (the app's
+           repeatForever autoreversing fill). */
+        @keyframes obRingFill {
+          from { stroke-dashoffset: calc(var(--circ) * 0.96); }
+          to   { stroke-dashoffset: 0px; }
+        }
+        .ob-ring-fill { animation: obRingFill 2.6s ease-in-out infinite alternate; }
+        /* The walker bobs ±3px (1.5s). */
+        @keyframes obWalkerBob {
+          0%, 100% { transform: translateY(3px); }
+          50%      { transform: translateY(-3px); }
+        }
+        .ob-walker { animation: obWalkerBob 1.5s ease-in-out infinite; }
+        /* Gold coins rise out of the meter and fade (CoinRiser). */
+        @keyframes obCoinRise {
+          0%   { transform: translateY(10px) scale(1); opacity: 0.95; }
+          100% { transform: translateY(-86px) scale(0.55); opacity: 0; }
+        }
+        .ob-coin { animation-name: obCoinRise; animation-timing-function: ease-out; animation-iteration-count: infinite; }
         /* Earth textures are 1.5:1 — one full wrap at ${GLOBE_SIZE}px tall
            is ${GLOBE_SIZE * 1.5}px wide. Clouds drift a little faster,
            exactly like the app's independent cloud shell. */
