@@ -1,33 +1,104 @@
-"use client";
-import LegalLayout, { Section, P } from "../legal-layout";
+import type { Metadata } from "next";
+import MarketingShell, { Section, P, GlassPanel, GreenLink } from "../marketing-shell";
+
+export const metadata: Metadata = {
+  title: "Support — BlinkWorld",
+  description:
+    "Need a hand with BlinkWorld? Email our support team and browse quick answers to common questions.",
+};
+
+const GREEN = "#00FF88";
+const LIME = "#88FF00";
+
+const FAQS = [
+  {
+    q: "When does BlinkWorld launch?",
+    a: "We're polishing the final beta now. iPhone launches first on the App Store, with Google Play close behind.",
+  },
+  {
+    q: "Is it free?",
+    a: "Yes — free to download and free to play.",
+  },
+  {
+    q: "What are Blink Orbs?",
+    a: "Blink Orbs are in-game collectible points you gather by exploring. They're just for fun inside BlinkWorld — they are not money, have no cash value, and can't be traded or sold.",
+  },
+  {
+    q: "Does BlinkWorld track my location?",
+    a: "Your location powers the map only while you play. Anything shared publicly is always blurred to a wide area.",
+  },
+  {
+    q: "How do I delete my account?",
+    a: "Right in the app: open your profile, go to Settings, and choose Delete Account. It's permanent and takes effect immediately.",
+  },
+];
 
 export default function SupportPage() {
   return (
-    <LegalLayout title="Support" lastUpdated="April 1, 2026">
-      <Section title="Contact Us">
-        <P>Need help? We&apos;re here for you. Reach out and we&apos;ll get back to you as soon as possible.</P>
-        <P><strong style={{ color: "#FFFFFF" }}>Email:</strong> support@blinkworld.xyz</P>
-        <P><strong style={{ color: "#FFFFFF" }}>Response Time:</strong> We typically respond within 24&ndash;48 hours.</P>
+    <MarketingShell
+      title="Help & Contact"
+      intro="Stuck, curious, or found something odd on your adventure? We're real people and we'd love to help."
+    >
+      <GlassPanel>
+        <div style={{ textAlign: "center", padding: "10px 0 14px" }}>
+          <P style={{ fontSize: 16, marginBottom: 20 }}>
+            The fastest way to reach us is email. We reply within 1&ndash;2
+            business days — usually sooner.
+          </P>
+          <a
+            href="mailto:support@blinkworld.xyz"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0 34px",
+              height: 54,
+              borderRadius: 999,
+              background: `linear-gradient(92deg, ${LIME}, ${GREEN})`,
+              color: "#000",
+              fontFamily: "'Space Grotesk', 'Inter', sans-serif",
+              fontSize: 16,
+              fontWeight: 700,
+              textDecoration: "none",
+              boxShadow: "0 4px 28px rgba(0,255,136,0.45)",
+            }}
+          >
+            Email us
+          </a>
+          <P style={{ marginTop: 16, marginBottom: 0, fontSize: 14 }}>
+            support@blinkworld.xyz
+          </P>
+        </div>
+      </GlassPanel>
+
+      <Section title="Quick answers">
+        {FAQS.map((f) => (
+          <div key={f.q} style={{ marginBottom: 18 }}>
+            <h3
+              style={{
+                fontFamily: "'Space Grotesk', 'Inter', sans-serif",
+                fontSize: 16,
+                fontWeight: 700,
+                color: "#FFFFFF",
+                margin: "0 0 6px",
+              }}
+            >
+              {f.q}
+            </h3>
+            <P style={{ marginBottom: 0 }}>{f.a}</P>
+          </div>
+        ))}
       </Section>
 
-      <Section title="Common Issues">
-        <P><strong style={{ color: "#FFFFFF" }}>Can&apos;t witness a Creature?</strong> Make sure your GPS is enabled and you&apos;re physically within range of the spawn point. Indoor GPS can be inaccurate &mdash; try stepping outside.</P>
-        <P><strong style={{ color: "#FFFFFF" }}>Catch not recorded?</strong> Catches sync to The Eye within a few seconds. If your trail still hasn&apos;t updated after a few minutes, email us with your Watcher handle and the approximate spawn time.</P>
-        <P><strong style={{ color: "#FFFFFF" }}>The Eye Map looks empty?</strong> Creatures spawn in waves at real coordinates. Walk a few blocks, refresh, and check your location permissions for BLINK.</P>
-        <P><strong style={{ color: "#FFFFFF" }}>Wallet connection issues?</strong> Try disconnecting and reconnecting your wallet. $BLINK token rewards are coming &mdash; your wallet links your trail to future rewards.</P>
-        <P><strong style={{ color: "#FFFFFF" }}>Account or login issues?</strong> Email us at support@blinkworld.xyz with your registered email address and we&apos;ll sort it out.</P>
+      <Section title="When you write in">
+        <P>
+          Include your username and, if it helps, what you were doing when
+          something went sideways — it lets us fix things much faster. For
+          anything about your data, see our{" "}
+          <GreenLink href="/privacy">Privacy Policy</GreenLink>; for the rules of
+          the road, see our <GreenLink href="/terms">Terms of Service</GreenLink>.
+        </P>
       </Section>
-
-      <Section title="App Store & Privacy">
-        <P>To review our Privacy Policy, visit <strong style={{ color: "#00FF88" }}>blinkworld.xyz/privacy</strong>.</P>
-        <P>To review our Terms of Service, visit <strong style={{ color: "#00FF88" }}>blinkworld.xyz/terms</strong>.</P>
-        <P>To request deletion of your account and associated data, email <strong style={{ color: "#FFFFFF" }}>legal@blinkworld.xyz</strong> with the subject line &ldquo;Account Deletion Request.&rdquo;</P>
-      </Section>
-
-      <Section title="About BLINK">
-        <P>BLINK is a location-based catching game. Creatures spawn at real-world GPS coordinates. Watchers approach, witness and catch them through The Eye, building trails and earning standing in The Council. $BLINK token rewards are coming.</P>
-        <P>Don&apos;t blink. The Eye is open.</P>
-      </Section>
-    </LegalLayout>
+    </MarketingShell>
   );
 }
