@@ -16,6 +16,10 @@ import type { Metadata } from "next";
 
 const APP_STORE_URL = "https://apps.apple.com/app/id6774225621";
 
+// Marketing-only mode (App Review): hide the in-game balance stat so the
+// public card shows gameplay stats only.
+const MARKETING_ONLY = process.env.NEXT_PUBLIC_MARKETING_ONLY === "true";
+
 const SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
   process.env.SUPABASE_URL ||
@@ -306,7 +310,9 @@ export default async function PublicCardPage({
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
             {stat(`${rating}`, "RATING", accent)}
             {stat(`${p?.blink_catches ?? 0}`, "CAUGHT", accent2)}
-            {stat(`${p?.blink_balance ?? 0}`, "BLINK", tierColor)}
+            {MARKETING_ONLY
+              ? stat(tierLabel.toUpperCase(), "TIER", tierColor)
+              : stat(`${p?.blink_balance ?? 0}`, "BLINK", tierColor)}
           </div>
 
           {/* creatures */}

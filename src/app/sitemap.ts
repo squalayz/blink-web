@@ -3,6 +3,15 @@ import { MetadataRoute } from "next";
 const BASE = "https://blinkworld.xyz";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // Marketing-only mode: advertise only the reachable marketing pages.
+  if (process.env.NEXT_PUBLIC_MARKETING_ONLY === "true") {
+    return [
+      { url: BASE, lastModified: new Date(), changeFrequency: "daily" as const, priority: 1 },
+      { url: `${BASE}/terms`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.3 },
+      { url: `${BASE}/privacy`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.3 },
+      { url: `${BASE}/support`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.3 },
+    ];
+  }
   return [
     { url: BASE, lastModified: new Date(), changeFrequency: "daily" as const, priority: 1 },
     { url: `${BASE}/watch`, lastModified: new Date(), changeFrequency: "hourly" as const, priority: 0.9 },

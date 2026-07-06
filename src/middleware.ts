@@ -9,6 +9,41 @@ import { NextRequest, NextResponse } from "next/server";
 // 4. Request logging
 // ══════════════════════════════════════════
 
+// ═══ MARKETING-ONLY MODE (App Review) ═══
+// When NEXT_PUBLIC_MARKETING_ONLY=true, the site is locked down to the
+// marketing surface: landing page, legal pages, support, and the public
+// share pages (/u/<username>, /b/<code>). Everything else 302s to /.
+// Flip the env var off and the whole app comes back — no code removed.
+const MARKETING_ONLY = process.env.NEXT_PUBLIC_MARKETING_ONLY === "true";
+
+const MARKETING_ALLOWED_EXACT = ["/", "/privacy", "/terms", "/support"];
+const MARKETING_ALLOWED_PREFIXES = [
+  "/u/", // public trainer cards
+  "/b/", // battle-invite fallback pages
+  "/floating/", // creature image bridge used by /u cards
+  "/.well-known/", // apple-app-site-association (universal links)
+  "/api/waitlist", // landing-page waitlist form
+  "/api/health",
+];
+
+function isMarketingAllowed(pathname: string): boolean {
+  if (MARKETING_ALLOWED_EXACT.includes(pathname)) return true;
+  if (MARKETING_ALLOWED_PREFIXES.some((p) => pathname.startsWith(p))) return true;
+  // Static assets (anything with a file extension): /brand/*.png,
+  // /og-image.jpg, /manifest.json, /sitemap.xml, /robots.txt, …
+  if (/\.[a-zA-Z0-9]+$/.test(pathname)) return true;
+  return false;
+}
+
+// robots.txt in /public mentions app-only paths; serve a minimal one instead
+// while marketing-only mode is on.
+const MARKETING_ROBOTS = `User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://blinkworld.xyz/sitemap.xml
+`;
+
 // In-memory rate limiter (per worker process)
 const ipBuckets = new Map<string, { count: number; resetAt: number }>();
 
@@ -37,6 +72,18 @@ if (typeof setInterval !== "undefined") {
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.ip || "unknown";
+
+  // ═══ MARKETING-ONLY GATE ═══
+  if (MARKETING_ONLY) {
+    if (pathname === "/robots.txt") {
+      return new NextResponse(MARKETING_ROBOTS, {
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+    if (!isMarketingAllowed(pathname)) {
+      return NextResponse.redirect(new URL("/", req.url), 302);
+    }
+  }
 
   // ═══ 0. AUTH-BASED ROUTING ═══
   // Check for Supabase auth cookies (sb-<ref>-auth-token or sb-<ref>-auth-token-code-verifier)
