@@ -25,7 +25,7 @@ const BARS = [
   { rest: 0.4, dur: 0.56, delay: 0.18 },
 ];
 
-const SPARK_COUNT = 7;
+const SPARK_COUNT = 10;
 
 export default function SoundToggle() {
   const [enabled, setEnabled] = useState<boolean>(true);
@@ -151,8 +151,8 @@ export default function SoundToggle() {
 
 const STYLE = `
 .bwSndBtn {
-  width: 48px;
-  height: 48px;
+  width: 54px;
+  height: 54px;
   border-radius: 999px;
   padding: 0;
   cursor: pointer;
@@ -167,8 +167,8 @@ const STYLE = `
   transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.3s ease, filter 0.3s ease;
   animation: bwSndGlowOn 2.2s ease-in-out infinite;
 }
-.bwSndBtn:hover { transform: scale(1.08) translateY(-2px); }
-.bwSndBtn:active { transform: scale(0.9); }
+.bwSndBtn:hover { transform: scale(1.12); }
+.bwSndBtn:active { transform: scale(0.88); }
 .bwSndBtn.bwSndPopping { animation: bwSndPop 0.45s cubic-bezier(0.34, 1.8, 0.64, 1), bwSndGlowOn 2.2s ease-in-out infinite; }
 .bwSndBtn:hover[data-state="playing"],
 .bwSndBtn:hover[data-state="armed"] {
@@ -183,6 +183,33 @@ const STYLE = `
 .bwSndBtn:hover[data-state="muted"] {
   box-shadow: 0 0 22px rgba(0,255,136,0.3);
 }
+
+/* Crisp 1px rim highlight — light catching the glass edge. A gradient ring
+   masked down to a 1px band just inside the border. */
+.bwSndBtn::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: 999px;
+  padding: 1px;
+  background: conic-gradient(
+    from 215deg,
+    rgba(255,255,255,0.9),
+    rgba(0,255,136,0.55) 16%,
+    rgba(255,255,255,0.06) 34%,
+    rgba(255,255,255,0.02) 62%,
+    rgba(0,255,136,0.35) 86%,
+    rgba(255,255,255,0.9)
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.9;
+  transition: opacity 0.3s ease;
+}
+.bwSndBtn[data-state="muted"]::before { opacity: 0.35; }
 
 /* Glass highlight — a soft specular streak across the upper face of the orb. */
 .bwSndGlass {
@@ -293,6 +320,10 @@ const STYLE = `
   opacity: 0;
   animation: bwSndSpark 0.6s cubic-bezier(0.16, 0.84, 0.44, 1) forwards;
 }
+.bwSndSpark:nth-child(3n) {
+  background: #ffffff;
+  box-shadow: 0 0 6px rgba(255,255,255,0.95), 0 0 12px rgba(255,255,255,0.5);
+}
 
 @keyframes bwSndDance {
   from { transform: scaleY(0.16); }
@@ -309,8 +340,8 @@ const STYLE = `
 }
 @keyframes bwSndPulse {
   0% { transform: scale(1); opacity: 0.6; }
-  70% { transform: scale(2.1); opacity: 0; }
-  100% { transform: scale(2.1); opacity: 0; }
+  70% { transform: scale(1.9); opacity: 0; }
+  100% { transform: scale(1.9); opacity: 0; }
 }
 @keyframes bwSndSpin {
   from { transform: rotate(0deg); }
