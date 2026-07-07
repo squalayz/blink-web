@@ -29,6 +29,7 @@ const FONT_DISPLAY = "'Space Grotesk', 'Inter', -apple-system, sans-serif";
 const FONT_BODY = "'Inter', -apple-system, system-ui, sans-serif";
 
 const ART = "/brand/marketing";
+const EXPLORERS = "/explorers";
 
 export default function LandingPage() {
   return (
@@ -51,6 +52,7 @@ export default function LandingPage() {
         <Hero />
         <CreatureMarquee />
         <StatsStrip />
+        <ExplorerStrip />
         <SectionDivider />
         <Features />
         <SectionDivider />
@@ -281,6 +283,9 @@ function Hero() {
   const tiltRef = useRef<HTMLDivElement>(null);
 
   // Mouse-tilt on the phone cluster: spring-smoothed via rAF lerp.
+  // The floating explorers ride the same loop — each drifts opposite the
+  // cursor by its data-depth for cheap parallax (bob animation lives on the
+  // inner <img>, so the wrapper's translate never fights it).
   // Desktop pointers only; skipped entirely under prefers-reduced-motion.
   useEffect(() => {
     const section = sectionRef.current;
@@ -288,6 +293,8 @@ function Hero() {
     if (!section || !tilt) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     if (!window.matchMedia("(pointer: fine)").matches) return;
+
+    const explorers = Array.from(section.querySelectorAll<HTMLElement>(".bwHeroExp"));
 
     let raf = 0;
     let tracking = false;
@@ -298,6 +305,10 @@ function Hero() {
       cur.x += (target.x - cur.x) * 0.075;
       cur.y += (target.y - cur.y) * 0.075;
       tilt.style.transform = `rotateY(${(cur.x * 9).toFixed(2)}deg) rotateX(${(-cur.y * 7).toFixed(2)}deg)`;
+      for (const el of explorers) {
+        const depth = Number(el.dataset.depth || 0);
+        el.style.translate = `${(cur.x * depth).toFixed(1)}px ${(cur.y * depth * 0.75).toFixed(1)}px`;
+      }
       const settled =
         !tracking && Math.abs(cur.x - target.x) < 0.002 && Math.abs(cur.y - target.y) < 0.002;
       if (settled || document.hidden) {
@@ -343,6 +354,7 @@ function Hero() {
       }}
     >
       <FloatingOrbs />
+      <HeroExplorers />
       <div className="bwHeroGrid">
         <div style={{ position: "relative", zIndex: 3 }}>
           <div
@@ -557,6 +569,143 @@ function FloatingOrbs() {
         />
       ))}
     </div>
+  );
+}
+
+// Chibi explorer characters floating in the hero. Each wrapper carries a
+// data-depth the mouse-parallax loop reads (translate on the wrapper); the
+// idle bob runs on the inner <img> with per-character duration/delay so
+// they never move in lockstep. Visibility/size per breakpoint lives in the
+// bwExpA/B/C classes.
+const HERO_EXPLORERS = [
+  {
+    // blonde girl — hovering above the right end of the headline
+    src: `${EXPLORERS}/explorer_blonde_girl.webp`,
+    w: 381,
+    h: 494,
+    cls: "bwExpA",
+    depth: -12,
+    z: 3,
+    dur: 7.5,
+    delay: 0.6,
+  },
+  {
+    // deep guy — in front, lower-left of the phone cluster
+    src: `${EXPLORERS}/explorer_deep_guy.webp`,
+    w: 232,
+    h: 443,
+    cls: "bwExpB",
+    depth: -16,
+    z: 3,
+    dur: 6.5,
+    delay: 0,
+  },
+  {
+    // goggles guy — peeking out from behind the phones' glow
+    src: `${EXPLORERS}/explorer_goggles_guy.webp`,
+    w: 242,
+    h: 444,
+    cls: "bwExpC",
+    depth: -7,
+    z: 1,
+    dur: 9,
+    delay: 1.8,
+  },
+];
+
+function HeroExplorers() {
+  return (
+    <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+      {HERO_EXPLORERS.map((e) => (
+        <div
+          key={e.src}
+          className={`bwHeroExp ${e.cls}`}
+          data-depth={e.depth}
+          style={{ position: "absolute", zIndex: e.z, willChange: "translate" }}
+        >
+          {/* light pool beneath — they emit their own glow */}
+          <span
+            style={{
+              position: "absolute",
+              bottom: -14,
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: "130%",
+              height: 30,
+              borderRadius: "50%",
+              background: "radial-gradient(closest-side, rgba(0,255,136,0.4), transparent 72%)",
+              filter: "blur(10px)",
+            }}
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={e.src}
+            alt=""
+            width={e.w}
+            height={e.h}
+            loading="eager"
+            decoding="async"
+            className="bwExpBob"
+            style={{
+              height: "100%",
+              width: "auto",
+              position: "relative",
+              display: "block",
+              filter:
+                "drop-shadow(0 0 22px rgba(0,255,136,0.35)) drop-shadow(0 14px 22px rgba(0,0,0,0.45))",
+              animationDuration: `${e.dur}s`,
+              animationDelay: `${e.delay}s`,
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ───────────────────────── Choose your Explorer ─────────────────────────── */
+
+const EXPLORER_CARDS = [
+  { src: `${EXPLORERS}/explorer_deep_guy.webp`, name: "Pathfinder", w: 232, h: 443 },
+  { src: `${EXPLORERS}/explorer_blonde_girl.webp`, name: "Trailblazer", w: 381, h: 494 },
+  { src: `${EXPLORERS}/explorer_tan_girl.webp`, name: "Wayfarer", w: 255, h: 443 },
+  { src: `${EXPLORERS}/explorer_goggles_guy.webp`, name: "Skywatcher", w: 242, h: 444 },
+  { src: `${EXPLORERS}/explorer_boy_cap.webp`, name: "City Runner", w: 325, h: 425 },
+];
+
+// Compact strip of glass pedestal cards — one per explorer preset.
+function ExplorerStrip() {
+  return (
+    <section
+      id="explorers"
+      style={{ maxWidth: 1180, margin: "0 auto", padding: "clamp(36px, 5vw, 64px) 20px" }}
+    >
+      <SectionHeader
+        kicker="Your avatar"
+        title="Choose your Explorer"
+        sub="Customize your explorer — hair, skin tone, gear and companions — and show up on the map as you."
+      />
+      <div className="bwExpRow" style={{ marginTop: 42 }}>
+        {EXPLORER_CARDS.map((c, i) => (
+          <Reveal key={c.name} delay={i * 80} className="bwExpCell">
+            <div className="bwPedestal">
+              <span className="bwPedestalFloor" aria-hidden />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={c.src}
+                alt={`${c.name} explorer character`}
+                width={c.w}
+                height={c.h}
+                loading="lazy"
+                decoding="async"
+                className="bwPedestalArt"
+              />
+              <span className="bwPedestalName">{c.name}</span>
+            </div>
+          </Reveal>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -1417,6 +1566,41 @@ function Footer() {
         </a>
         ), licensed under CC BY 4.0
       </p>
+      {/* boy-cap explorer leaning against the watermark, bottom-right */}
+      <span
+        aria-hidden
+        className="bwFootExp"
+        style={{
+          position: "absolute",
+          right: "5%",
+          bottom: 6,
+          zIndex: 1,
+          pointerEvents: "none",
+          transform: "rotate(-4deg)",
+          display: "block",
+          height: 112,
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`${EXPLORERS}/explorer_boy_cap.webp`}
+          alt=""
+          width={325}
+          height={425}
+          loading="lazy"
+          decoding="async"
+          className="bwExpBob"
+          style={{
+            height: "100%",
+            width: "auto",
+            display: "block",
+            filter:
+              "drop-shadow(0 0 18px rgba(0,255,136,0.3)) drop-shadow(0 10px 18px rgba(0,0,0,0.45))",
+            animationDuration: "8.5s",
+            animationDelay: "1.1s",
+          }}
+        />
+      </span>
       {/* Giant dim watermark */}
       <div
         aria-hidden
@@ -1643,6 +1827,101 @@ const STYLE = `
 @keyframes bwDrift {
   0%, 100% { transform: translateY(0) rotate(0deg); }
   50% { transform: translateY(-22px) rotate(4deg); }
+}
+
+/* ── hero explorers ── */
+.bwExpBob { animation: bwExpBob 8s ease-in-out infinite; }
+@keyframes bwExpBob {
+  0%, 100% { transform: translateY(0) rotate(-1.4deg); }
+  50% { transform: translateY(-13px) rotate(1.4deg); }
+}
+.bwExpA { left: 45%; top: 24px; height: 138px; }
+.bwExpB { left: 57%; bottom: 5%; height: 128px; }
+.bwExpC { right: 1.5%; bottom: 38%; height: 114px; }
+@media (max-width: 1020px) {
+  .bwExpA { display: none; } /* would crowd the headline as columns tighten */
+}
+@media (max-width: 900px) {
+  /* stacked layout: phones sit at the bottom of the hero */
+  .bwExpB { left: 4%; bottom: 2%; height: 104px; }
+  .bwExpC { right: 0; bottom: 26%; height: 92px; }
+}
+@media (max-width: 480px) {
+  .bwExpC { display: none; }
+  .bwExpB { height: 92px; }
+}
+
+/* ── choose-your-explorer pedestals ── */
+.bwExpRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 18px;
+}
+.bwExpCell { flex: 0 1 188px; min-width: 148px; }
+.bwPedestal {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  padding: 26px 16px 18px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: ${GLASS_BG};
+  border: ${CARD_BORDER};
+  box-shadow: ${GLASS_SHADOW};
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.bwPedestalFloor {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 78%;
+  height: 30px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0,255,136,0.45), transparent 72%);
+  filter: blur(10px);
+  opacity: 0.65;
+  transition: opacity 0.35s ease;
+}
+.bwPedestalArt {
+  position: relative;
+  height: 150px;
+  width: auto;
+  display: block;
+  filter: drop-shadow(0 12px 24px rgba(0,255,136,0.26));
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.bwPedestalName {
+  position: relative;
+  font-family: ${FONT_DISPLAY};
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.72);
+  transition: color 0.3s ease;
+}
+.bwPedestal:hover {
+  transform: translateY(-8px) rotate(-1.5deg);
+  border-color: rgba(0,255,136,0.45);
+  box-shadow: ${GLASS_SHADOW}, 0 0 44px rgba(0,255,136,0.18);
+}
+.bwPedestal:hover .bwPedestalFloor { opacity: 1; }
+.bwPedestal:hover .bwPedestalArt { transform: translateY(-5px) scale(1.04); }
+.bwPedestal:hover .bwPedestalName { color: ${GREEN}; }
+@media (max-width: 620px) {
+  .bwExpCell { flex: 0 1 46%; min-width: 132px; }
+  .bwPedestalArt { height: 122px; }
+}
+
+/* ── footer explorer cameo ── */
+@media (max-width: 760px) {
+  .bwFootExp { display: none; }
 }
 
 /* kinetic headline */
@@ -1926,10 +2205,14 @@ const STYLE = `
 
 @media (prefers-reduced-motion: reduce) {
   .bwFloat, .bwPhoneFront, .bwPhoneBack, .bwWord, .bwRise, .bwShimmer,
-  .bwWaitDone, .bwCheckPath, .bwKickerLine, .bwNavCta::after, .bwWaitBtn::after {
+  .bwWaitDone, .bwCheckPath, .bwKickerLine, .bwNavCta::after, .bwWaitBtn::after,
+  .bwExpBob {
     animation: none !important;
     transition: none !important;
   }
+  .bwPedestal, .bwPedestalArt, .bwPedestalFloor, .bwPedestalName { transition: none !important; }
+  .bwPedestal:hover { transform: none; }
+  .bwPedestal:hover .bwPedestalArt { transform: none; }
   .bwWord, .bwRise { opacity: 1; transform: none; filter: none; }
   .bwShimmer { background-position: 50% 0; }
   .bwKickerLine { transform: scaleX(1); }
