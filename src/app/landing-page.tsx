@@ -1,21 +1,29 @@
 "use client";
 
-// BlinkWorld marketing landing page — premium starfield edition.
+// BlinkWorld marketing landing page — cinematic edition.
 // Inline styles per repo convention; a single <style> tag carries
 // keyframes, media queries, and hover states (class prefix: bw).
-// No animation libraries — CSS animations + a few lines of vanilla JS
-// (IntersectionObserver reveals, carousel arrows, waitlist form).
+// No animation libraries — CSS animations + vanilla canvas/rAF/
+// IntersectionObserver (starfield, tilt, reveals, count-ups, carousel,
+// waitlist form). Everything pauses under prefers-reduced-motion and
+// when the tab is hidden.
 
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import StarfieldCanvas from "@/components/marketing/StarfieldCanvas";
+import CreatureMarquee from "@/components/marketing/CreatureMarquee";
+import StatsStrip from "@/components/marketing/StatsStrip";
 
-const GREEN = "#4AE88A";
-const GREEN_SOFT = "rgba(74,232,138,0.14)";
+const GREEN = "#00FF88";
+const GREEN_LIME = "#88FF00";
+const GREEN_SOFT = "rgba(0,255,136,0.12)";
 const BG = "#05060C";
 const WHITE = "#FFFFFF";
 const TEXT70 = "rgba(255,255,255,0.72)";
 const TEXT50 = "rgba(255,255,255,0.5)";
-const CARD_BORDER = "1px solid rgba(255,255,255,0.09)";
+const CARD_BORDER = "1px solid rgba(255,255,255,0.1)";
+const GLASS_BG = "linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015))";
+const GLASS_SHADOW = "inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 50px rgba(0,0,0,0.35)";
 
 const FONT_DISPLAY = "'Space Grotesk', 'Inter', -apple-system, sans-serif";
 const FONT_BODY = "'Inter', -apple-system, system-ui, sans-serif";
@@ -36,98 +44,149 @@ export default function LandingPage() {
       }}
     >
       <style>{STYLE}</style>
-      <Starfield />
+      <ScrollProgress />
+      <StarfieldCanvas />
       <Nav />
       <main style={{ position: "relative", zIndex: 2 }}>
         <Hero />
+        <CreatureMarquee />
+        <StatsStrip />
+        <SectionDivider />
         <Features />
+        <SectionDivider />
         <ScreenshotCarousel />
+        <SectionDivider />
         <PrivacyFirst />
       </main>
       <Footer />
+      <NoiseOverlay />
     </div>
   );
 }
 
-/* ─────────────────────────── Starfield backdrop ─────────────────────────── */
+/* ─────────────────────────── Global chrome ─────────────────────────── */
 
-// Deterministic pseudo-random star positions (no Math.random — stable
-// between server and client renders).
-function starAt(i: number, salt: number) {
-  const x = ((i * 73 + salt * 31) % 997) / 9.97; // 0..100
-  const y = ((i * 137 + salt * 57) % 991) / 9.91;
-  const size = 1 + ((i * 7 + salt) % 3) * 0.7;
-  const delay = ((i * 53 + salt * 13) % 70) / 10;
-  const dur = 3 + ((i * 29 + salt * 3) % 40) / 10;
-  return { x, y, size, delay, dur };
-}
-
-function Starfield() {
-  const stars = Array.from({ length: 110 }, (_, i) => starAt(i, 5));
+// Thin green progress line pinned to the very top of the viewport.
+function ScrollProgress() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const doc = document.documentElement;
+      const max = doc.scrollHeight - window.innerHeight;
+      const p = max > 0 ? Math.min(1, window.scrollY / max) : 0;
+      el.style.transform = `scaleX(${p.toFixed(4)})`;
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
   return (
     <div
+      ref={ref}
       aria-hidden
       style={{
         position: "fixed",
-        inset: 0,
-        zIndex: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 2,
+        zIndex: 60,
+        transformOrigin: "0 50%",
+        transform: "scaleX(0)",
+        background: `linear-gradient(90deg, ${GREEN}, ${GREEN_LIME})`,
+        boxShadow: "0 0 12px rgba(0,255,136,0.6)",
         pointerEvents: "none",
-        overflow: "hidden",
       }}
-    >
-      {/* soft green nebulas */}
+    />
+  );
+}
+
+// 2.5%-opacity SVG noise over everything — kills gradient banding and adds
+// filmic texture. Pointer-events none, so it's invisible to interaction.
+function NoiseOverlay() {
+  return <div aria-hidden className="bwNoise" />;
+}
+
+// Soft glowing hairline between major sections.
+function SectionDivider() {
+  return (
+    <div aria-hidden style={{ maxWidth: 1180, margin: "0 auto", padding: "0 20px" }}>
       <div
         style={{
-          position: "absolute",
-          top: "-18%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: 1100,
-          height: 700,
-          background: `radial-gradient(closest-side, rgba(74,232,138,0.12), transparent 70%)`,
+          height: 1,
+          background: "linear-gradient(90deg, transparent, rgba(0,255,136,0.28), transparent)",
+          boxShadow: "0 0 18px rgba(0,255,136,0.18)",
         }}
       />
-      <div
-        style={{
-          position: "absolute",
-          bottom: "-25%",
-          right: "-15%",
-          width: 900,
-          height: 700,
-          background: `radial-gradient(closest-side, rgba(74,232,138,0.07), transparent 70%)`,
-        }}
-      />
-      {stars.map((s, i) => (
-        <span
-          key={i}
-          className="bwStar"
-          style={{
-            left: `${s.x}%`,
-            top: `${s.y}%`,
-            width: s.size,
-            height: s.size,
-            animationDelay: `${s.delay}s`,
-            animationDuration: `${s.dur}s`,
-          }}
-        />
-      ))}
     </div>
   );
 }
 
 /* ─────────────────────────────── Navigation ─────────────────────────────── */
 
+const NAV_SECTIONS = [
+  { id: "creatures", label: "Creatures" },
+  { id: "features", label: "Features" },
+  { id: "screenshots", label: "Screenshots" },
+  { id: "privacy-first", label: "Privacy" },
+];
+
 function Nav() {
+  const [scrolled, setScrolled] = useState(false);
+  const [active, setActive] = useState("");
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Highlight the nav link for whichever section straddles mid-viewport.
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) setActive(entry.target.id);
+        }
+      },
+      { rootMargin: "-40% 0px -55% 0px" },
+    );
+    for (const s of NAV_SECTIONS) {
+      const el = document.getElementById(s.id);
+      if (el) io.observe(el);
+    }
+    return () => io.disconnect();
+  }, []);
+
   return (
     <header
       style={{
         position: "sticky",
         top: 0,
         zIndex: 20,
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
-        background: "rgba(5,6,12,0.65)",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        backdropFilter: scrolled ? "blur(18px) saturate(1.3)" : "blur(6px)",
+        WebkitBackdropFilter: scrolled ? "blur(18px) saturate(1.3)" : "blur(6px)",
+        background: scrolled ? "rgba(5,6,12,0.72)" : "rgba(5,6,12,0.25)",
+        borderBottom: scrolled
+          ? "1px solid rgba(255,255,255,0.09)"
+          : "1px solid rgba(255,255,255,0)",
+        boxShadow: scrolled ? "0 12px 40px rgba(0,0,0,0.35)" : "none",
+        transition:
+          "background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease, backdrop-filter 0.35s ease",
       }}
     >
       <nav
@@ -159,12 +218,12 @@ function Nav() {
           </span>
         </a>
         <div className="bwNavLinks" style={{ display: "flex", alignItems: "center", gap: 26 }}>
-          {[
-            { href: "#features", label: "Features" },
-            { href: "#screenshots", label: "Screenshots" },
-            { href: "#privacy-first", label: "Privacy" },
-          ].map((l) => (
-            <a key={l.href} href={l.href} className="bwNavLink">
+          {NAV_SECTIONS.map((l) => (
+            <a
+              key={l.id}
+              href={`#${l.id}`}
+              className={`bwNavLink${active === l.id ? " bwNavActive" : ""}`}
+            >
               {l.label}
             </a>
           ))}
@@ -194,7 +253,7 @@ function LogoOrb({ size }: { size: number }) {
         display: "inline-block",
         flexShrink: 0,
         background: "#000",
-        boxShadow: `0 0 ${size * 0.5}px rgba(74,232,138,0.45)`,
+        boxShadow: `0 0 ${size * 0.5}px rgba(0,255,136,0.45)`,
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -218,9 +277,64 @@ function LogoOrb({ size }: { size: number }) {
 /* ────────────────────────────────── Hero ────────────────────────────────── */
 
 function Hero() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const tiltRef = useRef<HTMLDivElement>(null);
+
+  // Mouse-tilt on the phone cluster: spring-smoothed via rAF lerp.
+  // Desktop pointers only; skipped entirely under prefers-reduced-motion.
+  useEffect(() => {
+    const section = sectionRef.current;
+    const tilt = tiltRef.current;
+    if (!section || !tilt) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!window.matchMedia("(pointer: fine)").matches) return;
+
+    let raf = 0;
+    let tracking = false;
+    const target = { x: 0, y: 0 };
+    const cur = { x: 0, y: 0 };
+
+    const loop = () => {
+      cur.x += (target.x - cur.x) * 0.075;
+      cur.y += (target.y - cur.y) * 0.075;
+      tilt.style.transform = `rotateY(${(cur.x * 9).toFixed(2)}deg) rotateX(${(-cur.y * 7).toFixed(2)}deg)`;
+      const settled =
+        !tracking && Math.abs(cur.x - target.x) < 0.002 && Math.abs(cur.y - target.y) < 0.002;
+      if (settled || document.hidden) {
+        raf = 0;
+        return;
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    const kick = () => {
+      if (!raf) raf = requestAnimationFrame(loop);
+    };
+    const onMove = (e: MouseEvent) => {
+      const r = section.getBoundingClientRect();
+      target.x = ((e.clientX - r.left) / r.width - 0.5) * 2;
+      target.y = ((e.clientY - r.top) / r.height - 0.5) * 2;
+      tracking = true;
+      kick();
+    };
+    const onLeave = () => {
+      target.x = 0;
+      target.y = 0;
+      tracking = false;
+      kick();
+    };
+    section.addEventListener("mousemove", onMove, { passive: true });
+    section.addEventListener("mouseleave", onLeave);
+    return () => {
+      section.removeEventListener("mousemove", onMove);
+      section.removeEventListener("mouseleave", onLeave);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
   return (
     <section
       id="top"
+      ref={sectionRef}
       style={{
         position: "relative",
         maxWidth: 1180,
@@ -231,7 +345,16 @@ function Hero() {
       <FloatingOrbs />
       <div className="bwHeroGrid">
         <div style={{ position: "relative", zIndex: 3 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 26 }}>
+          <div
+            className="bwRise"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              marginBottom: 26,
+              animationDelay: "0.02s",
+            }}
+          >
             <LogoOrb size={58} />
             <span
               style={{
@@ -243,8 +366,9 @@ function Hero() {
                 textTransform: "uppercase",
                 padding: "7px 14px",
                 borderRadius: 999,
-                border: `1px solid rgba(74,232,138,0.35)`,
+                border: `1px solid rgba(0,255,136,0.35)`,
                 background: GREEN_SOFT,
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 0 24px rgba(0,255,136,0.12)",
               }}
             >
               Coming soon to iPhone
@@ -257,30 +381,29 @@ function Hero() {
               fontWeight: 700,
               fontSize: "clamp(40px, 6.2vw, 74px)",
               lineHeight: 1.04,
-              letterSpacing: "-0.025em",
+              letterSpacing: "-0.03em",
               margin: 0,
             }}
           >
-            Turn Every Walk
+            <KineticWord text="Turn" delay={0.08} />{" "}
+            <KineticWord text="Every" delay={0.17} />{" "}
+            <KineticWord text="Walk" delay={0.26} />
             <br />
-            Into an{" "}
-            <span
-              style={{
-                color: GREEN,
-                textShadow: "0 0 40px rgba(74,232,138,0.55)",
-              }}
-            >
-              Adventure
+            <KineticWord text="Into" delay={0.36} /> <KineticWord text="an" delay={0.43} />{" "}
+            <span className="bwWord" style={{ animationDelay: "0.52s" }}>
+              <span className="bwShimmer">Adventure</span>
             </span>
           </h1>
 
           <p
+            className="bwRise"
             style={{
               margin: "22px 0 0",
               maxWidth: 540,
               color: TEXT70,
               fontSize: "clamp(16px, 1.6vw, 19px)",
               lineHeight: 1.65,
+              animationDelay: "0.55s",
             }}
           >
             Hunt glowing orbs, catch 60+ creatures in AR, open treasure chests,
@@ -288,12 +411,14 @@ function Hero() {
           </p>
 
           <div
+            className="bwRise"
             style={{
               display: "flex",
               alignItems: "center",
               flexWrap: "wrap",
               gap: 18,
               marginTop: 34,
+              animationDelay: "0.65s",
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -307,18 +432,94 @@ function Hero() {
                 height: 56,
                 borderRadius: 13,
                 border: "1px solid rgba(255,255,255,0.14)",
-                boxShadow: "0 8px 28px rgba(0,0,0,0.5), 0 0 22px rgba(74,232,138,0.25)",
+                boxShadow: "0 8px 28px rgba(0,0,0,0.5), 0 0 22px rgba(0,255,136,0.25)",
               }}
             />
             <AppStoreBadge />
           </div>
 
-          <WaitlistForm />
+          <div className="bwRise" style={{ animationDelay: "0.75s" }}>
+            <WaitlistForm />
+          </div>
         </div>
 
-        <HeroPhones />
+        <div
+          className="bwHeroPhones bwRise"
+          aria-hidden
+          style={{
+            position: "relative",
+            zIndex: 2,
+            animationDelay: "0.4s",
+            perspective: 1100,
+          }}
+        >
+          <div
+            ref={tiltRef}
+            style={{
+              position: "relative",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              transformStyle: "preserve-3d",
+              willChange: "transform",
+              width: "100%",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: 440,
+                height: 440,
+                borderRadius: "50%",
+                background: "radial-gradient(closest-side, rgba(0,255,136,0.2), transparent 70%)",
+                filter: "blur(12px)",
+              }}
+            />
+            <PhoneFrame
+              src={`${ART}/screens/02_catch_moment.webp`}
+              alt=""
+              width={196}
+              className="bwPhoneBack"
+              eager
+            />
+            <PhoneFrame
+              src={`${ART}/screens/01_map_home.webp`}
+              alt=""
+              width={236}
+              className="bwPhoneFront"
+              eager
+            />
+            {/* soft reflection pool beneath the phones */}
+            <div
+              style={{
+                position: "absolute",
+                bottom: -46,
+                left: "50%",
+                transform: "translateX(-50%)",
+                width: "72%",
+                height: 60,
+                borderRadius: "50%",
+                background: "radial-gradient(closest-side, rgba(0,255,136,0.3), transparent 72%)",
+                filter: "blur(18px)",
+                opacity: 0.8,
+              }}
+            />
+          </div>
+        </div>
       </div>
     </section>
+  );
+}
+
+// One word of the kinetic headline — staggered rise + blur-out entrance.
+function KineticWord({ text, delay }: { text: string; delay: number }) {
+  return (
+    <span className="bwWord" style={{ animationDelay: `${delay}s` }}>
+      {text}
+    </span>
   );
 }
 
@@ -349,7 +550,7 @@ function FloatingOrbs() {
             width: o.size,
             height: o.size,
             opacity: 0.5,
-            filter: "drop-shadow(0 0 18px rgba(74,232,138,0.5))",
+            filter: "drop-shadow(0 0 18px rgba(0,255,136,0.5))",
             animationDelay: `${o.delay}s`,
             animationDuration: `${o.dur}s`,
           }}
@@ -425,20 +626,53 @@ function WaitlistForm() {
       <div
         id="notify"
         role="status"
+        className="bwWaitDone"
         style={{
           marginTop: 22,
           maxWidth: 460,
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
           padding: "16px 20px",
-          borderRadius: 16,
-          border: `1px solid rgba(74,232,138,0.4)`,
+          borderRadius: 999,
+          border: `1px solid rgba(0,255,136,0.45)`,
           background: GREEN_SOFT,
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.1), 0 0 40px rgba(0,255,136,0.2)",
           color: WHITE,
           fontSize: 15,
           lineHeight: 1.5,
         }}
       >
-        <strong style={{ color: GREEN }}>You&rsquo;re on the list.</strong>{" "}
-        We&rsquo;ll email you the moment BlinkWorld lands on the App Store.
+        <span
+          aria-hidden
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: "50%",
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: GREEN,
+            color: "#05060C",
+            boxShadow: "0 0 20px rgba(0,255,136,0.6)",
+          }}
+        >
+          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path
+              className="bwCheckPath"
+              d="M5 12.5l4.5 4.5L19 7.5"
+              stroke="currentColor"
+              strokeWidth={2.6}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+        <span>
+          <strong style={{ color: GREEN }}>You&rsquo;re on the list.</strong>{" "}
+          We&rsquo;ll email you the moment BlinkWorld lands on the App Store.
+        </span>
       </div>
     );
   }
@@ -451,7 +685,7 @@ function WaitlistForm() {
       >
         Get notified at launch
       </label>
-      <div className="bwWaitRow">
+      <div className="bwWaitCapsule">
         <input
           id="bw-email"
           type="email"
@@ -465,9 +699,9 @@ function WaitlistForm() {
           }}
           className="bwWaitInput"
         />
-        <button type="submit" disabled={state === "loading"} className="bwWaitBtn">
+        <MagneticButton type="submit" disabled={state === "loading"} className="bwWaitBtn">
           {state === "loading" ? "Joining…" : "Notify me"}
-        </button>
+        </MagneticButton>
       </div>
       <p
         aria-live="polite"
@@ -486,110 +720,42 @@ function WaitlistForm() {
   );
 }
 
-// Two tilted phone mockups with a soft green glow.
-function HeroPhones() {
+// Button that leans a few px toward the cursor and springs back on leave.
+// The spring is the CSS transition on the class; here we only set targets.
+function MagneticButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const { children, ...rest } = props;
+
+  function onMove(e: React.MouseEvent<HTMLButtonElement>) {
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const r = el.getBoundingClientRect();
+    const dx = ((e.clientX - (r.left + r.width / 2)) / r.width) * 9;
+    const dy = ((e.clientY - (r.top + r.height / 2)) / r.height) * 7;
+    el.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+  }
+
+  function onLeave() {
+    const el = ref.current;
+    if (el) el.style.transform = "translate(0px, 0px)";
+  }
+
   return (
-    <div
-      className="bwHeroPhones"
-      aria-hidden
-      style={{ position: "relative", zIndex: 2, display: "flex", justifyContent: "center" }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: 420,
-          height: 420,
-          borderRadius: "50%",
-          background: "radial-gradient(closest-side, rgba(74,232,138,0.22), transparent 70%)",
-          filter: "blur(10px)",
-        }}
-      />
-      <PhoneFrame
-        src={`${ART}/screens/02_catch_moment.webp`}
-        alt=""
-        width={196}
-        className="bwPhoneBack"
-      />
-      <PhoneFrame
-        src={`${ART}/screens/01_map_home.webp`}
-        alt=""
-        width={236}
-        className="bwPhoneFront"
-      />
-    </div>
+    <button ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} {...rest}>
+      {children}
+    </button>
   );
 }
 
-function PhoneFrame({
-  src,
-  alt,
-  width,
-  className,
-}: {
-  src: string;
-  alt: string;
-  width: number;
-  className?: string;
-}) {
-  const radius = width * 0.155;
-  return (
-    <div
-      className={className}
-      style={{
-        width,
-        borderRadius: radius,
-        padding: width * 0.032,
-        background: "linear-gradient(160deg, #2A2C33, #101116)",
-        border: "1px solid rgba(255,255,255,0.14)",
-        boxShadow:
-          "0 24px 70px rgba(0,0,0,0.6), 0 0 46px rgba(74,232,138,0.28)",
-        position: "relative",
-        flexShrink: 0,
-      }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt={alt}
-        width={width}
-        height={Math.round(width * 2.174)}
-        loading="lazy"
-        style={{
-          display: "block",
-          width: "100%",
-          height: "auto",
-          borderRadius: radius * 0.72,
-          background: "#000",
-        }}
-      />
-      <span
-        aria-hidden
-        style={{
-          position: "absolute",
-          top: width * 0.055,
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: width * 0.3,
-          height: width * 0.078,
-          borderRadius: 999,
-          background: "#000",
-          border: "1px solid rgba(255,255,255,0.06)",
-        }}
-      />
-    </div>
-  );
-}
-
-/* ──────────────────────────────── Features ──────────────────────────────── */
+/* ──────────────────────────── Features (bento) ──────────────────────────── */
 
 type Feature = {
   title: string;
   body: string;
   art: string;
   artMode: "scene" | "sticker";
+  icon: React.ReactNode;
 };
 
 const FEATURES: Feature[] = [
@@ -598,36 +764,42 @@ const FEATURES: Feature[] = [
     body: "Your real neighborhood becomes a glowing night map. Orbs, treasure chests, and geodes appear on the streets around you — walk over and collect them.",
     art: `${ART}/alpine.webp`,
     artMode: "scene",
+    icon: <MapPinIcon />,
   },
   {
     title: "Cinematic AR creature catching",
     body: "Point your camera and watch creatures step into your world. Time your catch, feel the flash, and add them to your collection.",
     art: `${ART}/explorer.webp`,
     artMode: "scene",
+    icon: <ScanIcon />,
   },
   {
     title: "Pet companions that explore with you",
     body: "Choose a companion who walks beside you on the map, sniffs out nearby finds, and grows as your adventures stack up.",
     art: `${ART}/frostkit.webp`,
     artMode: "sticker",
+    icon: <PawIcon />,
   },
   {
     title: "Apple Health step rewards",
     body: "Opt in to Apple Health and your everyday steps unlock bonus orbs, with fair daily caps. Every walk counts.",
     art: `${ART}/orb-emblem.webp`,
     artMode: "sticker",
+    icon: <PulseIcon />,
   },
   {
     title: "Live World Feed of catches worldwide",
     body: "See rare catches light up from players around the planet, and send a Cheer when someone lands a Legendary.",
     art: `${ART}/city-catch.webp`,
     artMode: "scene",
+    icon: <GlobeIcon />,
   },
   {
     title: "Friend battles & co-op Rifts",
     body: "Challenge friends to creature battles, or team up to close Rifts together and split the spoils.",
     art: `${ART}/emberling.webp`,
     artMode: "sticker",
+    icon: <SwordsIcon />,
   },
 ];
 
@@ -642,78 +814,201 @@ function Features() {
         title="A whole world hiding in plain sight"
         sub="BlinkWorld layers a living adventure over the streets you already walk."
       />
-      <div className="bwFeatureGrid">
-        {FEATURES.map((f) => (
-          <Reveal key={f.title}>
-            <article className="bwFeatureCard">
-              <div
-                style={{
-                  height: 190,
-                  position: "relative",
-                  overflow: "hidden",
-                  background:
-                    f.artMode === "sticker"
-                      ? "radial-gradient(circle at 50% 60%, rgba(74,232,138,0.18), rgba(5,6,12,0) 72%)"
-                      : "#000",
-                }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={f.art}
-                  alt=""
-                  loading="lazy"
-                  style={
-                    f.artMode === "scene"
-                      ? {
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
-                          objectPosition: "center 30%",
-                          display: "block",
-                        }
-                      : {
-                          height: "82%",
-                          width: "auto",
-                          maxWidth: "70%",
-                          objectFit: "contain",
-                          display: "block",
-                          margin: "18px auto 0",
-                          filter: "drop-shadow(0 10px 26px rgba(74,232,138,0.3))",
-                        }
-                  }
-                />
-                {f.artMode === "scene" && (
-                  <span
-                    aria-hidden
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      background: "linear-gradient(180deg, rgba(5,6,12,0) 45%, rgba(9,10,16,0.96) 100%)",
-                    }}
-                  />
-                )}
-              </div>
-              <div style={{ padding: "18px 22px 24px" }}>
-                <h3
-                  style={{
-                    fontFamily: FONT_DISPLAY,
-                    fontSize: 19,
-                    fontWeight: 700,
-                    margin: 0,
-                    letterSpacing: "-0.01em",
-                  }}
-                >
-                  {f.title}
-                </h3>
-                <p style={{ margin: "10px 0 0", color: TEXT70, fontSize: 14.5, lineHeight: 1.65 }}>
-                  {f.body}
-                </p>
-              </div>
-            </article>
+      <div className="bwBento" style={{ marginTop: 48 }}>
+        {FEATURES.map((f, i) => (
+          <Reveal key={f.title} delay={i * 70} className={`bwB${i}`}>
+            <BentoCard feature={f} large={i === 0} />
           </Reveal>
         ))}
       </div>
     </section>
+  );
+}
+
+// Glass bento card with a green glow that follows the cursor
+// (CSS vars --mx/--my drive a radial-gradient in ::after).
+function BentoCard({ feature: f, large }: { feature: Feature; large?: boolean }) {
+  const ref = useRef<HTMLElement>(null);
+
+  function onMove(e: React.MouseEvent<HTMLElement>) {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--mx", `${(e.clientX - r.left).toFixed(0)}px`);
+    el.style.setProperty("--my", `${(e.clientY - r.top).toFixed(0)}px`);
+  }
+
+  return (
+    <article ref={ref} className="bwBentoCard" onMouseMove={onMove}>
+      <div
+        style={{
+          height: large ? undefined : 160,
+          flex: large ? "1 1 240px" : undefined,
+          minHeight: large ? 240 : undefined,
+          position: "relative",
+          overflow: "hidden",
+          background:
+            f.artMode === "sticker"
+              ? "radial-gradient(circle at 50% 60%, rgba(0,255,136,0.16), rgba(5,6,12,0) 72%)"
+              : "#000",
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={f.art}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className={f.artMode === "scene" ? "bwBentoScene" : undefined}
+          style={
+            f.artMode === "scene"
+              ? {
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  objectPosition: "center 30%",
+                  display: "block",
+                  position: large ? "absolute" : undefined,
+                  inset: large ? 0 : undefined,
+                }
+              : {
+                  height: "82%",
+                  width: "auto",
+                  maxWidth: "70%",
+                  objectFit: "contain",
+                  display: "block",
+                  margin: "14px auto 0",
+                  filter: "drop-shadow(0 10px 26px rgba(0,255,136,0.3))",
+                }
+          }
+        />
+        {f.artMode === "scene" && (
+          <span
+            aria-hidden
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "linear-gradient(180deg, rgba(5,6,12,0) 45%, rgba(9,10,16,0.96) 100%)",
+            }}
+          />
+        )}
+      </div>
+      <div style={{ padding: large ? "22px 26px 28px" : "16px 20px 22px", position: "relative" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span className="bwBentoIcon" aria-hidden>
+            {f.icon}
+          </span>
+          <h3
+            style={{
+              fontFamily: FONT_DISPLAY,
+              fontSize: large ? 22 : 18,
+              fontWeight: 700,
+              margin: 0,
+              letterSpacing: "-0.015em",
+            }}
+          >
+            {f.title}
+          </h3>
+        </div>
+        <p
+          style={{
+            margin: "10px 0 0",
+            color: TEXT70,
+            fontSize: large ? 15.5 : 14,
+            lineHeight: 1.65,
+          }}
+        >
+          {f.body}
+        </p>
+      </div>
+    </article>
+  );
+}
+
+/* Feature icons — 18px stroke glyphs, brand green, no emoji. */
+
+function MapPinIcon() {
+  return (
+    <svg width={17} height={17} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 21s7-5.1 7-11a7 7 0 10-14 0c0 5.9 7 11 7 11z"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+      />
+      <circle cx={12} cy={10} r={2.6} stroke="currentColor" strokeWidth={1.8} />
+    </svg>
+  );
+}
+
+function ScanIcon() {
+  return (
+    <svg width={17} height={17} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+      />
+      <circle cx={12} cy={12} r={3.2} stroke="currentColor" strokeWidth={1.8} />
+    </svg>
+  );
+}
+
+function PawIcon() {
+  return (
+    <svg width={17} height={17} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx={7.2} cy={8.6} r={1.9} stroke="currentColor" strokeWidth={1.7} />
+      <circle cx={16.8} cy={8.6} r={1.9} stroke="currentColor" strokeWidth={1.7} />
+      <circle cx={12} cy={6.2} r={1.9} stroke="currentColor" strokeWidth={1.7} />
+      <path
+        d="M12 11.2c-2.9 0-5.4 2.3-5.4 4.8 0 1.6 1.2 2.6 2.7 2.6 1 0 1.8-.5 2.7-.5s1.7.5 2.7.5c1.5 0 2.7-1 2.7-2.6 0-2.5-2.5-4.8-5.4-4.8z"
+        stroke="currentColor"
+        strokeWidth={1.7}
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function PulseIcon() {
+  return (
+    <svg width={17} height={17} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M3 12h4l2.5-6 4 12L16 12h5"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function GlobeIcon() {
+  return (
+    <svg width={17} height={17} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx={12} cy={12} r={8.5} stroke="currentColor" strokeWidth={1.7} />
+      <path
+        d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.3 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.3-3.6-8.5s1.2-6.1 3.6-8.5z"
+        stroke="currentColor"
+        strokeWidth={1.7}
+      />
+    </svg>
+  );
+}
+
+function SwordsIcon() {
+  return (
+    <svg width={17} height={17} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 4l10.5 10.5M4 4h4M4 4v4M20 4L9.5 14.5M20 4h-4M20 4v4M7 17l-3 3M17 17l3 3M6 14l4 4M18 14l-4 4"
+        stroke="currentColor"
+        strokeWidth={1.7}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -794,9 +1089,7 @@ function ScreenshotCarousel() {
         >
           <ChevronIcon />
         </button>
-        <div
-          style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 20 }}
-        >
+        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 20 }}>
           {SCREENS.map((s, i) => (
             <button
               key={s.src}
@@ -811,6 +1104,7 @@ function ScreenshotCarousel() {
                 border: "none",
                 cursor: "pointer",
                 background: index === i ? GREEN : "rgba(255,255,255,0.22)",
+                boxShadow: index === i ? "0 0 10px rgba(0,255,136,0.6)" : "none",
                 transition: "all 0.25s ease",
                 padding: 0,
               }}
@@ -840,6 +1134,68 @@ function ChevronIcon({ flip }: { flip?: boolean }) {
         strokeLinejoin="round"
       />
     </svg>
+  );
+}
+
+function PhoneFrame({
+  src,
+  alt,
+  width,
+  className,
+  eager,
+}: {
+  src: string;
+  alt: string;
+  width: number;
+  className?: string;
+  eager?: boolean;
+}) {
+  const radius = width * 0.155;
+  return (
+    <div
+      className={className}
+      style={{
+        width,
+        borderRadius: radius,
+        padding: width * 0.032,
+        background: "linear-gradient(160deg, #2A2C33, #101116)",
+        border: "1px solid rgba(255,255,255,0.14)",
+        boxShadow: "0 24px 70px rgba(0,0,0,0.6), 0 0 46px rgba(0,255,136,0.26)",
+        position: "relative",
+        flexShrink: 0,
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        width={width}
+        height={Math.round(width * 2.174)}
+        loading={eager ? "eager" : "lazy"}
+        decoding="async"
+        style={{
+          display: "block",
+          width: "100%",
+          height: "auto",
+          borderRadius: radius * 0.72,
+          background: "#000",
+        }}
+      />
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: width * 0.055,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: width * 0.3,
+          height: width * 0.078,
+          borderRadius: 999,
+          background: "#000",
+          border: "1px solid rgba(255,255,255,0.06)",
+        }}
+      />
+    </div>
   );
 }
 
@@ -887,8 +1243,8 @@ function PrivacyFirst() {
             align="left"
           />
           <div style={{ display: "grid", gap: 14, marginTop: 28 }}>
-            {PRIVACY_POINTS.map((p) => (
-              <Reveal key={p.title}>
+            {PRIVACY_POINTS.map((p, i) => (
+              <Reveal key={p.title} delay={i * 70}>
                 <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
                   <span
                     aria-hidden
@@ -901,7 +1257,8 @@ function PrivacyFirst() {
                       alignItems: "center",
                       justifyContent: "center",
                       background: GREEN_SOFT,
-                      border: `1px solid rgba(74,232,138,0.3)`,
+                      border: `1px solid rgba(0,255,136,0.3)`,
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.1)",
                       color: GREEN,
                     }}
                   >
@@ -946,7 +1303,7 @@ function PrivacyFirst() {
               width: 300,
               height: 300,
               borderRadius: "50%",
-              background: "radial-gradient(closest-side, rgba(74,232,138,0.16), transparent 70%)",
+              background: "radial-gradient(closest-side, rgba(0,255,136,0.16), transparent 70%)",
             }}
           />
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -959,7 +1316,7 @@ function PrivacyFirst() {
               width: "min(300px, 80%)",
               height: "auto",
               position: "relative",
-              filter: "drop-shadow(0 16px 40px rgba(74,232,138,0.25))",
+              filter: "drop-shadow(0 16px 40px rgba(0,255,136,0.25))",
               animationDuration: "10s",
             }}
           />
@@ -999,7 +1356,8 @@ function Footer() {
         zIndex: 2,
         borderTop: "1px solid rgba(255,255,255,0.07)",
         background: "rgba(5,6,12,0.7)",
-        padding: "40px 20px 48px",
+        padding: "40px 20px 30px",
+        overflow: "hidden",
       }}
     >
       <div
@@ -1011,6 +1369,8 @@ function Footer() {
           alignItems: "center",
           justifyContent: "space-between",
           gap: 22,
+          position: "relative",
+          zIndex: 1,
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
@@ -1044,6 +1404,8 @@ function Footer() {
           margin: "18px auto 0",
           color: "rgba(255,255,255,0.32)",
           fontSize: 11.5,
+          position: "relative",
+          zIndex: 1,
         }}
       >
         Music: &ldquo;Voxel Revolution&rdquo; by Kevin MacLeod (
@@ -1055,6 +1417,29 @@ function Footer() {
         </a>
         ), licensed under CC BY 4.0
       </p>
+      {/* Giant dim watermark */}
+      <div
+        aria-hidden
+        style={{
+          marginTop: 26,
+          fontFamily: FONT_DISPLAY,
+          fontWeight: 700,
+          fontSize: "clamp(64px, 13.5vw, 210px)",
+          lineHeight: 0.86,
+          letterSpacing: "0.04em",
+          textAlign: "center",
+          whiteSpace: "nowrap",
+          color: "transparent",
+          WebkitTextStroke: "1px rgba(255,255,255,0.06)",
+          userSelect: "none",
+          pointerEvents: "none",
+          maskImage: "linear-gradient(180deg, rgba(0,0,0,0.9), transparent 92%)",
+          WebkitMaskImage: "linear-gradient(180deg, rgba(0,0,0,0.9), transparent 92%)",
+          marginBottom: "-0.22em",
+        }}
+      >
+        BLINKWORLD
+      </div>
     </footer>
   );
 }
@@ -1073,50 +1458,53 @@ function SectionHeader({
   align?: "center" | "left";
 }) {
   return (
-    <div
-      style={{
-        textAlign: align,
-        maxWidth: align === "center" ? 640 : 520,
-        margin: align === "center" ? "0 auto" : 0,
-      }}
-    >
-      <p
+    <Reveal>
+      <div
         style={{
-          fontFamily: FONT_DISPLAY,
-          fontSize: 13,
-          fontWeight: 700,
-          letterSpacing: "0.16em",
-          textTransform: "uppercase",
-          color: GREEN,
-          margin: 0,
+          textAlign: align,
+          maxWidth: align === "center" ? 640 : 520,
+          margin: align === "center" ? "0 auto" : 0,
         }}
       >
-        {kicker}
-      </p>
-      <h2
-        style={{
-          fontFamily: FONT_DISPLAY,
-          fontWeight: 700,
-          fontSize: "clamp(28px, 4vw, 44px)",
-          letterSpacing: "-0.02em",
-          lineHeight: 1.1,
-          margin: "12px 0 0",
-        }}
-      >
-        {title}
-      </h2>
-      <p style={{ margin: "14px 0 0", color: TEXT70, fontSize: 16, lineHeight: 1.6 }}>{sub}</p>
-    </div>
+        <p className="bwKicker">
+          <span>{kicker}</span>
+          <span className="bwKickerLine" aria-hidden />
+        </p>
+        <h2
+          style={{
+            fontFamily: FONT_DISPLAY,
+            fontWeight: 700,
+            fontSize: "clamp(28px, 4vw, 44px)",
+            letterSpacing: "-0.025em",
+            lineHeight: 1.1,
+            margin: "12px 0 0",
+          }}
+        >
+          {title}
+        </h2>
+        <p style={{ margin: "14px 0 0", color: TEXT70, fontSize: 16, lineHeight: 1.6 }}>{sub}</p>
+      </div>
+    </Reveal>
   );
 }
 
-// Fade-and-rise on first scroll into view. Renders visible when
-// IntersectionObserver is unavailable.
-function Reveal({ children }: { children: React.ReactNode }) {
+// Rise + de-blur on first scroll into view, with optional stagger delay.
+// Renders visible when IntersectionObserver is unavailable or motion is
+// reduced.
+function Reveal({
+  children,
+  delay = 0,
+  className,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  className?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     el.classList.add("bwHidden");
     const io = new IntersectionObserver(
       (entries) => {
@@ -1127,12 +1515,20 @@ function Reveal({ children }: { children: React.ReactNode }) {
           }
         }
       },
-      { threshold: 0.15 },
+      { threshold: 0.12 },
     );
     io.observe(el);
     return () => io.disconnect();
   }, []);
-  return <div ref={ref}>{children}</div>;
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={delay ? { transitionDelay: `${delay}ms` } : undefined}
+    >
+      {children}
+    </div>
+  );
 }
 
 /* ──────────────────────────────── Styles ────────────────────────────────── */
@@ -1140,42 +1536,78 @@ function Reveal({ children }: { children: React.ReactNode }) {
 const STYLE = `
 .bwRoot { -webkit-font-smoothing: antialiased; }
 
-.bwStar {
-  position: absolute;
-  border-radius: 50%;
-  background: #fff;
-  opacity: 0.5;
-  animation: bwTwinkle 4s ease-in-out infinite;
-}
-@keyframes bwTwinkle {
-  0%, 100% { opacity: 0.18; }
-  50% { opacity: 0.75; }
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
 }
 
+/* filmic noise overlay */
+.bwNoise {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0.028;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+/* ── nav ── */
 .bwNavLink {
+  position: relative;
   color: rgba(255,255,255,0.72);
   text-decoration: none;
   font-size: 14px;
   font-weight: 600;
+  padding: 4px 0;
   transition: color 0.2s ease;
 }
 .bwNavLink:hover { color: #fff; }
+.bwNavLink::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 100%;
+  bottom: -2px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, ${GREEN}, ${GREEN_LIME});
+  transition: right 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.bwNavLink:hover::after { right: 0; }
+.bwNavActive { color: ${GREEN}; }
+.bwNavActive::after { right: 0; box-shadow: 0 0 10px rgba(0,255,136,0.6); }
 .bwNavCta {
+  position: relative;
+  overflow: hidden;
   color: #05060C;
-  background: ${GREEN};
+  background: linear-gradient(120deg, ${GREEN}, #4DFFA6);
   text-decoration: none;
   font-size: 13.5px;
   font-weight: 700;
   padding: 9px 18px;
   border-radius: 999px;
-  box-shadow: 0 2px 18px rgba(74,232,138,0.4);
+  box-shadow: 0 2px 18px rgba(0,255,136,0.4), inset 0 1px 0 rgba(255,255,255,0.4);
   transition: transform 0.15s ease, box-shadow 0.2s ease;
 }
-.bwNavCta:hover { transform: translateY(-1px); box-shadow: 0 4px 26px rgba(74,232,138,0.55); }
+.bwNavCta::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -80%;
+  width: 50%;
+  transform: skewX(-20deg);
+  background: linear-gradient(105deg, transparent, rgba(255,255,255,0.55), transparent);
+  transition: left 0.55s ease;
+}
+.bwNavCta:hover { transform: translateY(-1px); box-shadow: 0 4px 26px rgba(0,255,136,0.55), inset 0 1px 0 rgba(255,255,255,0.4); }
+.bwNavCta:hover::after { left: 130%; }
 @media (max-width: 760px) {
   .bwNavLink { display: none; }
 }
 
+/* ── hero ── */
 .bwHeroGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
@@ -1183,10 +1615,10 @@ const STYLE = `
   align-items: center;
 }
 @media (max-width: 900px) {
-  .bwHeroGrid { grid-template-columns: 1fr; gap: 64px; }
+  .bwHeroGrid { grid-template-columns: 1fr; gap: 72px; }
 }
 
-.bwHeroPhones { min-height: 420px; align-items: center; }
+.bwHeroPhones { min-height: 420px; display: flex; justify-content: center; align-items: center; }
 .bwPhoneFront {
   transform: rotate(6deg) translateY(-8px);
   z-index: 2;
@@ -1213,70 +1645,181 @@ const STYLE = `
   50% { transform: translateY(-22px) rotate(4deg); }
 }
 
-.bwWaitRow { display: flex; gap: 10px; }
+/* kinetic headline */
+.bwWord {
+  display: inline-block;
+  animation: bwWordIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes bwWordIn {
+  from { opacity: 0; transform: translateY(30px); filter: blur(10px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.bwShimmer {
+  display: inline-block;
+  background: linear-gradient(110deg, ${GREEN} 20%, ${GREEN_LIME} 38%, #EAFFF4 50%, ${GREEN} 62%, ${GREEN} 80%);
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 26px rgba(0,255,136,0.4));
+  animation: bwSheen 4s linear 1.4s infinite;
+}
+@keyframes bwSheen {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+
+.bwRise { animation: bwRiseIn 0.9s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes bwRiseIn {
+  from { opacity: 0; transform: translateY(26px); filter: blur(6px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+/* ── waitlist ── */
+.bwWaitCapsule {
+  display: flex;
+  gap: 8px;
+  padding: 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 34px rgba(0,0,0,0.35);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.bwWaitCapsule:focus-within {
+  border-color: rgba(0,255,136,0.55);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 3px rgba(0,255,136,0.14), 0 0 34px rgba(0,255,136,0.2);
+}
 .bwWaitInput {
   flex: 1;
   min-width: 0;
-  height: 52px;
+  height: 46px;
   padding: 0 18px;
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,0.16);
-  background: rgba(255,255,255,0.06);
+  border-radius: 999px;
+  border: none;
+  background: transparent;
   color: #fff;
   font-size: 15px;
   font-family: inherit;
   outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .bwWaitInput::placeholder { color: rgba(255,255,255,0.35); }
-.bwWaitInput:focus {
-  border-color: rgba(74,232,138,0.65);
-  box-shadow: 0 0 0 3px rgba(74,232,138,0.18);
-}
 .bwWaitBtn {
-  height: 52px;
+  position: relative;
+  overflow: hidden;
+  height: 46px;
   padding: 0 24px;
   border: none;
-  border-radius: 14px;
-  background: ${GREEN};
+  border-radius: 999px;
+  background: linear-gradient(120deg, ${GREEN}, #4DFFA6);
   color: #05060C;
   font-size: 15px;
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
-  box-shadow: 0 4px 24px rgba(74,232,138,0.4);
-  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  box-shadow: 0 4px 24px rgba(0,255,136,0.4), inset 0 1px 0 rgba(255,255,255,0.45);
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, opacity 0.2s ease;
 }
-.bwWaitBtn:hover { transform: translateY(-1px); box-shadow: 0 6px 32px rgba(74,232,138,0.55); }
-.bwWaitBtn:disabled { opacity: 0.6; cursor: default; transform: none; }
+.bwWaitBtn::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -80%;
+  width: 50%;
+  transform: skewX(-20deg);
+  background: linear-gradient(105deg, transparent, rgba(255,255,255,0.6), transparent);
+  transition: left 0.6s ease;
+}
+.bwWaitBtn:hover { box-shadow: 0 6px 34px rgba(0,255,136,0.6), inset 0 1px 0 rgba(255,255,255,0.45); }
+.bwWaitBtn:hover::after { left: 130%; }
+.bwWaitBtn:disabled { opacity: 0.6; cursor: default; }
 @media (max-width: 420px) {
-  .bwWaitRow { flex-direction: column; }
+  .bwWaitCapsule { flex-direction: column; border-radius: 26px; }
+  .bwWaitBtn { width: 100%; }
 }
+.bwWaitDone { animation: bwPopIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes bwPopIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+.bwCheckPath {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: bwCheckDraw 0.5s ease 0.25s forwards;
+}
+@keyframes bwCheckDraw { to { stroke-dashoffset: 0; } }
 
-.bwFeatureGrid {
+/* ── bento features ── */
+.bwBento {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 22px;
-  margin-top: 48px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 18px;
 }
-@media (max-width: 980px) { .bwFeatureGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 620px) { .bwFeatureGrid { grid-template-columns: 1fr; } }
+.bwB0 { grid-column: span 4; grid-row: span 2; }
+.bwB1, .bwB2, .bwB3, .bwB4, .bwB5 { grid-column: span 2; }
+@media (max-width: 980px) {
+  .bwB0 { grid-column: span 6; grid-row: auto; }
+  .bwB1, .bwB2, .bwB3, .bwB4, .bwB5 { grid-column: span 3; }
+}
+@media (max-width: 620px) {
+  .bwB0, .bwB1, .bwB2, .bwB3, .bwB4, .bwB5 { grid-column: span 6; }
+}
+.bwBento > div, .bwBento article { height: 100%; }
 
-.bwFeatureCard {
+.bwBentoCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   border-radius: 22px;
   overflow: hidden;
-  background: rgba(255,255,255,0.035);
+  background: ${GLASS_BG};
   border: ${CARD_BORDER};
+  box-shadow: ${GLASS_SHADOW};
   height: 100%;
-  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.3s ease, box-shadow 0.3s ease;
 }
-.bwFeatureCard:hover {
-  transform: translateY(-4px);
-  border-color: rgba(74,232,138,0.4);
-  box-shadow: 0 18px 50px rgba(0,0,0,0.45), 0 0 34px rgba(74,232,138,0.12);
+.bwBentoCard::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(280px circle at var(--mx, 50%) var(--my, 50%), rgba(0,255,136,0.13), transparent 65%);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.bwBentoCard:hover {
+  transform: translateY(-5px);
+  border-color: rgba(0,255,136,0.4);
+  box-shadow: ${GLASS_SHADOW}, 0 0 40px rgba(0,255,136,0.12);
+}
+.bwBentoCard:hover::after { opacity: 1; }
+.bwBentoCard:hover .bwBentoScene { transform: scale(1.05); }
+.bwBentoScene { transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+
+.bwBentoIcon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${GREEN};
+  background: rgba(0,255,136,0.1);
+  border: 1px solid rgba(0,255,136,0.3);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+.bwBentoCard:hover .bwBentoIcon {
+  transform: scale(1.08);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 18px rgba(0,255,136,0.35);
 }
 
+/* ── carousel ── */
 .bwCarTrack {
   display: flex;
   gap: 24px;
@@ -1294,7 +1837,9 @@ const STYLE = `
   display: flex;
   flex-direction: column;
   align-items: center;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
+.bwCarSlide:hover { transform: translateY(-6px); }
 .bwCarTrack::after { content: ""; flex: 0 0 8px; }
 
 .bwCarArrow {
@@ -1305,15 +1850,22 @@ const STYLE = `
   height: 46px;
   border-radius: 50%;
   border: 1px solid rgba(255,255,255,0.18);
-  background: rgba(10,12,20,0.82);
+  background: rgba(10,12,20,0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: #fff;
   display: none;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 8px 24px rgba(0,0,0,0.4);
+  transition: border-color 0.2s ease, background 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
 }
-.bwCarArrow:hover { border-color: rgba(74,232,138,0.6); background: rgba(16,20,30,0.95); }
+.bwCarArrow:hover {
+  border-color: rgba(0,255,136,0.6);
+  background: rgba(16,20,30,0.9);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 24px rgba(0,255,136,0.25);
+}
 .bwCarArrow:disabled { opacity: 0.3; cursor: default; }
 .bwCarPrev { left: 10px; }
 .bwCarNext { right: 10px; }
@@ -1321,6 +1873,7 @@ const STYLE = `
   .bwCarArrow { display: flex; }
 }
 
+/* ── privacy panel ── */
 .bwPrivacyPanel {
   display: flex;
   flex-wrap: wrap;
@@ -1328,17 +1881,61 @@ const STYLE = `
   padding: clamp(28px, 4.5vw, 56px);
   border-radius: 28px;
   border: ${CARD_BORDER};
-  background: linear-gradient(160deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015));
+  background: ${GLASS_BG};
+  box-shadow: ${GLASS_SHADOW};
 }
 @media (max-width: 760px) {
   .bwPrivacyArt { order: -1; flex-basis: 100%; }
 }
 
-.bwHidden { opacity: 0; transform: translateY(22px); transition: opacity 0.6s ease, transform 0.6s ease; }
-.bwHidden.bwShown { opacity: 1; transform: translateY(0); }
+/* ── section header kicker ── */
+.bwKicker {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: ${FONT_DISPLAY};
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: ${GREEN};
+  margin: 0;
+}
+.bwKickerLine {
+  height: 2px;
+  width: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, ${GREEN}, transparent);
+  transform: scaleX(0);
+}
+.bwShown .bwKickerLine {
+  animation: bwSweepIn 0.9s 0.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes bwSweepIn { to { transform: scaleX(1); } }
+
+/* ── scroll reveals ── */
+.bwHidden {
+  opacity: 0;
+  transform: translateY(26px) scale(0.985);
+  filter: blur(5px);
+  transition: opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+              filter 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.bwHidden.bwShown { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
 
 @media (prefers-reduced-motion: reduce) {
-  .bwStar, .bwFloat, .bwPhoneFront, .bwPhoneBack { animation: none !important; }
-  .bwHidden { opacity: 1; transform: none; transition: none; }
+  .bwFloat, .bwPhoneFront, .bwPhoneBack, .bwWord, .bwRise, .bwShimmer,
+  .bwWaitDone, .bwCheckPath, .bwKickerLine, .bwNavCta::after, .bwWaitBtn::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .bwWord, .bwRise { opacity: 1; transform: none; filter: none; }
+  .bwShimmer { background-position: 50% 0; }
+  .bwKickerLine { transform: scaleX(1); }
+  .bwCheckPath { stroke-dashoffset: 0; }
+  .bwHidden { opacity: 1; transform: none; filter: none; transition: none; }
+  .bwBentoCard, .bwBentoScene, .bwCarSlide, .bwBentoIcon { transition: none !important; }
+  .bwBentoCard:hover .bwBentoScene { transform: none; }
 }
 `;

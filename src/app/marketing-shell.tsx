@@ -6,7 +6,7 @@ import Link from "next/link";
 
 const BG = "#05060C";
 const CARD = "#0E1017";
-const GREEN = "#4AE88A";
+const GREEN = "#00FF88";
 const WHITE = "#FFFFFF";
 const TEXT70 = "rgba(255,255,255,0.7)";
 const TEXT50 = "rgba(255,255,255,0.5)";
@@ -29,7 +29,7 @@ export default function MarketingShell({
     <div
       style={{
         minHeight: "100vh",
-        background: `radial-gradient(1100px 520px at 50% -180px, rgba(74,232,138,0.09), transparent 70%), ${BG}`,
+        background: `radial-gradient(1100px 520px at 50% -180px, rgba(0,255,136,0.09), transparent 70%), ${BG}`,
         color: WHITE,
         fontFamily: FONT_BODY,
       }}
@@ -74,7 +74,7 @@ export default function MarketingShell({
                 height: 28,
                 borderRadius: "50%",
                 objectFit: "cover",
-                filter: "drop-shadow(0 0 8px rgba(74,232,138,0.5))",
+                filter: "drop-shadow(0 0 8px rgba(0,255,136,0.5))",
               }}
             />
             <span
@@ -120,7 +120,7 @@ export default function MarketingShell({
             letterSpacing: "-0.02em",
             lineHeight: 1.1,
             margin: 0,
-            textShadow: "0 0 32px rgba(74,232,138,0.22)",
+            textShadow: "0 0 32px rgba(0,255,136,0.22)",
           }}
         >
           {title}
