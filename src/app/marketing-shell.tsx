@@ -4,9 +4,9 @@
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 
-const BG = "#0A0A0F";
-const CARD = "#12121A";
-const GREEN = "#00FF88";
+const BG = "#05060C";
+const CARD = "#0E1017";
+const GREEN = "#4AE88A";
 const WHITE = "#FFFFFF";
 const TEXT70 = "rgba(255,255,255,0.7)";
 const TEXT50 = "rgba(255,255,255,0.5)";
@@ -29,7 +29,7 @@ export default function MarketingShell({
     <div
       style={{
         minHeight: "100vh",
-        background: BG,
+        background: `radial-gradient(1100px 520px at 50% -180px, rgba(74,232,138,0.09), transparent 70%), ${BG}`,
         color: WHITE,
         fontFamily: FONT_BODY,
       }}
@@ -37,7 +37,7 @@ export default function MarketingShell({
       <header
         style={{
           borderBottom: "1px solid rgba(255,255,255,0.06)",
-          background: "rgba(10,10,15,0.72)",
+          background: "rgba(5,6,12,0.72)",
         }}
       >
         <nav
@@ -64,7 +64,7 @@ export default function MarketingShell({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/brand/logo-orb-glow.png"
+              src="/brand/marketing/blink-logo.webp"
               alt=""
               aria-hidden
               width={28}
@@ -72,8 +72,9 @@ export default function MarketingShell({
               style={{
                 width: 28,
                 height: 28,
-                objectFit: "contain",
-                filter: "drop-shadow(0 0 8px rgba(0,255,136,0.5))",
+                borderRadius: "50%",
+                objectFit: "cover",
+                filter: "drop-shadow(0 0 8px rgba(74,232,138,0.5))",
               }}
             />
             <span
@@ -119,7 +120,7 @@ export default function MarketingShell({
             letterSpacing: "-0.02em",
             lineHeight: 1.1,
             margin: 0,
-            textShadow: "0 0 32px rgba(0,255,136,0.2)",
+            textShadow: "0 0 32px rgba(74,232,138,0.22)",
           }}
         >
           {title}
@@ -163,7 +164,7 @@ export default function MarketingShell({
           <div style={{ display: "flex", flexWrap: "wrap", gap: 20 }}>
             {[
               { href: "/privacy", label: "Privacy Policy" },
-              { href: "/terms", label: "Terms of Service" },
+              { href: "/terms", label: "Terms of Use" },
               { href: "/support", label: "Support" },
             ].map((l) => (
               <Link

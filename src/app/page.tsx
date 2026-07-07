@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import LandingPage from "./landing-page";
 
-const TITLE = "BlinkWorld — Walk. Catch. Explore. Battle.";
+const TITLE = "BlinkWorld — Turn Every Walk Into an Adventure";
 const DESCRIPTION =
-  "Turn every walk into an adventure. Catch fantastic creatures in AR, crack open hidden treasure chests, and explore a living map of your real neighborhood. Coming soon to iPhone and Android.";
+  "Hunt glowing orbs, catch 60+ creatures in AR, open treasure chests, and battle friends — all powered by your real steps. Coming soon to the App Store.";
 
 export const metadata: Metadata = {
   title: TITLE,

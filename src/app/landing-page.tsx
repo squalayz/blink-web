@@ -1,1801 +1,1327 @@
 "use client";
 
-// BlinkWorld marketing landing page — dark, premium, game-grade.
+// BlinkWorld marketing landing page — premium starfield edition.
 // Inline styles per repo convention; a single <style> tag carries
-// keyframes, hover states, and responsive rules.
+// keyframes, media queries, and hover states (class prefix: bw).
+// No animation libraries — CSS animations + a few lines of vanilla JS
+// (IntersectionObserver reveals, carousel arrows, waitlist form).
 
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
-const BG = "#0A0A0F";
-const CARD = "#12121A";
-const GREEN = "#00FF88";
-const LIME = "#88FF00";
+const GREEN = "#4AE88A";
+const GREEN_SOFT = "rgba(74,232,138,0.14)";
+const BG = "#05060C";
 const WHITE = "#FFFFFF";
-const TEXT70 = "rgba(255,255,255,0.7)";
+const TEXT70 = "rgba(255,255,255,0.72)";
 const TEXT50 = "rgba(255,255,255,0.5)";
-const GLASS_BORDER = "1px solid rgba(255,255,255,0.08)";
-
-const RARITY = {
-  Common: "#9AA3B2",
-  Uncommon: "#00FF88",
-  Rare: "#88FF00",
-  Legendary: "#FFD166",
-  Mythic: "#FF8AE0",
-} as const;
+const CARD_BORDER = "1px solid rgba(255,255,255,0.09)";
 
 const FONT_DISPLAY = "'Space Grotesk', 'Inter', -apple-system, sans-serif";
 const FONT_BODY = "'Inter', -apple-system, system-ui, sans-serif";
 
-/* ---------------------------------------------------------------- shell */
+const ART = "/brand/marketing";
 
 export default function LandingPage() {
   return (
     <div
+      className="bwRoot"
       style={{
         minHeight: "100vh",
         background: BG,
         color: WHITE,
         fontFamily: FONT_BODY,
         overflowX: "hidden",
+        position: "relative",
       }}
     >
-      <a href="#main" className="lw-skip">
-        Skip to content
-      </a>
+      <style>{STYLE}</style>
+      <Starfield />
       <Nav />
-      <main id="main">
+      <main style={{ position: "relative", zIndex: 2 }}>
         <Hero />
-        <Ticker />
         <Features />
-        <HowItWorks />
-        <CreatureShowcase />
-        <Safety />
-        <Faq />
-        <FinalCta />
+        <ScreenshotCarousel />
+        <PrivacyFirst />
       </main>
       <Footer />
-      <style>{STYLE}</style>
     </div>
   );
 }
 
-/* ----------------------------------------------------------------- nav */
+/* ─────────────────────────── Starfield backdrop ─────────────────────────── */
+
+// Deterministic pseudo-random star positions (no Math.random — stable
+// between server and client renders).
+function starAt(i: number, salt: number) {
+  const x = ((i * 73 + salt * 31) % 997) / 9.97; // 0..100
+  const y = ((i * 137 + salt * 57) % 991) / 9.91;
+  const size = 1 + ((i * 7 + salt) % 3) * 0.7;
+  const delay = ((i * 53 + salt * 13) % 70) / 10;
+  const dur = 3 + ((i * 29 + salt * 3) % 40) / 10;
+  return { x, y, size, delay, dur };
+}
+
+function Starfield() {
+  const stars = Array.from({ length: 110 }, (_, i) => starAt(i, 5));
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 0,
+        pointerEvents: "none",
+        overflow: "hidden",
+      }}
+    >
+      {/* soft green nebulas */}
+      <div
+        style={{
+          position: "absolute",
+          top: "-18%",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: 1100,
+          height: 700,
+          background: `radial-gradient(closest-side, rgba(74,232,138,0.12), transparent 70%)`,
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          bottom: "-25%",
+          right: "-15%",
+          width: 900,
+          height: 700,
+          background: `radial-gradient(closest-side, rgba(74,232,138,0.07), transparent 70%)`,
+        }}
+      />
+      {stars.map((s, i) => (
+        <span
+          key={i}
+          className="bwStar"
+          style={{
+            left: `${s.x}%`,
+            top: `${s.y}%`,
+            width: s.size,
+            height: s.size,
+            animationDelay: `${s.delay}s`,
+            animationDuration: `${s.dur}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ─────────────────────────────── Navigation ─────────────────────────────── */
 
 function Nav() {
-  const links = [
-    { href: "#features", label: "Features" },
-    { href: "#how-it-works", label: "How it works" },
-    { href: "#safety", label: "Safety" },
-    { href: "#faq", label: "FAQ" },
-  ];
   return (
     <header
       style={{
         position: "sticky",
         top: 0,
-        zIndex: 50,
-        background: "rgba(10,10,15,0.72)",
-        backdropFilter: "blur(18px)",
-        WebkitBackdropFilter: "blur(18px)",
+        zIndex: 20,
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+        background: "rgba(5,6,12,0.65)",
         borderBottom: "1px solid rgba(255,255,255,0.06)",
       }}
     >
       <nav
         aria-label="Main"
         style={{
-          maxWidth: 1160,
+          maxWidth: 1180,
           margin: "0 auto",
           padding: "0 20px",
-          height: 64,
+          height: 68,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 16,
         }}
       >
         <a
-          href="#main"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            textDecoration: "none",
-            color: WHITE,
-          }}
+          href="#top"
+          style={{ display: "flex", alignItems: "center", gap: 11, textDecoration: "none", color: WHITE }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/brand/logo-orb-glow.png"
-            alt=""
-            aria-hidden
-            width={30}
-            height={30}
-            style={{
-              width: 30,
-              height: 30,
-              objectFit: "contain",
-              filter: "drop-shadow(0 0 10px rgba(0,255,136,0.55))",
-            }}
-          />
+          <LogoOrb size={34} />
           <span
             style={{
               fontFamily: FONT_DISPLAY,
               fontWeight: 700,
               fontSize: 17,
-              letterSpacing: "0.08em",
+              letterSpacing: "0.09em",
             }}
           >
             BLINKWORLD
           </span>
         </a>
-
-        <div className="lw-nav-links" style={{ display: "flex", gap: 28 }}>
-          {links.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              style={{
-                color: TEXT70,
-                textDecoration: "none",
-                fontSize: 14,
-                fontWeight: 600,
-              }}
-            >
+        <div className="bwNavLinks" style={{ display: "flex", alignItems: "center", gap: 26 }}>
+          {[
+            { href: "#features", label: "Features" },
+            { href: "#screenshots", label: "Screenshots" },
+            { href: "#privacy-first", label: "Privacy" },
+          ].map((l) => (
+            <a key={l.href} href={l.href} className="bwNavLink">
               {l.label}
             </a>
           ))}
+          <Link href="/support" className="bwNavLink">
+            Support
+          </Link>
+          <a href="#notify" className="bwNavCta">
+            Get notified
+          </a>
         </div>
-
-        <a href="#waitlist" className="lw-cta-pill lw-cta-pill-sm">
-          Join the waitlist
-        </a>
       </nav>
     </header>
   );
 }
 
-/* ---------------------------------------------------------------- hero */
-
-function Hero() {
-  return (
-    <section
-      style={{
-        position: "relative",
-        overflow: "hidden",
-        padding: "clamp(56px, 9vw, 110px) 20px clamp(48px, 7vw, 90px)",
-      }}
-    >
-      {/* Atmosphere: auroras + map grid + drifting orbs */}
-      <div aria-hidden style={{ position: "absolute", inset: 0 }}>
-        <div className="lw-grid-texture" style={{ position: "absolute", inset: 0 }} />
-        <div
-          className="lw-aurora"
-          style={{
-            position: "absolute",
-            width: 720,
-            height: 720,
-            top: -320,
-            left: "-12%",
-            background:
-              "radial-gradient(circle, rgba(0,255,136,0.16) 0%, rgba(0,255,136,0) 65%)",
-          }}
-        />
-        <div
-          className="lw-aurora lw-aurora-slow"
-          style={{
-            position: "absolute",
-            width: 640,
-            height: 640,
-            top: "8%",
-            right: "-16%",
-            background:
-              "radial-gradient(circle, rgba(136,255,0,0.10) 0%, rgba(136,255,0,0) 65%)",
-          }}
-        />
-        {HERO_ORBS.map((o) => (
-          <span
-            key={o.id}
-            className="lw-float"
-            style={{
-              position: "absolute",
-              left: o.left,
-              top: o.top,
-              width: o.size,
-              height: o.size,
-              borderRadius: "50%",
-              background: `radial-gradient(circle, ${GREEN} 0%, rgba(0,255,136,0.35) 45%, rgba(0,255,136,0) 75%)`,
-              filter: "blur(0.5px)",
-              opacity: 0.7,
-              animationDuration: `${o.duration}s`,
-              animationDelay: `${o.delay}s`,
-            }}
-          />
-        ))}
-      </div>
-
-      <div
-        className="lw-hero-grid"
-        style={{
-          position: "relative",
-          maxWidth: 1160,
-          margin: "0 auto",
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1.05fr) minmax(0, 0.95fr)",
-          gap: "clamp(40px, 6vw, 72px)",
-          alignItems: "center",
-        }}
-      >
-        {/* Copy column */}
-        <div>
-          <Reveal>
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "7px 14px",
-                borderRadius: 999,
-                border: `1px solid rgba(0,255,136,0.35)`,
-                background: "rgba(0,255,136,0.08)",
-                color: GREEN,
-                fontSize: 12.5,
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-              }}
-            >
-              <span
-                aria-hidden
-                className="lw-pulse-dot"
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: GREEN,
-                }}
-              />
-              A new kind of adventure
-            </span>
-          </Reveal>
-
-          <Reveal delay={0.08}>
-            <h1
-              style={{
-                fontFamily: FONT_DISPLAY,
-                fontWeight: 700,
-                fontSize: "clamp(38px, 6.2vw, 68px)",
-                lineHeight: 1.06,
-                letterSpacing: "-0.02em",
-                margin: "22px 0 0",
-              }}
-            >
-              The real world is your{" "}
-              <span
-                style={{
-                  background: `linear-gradient(92deg, ${GREEN}, ${LIME})`,
-                  WebkitBackgroundClip: "text",
-                  backgroundClip: "text",
-                  color: "transparent",
-                  textShadow: "none",
-                }}
-              >
-                treasure map.
-              </span>
-            </h1>
-          </Reveal>
-
-          <Reveal delay={0.16}>
-            <p
-              style={{
-                margin: "20px 0 0",
-                maxWidth: 520,
-                color: TEXT70,
-                fontSize: "clamp(16px, 2vw, 18px)",
-                lineHeight: 1.65,
-              }}
-            >
-              Walk your neighborhood to catch fantastic creatures, crack open
-              hidden chests, and collect glowing Blink Orbs — all in augmented
-              reality.
-            </p>
-          </Reveal>
-
-          <Reveal delay={0.24}>
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 12,
-                marginTop: 26,
-              }}
-            >
-              <StoreChip line1="Coming soon to the" line2="App Store" />
-              <StoreChip line1="Coming soon on" line2="Google Play" />
-            </div>
-          </Reveal>
-
-          <Reveal delay={0.32}>
-            <div style={{ marginTop: 28, maxWidth: 480 }}>
-              <WaitlistForm idPrefix="hero" />
-            </div>
-          </Reveal>
-        </div>
-
-        {/* Visual column */}
-        <Reveal delay={0.2}>
-          <PhoneMockup />
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-const HERO_ORBS = [
-  { id: 0, left: "6%", top: "18%", size: 14, duration: 9, delay: 0 },
-  { id: 1, left: "44%", top: "8%", size: 10, duration: 11, delay: 1.4 },
-  { id: 2, left: "88%", top: "24%", size: 12, duration: 8, delay: 0.6 },
-  { id: 3, left: "70%", top: "78%", size: 9, duration: 10, delay: 2.2 },
-  { id: 4, left: "16%", top: "82%", size: 11, duration: 12, delay: 3 },
-];
-
-function StoreChip({ line1, line2 }: { line1: string; line2: string }) {
+// The logo art lives on a pure-black square — clip it to a circle and
+// overscan slightly so no square edge ever shows.
+function LogoOrb({ size }: { size: number }) {
   return (
     <span
+      aria-hidden
       style={{
-        display: "inline-flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        padding: "10px 20px",
-        borderRadius: 14,
-        background: "rgba(255,255,255,0.05)",
-        border: GLASS_BORDER,
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
-        boxShadow: "0 0 24px rgba(0,255,136,0.08)",
-        lineHeight: 1.25,
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        overflow: "hidden",
+        display: "inline-block",
+        flexShrink: 0,
+        background: "#000",
+        boxShadow: `0 0 ${size * 0.5}px rgba(74,232,138,0.45)`,
       }}
     >
-      <span style={{ fontSize: 11, fontWeight: 600, color: TEXT50 }}>{line1}</span>
-      <span
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`${ART}/blink-logo.webp`}
+        alt=""
+        width={size}
+        height={size}
         style={{
-          fontFamily: FONT_DISPLAY,
-          fontSize: 15,
-          fontWeight: 700,
-          color: WHITE,
+          width: "116%",
+          height: "116%",
+          margin: "-8%",
+          objectFit: "cover",
+          display: "block",
         }}
-      >
-        {line2}
-      </span>
+      />
     </span>
   );
 }
 
-/* A tilted dark-mode phone showing a glowing night map, creatures floating around it. */
-function PhoneMockup() {
+/* ────────────────────────────────── Hero ────────────────────────────────── */
+
+function Hero() {
   return (
-    <div
+    <section
+      id="top"
       style={{
         position: "relative",
-        display: "flex",
-        justifyContent: "center",
-        padding: "30px 0",
+        maxWidth: 1180,
+        margin: "0 auto",
+        padding: "clamp(56px, 9vw, 110px) 20px clamp(60px, 8vw, 100px)",
       }}
     >
-      {/* Aurora behind the phone */}
-      <div
-        aria-hidden
-        className="lw-breathe"
-        style={{
-          position: "absolute",
-          inset: "-8%",
-          background:
-            "radial-gradient(circle at 50% 45%, rgba(0,255,136,0.20) 0%, rgba(0,255,136,0) 60%)",
-          pointerEvents: "none",
-        }}
-      />
-
-      <div
-        className="lw-phone"
-        style={{
-          position: "relative",
-          width: "min(290px, 72vw)",
-          aspectRatio: "290 / 590",
-          borderRadius: 44,
-          background: "#08080C",
-          border: "1px solid rgba(255,255,255,0.14)",
-          boxShadow:
-            "0 40px 90px rgba(0,0,0,0.6), 0 0 60px rgba(0,255,136,0.18), inset 0 0 0 6px #101016",
-          transform: "rotate(-6deg)",
-          overflow: "hidden",
-        }}
-      >
-        {/* Night map */}
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: 6,
-            borderRadius: 38,
-            overflow: "hidden",
-            background:
-              "radial-gradient(circle at 50% 60%, #101820 0%, #0B0F14 55%, #08080C 100%)",
-          }}
-        >
-          {/* streets */}
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              backgroundImage:
-                "linear-gradient(rgba(0,255,136,0.10) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,136,0.10) 1px, transparent 1px)",
-              backgroundSize: "52px 52px",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              backgroundImage:
-                "linear-gradient(24deg, transparent 47%, rgba(136,255,0,0.14) 49%, rgba(136,255,0,0.14) 51%, transparent 53%), linear-gradient(-38deg, transparent 46%, rgba(0,255,136,0.12) 48%, rgba(0,255,136,0.12) 52%, transparent 54%)",
-            }}
-          />
-          {/* player marker with pulsing ring */}
-          <span
-            style={{
-              position: "absolute",
-              left: "48%",
-              top: "58%",
-              width: 16,
-              height: 16,
-              borderRadius: "50%",
-              background: GREEN,
-              boxShadow: `0 0 16px ${GREEN}`,
-              border: "2px solid rgba(255,255,255,0.9)",
-            }}
-          />
-          <span
-            className="lw-ring"
-            style={{
-              position: "absolute",
-              left: "calc(48% - 16px)",
-              top: "calc(58% - 16px)",
-              width: 48,
-              height: 48,
-              borderRadius: "50%",
-              border: `1.5px solid ${GREEN}`,
-            }}
-          />
-          {/* map markers */}
-          {MAP_MARKERS.map((m) => (
+      <FloatingOrbs />
+      <div className="bwHeroGrid">
+        <div style={{ position: "relative", zIndex: 3 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 26 }}>
+            <LogoOrb size={58} />
             <span
-              key={m.id}
-              className="lw-float"
               style={{
-                position: "absolute",
-                left: m.left,
-                top: m.top,
-                width: m.size,
-                height: m.size,
-                borderRadius: "50%",
-                background: `radial-gradient(circle, ${m.color} 10%, ${m.color}55 50%, transparent 75%)`,
-                animationDuration: `${m.duration}s`,
-                animationDelay: `${m.delay}s`,
+                fontFamily: FONT_DISPLAY,
+                fontSize: 13,
+                fontWeight: 700,
+                letterSpacing: "0.14em",
+                color: GREEN,
+                textTransform: "uppercase",
+                padding: "7px 14px",
+                borderRadius: 999,
+                border: `1px solid rgba(74,232,138,0.35)`,
+                background: GREEN_SOFT,
               }}
-            />
-          ))}
-          {/* status pill inside the screen */}
-          <span
+            >
+              Coming soon to iPhone
+            </span>
+          </div>
+
+          <h1
             style={{
-              position: "absolute",
-              left: "50%",
-              transform: "translateX(-50%)",
-              bottom: 18,
-              padding: "7px 14px",
-              borderRadius: 999,
-              background: "rgba(10,10,15,0.72)",
-              border: "1px solid rgba(0,255,136,0.35)",
-              color: GREEN,
-              fontSize: 11,
+              fontFamily: FONT_DISPLAY,
               fontWeight: 700,
-              whiteSpace: "nowrap",
-              letterSpacing: "0.04em",
+              fontSize: "clamp(40px, 6.2vw, 74px)",
+              lineHeight: 1.04,
+              letterSpacing: "-0.025em",
+              margin: 0,
             }}
           >
-            3 Blink Orbs nearby
-          </span>
+            Turn Every Walk
+            <br />
+            Into an{" "}
+            <span
+              style={{
+                color: GREEN,
+                textShadow: "0 0 40px rgba(74,232,138,0.55)",
+              }}
+            >
+              Adventure
+            </span>
+          </h1>
+
+          <p
+            style={{
+              margin: "22px 0 0",
+              maxWidth: 540,
+              color: TEXT70,
+              fontSize: "clamp(16px, 1.6vw, 19px)",
+              lineHeight: 1.65,
+            }}
+          >
+            Hunt glowing orbs, catch 60+ creatures in AR, open treasure chests,
+            and battle friends — all powered by your real steps.
+          </p>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 18,
+              marginTop: 34,
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`${ART}/app-icon.webp`}
+              alt="BlinkWorld app icon"
+              width={56}
+              height={56}
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 13,
+                border: "1px solid rgba(255,255,255,0.14)",
+                boxShadow: "0 8px 28px rgba(0,0,0,0.5), 0 0 22px rgba(74,232,138,0.25)",
+              }}
+            />
+            <AppStoreBadge />
+          </div>
+
+          <WaitlistForm />
         </div>
-        {/* speaker notch */}
-        <span
-          aria-hidden
+
+        <HeroPhones />
+      </div>
+    </section>
+  );
+}
+
+// Floating glass-orb particles drifting behind the hero.
+function FloatingOrbs() {
+  const orbs = [
+    { size: 88, left: "58%", top: "2%", delay: 0, dur: 9 },
+    { size: 44, left: "38%", top: "70%", delay: 1.6, dur: 11 },
+    { size: 30, left: "6%", top: "58%", delay: 3.1, dur: 8 },
+    { size: 56, left: "86%", top: "62%", delay: 0.8, dur: 10 },
+    { size: 24, left: "72%", top: "88%", delay: 2.4, dur: 12 },
+  ];
+  return (
+    <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 1 }}>
+      {orbs.map((o, i) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={i}
+          src={`${ART}/orb.webp`}
+          alt=""
+          width={o.size}
+          height={o.size}
+          className="bwFloat"
           style={{
             position: "absolute",
-            top: 16,
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: 84,
-            height: 22,
-            borderRadius: 12,
-            background: "#101016",
-            border: "1px solid rgba(255,255,255,0.06)",
+            left: o.left,
+            top: o.top,
+            width: o.size,
+            height: o.size,
+            opacity: 0.5,
+            filter: "drop-shadow(0 0 18px rgba(74,232,138,0.5))",
+            animationDelay: `${o.delay}s`,
+            animationDuration: `${o.dur}s`,
           }}
         />
-      </div>
-
-      {/* Floating creatures around the phone */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/brand/app/creatures/silkmoth.webp"
-        alt="Silkmoth, a gentle glowing moth creature from BlinkWorld"
-        className="lw-float"
-        style={{
-          position: "absolute",
-          width: "clamp(84px, 22%, 120px)",
-          top: "2%",
-          left: "4%",
-          filter: "drop-shadow(0 8px 24px rgba(136,255,0,0.35))",
-          animationDuration: "7s",
-        }}
-      />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/brand/app/creatures/emberling.webp"
-        alt="Emberling, a friendly flame-spirit creature from BlinkWorld"
-        className="lw-float"
-        style={{
-          position: "absolute",
-          width: "clamp(74px, 20%, 108px)",
-          top: "30%",
-          right: "0%",
-          filter: "drop-shadow(0 8px 24px rgba(0,255,136,0.4))",
-          animationDuration: "8.5s",
-          animationDelay: "1s",
-        }}
-      />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/brand/app/creatures/pebblekin.webp"
-        alt="Pebblekin, a small stone creature with glowing seams from BlinkWorld"
-        className="lw-float"
-        style={{
-          position: "absolute",
-          width: "clamp(78px, 21%, 112px)",
-          bottom: "3%",
-          left: "0%",
-          filter: "drop-shadow(0 8px 24px rgba(0,255,136,0.3))",
-          animationDuration: "9.5s",
-          animationDelay: "2s",
-        }}
-      />
+      ))}
     </div>
   );
 }
 
-const MAP_MARKERS = [
-  { id: 0, left: "20%", top: "22%", size: 22, color: GREEN, duration: 6, delay: 0 },
-  { id: 1, left: "68%", top: "16%", size: 16, color: LIME, duration: 8, delay: 0.8 },
-  { id: 2, left: "76%", top: "44%", size: 20, color: GREEN, duration: 7, delay: 1.6 },
-  { id: 3, left: "16%", top: "58%", size: 14, color: "#FFD166", duration: 9, delay: 0.4 },
-  { id: 4, left: "58%", top: "76%", size: 18, color: GREEN, duration: 6.5, delay: 2.4 },
-];
-
-/* --------------------------------------------------------------- ticker */
-
-const TICKER_ITEMS = [
-  "Ava caught a Legendary creature",
-  "Marcus hit a 7-day walk streak",
-  "Kai cracked a Golden Chest",
-  "Nova's pet leveled up",
-  "Juno dug up a mystery geode",
-  "Rio uncovered a supply drop",
-  "Mila sent 100 Cheers",
-];
-
-function Ticker() {
+// Official-style black App Store badge, "Coming Soon" variant.
+function AppStoreBadge() {
   return (
-    <section
-      aria-label="Live from the beta"
-      style={{
-        borderTop: "1px solid rgba(255,255,255,0.06)",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
-        background: "rgba(18,18,26,0.55)",
-        padding: "14px 0",
-        overflow: "hidden",
-        display: "flex",
-        alignItems: "center",
-      }}
+    <span
+      aria-label="Coming soon on the App Store"
+      style={{ display: "inline-block", lineHeight: 0 }}
     >
-      <span
-        style={{
-          flexShrink: 0,
-          margin: "0 20px",
-          padding: "6px 12px",
-          borderRadius: 999,
-          border: `1px solid rgba(0,255,136,0.4)`,
-          color: GREEN,
-          fontSize: 11,
-          fontWeight: 800,
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          whiteSpace: "nowrap",
-        }}
-      >
-        Live from the beta
-      </span>
-      <div style={{ overflow: "hidden", flex: 1 }}>
-        <div className="lw-marquee" style={{ display: "flex", width: "max-content" }}>
-          {[0, 1].map((half) => (
-            <div
-              key={half}
-              aria-hidden={half === 1}
-              style={{ display: "flex", whiteSpace: "nowrap" }}
-            >
-              {TICKER_ITEMS.map((item) => (
-                <span
-                  key={item}
-                  style={{
-                    color: TEXT70,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    paddingRight: 56,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 10,
-                  }}
-                >
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 5,
-                      height: 5,
-                      borderRadius: "50%",
-                      background: GREEN,
-                      boxShadow: `0 0 8px ${GREEN}`,
-                      flexShrink: 0,
-                    }}
-                  />
-                  {item}
-                </span>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* -------------------------------------------------------------- features */
-
-const FEATURES = [
-  {
-    title: "A living map",
-    body: "Your city, reimagined as an adventure. Streets, parks, and sidewalks light up with things to find.",
-    icon: <MapIcon />,
-  },
-  {
-    title: "Cinematic AR catches",
-    body: "Creatures appear in your world through the AR camera and stay anchored in place while you catch them.",
-    icon: <CameraIcon />,
-  },
-  {
-    title: "Treasure everywhere",
-    body: "Chests, geodes, and supply drops hide on real streets, waiting for someone to walk by and crack them open.",
-    icon: <ChestIcon />,
-  },
-  {
-    title: "Your explorer, your pet",
-    body: "Customize your character and the companion cat or dog that walks beside you on the map.",
-    icon: <PawIcon />,
-  },
-  {
-    title: "Streaks that build",
-    body: "Daily walks grow your streak and your collection — with fair daily caps so it stays a game.",
-    icon: <FlameIcon />,
-  },
-  {
-    title: "A world watching",
-    body: "The Live Feed celebrates every big catch from explorers everywhere, with locations always blurred for privacy.",
-    icon: <GlobeIcon />,
-  },
-];
-
-function Features() {
-  return (
-    <section id="features" style={{ padding: "clamp(64px, 9vw, 110px) 20px" }}>
-      <div style={{ maxWidth: 1160, margin: "0 auto" }}>
-        <SectionHeader
-          overline="Features"
-          title="Everything glows when you get close."
-          sub="Six ways BlinkWorld turns an ordinary walk into something worth telling your friends about."
-        />
-        <div className="lw-features-grid" style={{ display: "grid", gap: 18 }}>
-          {FEATURES.map((f, i) => (
-            <Reveal key={f.title} delay={(i % 3) * 0.08}>
-              <div className="lw-card" style={glassCard({ padding: 26, height: "100%" })}>
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 46,
-                    height: 46,
-                    borderRadius: 14,
-                    background: "rgba(0,255,136,0.10)",
-                    border: "1px solid rgba(0,255,136,0.3)",
-                    color: GREEN,
-                  }}
-                >
-                  {f.icon}
-                </span>
-                <h3
-                  style={{
-                    fontFamily: FONT_DISPLAY,
-                    fontSize: 19,
-                    fontWeight: 700,
-                    margin: "16px 0 8px",
-                  }}
-                >
-                  {f.title}
-                </h3>
-                <p style={{ margin: 0, color: TEXT70, fontSize: 15, lineHeight: 1.65 }}>
-                  {f.body}
-                </p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ---------------------------------------------------------- how it works */
-
-const STEPS = [
-  {
-    step: "1",
-    title: "Step outside",
-    body: "Open the map and see what's glowing nearby.",
-    art: <StepArtMap />,
-  },
-  {
-    step: "2",
-    title: "Walk to it",
-    body: "Orbs, chests, and creatures appear as you get close.",
-    art: <StepArtPath />,
-  },
-  {
-    step: "3",
-    title: "Catch and collect",
-    body: "Open the AR camera, grab your find, grow your collection.",
-    art: <StepArtCamera />,
-  },
-];
-
-function HowItWorks() {
-  return (
-    <section
-      id="how-it-works"
-      style={{
-        padding: "clamp(64px, 9vw, 110px) 20px",
-        background: "linear-gradient(180deg, rgba(18,18,26,0) 0%, rgba(18,18,26,0.5) 50%, rgba(18,18,26,0) 100%)",
-      }}
-    >
-      <div style={{ maxWidth: 1160, margin: "0 auto" }}>
-        <SectionHeader
-          overline="How it works"
-          title="Three steps. Zero manuals."
-          sub="If you can take a walk, you can play BlinkWorld."
-        />
-        <div className="lw-steps-grid" style={{ display: "grid", gap: 18 }}>
-          {STEPS.map((s, i) => (
-            <Reveal key={s.step} delay={i * 0.1}>
-              <div className="lw-card" style={glassCard({ padding: 26, height: "100%" })}>
-                <div
-                  aria-hidden
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    height: 130,
-                    borderRadius: 14,
-                    background: "rgba(10,10,15,0.6)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    marginBottom: 20,
-                  }}
-                >
-                  {s.art}
-                </div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-                  <span
-                    style={{
-                      fontFamily: FONT_DISPLAY,
-                      fontSize: 15,
-                      fontWeight: 700,
-                      color: GREEN,
-                    }}
-                  >
-                    {s.step}
-                  </span>
-                  <h3
-                    style={{
-                      fontFamily: FONT_DISPLAY,
-                      fontSize: 20,
-                      fontWeight: 700,
-                      margin: 0,
-                    }}
-                  >
-                    {s.title}
-                  </h3>
-                </div>
-                <p style={{ margin: "8px 0 0", color: TEXT70, fontSize: 15, lineHeight: 1.65 }}>
-                  {s.body}
-                </p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ---------------------------------------------------- creature showcase */
-
-const SHOWCASE = [
-  { tier: "Common" as const, name: "Pebblekin", img: "/brand/app/creatures/pebblekin.webp" },
-  { tier: "Uncommon" as const, name: "Emberling", img: "/brand/app/creatures/emberling.webp" },
-  { tier: "Rare" as const, name: "Silkmoth", img: "/brand/app/creatures/silkmoth.webp" },
-  { tier: "Legendary" as const, name: "Aethermane", img: "/brand/app/creatures/aethermane.webp" },
-  { tier: "Mythic" as const, name: "Shimmer", img: "/brand/app/creatures/shimmer.webp" },
-];
-
-function CreatureShowcase() {
-  return (
-    <section id="creatures" style={{ padding: "clamp(64px, 9vw, 110px) 20px" }}>
-      <div style={{ maxWidth: 1160, margin: "0 auto" }}>
-        <SectionHeader
-          overline="The collection"
-          title="60+ creatures. Five rarities. One neighborhood at a time."
-          sub="Every creature has a personality — and the rare ones make the whole feed light up."
-        />
-        <div className="lw-creature-row">
-          {SHOWCASE.map((c, i) => (
-            <Reveal key={c.tier} delay={i * 0.07} style={{ height: "100%" }}>
-              <div
-                className="lw-card"
-                style={glassCard({
-                  padding: "22px 16px 20px",
-                  textAlign: "center",
-                  height: "100%",
-                  boxShadow: `0 0 34px ${RARITY[c.tier]}22, inset 0 0 0 1px ${RARITY[c.tier]}26`,
-                })}
-              >
-                <div
-                  style={{
-                    height: 120,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginBottom: 14,
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={c.img}
-                    alt={`${c.name}, a ${c.tier} BlinkWorld creature`}
-                    className="lw-float"
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: 120,
-                      objectFit: "contain",
-                      filter: `drop-shadow(0 6px 18px ${RARITY[c.tier]}55)`,
-                      animationDuration: `${7 + i}s`,
-                    }}
-                  />
-                </div>
-                <div
-                  style={{
-                    fontFamily: FONT_DISPLAY,
-                    fontSize: 16,
-                    fontWeight: 700,
-                    marginBottom: 6,
-                  }}
-                >
-                  {c.name}
-                </div>
-                <span
-                  style={{
-                    display: "inline-block",
-                    padding: "4px 12px",
-                    borderRadius: 999,
-                    fontSize: 11,
-                    fontWeight: 800,
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                    color: RARITY[c.tier],
-                    border: `1px solid ${RARITY[c.tier]}55`,
-                    background: `${RARITY[c.tier]}14`,
-                  }}
-                >
-                  {c.tier}
-                </span>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* --------------------------------------------------------------- safety */
-
-const SAFETY_CARDS = [
-  "Locations are always blurred publicly",
-  "You choose what's visible on your profile",
-  "Block and report anywhere",
-  "Delete your account any time, right in the app",
-];
-
-function Safety() {
-  return (
-    <section
-      id="safety"
-      style={{
-        padding: "clamp(64px, 9vw, 110px) 20px",
-        background: "linear-gradient(180deg, rgba(18,18,26,0) 0%, rgba(18,18,26,0.5) 50%, rgba(18,18,26,0) 100%)",
-      }}
-    >
-      <div style={{ maxWidth: 1160, margin: "0 auto" }}>
-        <SectionHeader
-          overline="Safety & privacy"
-          title="Built privacy-first."
-          sub="Exploring your neighborhood should never mean broadcasting it."
-        />
-        <div className="lw-safety-grid" style={{ display: "grid", gap: 18 }}>
-          {SAFETY_CARDS.map((text, i) => (
-            <Reveal key={text} delay={i * 0.07}>
-              <div
-                className="lw-card"
-                style={glassCard({
-                  padding: 22,
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 14,
-                  height: "100%",
-                })}
-              >
-                <span
-                  aria-hidden
-                  style={{
-                    flexShrink: 0,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 34,
-                    height: 34,
-                    borderRadius: 10,
-                    background: "rgba(0,255,136,0.10)",
-                    border: "1px solid rgba(0,255,136,0.3)",
-                    color: GREEN,
-                  }}
-                >
-                  <ShieldIcon />
-                </span>
-                <p style={{ margin: 0, fontSize: 15, fontWeight: 600, lineHeight: 1.55 }}>
-                  {text}
-                </p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-        <Reveal delay={0.3}>
-          <p style={{ textAlign: "center", marginTop: 30 }}>
-            <Link
-              href="/privacy"
-              style={{
-                color: GREEN,
-                fontWeight: 700,
-                fontSize: 15,
-                textDecoration: "none",
-                borderBottom: `1px solid ${GREEN}66`,
-                paddingBottom: 2,
-              }}
-            >
-              Read our Privacy Policy
-            </Link>
-          </p>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ faq */
-
-const FAQS = [
-  {
-    q: "When does BlinkWorld launch?",
-    a: "We're polishing the final beta now. iPhone launches first on the App Store, with Google Play close behind. Join the waitlist to be first in.",
-  },
-  {
-    q: "Is it free?",
-    a: "Yes — free to download and free to play.",
-  },
-  {
-    q: "What are Blink Orbs?",
-    a: "Blink Orbs are in-game collectible points you gather by exploring. They're just for fun inside BlinkWorld — they are not money, have no cash value, and can't be traded or sold.",
-  },
-  {
-    q: "Does BlinkWorld track my location?",
-    a: "Your location powers the map only while you play. Anything shared publicly is always blurred to a wide area.",
-  },
-  {
-    q: "What devices are supported?",
-    a: "Modern iPhones at launch, Android soon after.",
-  },
-];
-
-function Faq() {
-  return (
-    <section id="faq" style={{ padding: "clamp(64px, 9vw, 110px) 20px" }}>
-      <div style={{ maxWidth: 760, margin: "0 auto" }}>
-        <SectionHeader
-          overline="FAQ"
-          title="Good questions, quick answers."
-        />
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {FAQS.map((f, i) => (
-            <Reveal key={f.q} delay={i * 0.05}>
-              <details className="lw-faq" style={glassCard({ padding: 0, overflow: "hidden" })}>
-                <summary
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 16,
-                    padding: "18px 22px",
-                    cursor: "pointer",
-                    fontFamily: FONT_DISPLAY,
-                    fontSize: 16.5,
-                    fontWeight: 700,
-                    listStyle: "none",
-                  }}
-                >
-                  {f.q}
-                  <span aria-hidden className="lw-faq-chevron" style={{ color: GREEN, flexShrink: 0 }}>
-                    <ChevronIcon />
-                  </span>
-                </summary>
-                <p
-                  style={{
-                    margin: 0,
-                    padding: "0 22px 20px",
-                    color: TEXT70,
-                    fontSize: 15,
-                    lineHeight: 1.7,
-                  }}
-                >
-                  {f.a}
-                </p>
-              </details>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------- final CTA */
-
-function FinalCta() {
-  return (
-    <section id="waitlist" style={{ padding: "clamp(40px, 6vw, 80px) 20px clamp(72px, 9vw, 120px)" }}>
-      <Reveal>
-        <div
-          style={{
-            position: "relative",
-            maxWidth: 900,
-            margin: "0 auto",
-            padding: "clamp(40px, 7vw, 72px) clamp(24px, 5vw, 64px)",
-            borderRadius: 28,
-            textAlign: "center",
-            overflow: "hidden",
-            background: "rgba(18,18,26,0.7)",
-            border: "1px solid rgba(0,255,136,0.25)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            boxShadow: "0 0 80px rgba(0,255,136,0.14), inset 0 0 60px rgba(0,255,136,0.05)",
-          }}
+      <svg width={168} height={56} viewBox="0 0 120 40" role="img" aria-hidden focusable="false">
+        <rect x="0.5" y="0.5" width="119" height="39" rx="6.5" fill="#000" stroke="#A6A6A6" />
+        {/* Apple logo (App Store badge use only) */}
+        <g transform="translate(11.5, 8.5) scale(0.045)" fill="#FFF">
+          <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+        </g>
+        <text
+          x="37"
+          y="17"
+          fill="#FFF"
+          fontSize="8"
+          fontFamily="-apple-system, 'Helvetica Neue', Arial, sans-serif"
         >
-          <div
-            aria-hidden
-            className="lw-breathe"
-            style={{
-              position: "absolute",
-              width: 480,
-              height: 480,
-              left: "50%",
-              top: "-55%",
-              transform: "translateX(-50%)",
-              background: "radial-gradient(circle, rgba(0,255,136,0.22) 0%, rgba(0,255,136,0) 65%)",
-              pointerEvents: "none",
-            }}
-          />
-          <h2
-            style={{
-              position: "relative",
-              fontFamily: FONT_DISPLAY,
-              fontWeight: 700,
-              fontSize: "clamp(28px, 4.6vw, 44px)",
-              lineHeight: 1.15,
-              letterSpacing: "-0.015em",
-              margin: 0,
-            }}
-          >
-            Your neighborhood is hiding something.
-            <br />
-            <span style={{ color: GREEN }}>Find it first.</span>
-          </h2>
-          <div style={{ position: "relative", maxWidth: 480, margin: "30px auto 0" }}>
-            <WaitlistForm idPrefix="cta" />
-          </div>
-        </div>
-      </Reveal>
-    </section>
+          Coming Soon on the
+        </text>
+        <text
+          x="37"
+          y="31.5"
+          fill="#FFF"
+          fontSize="13.5"
+          fontWeight="600"
+          fontFamily="-apple-system, 'Helvetica Neue', Arial, sans-serif"
+        >
+          App Store
+        </text>
+      </svg>
+    </span>
   );
 }
 
-/* --------------------------------------------------------------- footer */
-
-function Footer() {
-  const columns = [
-    {
-      heading: "Product",
-      links: [
-        { href: "#features", label: "Features" },
-        { href: "#how-it-works", label: "How it works" },
-        { href: "#faq", label: "FAQ" },
-      ],
-    },
-    {
-      heading: "Legal",
-      links: [
-        { href: "/privacy", label: "Privacy Policy" },
-        { href: "/terms", label: "Terms of Service" },
-      ],
-    },
-    {
-      heading: "Support",
-      links: [
-        { href: "/support", label: "Help & Contact" },
-        { href: "mailto:support@blinkworld.xyz", label: "support@blinkworld.xyz" },
-      ],
-    },
-  ];
-
-  return (
-    <footer
-      style={{
-        borderTop: "1px solid rgba(255,255,255,0.07)",
-        background: "rgba(18,18,26,0.5)",
-        padding: "clamp(44px, 6vw, 64px) 20px 36px",
-      }}
-    >
-      <div style={{ maxWidth: 1160, margin: "0 auto" }}>
-        <div className="lw-footer-grid">
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/brand/logo-orb-glow.png"
-                alt=""
-                aria-hidden
-                width={28}
-                height={28}
-                style={{
-                  width: 28,
-                  height: 28,
-                  objectFit: "contain",
-                  filter: "drop-shadow(0 0 8px rgba(0,255,136,0.5))",
-                }}
-              />
-              <span
-                style={{
-                  fontFamily: FONT_DISPLAY,
-                  fontWeight: 700,
-                  fontSize: 16,
-                  letterSpacing: "0.08em",
-                }}
-              >
-                BLINKWORLD
-              </span>
-            </div>
-            <p style={{ margin: "12px 0 0", color: TEXT50, fontSize: 14, fontWeight: 600 }}>
-              Walk. Catch. Explore. Battle.
-            </p>
-          </div>
-
-          {columns.map((col) => (
-            <div key={col.heading}>
-              <h3
-                style={{
-                  margin: "0 0 14px",
-                  fontSize: 12,
-                  fontWeight: 800,
-                  letterSpacing: "0.12em",
-                  textTransform: "uppercase",
-                  color: TEXT50,
-                }}
-              >
-                {col.heading}
-              </h3>
-              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-                {col.links.map((l) =>
-                  l.href.startsWith("/") ? (
-                    <li key={l.label}>
-                      <Link href={l.href} className="lw-footer-link">
-                        {l.label}
-                      </Link>
-                    </li>
-                  ) : (
-                    <li key={l.label}>
-                      <a href={l.href} className="lw-footer-link">
-                        {l.label}
-                      </a>
-                    </li>
-                  )
-                )}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        <div
-          style={{
-            marginTop: 44,
-            paddingTop: 24,
-            borderTop: "1px solid rgba(255,255,255,0.06)",
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-          }}
-        >
-          <p style={{ margin: 0, color: TEXT70, fontSize: 13, fontWeight: 600 }}>
-            Please stay aware of your surroundings while you play.
-          </p>
-          <p style={{ margin: 0, color: TEXT50, fontSize: 12 }}>
-            Apple and the App Store are trademarks of Apple Inc. Google Play is a
-            trademark of Google LLC.
-          </p>
-          <p style={{ margin: 0, color: TEXT50, fontSize: 12 }}>
-            &copy; 2026 BlinkWorld. All rights reserved.
-          </p>
-        </div>
-      </div>
-    </footer>
-  );
-}
-
-/* ------------------------------------------------------- shared pieces */
-
-function SectionHeader({
-  overline,
-  title,
-  sub,
-}: {
-  overline: string;
-  title: string;
-  sub?: string;
-}) {
-  return (
-    <Reveal>
-      <div style={{ textAlign: "center", maxWidth: 720, margin: "0 auto 46px" }}>
-        <span
-          style={{
-            color: GREEN,
-            fontSize: 12.5,
-            fontWeight: 800,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-          }}
-        >
-          {overline}
-        </span>
-        <h2
-          style={{
-            fontFamily: FONT_DISPLAY,
-            fontWeight: 700,
-            fontSize: "clamp(26px, 4.2vw, 40px)",
-            lineHeight: 1.15,
-            letterSpacing: "-0.015em",
-            margin: "14px 0 0",
-          }}
-        >
-          {title}
-        </h2>
-        {sub && (
-          <p style={{ margin: "14px 0 0", color: TEXT70, fontSize: 16, lineHeight: 1.6 }}>
-            {sub}
-          </p>
-        )}
-      </div>
-    </Reveal>
-  );
-}
-
-function glassCard(extra: React.CSSProperties): React.CSSProperties {
-  return {
-    background: `linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0)) , ${CARD}`,
-    border: GLASS_BORDER,
-    borderRadius: 20,
-    backdropFilter: "blur(16px)",
-    WebkitBackdropFilter: "blur(16px)",
-    boxSizing: "border-box",
-    ...extra,
-  };
-}
-
-function WaitlistForm({ idPrefix }: { idPrefix: string }) {
+function WaitlistForm() {
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "busy" | "done" | "error">("idle");
-  const [message, setMessage] = useState<string | null>(null);
-  const inputId = `${idPrefix}-waitlist-email`;
+  const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (status === "busy") return;
-    const clean = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(clean)) {
-      setStatus("error");
-      setMessage("Please enter a valid email address.");
+    const trimmed = email.trim();
+    if (!trimmed || !/^\S+@\S+\.\S+$/.test(trimmed)) {
+      setState("error");
       return;
     }
-    setStatus("busy");
-    setMessage(null);
+    setState("loading");
     try {
       const res = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: clean }),
+        body: JSON.stringify({ email: trimmed }),
       });
-      if (!res.ok) throw new Error();
-      setStatus("done");
+      setState(res.ok ? "done" : "error");
     } catch {
-      setStatus("error");
-      setMessage("Something went wrong — please try again in a moment.");
+      setState("error");
     }
   }
 
-  if (status === "done") {
+  if (state === "done") {
     return (
-      <p
+      <div
+        id="notify"
         role="status"
         style={{
-          margin: 0,
+          marginTop: 22,
+          maxWidth: 460,
           padding: "16px 20px",
           borderRadius: 16,
-          background: "rgba(0,255,136,0.10)",
-          border: "1px solid rgba(0,255,136,0.4)",
-          color: GREEN,
+          border: `1px solid rgba(74,232,138,0.4)`,
+          background: GREEN_SOFT,
+          color: WHITE,
           fontSize: 15,
-          fontWeight: 700,
-          textAlign: "center",
+          lineHeight: 1.5,
         }}
       >
-        You&apos;re on the list — we&apos;ll email you the moment the doors open.
-      </p>
+        <strong style={{ color: GREEN }}>You&rsquo;re on the list.</strong>{" "}
+        We&rsquo;ll email you the moment BlinkWorld lands on the App Store.
+      </div>
     );
   }
 
   return (
-    <form onSubmit={submit} noValidate>
-      <label htmlFor={inputId} className="lw-visually-hidden">
-        Email address
+    <form id="notify" onSubmit={submit} style={{ marginTop: 22, maxWidth: 460 }}>
+      <label
+        htmlFor="bw-email"
+        style={{ display: "block", fontSize: 13, color: TEXT50, marginBottom: 9 }}
+      >
+        Get notified at launch
       </label>
-      <div className="lw-waitlist-row">
+      <div className="bwWaitRow">
         <input
-          id={inputId}
+          id="bw-email"
           type="email"
-          inputMode="email"
+          required
           autoComplete="email"
           placeholder="you@example.com"
           value={email}
           onChange={(e) => {
             setEmail(e.target.value);
-            if (status === "error") setStatus("idle");
+            if (state === "error") setState("idle");
           }}
-          className="lw-waitlist-input"
-          style={{
-            flex: 1,
-            minWidth: 0,
-            height: 52,
-            padding: "0 18px",
-            borderRadius: 999,
-            border: "1px solid rgba(255,255,255,0.14)",
-            background: "rgba(10,10,15,0.7)",
-            color: WHITE,
-            fontSize: 15,
-            fontWeight: 600,
-            fontFamily: FONT_BODY,
-            outline: "none",
-          }}
+          className="bwWaitInput"
         />
-        <button
-          type="submit"
-          disabled={status === "busy"}
-          className="lw-cta-pill"
-          style={{ height: 52, whiteSpace: "nowrap" }}
-        >
-          {status === "busy" ? "Joining..." : "Get early access"}
+        <button type="submit" disabled={state === "loading"} className="bwWaitBtn">
+          {state === "loading" ? "Joining…" : "Notify me"}
         </button>
       </div>
-      {status === "error" && message && (
-        <p
-          role="alert"
-          style={{ margin: "10px 4px 0", color: "#FF8AE0", fontSize: 13, fontWeight: 600 }}
-        >
-          {message}
-        </p>
-      )}
+      <p
+        aria-live="polite"
+        style={{
+          margin: "8px 0 0",
+          fontSize: 13,
+          minHeight: 18,
+          color: state === "error" ? "#FF8A8A" : TEXT50,
+        }}
+      >
+        {state === "error"
+          ? "That didn't work — check the email and try again."
+          : "One email at launch. No spam, ever."}
+      </p>
     </form>
   );
 }
 
-/* Fade-and-rise into view on scroll; respects reduced motion. */
-function Reveal({
-  children,
-  delay = 0,
-  style,
-}: {
-  children: React.ReactNode;
-  delay?: number;
-  style?: React.CSSProperties;
-}) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [armed, setArmed] = useState(false);
-  const [shown, setShown] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced || !el || typeof IntersectionObserver === "undefined") {
-      setShown(true);
-      return;
-    }
-    setArmed(true);
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setShown(true);
-            io.disconnect();
-          }
-        }
-      },
-      { threshold: 0.12, rootMargin: "0px 0px -32px 0px" }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
-  const hidden = armed && !shown;
+// Two tilted phone mockups with a soft green glow.
+function HeroPhones() {
   return (
     <div
-      ref={ref}
-      style={{
-        opacity: hidden ? 0 : 1,
-        transform: hidden ? "translateY(26px)" : "none",
-        transition: `opacity 0.7s ease ${delay}s, transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) ${delay}s`,
-        ...style,
-      }}
+      className="bwHeroPhones"
+      aria-hidden
+      style={{ position: "relative", zIndex: 2, display: "flex", justifyContent: "center" }}
     >
-      {children}
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          width: 420,
+          height: 420,
+          borderRadius: "50%",
+          background: "radial-gradient(closest-side, rgba(74,232,138,0.22), transparent 70%)",
+          filter: "blur(10px)",
+        }}
+      />
+      <PhoneFrame
+        src={`${ART}/screens/02_catch_moment.webp`}
+        alt=""
+        width={196}
+        className="bwPhoneBack"
+      />
+      <PhoneFrame
+        src={`${ART}/screens/01_map_home.webp`}
+        alt=""
+        width={236}
+        className="bwPhoneFront"
+      />
     </div>
   );
 }
 
-/* ---------------------------------------------------------------- icons */
-
-function MapIcon() {
+function PhoneFrame({
+  src,
+  alt,
+  width,
+  className,
+}: {
+  src: string;
+  alt: string;
+  width: number;
+  className?: string;
+}) {
+  const radius = width * 0.155;
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z" />
-      <path d="M9 4v14M15 6v14" />
+    <div
+      className={className}
+      style={{
+        width,
+        borderRadius: radius,
+        padding: width * 0.032,
+        background: "linear-gradient(160deg, #2A2C33, #101116)",
+        border: "1px solid rgba(255,255,255,0.14)",
+        boxShadow:
+          "0 24px 70px rgba(0,0,0,0.6), 0 0 46px rgba(74,232,138,0.28)",
+        position: "relative",
+        flexShrink: 0,
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        width={width}
+        height={Math.round(width * 2.174)}
+        loading="lazy"
+        style={{
+          display: "block",
+          width: "100%",
+          height: "auto",
+          borderRadius: radius * 0.72,
+          background: "#000",
+        }}
+      />
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: width * 0.055,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: width * 0.3,
+          height: width * 0.078,
+          borderRadius: 999,
+          background: "#000",
+          border: "1px solid rgba(255,255,255,0.06)",
+        }}
+      />
+    </div>
+  );
+}
+
+/* ──────────────────────────────── Features ──────────────────────────────── */
+
+type Feature = {
+  title: string;
+  body: string;
+  art: string;
+  artMode: "scene" | "sticker";
+};
+
+const FEATURES: Feature[] = [
+  {
+    title: "Live treasure map",
+    body: "Your real neighborhood becomes a glowing night map. Orbs, treasure chests, and geodes appear on the streets around you — walk over and collect them.",
+    art: `${ART}/alpine.webp`,
+    artMode: "scene",
+  },
+  {
+    title: "Cinematic AR creature catching",
+    body: "Point your camera and watch creatures step into your world. Time your catch, feel the flash, and add them to your collection.",
+    art: `${ART}/explorer.webp`,
+    artMode: "scene",
+  },
+  {
+    title: "Pet companions that explore with you",
+    body: "Choose a companion who walks beside you on the map, sniffs out nearby finds, and grows as your adventures stack up.",
+    art: `${ART}/frostkit.webp`,
+    artMode: "sticker",
+  },
+  {
+    title: "Apple Health step rewards",
+    body: "Opt in to Apple Health and your everyday steps unlock bonus orbs, with fair daily caps. Every walk counts.",
+    art: `${ART}/orb-emblem.webp`,
+    artMode: "sticker",
+  },
+  {
+    title: "Live World Feed of catches worldwide",
+    body: "See rare catches light up from players around the planet, and send a Cheer when someone lands a Legendary.",
+    art: `${ART}/city-catch.webp`,
+    artMode: "scene",
+  },
+  {
+    title: "Friend battles & co-op Rifts",
+    body: "Challenge friends to creature battles, or team up to close Rifts together and split the spoils.",
+    art: `${ART}/emberling.webp`,
+    artMode: "sticker",
+  },
+];
+
+function Features() {
+  return (
+    <section
+      id="features"
+      style={{ maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 6vw, 80px) 20px" }}
+    >
+      <SectionHeader
+        kicker="The game"
+        title="A whole world hiding in plain sight"
+        sub="BlinkWorld layers a living adventure over the streets you already walk."
+      />
+      <div className="bwFeatureGrid">
+        {FEATURES.map((f) => (
+          <Reveal key={f.title}>
+            <article className="bwFeatureCard">
+              <div
+                style={{
+                  height: 190,
+                  position: "relative",
+                  overflow: "hidden",
+                  background:
+                    f.artMode === "sticker"
+                      ? "radial-gradient(circle at 50% 60%, rgba(74,232,138,0.18), rgba(5,6,12,0) 72%)"
+                      : "#000",
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={f.art}
+                  alt=""
+                  loading="lazy"
+                  style={
+                    f.artMode === "scene"
+                      ? {
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          objectPosition: "center 30%",
+                          display: "block",
+                        }
+                      : {
+                          height: "82%",
+                          width: "auto",
+                          maxWidth: "70%",
+                          objectFit: "contain",
+                          display: "block",
+                          margin: "18px auto 0",
+                          filter: "drop-shadow(0 10px 26px rgba(74,232,138,0.3))",
+                        }
+                  }
+                />
+                {f.artMode === "scene" && (
+                  <span
+                    aria-hidden
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: "linear-gradient(180deg, rgba(5,6,12,0) 45%, rgba(9,10,16,0.96) 100%)",
+                    }}
+                  />
+                )}
+              </div>
+              <div style={{ padding: "18px 22px 24px" }}>
+                <h3
+                  style={{
+                    fontFamily: FONT_DISPLAY,
+                    fontSize: 19,
+                    fontWeight: 700,
+                    margin: 0,
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  {f.title}
+                </h3>
+                <p style={{ margin: "10px 0 0", color: TEXT70, fontSize: 14.5, lineHeight: 1.65 }}>
+                  {f.body}
+                </p>
+              </div>
+            </article>
+          </Reveal>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────── Screenshot carousel ────────────────────────── */
+
+const SCREENS = [
+  { src: `${ART}/screens/01_map_home.webp`, caption: "Your streets, reimagined as a treasure map" },
+  { src: `${ART}/screens/02_catch_moment.webp`, caption: "The catch moment, in cinematic AR" },
+  { src: `${ART}/screens/03_live_world_feed.webp`, caption: "Watch catches light up worldwide" },
+  { src: `${ART}/screens/04_battles_hub.webp`, caption: "Battle friends, team up for Rifts" },
+  { src: `${ART}/screens/05_blink_card.webp`, caption: "Your explorer card, your story" },
+];
+
+function ScreenshotCarousel() {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [index, setIndex] = useState(0);
+
+  function scrollToSlide(i: number) {
+    const track = trackRef.current;
+    if (!track) return;
+    const clamped = Math.max(0, Math.min(SCREENS.length - 1, i));
+    const slide = track.children[clamped] as HTMLElement | undefined;
+    if (slide) track.scrollTo({ left: slide.offsetLeft - 20, behavior: "smooth" });
+  }
+
+  function onScroll() {
+    const track = trackRef.current;
+    if (!track) return;
+    const slideWidth = (track.children[0] as HTMLElement | undefined)?.offsetWidth ?? 1;
+    setIndex(
+      Math.max(0, Math.min(SCREENS.length - 1, Math.round(track.scrollLeft / (slideWidth + 24)))),
+    );
+  }
+
+  return (
+    <section id="screenshots" style={{ padding: "clamp(40px, 6vw, 80px) 0" }}>
+      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 20px" }}>
+        <SectionHeader
+          kicker="Screenshots"
+          title="See it in motion"
+          sub="Swipe through the world waiting outside your door."
+        />
+      </div>
+      <div style={{ position: "relative", maxWidth: 1180, margin: "0 auto" }}>
+        <button
+          type="button"
+          aria-label="Previous screenshot"
+          className="bwCarArrow bwCarPrev"
+          onClick={() => scrollToSlide(index - 1)}
+          disabled={index <= 0}
+        >
+          <ChevronIcon flip />
+        </button>
+        <div ref={trackRef} className="bwCarTrack" onScroll={onScroll}>
+          {SCREENS.map((s) => (
+            <figure key={s.src} className="bwCarSlide">
+              <PhoneFrame src={s.src} alt={s.caption} width={228} />
+              <figcaption
+                style={{
+                  marginTop: 16,
+                  fontSize: 13.5,
+                  color: TEXT50,
+                  textAlign: "center",
+                  maxWidth: 228,
+                }}
+              >
+                {s.caption}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+        <button
+          type="button"
+          aria-label="Next screenshot"
+          className="bwCarArrow bwCarNext"
+          onClick={() => scrollToSlide(index + 1)}
+          disabled={index >= SCREENS.length - 1}
+        >
+          <ChevronIcon />
+        </button>
+        <div
+          style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 20 }}
+        >
+          {SCREENS.map((s, i) => (
+            <button
+              key={s.src}
+              type="button"
+              aria-label={`Go to screenshot ${i + 1}`}
+              aria-current={index === i}
+              onClick={() => scrollToSlide(i)}
+              style={{
+                width: index === i ? 22 : 8,
+                height: 8,
+                borderRadius: 999,
+                border: "none",
+                cursor: "pointer",
+                background: index === i ? GREEN : "rgba(255,255,255,0.22)",
+                transition: "all 0.25s ease",
+                padding: 0,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ChevronIcon({ flip }: { flip?: boolean }) {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      style={flip ? { transform: "scaleX(-1)" } : undefined}
+    >
+      <path
+        d="M9 5l7 7-7 7"
+        stroke="currentColor"
+        strokeWidth={2.4}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
-function CameraIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M4 8h2.6L9 5h6l2.4 3H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
-      <circle cx="12" cy="14" r="3.4" />
-    </svg>
-  );
-}
+/* ───────────────────────────── Privacy-first ────────────────────────────── */
 
-function ChestIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v9H4v-9Z" />
-      <path d="M4 12h16M12 12v3" />
-      <circle cx="12" cy="14" r="1.4" />
-    </svg>
-  );
-}
+const PRIVACY_POINTS = [
+  {
+    title: "Locations are always blurred",
+    body: "Anything shared publicly shows a wide area, never a street. Nobody can see where you're standing.",
+  },
+  {
+    title: "Visibility is opt-in",
+    body: "You decide what appears on the Live World Feed and who can find you. Nothing is shared by default.",
+  },
+  {
+    title: "Block & report anywhere",
+    body: "One tap blocks or reports any player, from any screen. Reports are reviewed and acted on.",
+  },
+  {
+    title: "Delete your account in-app",
+    body: "Profile, Settings, Delete Account. Permanent, immediate, no email required.",
+  },
+  {
+    title: "No ads",
+    body: "No ad networks, no trackers, no selling your data. The game is the whole product.",
+  },
+];
 
-function PawIcon() {
+function PrivacyFirst() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="7" cy="8" r="2" />
-      <circle cx="12" cy="6" r="2" />
-      <circle cx="17" cy="8" r="2" />
-      <path d="M12 11c-2.8 0-5.5 2.3-5.5 5a3 3 0 0 0 3 3h5a3 3 0 0 0 3-3c0-2.7-2.7-5-5.5-5Z" />
-    </svg>
-  );
-}
-
-function FlameIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M12 3s5.5 4.5 5.5 10a5.5 5.5 0 0 1-11 0C6.5 8.5 9 6.5 9 6.5S9 9 10.5 10C10.5 6.5 12 3 12 3Z" />
-      <path d="M12 21a3 3 0 0 0 3-3c0-2-3-4-3-4s-3 2-3 4a3 3 0 0 0 3 3Z" />
-    </svg>
-  );
-}
-
-function GlobeIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M3 12h18M12 3c2.7 2.6 4 5.6 4 9s-1.3 6.4-4 9c-2.7-2.6-4-5.6-4-9s1.3-6.4 4-9Z" />
-    </svg>
+    <section
+      id="privacy-first"
+      style={{
+        maxWidth: 1180,
+        margin: "0 auto",
+        padding: "clamp(40px, 6vw, 80px) 20px clamp(60px, 8vw, 110px)",
+      }}
+    >
+      <div className="bwPrivacyPanel">
+        <div style={{ flex: "1 1 340px", minWidth: 0 }}>
+          <SectionHeader
+            kicker="Your data, your rules"
+            title="Built privacy-first"
+            sub="A game you play outside should never follow you home."
+            align="left"
+          />
+          <div style={{ display: "grid", gap: 14, marginTop: 28 }}>
+            {PRIVACY_POINTS.map((p) => (
+              <Reveal key={p.title}>
+                <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 10,
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: GREEN_SOFT,
+                      border: `1px solid rgba(74,232,138,0.3)`,
+                      color: GREEN,
+                    }}
+                  >
+                    <ShieldIcon />
+                  </span>
+                  <div>
+                    <h3
+                      style={{ fontFamily: FONT_DISPLAY, fontSize: 16, fontWeight: 700, margin: 0 }}
+                    >
+                      {p.title}
+                    </h3>
+                    <p style={{ margin: "5px 0 0", color: TEXT70, fontSize: 14, lineHeight: 1.6 }}>
+                      {p.body}
+                    </p>
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+          <p style={{ marginTop: 26, fontSize: 13.5, color: TEXT50 }}>
+            The full story lives in our{" "}
+            <Link href="/privacy" style={{ color: GREEN, fontWeight: 600, textDecoration: "none" }}>
+              Privacy Policy
+            </Link>
+            .
+          </p>
+        </div>
+        <div
+          className="bwPrivacyArt"
+          aria-hidden
+          style={{
+            flex: "0 1 320px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            position: "relative",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              width: 300,
+              height: 300,
+              borderRadius: "50%",
+              background: "radial-gradient(closest-side, rgba(74,232,138,0.16), transparent 70%)",
+            }}
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`${ART}/aureling.webp`}
+            alt=""
+            loading="lazy"
+            className="bwFloat"
+            style={{
+              width: "min(300px, 80%)",
+              height: "auto",
+              position: "relative",
+              filter: "drop-shadow(0 16px 40px rgba(74,232,138,0.25))",
+              animationDuration: "10s",
+            }}
+          />
+        </div>
+      </div>
+    </section>
   );
 }
 
 function ShieldIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M12 3 5 6v5c0 4.6 3 8.4 7 10 4-1.6 7-5.4 7-10V6l-7-3Z" />
-      <path d="m9 12 2.2 2.2L15.5 10" />
-    </svg>
-  );
-}
-
-function ChevronIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
-}
-
-/* --------------------------------------------------------- step artwork */
-
-function StepArtMap() {
-  return (
-    <svg width="150" height="100" viewBox="0 0 150 100" fill="none" aria-hidden>
-      <rect x="15" y="10" width="120" height="80" rx="12" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" />
-      <path d="M15 40h120M55 10v80M95 10v80" stroke="rgba(0,255,136,0.22)" strokeWidth="1" />
-      <circle cx="75" cy="52" r="6" fill="#00FF88" />
-      <circle cx="75" cy="52" r="13" stroke="#00FF88" strokeOpacity="0.5" strokeWidth="1.5">
-        <animate attributeName="r" values="10;18;10" dur="3s" repeatCount="indefinite" />
-        <animate attributeName="stroke-opacity" values="0.6;0.1;0.6" dur="3s" repeatCount="indefinite" />
-      </circle>
-      <circle cx="40" cy="26" r="4" fill="#88FF00" fillOpacity="0.9" />
-      <circle cx="112" cy="30" r="4" fill="#00FF88" fillOpacity="0.9" />
-      <circle cx="110" cy="72" r="4" fill="#FFD166" fillOpacity="0.9" />
-    </svg>
-  );
-}
-
-function StepArtPath() {
-  return (
-    <svg width="150" height="100" viewBox="0 0 150 100" fill="none" aria-hidden>
+    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
-        d="M20 82 C 50 82, 46 40, 78 40 S 118 26, 126 24"
-        stroke="#00FF88"
-        strokeWidth="2"
-        strokeDasharray="2 8"
-        strokeLinecap="round"
+        d="M12 3l7 3v5c0 4.6-3 8.4-7 10-4-1.6-7-5.4-7-10V6l7-3z"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinejoin="round"
       />
-      <circle cx="20" cy="82" r="6" fill="#00FF88" />
-      <circle cx="126" cy="24" r="9" fill="none" stroke="#88FF00" strokeWidth="2" />
-      <circle cx="126" cy="24" r="4" fill="#88FF00" />
-      <circle cx="126" cy="24" r="15" stroke="#88FF00" strokeOpacity="0.35" strokeWidth="1.5">
-        <animate attributeName="r" values="12;20;12" dur="3s" repeatCount="indefinite" />
-        <animate attributeName="stroke-opacity" values="0.5;0.05;0.5" dur="3s" repeatCount="indefinite" />
-      </circle>
+      <path
+        d="M9 12l2 2 4-4"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
-function StepArtCamera() {
+/* ────────────────────────────────── Footer ──────────────────────────────── */
+
+function Footer() {
   return (
-    <svg width="150" height="100" viewBox="0 0 150 100" fill="none" aria-hidden>
-      <path d="M30 24v-8h12M120 24v-8h-12M30 76v8h12M120 76v8h-12" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round" />
-      <circle cx="75" cy="50" r="14" fill="url(#lwOrbGrad)" />
-      <circle cx="75" cy="50" r="22" stroke="#00FF88" strokeOpacity="0.4" strokeWidth="1.5">
-        <animate attributeName="r" values="19;27;19" dur="3s" repeatCount="indefinite" />
-        <animate attributeName="stroke-opacity" values="0.5;0.08;0.5" dur="3s" repeatCount="indefinite" />
-      </circle>
-      <defs>
-        <radialGradient id="lwOrbGrad">
-          <stop offset="0%" stopColor="#EAFFF4" />
-          <stop offset="45%" stopColor="#00FF88" />
-          <stop offset="100%" stopColor="#00FF88" stopOpacity="0.2" />
-        </radialGradient>
-      </defs>
-    </svg>
+    <footer
+      style={{
+        position: "relative",
+        zIndex: 2,
+        borderTop: "1px solid rgba(255,255,255,0.07)",
+        background: "rgba(5,6,12,0.7)",
+        padding: "40px 20px 48px",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 1180,
+          margin: "0 auto",
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 22,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+          <LogoOrb size={30} />
+          <span
+            style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 15, letterSpacing: "0.09em" }}
+          >
+            BLINKWORLD
+          </span>
+        </div>
+        <nav aria-label="Legal" style={{ display: "flex", flexWrap: "wrap", gap: 24 }}>
+          {[
+            { href: "/privacy", label: "Privacy Policy" },
+            { href: "/terms", label: "Terms of Use" },
+            { href: "/support", label: "Support" },
+          ].map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              style={{ color: TEXT70, textDecoration: "none", fontSize: 13.5, fontWeight: 600 }}
+            >
+              {l.label}
+            </Link>
+          ))}
+        </nav>
+        <p style={{ margin: 0, color: TEXT50, fontSize: 12.5 }}>&copy; 2026 BlinkWorld</p>
+      </div>
+    </footer>
   );
 }
 
-/* ----------------------------------------------------------------- css */
+/* ─────────────────────────────── Utilities ──────────────────────────────── */
+
+function SectionHeader({
+  kicker,
+  title,
+  sub,
+  align = "center",
+}: {
+  kicker: string;
+  title: string;
+  sub: string;
+  align?: "center" | "left";
+}) {
+  return (
+    <div
+      style={{
+        textAlign: align,
+        maxWidth: align === "center" ? 640 : 520,
+        margin: align === "center" ? "0 auto" : 0,
+      }}
+    >
+      <p
+        style={{
+          fontFamily: FONT_DISPLAY,
+          fontSize: 13,
+          fontWeight: 700,
+          letterSpacing: "0.16em",
+          textTransform: "uppercase",
+          color: GREEN,
+          margin: 0,
+        }}
+      >
+        {kicker}
+      </p>
+      <h2
+        style={{
+          fontFamily: FONT_DISPLAY,
+          fontWeight: 700,
+          fontSize: "clamp(28px, 4vw, 44px)",
+          letterSpacing: "-0.02em",
+          lineHeight: 1.1,
+          margin: "12px 0 0",
+        }}
+      >
+        {title}
+      </h2>
+      <p style={{ margin: "14px 0 0", color: TEXT70, fontSize: 16, lineHeight: 1.6 }}>{sub}</p>
+    </div>
+  );
+}
+
+// Fade-and-rise on first scroll into view. Renders visible when
+// IntersectionObserver is unavailable.
+function Reveal({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    el.classList.add("bwHidden");
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("bwShown");
+            io.unobserve(entry.target);
+          }
+        }
+      },
+      { threshold: 0.15 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return <div ref={ref}>{children}</div>;
+}
+
+/* ──────────────────────────────── Styles ────────────────────────────────── */
 
 const STYLE = `
-.lw-skip {
+.bwRoot { -webkit-font-smoothing: antialiased; }
+
+.bwStar {
   position: absolute;
-  left: -9999px;
-  top: 12px;
-  z-index: 100;
-  padding: 10px 18px;
-  border-radius: 999px;
-  background: #00FF88;
-  color: #000;
-  font-weight: 800;
-  text-decoration: none;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0.5;
+  animation: bwTwinkle 4s ease-in-out infinite;
 }
-.lw-skip:focus {
-  left: 12px;
+@keyframes bwTwinkle {
+  0%, 100% { opacity: 0.18; }
+  50% { opacity: 0.75; }
 }
-.lw-visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
-}
-.lw-cta-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 26px;
-  height: 44px;
-  border-radius: 999px;
-  border: none;
-  background: linear-gradient(92deg, #88FF00, #00FF88);
-  color: #000;
-  font-family: 'Space Grotesk', 'Inter', sans-serif;
-  font-size: 15px;
-  font-weight: 700;
-  text-decoration: none;
-  cursor: pointer;
-  box-shadow: 0 4px 24px rgba(0,255,136,0.4);
-  transition: box-shadow 0.2s ease, transform 0.15s ease;
-}
-.lw-cta-pill:hover { box-shadow: 0 4px 34px rgba(0,255,136,0.65); }
-.lw-cta-pill:active { transform: scale(0.97); }
-.lw-cta-pill:disabled { opacity: 0.6; cursor: wait; }
-.lw-cta-pill-sm { height: 38px; padding: 0 18px; font-size: 13.5px; }
-.lw-cta-pill:focus-visible,
-.lw-footer-link:focus-visible,
-a:focus-visible,
-summary:focus-visible,
-button:focus-visible,
-input:focus-visible {
-  outline: 2px solid #00FF88;
-  outline-offset: 3px;
-}
-.lw-nav-links a:hover { color: #FFFFFF; }
-.lw-footer-link {
-  color: rgba(255,255,255,0.7);
+
+.bwNavLink {
+  color: rgba(255,255,255,0.72);
   text-decoration: none;
   font-size: 14px;
   font-weight: 600;
+  transition: color 0.2s ease;
 }
-.lw-footer-link:hover { color: #00FF88; }
-.lw-grid-texture {
-  background-image:
-    linear-gradient(rgba(0,255,136,0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,255,136,0.05) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 90% 70% at 50% 30%, black 20%, transparent 75%);
-  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 30%, black 20%, transparent 75%);
+.bwNavLink:hover { color: #fff; }
+.bwNavCta {
+  color: #05060C;
+  background: ${GREEN};
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 9px 18px;
+  border-radius: 999px;
+  box-shadow: 0 2px 18px rgba(74,232,138,0.4);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
 }
-.lw-waitlist-row { display: flex; gap: 10px; }
-.lw-waitlist-input::placeholder { color: rgba(255,255,255,0.4); }
-.lw-waitlist-input:focus {
-  border-color: rgba(0,255,136,0.7) !important;
-  box-shadow: 0 0 0 1px rgba(0,255,136,0.5);
+.bwNavCta:hover { transform: translateY(-1px); box-shadow: 0 4px 26px rgba(74,232,138,0.55); }
+@media (max-width: 760px) {
+  .bwNavLink { display: none; }
 }
-.lw-card { transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease; }
-.lw-card:hover { transform: translateY(-4px); box-shadow: 0 12px 44px rgba(0,255,136,0.12); }
-.lw-features-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.lw-steps-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.lw-safety-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.lw-creature-row {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 16px;
-}
-.lw-footer-grid {
-  display: grid;
-  grid-template-columns: 1.4fr repeat(3, 1fr);
-  gap: 36px;
-}
-.lw-faq > summary::-webkit-details-marker { display: none; }
-.lw-faq-chevron { display: inline-flex; transition: transform 0.25s ease; }
-.lw-faq[open] .lw-faq-chevron { transform: rotate(180deg); }
-.lw-faq[open] { border-color: rgba(0,255,136,0.35); }
 
-@keyframes lwFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-12px); }
+.bwHeroGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 48px;
+  align-items: center;
 }
-@keyframes lwBreathe {
-  0%, 100% { opacity: 0.65; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.06); }
+@media (max-width: 900px) {
+  .bwHeroGrid { grid-template-columns: 1fr; gap: 64px; }
 }
-@keyframes lwBreatheCentered {
-  0%, 100% { opacity: 0.65; }
-  50% { opacity: 1; }
-}
-@keyframes lwRing {
-  0% { transform: scale(0.6); opacity: 0.9; }
-  100% { transform: scale(1.5); opacity: 0; }
-}
-@keyframes lwPulseDot {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,136,0.6); }
-  50% { box-shadow: 0 0 0 6px rgba(0,255,136,0); }
-}
-@keyframes lwMarquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-.lw-float { animation: lwFloat 8s ease-in-out infinite; }
-.lw-aurora { animation: lwBreathe 9s ease-in-out infinite; border-radius: 50%; }
-.lw-aurora-slow { animation-duration: 13s; }
-.lw-breathe { animation: lwBreatheCentered 7s ease-in-out infinite; }
-.lw-ring { animation: lwRing 2.6s ease-out infinite; }
-.lw-pulse-dot { animation: lwPulseDot 2.2s ease-in-out infinite; }
-.lw-marquee { animation: lwMarquee 42s linear infinite; }
 
-@media (max-width: 980px) {
-  .lw-hero-grid { grid-template-columns: 1fr !important; }
-  .lw-features-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .lw-safety-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .lw-steps-grid { grid-template-columns: 1fr; }
-  .lw-creature-row {
-    display: flex;
-    overflow-x: auto;
-    padding-bottom: 12px;
-    scroll-snap-type: x mandatory;
-  }
-  .lw-creature-row > div { flex: 0 0 200px; scroll-snap-align: start; }
-  .lw-footer-grid { grid-template-columns: repeat(2, 1fr); }
+.bwHeroPhones { min-height: 420px; align-items: center; }
+.bwPhoneFront {
+  transform: rotate(6deg) translateY(-8px);
+  z-index: 2;
+  margin-left: -46px;
+  animation: bwHover 8s ease-in-out infinite;
 }
-@media (max-width: 720px) {
-  .lw-nav-links { display: none !important; }
+.bwPhoneBack {
+  transform: rotate(-9deg) translateY(26px);
+  opacity: 0.92;
+  animation: bwHover 9s ease-in-out infinite reverse;
 }
-@media (max-width: 560px) {
-  .lw-features-grid { grid-template-columns: 1fr; }
-  .lw-safety-grid { grid-template-columns: 1fr; }
-  .lw-footer-grid { grid-template-columns: 1fr; }
-  .lw-waitlist-row { flex-direction: column; }
-  .lw-waitlist-row .lw-cta-pill { width: 100%; }
+@keyframes bwHover {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -12px; }
 }
+@media (max-width: 480px) {
+  .bwPhoneBack { display: none; }
+  .bwPhoneFront { margin-left: 0; }
+}
+
+.bwFloat { animation: bwDrift 10s ease-in-out infinite; }
+@keyframes bwDrift {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-22px) rotate(4deg); }
+}
+
+.bwWaitRow { display: flex; gap: 10px; }
+.bwWaitInput {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  padding: 0 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.bwWaitInput::placeholder { color: rgba(255,255,255,0.35); }
+.bwWaitInput:focus {
+  border-color: rgba(74,232,138,0.65);
+  box-shadow: 0 0 0 3px rgba(74,232,138,0.18);
+}
+.bwWaitBtn {
+  height: 52px;
+  padding: 0 24px;
+  border: none;
+  border-radius: 14px;
+  background: ${GREEN};
+  color: #05060C;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 24px rgba(74,232,138,0.4);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+.bwWaitBtn:hover { transform: translateY(-1px); box-shadow: 0 6px 32px rgba(74,232,138,0.55); }
+.bwWaitBtn:disabled { opacity: 0.6; cursor: default; transform: none; }
+@media (max-width: 420px) {
+  .bwWaitRow { flex-direction: column; }
+}
+
+.bwFeatureGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+  margin-top: 48px;
+}
+@media (max-width: 980px) { .bwFeatureGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .bwFeatureGrid { grid-template-columns: 1fr; } }
+
+.bwFeatureCard {
+  border-radius: 22px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.035);
+  border: ${CARD_BORDER};
+  height: 100%;
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.bwFeatureCard:hover {
+  transform: translateY(-4px);
+  border-color: rgba(74,232,138,0.4);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.45), 0 0 34px rgba(74,232,138,0.12);
+}
+
+.bwCarTrack {
+  display: flex;
+  gap: 24px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 26px 20px 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.bwCarTrack::-webkit-scrollbar { display: none; }
+.bwCarSlide {
+  scroll-snap-align: center;
+  flex: 0 0 auto;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.bwCarTrack::after { content: ""; flex: 0 0 8px; }
+
+.bwCarArrow {
+  position: absolute;
+  top: 42%;
+  z-index: 5;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(10,12,20,0.82);
+  color: #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+}
+.bwCarArrow:hover { border-color: rgba(74,232,138,0.6); background: rgba(16,20,30,0.95); }
+.bwCarArrow:disabled { opacity: 0.3; cursor: default; }
+.bwCarPrev { left: 10px; }
+.bwCarNext { right: 10px; }
+@media (min-width: 761px) {
+  .bwCarArrow { display: flex; }
+}
+
+.bwPrivacyPanel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
+  padding: clamp(28px, 4.5vw, 56px);
+  border-radius: 28px;
+  border: ${CARD_BORDER};
+  background: linear-gradient(160deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015));
+}
+@media (max-width: 760px) {
+  .bwPrivacyArt { order: -1; flex-basis: 100%; }
+}
+
+.bwHidden { opacity: 0; transform: translateY(22px); transition: opacity 0.6s ease, transform 0.6s ease; }
+.bwHidden.bwShown { opacity: 1; transform: translateY(0); }
+
 @media (prefers-reduced-motion: reduce) {
-  .lw-float, .lw-aurora, .lw-breathe, .lw-ring, .lw-pulse-dot, .lw-marquee, .lw-card {
-    animation: none !important;
-    transition: none !important;
-  }
+  .bwStar, .bwFloat, .bwPhoneFront, .bwPhoneBack { animation: none !important; }
+  .bwHidden { opacity: 1; transform: none; transition: none; }
 }
 `;

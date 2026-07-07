@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import MarketingShell, { Section, P, UL, Strong, GreenLink } from "../marketing-shell";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — BlinkWorld",
+  title: "Terms of Use — BlinkWorld",
   description:
     "The terms that apply when you play BlinkWorld: eligibility, in-game items, community conduct, and real-world safety.",
 };
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function TermsPage() {
   return (
     <MarketingShell
-      title="Terms of Service"
+      title="Terms of Use"
       updated="Effective date: July 5, 2026"
       intro='These terms are an agreement between you and BlinkWorld ("we," "us," "our") that applies whenever you use the BlinkWorld app or website. By playing, you agree to them. We have kept them as readable as we can.'
     >
@@ -36,12 +36,14 @@ export default function TermsPage() {
       <Section title="3. Virtual items">
         <P>
           <Strong>
-            Blink Orbs and all in-game items are a limited game license, have no
-            monetary value, and cannot be redeemed for cash or transferred.
+            Blink Orbs are in-game virtual rewards for fun only, with no
+            monetary value.
           </Strong>{" "}
-          They exist only inside BlinkWorld, only for fun. They are not
-          property, they cannot be sold or traded, and they may be adjusted,
-          rebalanced, or reset as part of running the game.
+          The same is true of every in-game item: creatures, chests, geodes,
+          cosmetics, and anything else you collect are a limited game license,
+          cannot be redeemed for cash, and cannot be sold, traded, or
+          transferred. They exist only inside BlinkWorld, only for fun, and may
+          be adjusted, rebalanced, or reset as part of running the game.
         </P>
       </Section>
 
