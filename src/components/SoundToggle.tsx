@@ -85,7 +85,7 @@ export default function SoundToggle() {
   // area) and bottom-edge CTAs/HUD controls on full-screen pages.
   const placement: CSSProperties =
     pathname === "/"
-      ? { top: "calc(max(env(safe-area-inset-top, 0px), var(--blink-top-inset, 0px)) + 14px)", right: 18 }
+      ? { top: "calc(max(env(safe-area-inset-top, 0px), var(--blink-top-inset, 0px)) + 78px)", right: 18 }
       : { bottom: "calc(env(safe-area-inset-bottom, 0px) + 96px)", right: 18 };
 
   return (
