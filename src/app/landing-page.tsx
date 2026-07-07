@@ -576,36 +576,37 @@ function FloatingOrbs() {
 // data-depth the mouse-parallax loop reads (translate on the wrapper); the
 // idle bob runs on the inner <img> with per-character duration/delay so
 // they never move in lockstep. Visibility/size per breakpoint lives in the
-// bwExpA/B/C classes.
+// bwExpL/R/P classes. L and R are a mirrored pair — same height, same
+// vertical band, symmetric insets — so the hero reads balanced.
 const HERO_EXPLORERS = [
   {
-    // blonde girl — hovering above the right end of the headline
+    // blonde girl — flanking the hero on the left, mid-height
     src: `${EXPLORERS}/explorer_blonde_girl.webp`,
     w: 381,
     h: 494,
-    cls: "bwExpA",
-    depth: -12,
+    cls: "bwExpL",
+    depth: -14,
     z: 3,
-    dur: 7.5,
-    delay: 0.6,
+    dur: 7.4,
+    delay: 0.5,
   },
   {
-    // deep guy — in front, lower-left of the phone cluster
+    // deep guy — mirrored on the right, beside the phone cluster
     src: `${EXPLORERS}/explorer_deep_guy.webp`,
     w: 232,
     h: 443,
-    cls: "bwExpB",
-    depth: -16,
+    cls: "bwExpR",
+    depth: -14,
     z: 3,
-    dur: 6.5,
+    dur: 6.4,
     delay: 0,
   },
   {
-    // goggles guy — peeking out from behind the phones' glow
+    // goggles guy — small, peeking out from behind the phones' glow
     src: `${EXPLORERS}/explorer_goggles_guy.webp`,
     w: 242,
     h: 444,
-    cls: "bwExpC",
+    cls: "bwExpP",
     depth: -7,
     z: 1,
     dur: 9,
@@ -1835,20 +1836,33 @@ const STYLE = `
   0%, 100% { transform: translateY(0) rotate(-1.4deg); }
   50% { transform: translateY(-13px) rotate(1.4deg); }
 }
-.bwExpA { left: 45%; top: 24px; height: 138px; }
-.bwExpB { left: 57%; bottom: 5%; height: 128px; }
-.bwExpC { right: 1.5%; bottom: 38%; height: 114px; }
-@media (max-width: 1020px) {
-  .bwExpA { display: none; } /* would crowd the headline as columns tighten */
+/* Wide screens: the pair floats mid-height in the viewport margins beside
+   the 1180px container — mirrored insets, same band — clear of the headline
+   and waitlist form. The clamp pins them 24px outside the container edge,
+   never drifting more than 170px out on ultrawide monitors (the root's
+   overflow-x: hidden clips nothing at these widths). */
+.bwExpL, .bwExpR { top: calc(50% - 96px); height: 142px; }
+.bwExpL { left: clamp(-170px, calc((1180px - 100vw) / 2 + 24px), -20px); }
+.bwExpR { right: clamp(-170px, calc((1180px - 100vw) / 2 + 24px), -20px); }
+.bwExpP { left: 58%; bottom: 6%; height: 100px; }
+@media (max-width: 1399px) {
+  /* no margin left beside the container — drop the pair to the bottom
+     corners, inside the hero's bottom padding, below text and form */
+  .bwExpL, .bwExpR { top: auto; bottom: 0; height: 84px; }
+  .bwExpL { left: 1.5%; }
+  .bwExpR { right: 1.5%; }
 }
 @media (max-width: 900px) {
-  /* stacked layout: phones sit at the bottom of the hero */
-  .bwExpB { left: 4%; bottom: 2%; height: 104px; }
-  .bwExpC { right: 0; bottom: 26%; height: 92px; }
+  /* stacked layout: phones sit at the bottom of the hero — flank them */
+  .bwExpL, .bwExpR { bottom: 10%; height: 96px; }
+  .bwExpL { left: 2%; }
+  .bwExpR { right: 2%; }
+  .bwExpP { display: none; }
 }
 @media (max-width: 480px) {
-  .bwExpC { display: none; }
-  .bwExpB { height: 92px; }
+  .bwExpL, .bwExpR { bottom: 5%; height: 76px; }
+  .bwExpL { left: 1%; }
+  .bwExpR { right: 1%; }
 }
 
 /* ── choose-your-explorer pedestals ── */
