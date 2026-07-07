@@ -193,7 +193,7 @@ export default function MarketingShell({
             fontSize: 11.5,
           }}
         >
-          Music: &ldquo;Adventure Meme&rdquo; by Kevin MacLeod (
+          Music: &ldquo;Voxel Revolution&rdquo; by Kevin MacLeod (
           <a
             href="https://incompetech.com"
             style={{ color: "inherit", textDecoration: "underline" }}
