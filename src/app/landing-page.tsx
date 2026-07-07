@@ -1038,6 +1038,23 @@ function Footer() {
         </nav>
         <p style={{ margin: 0, color: TEXT50, fontSize: 12.5 }}>&copy; 2026 BlinkWorld</p>
       </div>
+      <p
+        style={{
+          maxWidth: 1180,
+          margin: "18px auto 0",
+          color: "rgba(255,255,255,0.32)",
+          fontSize: 11.5,
+        }}
+      >
+        Music: &ldquo;Adventure Meme&rdquo; by Kevin MacLeod (
+        <a
+          href="https://incompetech.com"
+          style={{ color: "inherit", textDecoration: "underline" }}
+        >
+          incompetech.com
+        </a>
+        ), licensed under CC BY 4.0
+      </p>
     </footer>
   );
 }

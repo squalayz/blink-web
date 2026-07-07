@@ -16,6 +16,11 @@ const STORAGE_KEY = "blink:sound:enabled";
 // this module (e.g. the background-music hook) can react to SoundToggle.
 export const SOUND_ENABLED_EVENT = "blink:sound:enabled-changed";
 
+// Broadcast by the background-music hook whenever actual playback starts or
+// stops (autoplay gating means "enabled" alone doesn't imply audio is
+// audible). SoundToggle listens so its equalizer only dances to real music.
+export const MUSIC_PLAYING_EVENT = "blink:music:playing-changed";
+
 const SOUND_FILES: Record<BlinkSound, string> = {
   awaken: "/sounds/awaken.mp3",
   reveal: "/sounds/reveal.mp3",

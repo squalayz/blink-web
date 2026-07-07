@@ -185,6 +185,23 @@ export default function MarketingShell({
             &copy; 2026 BlinkWorld. All rights reserved.
           </p>
         </div>
+        <p
+          style={{
+            maxWidth: 860,
+            margin: "16px auto 0",
+            color: "rgba(255,255,255,0.32)",
+            fontSize: 11.5,
+          }}
+        >
+          Music: &ldquo;Adventure Meme&rdquo; by Kevin MacLeod (
+          <a
+            href="https://incompetech.com"
+            style={{ color: "inherit", textDecoration: "underline" }}
+          >
+            incompetech.com
+          </a>
+          ), licensed under CC BY 4.0
+        </p>
       </footer>
     </div>
   );

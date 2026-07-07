@@ -1,20 +1,29 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { sounds, SOUND_ENABLED_EVENT } from "@/lib/sounds";
+import { sounds, SOUND_ENABLED_EVENT, MUSIC_PLAYING_EVENT } from "@/lib/sounds";
 
-const MUSIC_SRC = "/music/exploration-theme.mp3";
+const MUSIC_SRC = "/music/adventure-theme.mp3";
 const MUSIC_VOLUME = 0.35;
 
+function broadcastPlaying(playing: boolean): void {
+  window.dispatchEvent(
+    new CustomEvent(MUSIC_PLAYING_EVENT, { detail: { playing } })
+  );
+}
+
 /**
- * Looping background exploration music, tied to the same enabled flag as the
+ * Looping background adventure music, tied to the same enabled flag as the
  * SFX in lib/sounds (localStorage "blink:sound:enabled", toggled by
- * SoundToggle). The ~3MB file is not fetched until playback actually starts.
+ * SoundToggle). The ~1.5MB file is not fetched until playback actually starts.
  */
 export function useBackgroundMusic(): void {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
+    const onPlaying = () => broadcastPlaying(true);
+    const onPause = () => broadcastPlaying(false);
+
     const ensureAudio = (): HTMLAudioElement => {
       let audio = audioRef.current;
       if (!audio) {
@@ -23,6 +32,9 @@ export function useBackgroundMusic(): void {
         audio.src = MUSIC_SRC;
         audio.loop = true;
         audio.volume = MUSIC_VOLUME;
+        // Mirror real playback state to SoundToggle's equalizer.
+        audio.addEventListener("playing", onPlaying);
+        audio.addEventListener("pause", onPause);
         audioRef.current = audio;
       }
       return audio;
@@ -60,9 +72,12 @@ export function useBackgroundMusic(): void {
       const audio = audioRef.current;
       if (audio) {
         audio.pause();
+        audio.removeEventListener("playing", onPlaying);
+        audio.removeEventListener("pause", onPause);
         audio.src = "";
         audioRef.current = null;
       }
+      broadcastPlaying(false);
     };
   }, []);
 }
