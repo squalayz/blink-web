@@ -1164,13 +1164,19 @@ function SwordsIcon() {
 
 /* ─────────────────────────── Screenshot carousel ────────────────────────── */
 
-const SCREENS = [
-  { src: `${ART}/screens/01_map_home.webp`, caption: "Your streets, reimagined as a treasure map" },
-  { src: `${ART}/screens/02_catch_moment.webp`, caption: "The catch moment, in cinematic AR" },
-  { src: `${ART}/screens/03_live_world_feed.webp`, caption: "Watch catches light up worldwide" },
-  { src: `${ART}/screens/04_battles_hub.webp`, caption: "Battle friends, team up for Rifts" },
-  { src: `${ART}/screens/05_blink_card.webp`, caption: "Your explorer card, your story" },
+const SCREENS: { src: string; caption: string; kind: "app" | "world" }[] = [
+  { kind: "app", src: `${ART}/screens/01_map_home.webp`, caption: "Your streets, reimagined as a treasure map" },
+  { kind: "world", src: `${ART}/forest/forest_leap_catch.webp`, caption: "One leap between you and the glow" },
+  { kind: "app", src: `${ART}/screens/02_catch_moment.webp`, caption: "The catch moment, in cinematic AR" },
+  { kind: "world", src: `${ART}/forest/forest_boy_running.webp`, caption: "Chase the glow off the beaten path" },
+  { kind: "app", src: `${ART}/screens/06_your_explorer.webp`, caption: "Shape your Explorer, wear your level" },
+  { kind: "world", src: `${ART}/forest/forest_duo_walk.webp`, caption: "Every walk becomes an expedition" },
+  { kind: "app", src: `${ART}/screens/07_chest_moment.webp`, caption: "A friend cracks a chest, the whole map cheers" },
 ];
+
+// Tallest slide media (228px phone frame at 402x874 aspect, plus bezel padding).
+// Every slide reserves this height so mixed aspect ratios never shift the layout.
+const SLIDE_MEDIA_H = 512;
 
 function ScreenshotCarousel() {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -1187,10 +1193,19 @@ function ScreenshotCarousel() {
   function onScroll() {
     const track = trackRef.current;
     if (!track) return;
-    const slideWidth = (track.children[0] as HTMLElement | undefined)?.offsetWidth ?? 1;
-    setIndex(
-      Math.max(0, Math.min(SCREENS.length - 1, Math.round(track.scrollLeft / (slideWidth + 24)))),
-    );
+    // Slides have mixed widths (phone vs cinematic), so find the nearest one
+    // to the current scroll position instead of dividing by a fixed width.
+    const pos = track.scrollLeft + 20;
+    let nearest = 0;
+    let nearestDist = Infinity;
+    for (let i = 0; i < Math.min(track.children.length, SCREENS.length); i++) {
+      const dist = Math.abs((track.children[i] as HTMLElement).offsetLeft - pos);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = i;
+      }
+    }
+    setIndex(nearest);
   }
 
   return (
@@ -1215,14 +1230,27 @@ function ScreenshotCarousel() {
         <div ref={trackRef} className="bwCarTrack" onScroll={onScroll}>
           {SCREENS.map((s) => (
             <figure key={s.src} className="bwCarSlide">
-              <PhoneFrame src={s.src} alt={s.caption} width={228} />
+              <div
+                style={{
+                  height: SLIDE_MEDIA_H,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {s.kind === "world" ? (
+                  <WorldFrame src={s.src} alt={s.caption} />
+                ) : (
+                  <PhoneFrame src={s.src} alt={s.caption} width={228} />
+                )}
+              </div>
               <figcaption
                 style={{
                   marginTop: 16,
                   fontSize: 13.5,
                   color: TEXT50,
                   textAlign: "center",
-                  maxWidth: 228,
+                  maxWidth: s.kind === "world" ? 300 : 228,
                 }}
               >
                 {s.caption}
@@ -1263,6 +1291,60 @@ function ScreenshotCarousel() {
         </div>
       </div>
     </section>
+  );
+}
+
+function WorldFrame({ src, alt }: { src: string; alt: string }) {
+  // Cinematic 2:3 theme art. The forest renders vary a few pixels in aspect,
+  // so a fixed frame with object-fit: cover keeps them uniform without stretching.
+  const width = 320;
+  const height = 470;
+  return (
+    <div
+      style={{
+        width,
+        height,
+        borderRadius: 26,
+        overflow: "hidden",
+        position: "relative",
+        flexShrink: 0,
+        background: "#000",
+        border: "1px solid rgba(255,255,255,0.14)",
+        boxShadow: "0 24px 70px rgba(0,0,0,0.6), 0 0 46px rgba(0,255,136,0.22)",
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        width={width}
+        height={height}
+        loading="lazy"
+        decoding="async"
+        style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }}
+      />
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: 12,
+          left: 12,
+          padding: "4px 10px",
+          borderRadius: 999,
+          fontSize: 10.5,
+          fontWeight: 700,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: GREEN,
+          background: "rgba(0,0,0,0.55)",
+          border: "1px solid rgba(0,255,136,0.35)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+        }}
+      >
+        World
+      </span>
+    </div>
   );
 }
 
