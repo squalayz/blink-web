@@ -3,16 +3,24 @@
 // BlinkWorld marketing landing page — cinematic edition.
 // Inline styles per repo convention; a single <style> tag carries
 // keyframes, media queries, and hover states (class prefix: bw).
-// No animation libraries — CSS animations + vanilla canvas/rAF/
-// IntersectionObserver (starfield, tilt, reveals, count-ups, carousel,
-// waitlist form). Everything pauses under prefers-reduced-motion and
-// when the tab is hidden.
+// CSS animations + vanilla canvas/rAF/IntersectionObserver (starfield,
+// tilt, reveals, count-ups, carousel, waitlist form); the one library
+// exception is the hero's scroll-parallax mountain backdrop, which uses
+// framer-motion (dynamic-imported, LazyMotion subset). Everything pauses
+// under prefers-reduced-motion and when the tab is hidden.
 
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import StarfieldCanvas from "@/components/marketing/StarfieldCanvas";
 import CreatureMarquee from "@/components/marketing/CreatureMarquee";
 import StatsStrip from "@/components/marketing/StatsStrip";
+
+// Decorative scroll-parallax layer — client-only and loaded after hydration
+// so framer-motion never blocks the initial bundle.
+const HeroBackdrop = dynamic(() => import("@/components/marketing/HeroBackdrop"), {
+  ssr: false,
+});
 
 const GREEN = "#00FF88";
 const GREEN_LIME = "#88FF00";
@@ -47,6 +55,7 @@ export default function LandingPage() {
       <style>{STYLE}</style>
       <ScrollProgress />
       <StarfieldCanvas />
+      <HeroBackdrop />
       <Nav />
       <main style={{ position: "relative", zIndex: 2 }}>
         <Hero />
@@ -1236,13 +1245,16 @@ function ScreenshotCarousel() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  perspective: 900,
                 }}
               >
-                {s.kind === "world" ? (
-                  <WorldFrame src={s.src} alt={s.caption} />
-                ) : (
-                  <PhoneFrame src={s.src} alt={s.caption} width={228} />
-                )}
+                <TiltBox>
+                  {s.kind === "world" ? (
+                    <WorldFrame src={s.src} alt={s.caption} />
+                  ) : (
+                    <PhoneFrame src={s.src} alt={s.caption} width={228} />
+                  )}
+                </TiltBox>
               </div>
               <figcaption
                 style={{
@@ -1344,6 +1356,37 @@ function WorldFrame({ src, alt }: { src: string; alt: string }) {
       >
         World
       </span>
+    </div>
+  );
+}
+
+// Pointer-tracked 3D tilt for carousel media — the frame leans toward the
+// cursor (rotateX/rotateY via CSS vars) and eases back on leave. Desktop
+// pointers only; inert under prefers-reduced-motion.
+function TiltBox({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  function onMove(e: React.MouseEvent<HTMLDivElement>) {
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const r = el.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width - 0.5;
+    const py = (e.clientY - r.top) / r.height - 0.5;
+    el.style.setProperty("--ry", `${(px * 10).toFixed(2)}deg`);
+    el.style.setProperty("--rx", `${(-py * 8).toFixed(2)}deg`);
+  }
+
+  function onLeave() {
+    const el = ref.current;
+    if (!el) return;
+    el.style.setProperty("--ry", "0deg");
+    el.style.setProperty("--rx", "0deg");
+  }
+
+  return (
+    <div ref={ref} className="bwTiltBox" onMouseMove={onMove} onMouseLeave={onLeave}>
+      {children}
     </div>
   );
 }
@@ -2217,6 +2260,13 @@ const STYLE = `
 .bwCarSlide:hover { transform: translateY(-6px); }
 .bwCarTrack::after { content: ""; flex: 0 0 8px; }
 
+.bwTiltBox {
+  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transform-style: preserve-3d;
+  transition: transform 0.28s ease-out;
+  will-change: transform;
+}
+
 .bwCarArrow {
   position: absolute;
   top: 42%;
@@ -2316,5 +2366,6 @@ const STYLE = `
   .bwHidden { opacity: 1; transform: none; filter: none; transition: none; }
   .bwBentoCard, .bwBentoScene, .bwCarSlide, .bwBentoIcon { transition: none !important; }
   .bwBentoCard:hover .bwBentoScene { transform: none; }
+  .bwTiltBox { transform: none !important; transition: none !important; }
 }
 `;

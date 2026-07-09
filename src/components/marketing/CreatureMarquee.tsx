@@ -1,42 +1,38 @@
 "use client";
 
-// "Meet the Creatures" — dual-direction auto-scrolling marquee of the 20
-// creature card arts (public/cards). Rows drift opposite ways, pause on
-// hover, and cards lift with a rarity-tinted glow. The marquee only runs
+// "Meet the Creatures" — dual-direction auto-scrolling marquee of clean
+// companion-creature art (public/brand/app/creatures — transparent stickers,
+// no trading-card frames). Rows drift opposite ways, pause on hover, and
+// creatures lift with a rarity-tinted glow + name tag. The marquee only runs
 // while on screen (IntersectionObserver) and freezes entirely under
 // prefers-reduced-motion (rows become manually scrollable).
 
 import { useEffect, useRef } from "react";
+import Image from "next/image";
 
 const GREEN = "#00FF88";
 const FONT_DISPLAY = "'Space Grotesk', 'Inter', -apple-system, sans-serif";
 
 type Tier = "common" | "uncommon" | "rare" | "legendary" | "mythic";
 
-type Card = { file: string; name: string; tier: Tier };
+type Creature = { file: string; name: string; tier: Tier };
 
-// Names + tiers mirror src/lib/creature-registry.ts.
-const CARDS: Card[] = [
-  { file: "001_sprite", name: "Sprite", tier: "common" },
-  { file: "002_nibbler", name: "Nibbler", tier: "common" },
-  { file: "003_pixie", name: "Pixie", tier: "common" },
-  { file: "004_emberling", name: "Emberling", tier: "common" },
-  { file: "005_dustfox", name: "Dustfox", tier: "common" },
-  { file: "006_pebblekin", name: "Pebblekin", tier: "common" },
-  { file: "007_speckle", name: "Speckle", tier: "common" },
-  { file: "008_hopspirit", name: "Hopspirit", tier: "common" },
-  { file: "009_shimmer", name: "Shimmer", tier: "common" },
-  { file: "010_silkmoth", name: "Silkmoth", tier: "common" },
-  { file: "011_cat", name: "Cat", tier: "uncommon" },
-  { file: "012_glitchhare", name: "Glitch Hare", tier: "uncommon" },
-  { file: "013_whiskerwisp", name: "Whiskerwisp", tier: "uncommon" },
-  { file: "014_hushling", name: "Hushling", tier: "uncommon" },
-  { file: "015_eyefly", name: "Eyefly", tier: "uncommon" },
-  { file: "016_cyclops", name: "Cyclops", tier: "rare" },
-  { file: "017_aethermane", name: "Aethermane", tier: "rare" },
-  { file: "018_oracle", name: "Oracle", tier: "legendary" },
-  { file: "019_phoenix", name: "The Phoenix", tier: "legendary" },
-  { file: "020_firsteye", name: "The First Eye", tier: "mythic" },
+// Names + tiers mirror src/lib/creature-registry.ts (the subset with clean
+// sticker art in public/brand/app/creatures).
+const CREATURES: Creature[] = [
+  { file: "sprite", name: "Sprite", tier: "common" },
+  { file: "pixie", name: "Pixie", tier: "common" },
+  { file: "emberling", name: "Emberling", tier: "common" },
+  { file: "dustfox", name: "Dustfox", tier: "common" },
+  { file: "pebblekin", name: "Pebblekin", tier: "common" },
+  { file: "speckle", name: "Speckle", tier: "common" },
+  { file: "shimmer", name: "Shimmer", tier: "common" },
+  { file: "silkmoth", name: "Silkmoth", tier: "common" },
+  { file: "cat", name: "Cat", tier: "uncommon" },
+  { file: "cyclops", name: "Cyclops", tier: "rare" },
+  { file: "aethermane", name: "Aethermane", tier: "rare" },
+  { file: "oracle", name: "Oracle", tier: "legendary" },
+  { file: "firsteye", name: "The First Eye", tier: "mythic" },
 ];
 
 const TIER_LABEL: Record<Tier, string> = {
@@ -65,8 +61,8 @@ const TIER_TEXT: Record<Tier, string> = {
 };
 
 // Interleave so both rows carry the full rarity spread.
-const ROW_A = CARDS.filter((_, i) => i % 2 === 0);
-const ROW_B = CARDS.filter((_, i) => i % 2 === 1);
+const ROW_A = CREATURES.filter((_, i) => i % 2 === 0);
+const ROW_B = CREATURES.filter((_, i) => i % 2 === 1);
 
 export default function CreatureMarquee() {
   const sectionRef = useRef<HTMLElement>(null);
@@ -168,20 +164,20 @@ export default function CreatureMarquee() {
         </div>
       </div>
 
-      <div style={{ marginTop: 44, display: "grid", gap: 22 }}>
-        <MarqueeRow cards={ROW_A} duration={58} />
-        <MarqueeRow cards={ROW_B} duration={72} reverse />
+      <div style={{ marginTop: 44, display: "grid", gap: 10 }}>
+        <MarqueeRow creatures={ROW_A} duration={52} />
+        <MarqueeRow creatures={ROW_B} duration={66} reverse />
       </div>
     </section>
   );
 }
 
 function MarqueeRow({
-  cards,
+  creatures,
   duration,
   reverse,
 }: {
-  cards: Card[];
+  creatures: Creature[];
   duration: number;
   reverse?: boolean;
 }) {
@@ -193,8 +189,8 @@ function MarqueeRow({
       >
         {[0, 1].map((copy) => (
           <div key={copy} className="bwMarqGroup" aria-hidden={copy === 1}>
-            {cards.map((c) => (
-              <CreatureCard key={`${copy}-${c.file}`} card={c} />
+            {creatures.map((c, i) => (
+              <CreatureSticker key={`${copy}-${c.file}`} creature={c} bobDelay={i * 0.7} />
             ))}
           </div>
         ))}
@@ -203,26 +199,28 @@ function MarqueeRow({
   );
 }
 
-function CreatureCard({ card }: { card: Card }) {
+function CreatureSticker({ creature, bobDelay }: { creature: Creature; bobDelay: number }) {
   return (
     <figure
       className="bwCreature"
-      style={{ ["--glow" as string]: TIER_GLOW[card.tier] }}
+      style={{ ["--glow" as string]: TIER_GLOW[creature.tier] }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={`/cards/${card.file}.webp`}
-        alt={`${card.name} — ${TIER_LABEL[card.tier]} creature card`}
-        width={700}
-        height={1044}
-        loading="lazy"
-        decoding="async"
-        draggable={false}
-      />
+      {/* light pool the creature floats above */}
+      <span className="bwCreatureFloor" aria-hidden />
+      <span className="bwCreatureBob" style={{ animationDelay: `${bobDelay}s` }}>
+        <Image
+          src={`/brand/app/creatures/${creature.file}.webp`}
+          alt={`${creature.name} — ${TIER_LABEL[creature.tier]} creature`}
+          width={200}
+          height={200}
+          sizes="(max-width: 620px) 140px, 180px"
+          draggable={false}
+        />
+      </span>
       <figcaption className="bwCreatureTag">
-        <span style={{ color: "#fff", fontWeight: 700 }}>{card.name}</span>
-        <span style={{ color: TIER_TEXT[card.tier], letterSpacing: "0.08em", textTransform: "uppercase", fontSize: 10 }}>
-          {TIER_LABEL[card.tier]}
+        <span style={{ color: "#fff", fontWeight: 700 }}>{creature.name}</span>
+        <span style={{ color: TIER_TEXT[creature.tier], letterSpacing: "0.08em", textTransform: "uppercase", fontSize: 10 }}>
+          {TIER_LABEL[creature.tier]}
         </span>
       </figcaption>
     </figure>
@@ -253,26 +251,26 @@ const MARQUEE_STYLE = `
 .bwMarqRev { animation-direction: reverse; }
 .bwMarqGroup {
   display: flex;
-  gap: 20px;
-  padding: 14px 10px;
+  gap: 30px;
+  padding: 10px 15px;
 }
 @keyframes bwMarqScroll {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
 }
 
+/* Free-floating sticker — no card frame, just art + rarity glow. */
 .bwCreature {
   position: relative;
   margin: 0;
   flex: 0 0 auto;
-  width: clamp(148px, 16vw, 200px);
-  border-radius: 16px;
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.1);
-  background: #000;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 0.35s ease, border-color 0.35s ease;
+  width: clamp(140px, 15vw, 180px);
+  padding-bottom: 34px;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.bwCreatureBob {
+  display: block;
+  animation: bwCreatureBob 6.5s ease-in-out infinite;
 }
 .bwCreature img {
   display: block;
@@ -280,24 +278,43 @@ const MARQUEE_STYLE = `
   height: auto;
   user-select: none;
   -webkit-user-drag: none;
+  filter: drop-shadow(0 14px 26px rgba(0,0,0,0.55)) drop-shadow(0 0 22px var(--glow));
+  transition: filter 0.35s ease, transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.bwCreature:hover {
-  transform: translateY(-10px) rotate(-1.5deg) scale(1.04);
-  border-color: var(--glow);
-  box-shadow: 0 22px 50px rgba(0,0,0,0.6), 0 0 38px var(--glow);
-  z-index: 2;
+@keyframes bwCreatureBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
 }
+.bwCreatureFloor {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  width: 72%;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--glow), transparent 72%);
+  filter: blur(9px);
+  opacity: 0.55;
+  transition: opacity 0.35s ease, width 0.35s ease;
+}
+.bwCreature:hover { transform: translateY(-8px); z-index: 2; }
+.bwCreature:hover img {
+  transform: scale(1.07);
+  filter: drop-shadow(0 20px 34px rgba(0,0,0,0.6)) drop-shadow(0 0 34px var(--glow));
+}
+.bwCreature:hover .bwCreatureFloor { opacity: 0.95; width: 84%; }
 .bwCreatureTag {
   position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 8px;
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 6px);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 7px 11px;
-  border-radius: 10px;
+  gap: 9px;
+  white-space: nowrap;
+  padding: 6px 12px;
+  border-radius: 999px;
   font-family: 'Inter', -apple-system, system-ui, sans-serif;
   font-size: 12px;
   background: rgba(4,6,10,0.82);
@@ -305,19 +322,21 @@ const MARQUEE_STYLE = `
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   opacity: 0;
-  transform: translateY(8px);
   transition: opacity 0.3s ease, transform 0.3s ease;
   pointer-events: none;
 }
 .bwCreature:hover .bwCreatureTag {
   opacity: 1;
-  transform: translateY(0);
+  transform: translate(-50%, 0);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .bwMarqTrack { animation: none !important; }
   .bwMarqRow { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
-  .bwCreature, .bwCreatureTag { transition: none !important; }
-  .bwCreatureTag { opacity: 1; transform: none; }
+  .bwCreature, .bwCreatureTag, .bwCreature img, .bwCreatureFloor { transition: none !important; }
+  .bwCreatureBob { animation: none !important; }
+  .bwCreature:hover { transform: none; }
+  .bwCreature:hover img { transform: none; }
+  .bwCreatureTag { opacity: 1; transform: translate(-50%, 0); }
 }
 `;
