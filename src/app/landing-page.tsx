@@ -22,6 +22,8 @@ const HeroBackdrop = dynamic(() => import("@/components/marketing/HeroBackdrop")
   ssr: false,
 });
 
+const APP_STORE_URL = "https://apps.apple.com/app/id6774225621";
+
 const GREEN = "#00FF88";
 const GREEN_LIME = "#88FF00";
 const GREEN_SOFT = "rgba(0,255,136,0.12)";
@@ -241,8 +243,12 @@ function Nav() {
           <Link href="/support" className="bwNavLink">
             Support
           </Link>
-          <a href="#notify" className="bwNavCta">
-            Get notified
+          <a
+            href={APP_STORE_URL}
+            className="bwNavCta"
+            aria-label="Download BlinkWorld on the App Store"
+          >
+            Download
           </a>
         </div>
       </nav>
@@ -392,7 +398,7 @@ function Hero() {
                 boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 0 24px rgba(0,255,136,0.12)",
               }}
             >
-              Coming soon to iPhone
+              Now on the App Store
             </span>
           </div>
 
@@ -456,6 +462,13 @@ function Hero() {
                 boxShadow: "0 8px 28px rgba(0,0,0,0.5), 0 0 22px rgba(0,255,136,0.25)",
               }}
             />
+            <a
+              href={APP_STORE_URL}
+              className="bwDownloadBtn"
+              aria-label="Download BlinkWorld now on the App Store"
+            >
+              Download Now
+            </a>
             <AppStoreBadge />
           </div>
 
@@ -719,11 +732,12 @@ function ExplorerStrip() {
   );
 }
 
-// Official-style black App Store badge, "Coming Soon" variant.
+// Official-style black App Store badge — links straight to the store listing.
 function AppStoreBadge() {
   return (
-    <span
-      aria-label="Coming soon on the App Store"
+    <a
+      href={APP_STORE_URL}
+      aria-label="Download BlinkWorld on the App Store"
       style={{ display: "inline-block", lineHeight: 0 }}
     >
       <svg width={168} height={56} viewBox="0 0 120 40" role="img" aria-hidden focusable="false">
@@ -739,7 +753,7 @@ function AppStoreBadge() {
           fontSize="8"
           fontFamily="-apple-system, 'Helvetica Neue', Arial, sans-serif"
         >
-          Coming Soon on the
+          Download on the
         </text>
         <text
           x="37"
@@ -752,7 +766,7 @@ function AppStoreBadge() {
           App Store
         </text>
       </svg>
-    </span>
+    </a>
   );
 }
 
@@ -830,7 +844,7 @@ function WaitlistForm() {
         </span>
         <span>
           <strong style={{ color: GREEN }}>You&rsquo;re on the list.</strong>{" "}
-          We&rsquo;ll email you the moment BlinkWorld lands on the App Store.
+          We&rsquo;ll email you when big updates and new creatures drop.
         </span>
       </div>
     );
@@ -842,7 +856,7 @@ function WaitlistForm() {
         htmlFor="bw-email"
         style={{ display: "block", fontSize: 13, color: TEXT50, marginBottom: 9 }}
       >
-        Get notified at launch
+        Want updates by email?
       </label>
       <div className="bwWaitCapsule">
         <input
@@ -859,7 +873,7 @@ function WaitlistForm() {
           className="bwWaitInput"
         />
         <MagneticButton type="submit" disabled={state === "loading"} className="bwWaitBtn">
-          {state === "loading" ? "Joining…" : "Notify me"}
+          {state === "loading" ? "Joining…" : "Get updates"}
         </MagneticButton>
       </div>
       <p
@@ -873,7 +887,7 @@ function WaitlistForm() {
       >
         {state === "error"
           ? "That didn't work — check the email and try again."
-          : "One email at launch. No spam, ever."}
+          : "Occasional updates only. No spam, ever."}
       </p>
     </form>
   );
@@ -1918,6 +1932,39 @@ const STYLE = `
 }
 
 /* ── hero ── */
+.bwDownloadBtn {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 54px;
+  padding: 0 32px;
+  border-radius: 999px;
+  background: linear-gradient(120deg, ${GREEN}, #4DFFA6);
+  color: #05060C;
+  font-family: ${FONT_DISPLAY};
+  font-size: 16.5px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 28px rgba(0,255,136,0.45), inset 0 1px 0 rgba(255,255,255,0.45);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+.bwDownloadBtn::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -80%;
+  width: 50%;
+  transform: skewX(-20deg);
+  background: linear-gradient(105deg, transparent, rgba(255,255,255,0.6), transparent);
+  transition: left 0.6s ease;
+}
+.bwDownloadBtn:hover { transform: translateY(-1px); box-shadow: 0 6px 36px rgba(0,255,136,0.6), inset 0 1px 0 rgba(255,255,255,0.45); }
+.bwDownloadBtn:hover::after { left: 130%; }
+
 .bwHeroGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
@@ -2352,7 +2399,7 @@ const STYLE = `
 @media (prefers-reduced-motion: reduce) {
   .bwFloat, .bwPhoneFront, .bwPhoneBack, .bwWord, .bwRise, .bwShimmer,
   .bwWaitDone, .bwCheckPath, .bwKickerLine, .bwNavCta::after, .bwWaitBtn::after,
-  .bwExpBob {
+  .bwDownloadBtn::after, .bwExpBob {
     animation: none !important;
     transition: none !important;
   }

@@ -13,7 +13,15 @@ const GREEN_LIGHT = "#7DF5AE";
 const FAQS = [
   {
     q: "When does BlinkWorld launch?",
-    a: "We're polishing the final beta now. iPhone launches first on the App Store, with Google Play close behind.",
+    a: (
+      <>
+        It&rsquo;s live! BlinkWorld is out now for iPhone —{" "}
+        <GreenLink href="https://apps.apple.com/app/id6774225621">
+          download it on the App Store
+        </GreenLink>
+        . A Google Play version for Android is in the works.
+      </>
+    ),
   },
   {
     q: "Is it free?",

@@ -1,64 +1,133 @@
+// ════════════════════════════════════════════════════════════════════════════
+// POST /api/claim/lookup — Airdrop Claim v3.
+//
+// Body: { code } — the player's PRIVATE Blink Code (XXXX-XXXX). No email,
+// no password, no OTP. Reads claim_codes → airdrop_export on the BlinkWorld
+// game project (read-only), logs a hashed-IP attempt row, and on success
+// issues a 20-minute httpOnly session cookie bound to the profile_id.
+// ════════════════════════════════════════════════════════════════════════════
+
 import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "crypto";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { blinkworldAdmin } from "@/lib/blinkworld-admin";
+import {
+  normalizeBlinkCode,
+  signSession,
+  getClientIp,
+  hashIp,
+  PLAYER_COOKIE,
+  PLAYER_TTL_S,
+  SESSION_COOKIE_OPTS,
+} from "@/lib/claim-v3";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  if (!hash) return false;
-  if (hash.startsWith("$2a$") || hash.startsWith("$2b$") || hash.startsWith("$2y$")) {
-    try {
-      // Optional dep: avoid static type resolution when bcryptjs isn't installed.
-      const mod = "bcryptjs";
-      const bcrypt: any = await import(/* webpackIgnore: true */ mod).catch(() => null);
-      if (bcrypt && typeof bcrypt.compare === "function") {
-        return await bcrypt.compare(password, hash);
-      }
-      return false;
-    } catch {
-      return false;
-    }
-  }
-  const sha = createHash("sha256").update(password).digest("hex");
-  return sha === hash.toLowerCase();
-}
+const GENERIC_FAIL =
+  "That code isn't recognized. Double-check your private Blink Code in the app and try again.";
+
+const RATE_LIMITED = "Too many attempts. Try again later.";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => null);
-    const claim_code: string = (body?.claim_code || "").toString().trim().toUpperCase();
-    const password: string = (body?.password || "").toString();
+    const db = blinkworldAdmin();
+    const ipHash = hashIp(getClientIp(req));
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-    if (!claim_code || !password) {
-      return NextResponse.json({ error: "Claim code and password required" }, { status: 400 });
+    // ── Rate limit: max 30 total / 5 failed lookups per hour per IP ──
+    const [{ count: total }, { count: failed }] = await Promise.all([
+      db
+        .from("airdrop_lookup_attempts")
+        .select("id", { count: "exact", head: true })
+        .eq("ip_hash", ipHash)
+        .gte("created_at", hourAgo),
+      db
+        .from("airdrop_lookup_attempts")
+        .select("id", { count: "exact", head: true })
+        .eq("ip_hash", ipHash)
+        .eq("success", false)
+        .gte("created_at", hourAgo),
+    ]);
+    if ((total ?? 0) >= 30 || (failed ?? 0) >= 5) {
+      return NextResponse.json({ error: RATE_LIMITED }, { status: 429 });
     }
 
-    const { data: profile, error } = await supabaseAdmin
-      .from("profiles")
-      .select("id, claimable_points, username, display_name, claim_password_hash")
-      .eq("claim_code", claim_code)
+    const logAttempt = (success: boolean) =>
+      db.from("airdrop_lookup_attempts").insert({ ip_hash: ipHash, success });
+
+    const body = await req.json().catch(() => null);
+    const raw = (body?.code || "").toString();
+    const { cleaned, formatted, looksLikeTrainerCode } = normalizeBlinkCode(raw);
+
+    if (!cleaned) {
+      return NextResponse.json({ error: "Enter your Blink Code." }, { status: 400 });
+    }
+
+    // Public BL-XXXX trainer/buddy codes are NEVER valid claim credentials.
+    if (looksLikeTrainerCode) {
+      await logAttempt(false);
+      return NextResponse.json(
+        {
+          error:
+            "That's your public Buddy Code — it can't claim tokens. Your private Blink Code is 8 characters (XXXX-XXXX) and is shown only to you in the BlinkWorld app.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!formatted) {
+      await logAttempt(false);
+      return NextResponse.json({ error: GENERIC_FAIL }, { status: 401 });
+    }
+
+    // ── claim_codes: private code → profile (read-only) ──
+    const { data: codeRow, error: codeErr } = await db
+      .from("claim_codes")
+      .select("profile_id")
+      .eq("code", formatted)
       .maybeSingle();
 
-    if (error || !profile) {
-      return NextResponse.json({ error: "Invalid code or password" }, { status: 401 });
+    if (codeErr || !codeRow) {
+      await logAttempt(false);
+      return NextResponse.json({ error: GENERIC_FAIL }, { status: 401 });
     }
 
-    const ok = await verifyPassword(password, profile.claim_password_hash || "");
-    if (!ok) {
-      return NextResponse.json({ error: "Invalid code or password" }, { status: 401 });
+    // ── airdrop_export: player-visible balance only (read-only view) ──
+    const { data: exportRow, error: exportErr } = await db
+      .from("airdrop_export")
+      .select("profile_id, display_name, username, blink_lifetime")
+      .eq("profile_id", codeRow.profile_id)
+      .maybeSingle();
+
+    if (exportErr || !exportRow) {
+      await logAttempt(false);
+      return NextResponse.json({ error: GENERIC_FAIL }, { status: 401 });
     }
 
-    const claimable_points = Number(profile.claimable_points || 0);
-    const tokens_available = Math.floor(claimable_points / 1000);
+    // Returning player? Surface their registration so the UI can show status.
+    const { data: reg } = await db
+      .from("airdrop_registrations")
+      .select("eth_address, status, updated_at")
+      .eq("profile_id", codeRow.profile_id)
+      .maybeSingle();
 
-    return NextResponse.json({
-      profile_id: profile.id,
-      username: profile.username,
-      display_name: profile.display_name,
-      claimable_points,
-      tokens_available,
+    await logAttempt(true);
+
+    const res = NextResponse.json({
+      ok: true,
+      display_name: exportRow.display_name || exportRow.username || "Explorer",
+      blink_lifetime: Number(exportRow.blink_lifetime || 0),
+      existing_claim: reg
+        ? { eth_address: reg.eth_address, status: reg.status, updated_at: reg.updated_at }
+        : null,
     });
-  } catch (e: any) {
-    return NextResponse.json({ error: "Lookup failed" }, { status: 500 });
+    res.cookies.set(
+      PLAYER_COOKIE,
+      signSession({ pid: codeRow.profile_id }, PLAYER_TTL_S),
+      { ...SESSION_COOKIE_OPTS, maxAge: PLAYER_TTL_S },
+    );
+    return res;
+  } catch (e) {
+    console.error("[claim/lookup] error:", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "Something went wrong. Try again." }, { status: 500 });
   }
 }

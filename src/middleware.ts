@@ -16,7 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 // Flip the env var off and the whole app comes back — no code removed.
 const MARKETING_ONLY = process.env.NEXT_PUBLIC_MARKETING_ONLY === "true";
 
-const MARKETING_ALLOWED_EXACT = ["/", "/privacy", "/terms", "/support"];
+const MARKETING_ALLOWED_EXACT = ["/", "/privacy", "/terms", "/support", "/claim"];
 const MARKETING_ALLOWED_PREFIXES = [
   "/u/", // public trainer cards
   "/b/", // battle-invite fallback pages
@@ -24,6 +24,11 @@ const MARKETING_ALLOWED_PREFIXES = [
   "/.well-known/", // apple-app-site-association (universal links)
   "/api/waitlist", // landing-page waitlist form
   "/api/health",
+  "/claim/", // airdrop claim v3 (+ /claim/admin) — unlinked, noindex
+  "/api/claim/lookup", // airdrop claim v3 APIs only (legacy claim APIs stay locked)
+  "/api/claim/submit",
+  "/api/claim/status",
+  "/api/claim/admin",
 ];
 
 function isMarketingAllowed(pathname: string): boolean {
@@ -40,6 +45,7 @@ function isMarketingAllowed(pathname: string): boolean {
 const MARKETING_ROBOTS = `User-agent: *
 Allow: /
 Disallow: /api/
+Disallow: /claim
 
 Sitemap: https://blinkworld.xyz/sitemap.xml
 `;

@@ -1,983 +1,679 @@
 "use client";
 
 // ════════════════════════════════════════════════════════════════════════════
-// /claim — the Orb Bank. Points earned walking + catching convert to real
-// $BLINK (ERC-20, Ethereum mainnet). Mirrors the iOS app's OrbBankCard:
-// glass card, caps-tracking labels, hero counter with shine sweep, pulsing
-// claim CTA. Logged-in players claim straight from their session; players
-// arriving from the iOS app use their claim code + password.
+// /claim — BlinkWorld Airdrop Claim v3. Code-only, zero email.
+//
+// One screen, three stages:
+//   1. Enter private Blink Code (XXXX-XXXX, auto-formats)
+//   2. Balance reveal hero (count-up of lifetime Blink Balls)
+//   3. Paste ETH address → press-and-hold to lock → pending
+// Returning players (valid code / live session) see their claim status and
+// can edit the address only while it's still pending.
+//
+// Registration only — this page never sends tokens and never asks for keys.
 // ════════════════════════════════════════════════════════════════════════════
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useAuth } from "@/components/providers";
-import { supabase } from "@/lib/supabase";
-import BlinkTokenCoin from "@/components/BlinkTokenCoin";
-import {
-  ClaimProviders,
-  WalletClaim,
-  type ClaimSuccess,
-} from "@/components/ClaimWalletPanel";
-import {
-  C,
-  RARITY_COLOR,
-  glassCard,
-  capsLabel,
-  counterFont,
-  primaryCta,
-  FONT_DISPLAY,
-} from "@/lib/theme";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import { AnimatePresence, motion } from "framer-motion";
+import CountUp from "react-countup";
+import { C } from "@/lib/theme";
 
-const TOKEN_CONTRACT =
-  process.env.NEXT_PUBLIC_BLINK_TOKEN_CONTRACT ||
-  "0xe7BF94959b0bfa8CB9e61149de5BFb387B40761B";
+const FONT = "'Outfit', 'Space Grotesk', system-ui, sans-serif";
 
-type LedgerRow = {
-  points_redeemed: number;
-  tokens_sent: number;
-  eth_address: string;
-  tx_hash: string | null;
-  status: string;
-  created_at: string;
+type Registration = { eth_address: string; status: string; updated_at?: string };
+type Stage = "code" | "reveal" | "address" | "done";
+
+const STATUS_META: Record<string, { label: string; color: string; blurb: string }> = {
+  pending: {
+    label: "PENDING REVIEW",
+    color: "#FFD166",
+    blurb: "You're registered. We're reviewing claims — check back soon.",
+  },
+  approved: {
+    label: "APPROVED",
+    color: C.primary,
+    blurb: "Your claim is approved. Tokens will be distributed in a batch send.",
+  },
+  rejected: {
+    label: "NOT ELIGIBLE",
+    color: C.danger,
+    blurb: "This claim didn't pass review. Reach out via support if you think that's wrong.",
+  },
+  sent: {
+    label: "TOKENS SENT",
+    color: C.primary2,
+    blurb: "Tokens were sent to your registered address. Welcome aboard, explorer.",
+  },
 };
 
-type MeClaim = {
-  username: string | null;
-  display_name: string | null;
-  claimable_points: number;
-  tokens_available: number;
-  total_claimed_tokens: number;
-  last_claim_at: string | null;
-  eth_address: string | null;
-  history: LedgerRow[];
-};
+// ── Floating Blink Balls background ─────────────────────────────────────────
 
-type MeStats = {
-  totalCatches: number;
-  catchesToday: number;
-  streakDays: number;
-};
+const BALLS = [
+  { size: 120, left: "8%", top: "12%", dur: 19, delay: 0, o: 0.16 },
+  { size: 52, left: "78%", top: "8%", dur: 14, delay: 2, o: 0.22 },
+  { size: 84, left: "88%", top: "58%", dur: 22, delay: 5, o: 0.14 },
+  { size: 38, left: "16%", top: "72%", dur: 12, delay: 1, o: 0.26 },
+  { size: 66, left: "62%", top: "82%", dur: 17, delay: 4, o: 0.18 },
+  { size: 28, left: "42%", top: "18%", dur: 11, delay: 3, o: 0.3 },
+  { size: 96, left: "-3%", top: "48%", dur: 24, delay: 6, o: 0.12 },
+  { size: 44, left: "70%", top: "34%", dur: 15, delay: 0.5, o: 0.2 },
+];
 
-type LookupResult = {
-  profile_id: string;
-  username: string | null;
-  display_name: string | null;
-  claimable_points: number;
-  tokens_available: number;
-};
-
-export default function ClaimPage() {
-  const { user, loading } = useAuth();
-
+function BlinkBallsBackdrop() {
   return (
-    <ClaimProviders>
-      <ClaimShell user={user} loading={loading} />
-    </ClaimProviders>
-  );
-}
-
-function ClaimShell({
-  user,
-  loading,
-}: {
-  user: { id: string } | null;
-  loading: boolean;
-}) {
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: C.bg,
-        color: C.text,
-        fontFamily: FONT_DISPLAY,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        padding: "32px 16px 96px",
-        boxSizing: "border-box",
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      {/* Background glow */}
+    <div aria-hidden style={{ position: "fixed", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
+      {BALLS.map((b, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            left: b.left,
+            top: b.top,
+            width: b.size,
+            height: b.size,
+            borderRadius: "50%",
+            opacity: b.o,
+            background: `radial-gradient(circle at 32% 30%, ${i % 2 ? C.primary2 : C.primary}, rgba(0,255,136,0.05) 68%)`,
+            filter: `blur(${Math.max(1, b.size / 22)}px)`,
+            animation: `bwFloat ${b.dur}s ease-in-out ${b.delay}s infinite alternate`,
+          }}
+        />
+      ))}
       <div
-        aria-hidden
         style={{
           position: "absolute",
           inset: 0,
           background:
-            "radial-gradient(ellipse at 50% 0%, rgba(0,255,136,0.10) 0%, rgba(10,10,15,0) 60%)",
-          pointerEvents: "none",
+            "radial-gradient(ellipse 70% 45% at 50% -10%, rgba(0,255,136,0.12), transparent), radial-gradient(ellipse 60% 40% at 50% 110%, rgba(136,255,0,0.07), transparent)",
         }}
       />
-
-      {/* Wordmark */}
-      <Link
-        href="/"
-        style={{
-          textDecoration: "none",
-          fontFamily: FONT_DISPLAY,
-          fontSize: 22,
-          fontWeight: 900,
-          letterSpacing: "0.32em",
-          color: C.text,
-          marginBottom: 6,
-          position: "relative",
-          zIndex: 1,
-        }}
-      >
-        BL<span style={{ color: C.primary }}>I</span>NK
-      </Link>
-      <div style={{ ...capsLabel(10, C.textTertiary), marginBottom: 24, position: "relative", zIndex: 1 }}>
-        Daily airdrop — walk, catch, claim
-      </div>
-
-      {loading ? (
-        <div style={{ ...glassCard(24), width: "100%", maxWidth: 520, padding: 40, textAlign: "center", position: "relative", zIndex: 1 }}>
-          <Spinner dark={false} />
-        </div>
-      ) : user ? (
-        <AuthedClaim />
-      ) : (
-        <CodeClaim />
-      )}
-
-      <style>{KEYFRAMES}</style>
     </div>
   );
 }
 
-/* ════════════════════════════════ Logged-in: Orb Bank ═══════════════════ */
+// ── Press-and-hold lock button ──────────────────────────────────────────────
 
-function AuthedClaim() {
-  const [me, setMe] = useState<MeClaim | null>(null);
-  const [stats, setStats] = useState<MeStats | null>(null);
-  const [loadErr, setLoadErr] = useState("");
-  const [result, setResult] = useState<ClaimSuccess | null>(null);
+const HOLD_MS = 1200;
 
-  const load = useCallback(async () => {
-    setLoadErr("");
-    try {
-      const { data: sess } = await supabase.auth.getSession();
-      const token = sess.session?.access_token;
-      if (!token) {
-        setLoadErr("Session expired — sign in again.");
-        return;
-      }
-      const headers = { Authorization: `Bearer ${token}` };
-      const [meRes, statsRes] = await Promise.all([
-        fetch("/api/claim/me", { headers }),
-        fetch("/api/me/stats", { headers }).catch(() => null),
-      ]);
-      if (!meRes.ok) {
-        const d = await meRes.json().catch(() => null);
-        setLoadErr(d?.error || "Could not load your balance.");
-        return;
-      }
-      const meData = (await meRes.json()) as MeClaim;
-      setMe(meData);
-      if (statsRes && statsRes.ok) {
-        setStats((await statsRes.json()) as MeStats);
-      }
-    } catch {
-      setLoadErr("Network error. Pull to retry.");
-    }
+function HoldToLock({ disabled, onComplete }: { disabled: boolean; onComplete: () => void }) {
+  const [progress, setProgress] = useState(0);
+  const raf = useRef<number>(0);
+  const start = useRef<number>(0);
+  const done = useRef(false);
+
+  const stop = useCallback(() => {
+    cancelAnimationFrame(raf.current);
+    if (!done.current) setProgress(0);
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const begin = useCallback(() => {
+    if (disabled || done.current) return;
+    start.current = performance.now();
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start.current) / HOLD_MS);
+      setProgress(p);
+      if (p >= 1) {
+        done.current = true;
+        onComplete();
+        return;
+      }
+      raf.current = requestAnimationFrame(tick);
+    };
+    raf.current = requestAnimationFrame(tick);
+  }, [disabled, onComplete]);
 
-  const points = me?.claimable_points ?? 0;
-  const tokens = me?.tokens_available ?? 0;
-  const canClaim = points >= 1000;
+  useEffect(() => () => cancelAnimationFrame(raf.current), []);
 
-  if (result) {
-    return (
-      <div style={{ width: "100%", maxWidth: 520, position: "relative", zIndex: 1 }}>
-        <div style={{ ...glassCard(24), padding: "36px 24px", textAlign: "center" }}>
-          <SuccessCheck />
-          <h1 style={{ margin: "20px 0 8px", fontSize: 26, fontWeight: 900, fontFamily: FONT_DISPLAY }}>
-            Claimed
-          </h1>
-          <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.6, margin: 0 }}>
-            <span style={{ color: C.primary, fontWeight: 800 }}>
-              {result.tokens_sent.toLocaleString()} $BLINK
-            </span>{" "}
-            {result.onchain ? "claimed on-chain to" : "sent to"}
-            <br />
-            <span style={{ color: C.text, fontFamily: "ui-monospace, monospace", fontSize: 12 }}>
-              {`${result.eth_address.slice(0, 6)}...${result.eth_address.slice(-4)}`}
-            </span>
-          </p>
-          {result.tx_hash && (
-            <a
-              href={`https://etherscan.io/tx/${result.tx_hash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "inline-block",
-                marginTop: 16,
-                padding: "10px 16px",
-                borderRadius: 999,
-                border: "1px solid rgba(0,255,136,0.25)",
-                background: "rgba(0,255,136,0.06)",
-                color: C.primary,
-                textDecoration: "none",
-                ...capsLabel(11, C.primary),
-              }}
-            >
-              View on Etherscan
-            </a>
-          )}
-          <p style={{ color: C.textTertiary, fontSize: 12, marginTop: 18, lineHeight: 1.5 }}>
-            Keep walking — points start stacking again immediately.
-          </p>
-          <Link
-            href="/map"
-            style={{
-              ...primaryCta(),
-              display: "block",
-              marginTop: 24,
-              padding: "15px 20px",
-              textDecoration: "none",
-              fontSize: 13,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              textAlign: "center",
-            }}
-          >
-            Back to the Map
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  const R = 34;
+  const CIRC = 2 * Math.PI * R;
 
   return (
-    <div style={{ width: "100%", maxWidth: 520, position: "relative", zIndex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* ── Orb Bank card ── */}
-      <div style={{ ...glassCard(24), padding: "20px 16px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ ...capsLabel(12), color: C.primary, textShadow: "0 0 12px rgba(0,255,136,0.5)" }}>
-            BLINK Points
-          </div>
-          <div
-            style={{
-              ...capsLabel(9, C.textTertiary),
-              padding: "4px 10px",
-              borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.10)",
-              background: "rgba(255,255,255,0.04)",
-            }}
-          >
-            Only you
-          </div>
-        </div>
-
-        {/* Hero balance with shine sweep */}
-        <div
-          style={{
-            marginTop: 14,
-            padding: "20px 16px",
-            borderRadius: 18,
-            background: "linear-gradient(135deg, rgba(0,255,136,0.12), rgba(255,255,255,0.03))",
-            border: "1px solid rgba(255,255,255,0.07)",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            aria-hidden
-            style={{
-              position: "absolute",
-              top: 0,
-              bottom: 0,
-              width: 90,
-              background: "linear-gradient(105deg, transparent, rgba(255,255,255,0.10), transparent)",
-              transform: "rotate(16deg)",
-              animation: "blinkShine 3.6s linear infinite",
-              pointerEvents: "none",
-            }}
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+      <button
+        onPointerDown={begin}
+        onPointerUp={stop}
+        onPointerLeave={stop}
+        onContextMenu={(e) => e.preventDefault()}
+        disabled={disabled}
+        aria-label="Press and hold to lock in your address"
+        style={{
+          position: "relative",
+          width: 92,
+          height: 92,
+          borderRadius: "50%",
+          border: "none",
+          background: disabled ? "rgba(255,255,255,0.06)" : "rgba(0,255,136,0.1)",
+          cursor: disabled ? "not-allowed" : "pointer",
+          touchAction: "none",
+          WebkitUserSelect: "none",
+          userSelect: "none",
+          transform: progress > 0 ? `scale(${1 + progress * 0.06})` : undefined,
+          boxShadow: progress > 0 ? `0 0 ${20 + progress * 40}px rgba(0,255,136,${0.25 + progress * 0.4})` : "none",
+          transition: "background 0.2s",
+        }}
+      >
+        <svg width="92" height="92" viewBox="0 0 92 92" style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }}>
+          <circle cx="46" cy="46" r={R} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="5" />
+          <circle
+            cx="46"
+            cy="46"
+            r={R}
+            fill="none"
+            stroke={C.primary}
+            strokeWidth="5"
+            strokeLinecap="round"
+            strokeDasharray={CIRC}
+            strokeDashoffset={CIRC * (1 - progress)}
           />
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/brand/logo-orb-glow.png"
-              alt=""
-              style={{ width: 44, height: 44, objectFit: "contain", filter: "drop-shadow(0 0 10px rgba(0,255,136,0.5))" }}
-            />
-            <div style={counterFont(44)}>
-              {me ? points.toLocaleString() : "—"}
-            </div>
-          </div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: C.textTertiary, marginTop: 8, lineHeight: 1.5 }}>
-            Earned walking the world and catching creatures. Claims convert points to real $BLINK on Ethereum mainnet.
-          </div>
-          <div
-            style={{
-              marginTop: 12,
-              paddingTop: 12,
-              borderTop: "1px dashed rgba(0,255,136,0.18)",
-              display: "flex",
-              alignItems: "baseline",
-              justifyContent: "space-between",
-            }}
-          >
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 800, fontFamily: FONT_DISPLAY }}>
-              <BlinkTokenCoin size={22} />
-              = {tokens.toLocaleString()} $BLINK
-            </span>
-            <span style={{ fontSize: 11, color: C.textTertiary }}>1,000 points = 1 $BLINK</span>
-          </div>
-        </div>
-
-        {/* Quick stats — Today / Streak / Lifetime */}
-        <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-          <QuickStat label="Today" value={stats ? `+${stats.catchesToday}` : "—"} sub="catches" />
-          <QuickStat label="Streak" value={stats ? `${stats.streakDays}d` : "—"} sub="days active" />
-          <QuickStat
-            label="Claimed"
-            value={me ? me.total_claimed_tokens.toLocaleString() : "—"}
-            sub="$BLINK lifetime"
-          />
-        </div>
-
-        {loadErr && <ErrorMsg>{loadErr}</ErrorMsg>}
-      </div>
-
-      {/* ── Claim to wallet — MetaMask / Coinbase Wallet / manual ── */}
-      <div style={{ ...glassCard(24), padding: "20px 16px" }}>
-        <div style={capsLabel(11)}>Claim to wallet</div>
-
-        {!canClaim ? (
-          <div
-            style={{
-              marginTop: 14,
-              padding: 14,
-              borderRadius: 14,
-              background: "rgba(255,209,102,0.06)",
-              border: `1px solid ${RARITY_COLOR.legendary}40`,
-              color: RARITY_COLOR.legendary,
-              fontSize: 13,
-              textAlign: "center",
-              lineHeight: 1.5,
-            }}
-          >
-            {me ? `${(1000 - points).toLocaleString()} more points to your first claim. Minimum 1,000.` : "Loading balance..."}
-          </div>
-        ) : (
-          <div style={{ marginTop: 14 }}>
-            <WalletClaim
-              auth={{ mode: "session" }}
-              tokens={tokens}
-              canClaim={canClaim}
-              initialManualAddress={me?.eth_address}
-              onSuccess={(r) => {
-                setResult(r);
-                load();
-              }}
-            />
-          </div>
-        )}
-
-        <div style={{ fontSize: 10, color: C.textTertiary, textAlign: "center", marginTop: 12, lineHeight: 1.6 }}>
-          $BLINK token:{" "}
-          <a
-            href={`https://etherscan.io/token/${TOKEN_CONTRACT}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: C.textSecondary, fontFamily: "ui-monospace, monospace" }}
-          >
-            {`${TOKEN_CONTRACT.slice(0, 6)}...${TOKEN_CONTRACT.slice(-4)}`}
-          </a>{" "}
-          · one claim per address per 24h
-        </div>
-      </div>
-
-      {/* ── How earning works ── */}
-      <div style={{ ...glassCard(20), padding: "16px" }}>
-        <div style={capsLabel(10, C.textSecondary)}>How the airdrop works</div>
-        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-          {[
-            ["Walk", "Creatures spawn around you in the real world"],
-            ["Catch", "Get within 50m and catch them on the map"],
-            ["Stack", "Every catch banks BLINK points daily"],
-            ["Claim", "Convert points to $BLINK, straight to your wallet"],
-          ].map(([t, d]) => (
-            <div key={t} style={{ flex: 1, padding: "10px 8px", borderRadius: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div style={{ fontSize: 12, fontWeight: 900, color: C.primary, fontFamily: FONT_DISPLAY }}>{t}</div>
-              <div style={{ fontSize: 9.5, color: C.textTertiary, marginTop: 4, lineHeight: 1.45 }}>{d}</div>
-            </div>
-          ))}
-        </div>
-        <Link
-          href="/map"
-          style={{
-            display: "block",
-            marginTop: 12,
-            padding: "12px",
-            borderRadius: 999,
-            border: "1px solid rgba(0,255,136,0.25)",
-            background: "rgba(0,255,136,0.05)",
-            color: C.primary,
-            textDecoration: "none",
-            textAlign: "center",
-            ...capsLabel(11, C.primary),
-          }}
-        >
-          Open the map and earn
-        </Link>
-      </div>
-
-      {/* ── Recent claims ── */}
-      {me && me.history.length > 0 && (
-        <div style={{ ...glassCard(20), padding: "16px" }}>
-          <div style={capsLabel(10, C.textSecondary)}>Recent claims</div>
-          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-            {me.history.map((row, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  background: "rgba(255,255,255,0.03)",
-                  border: "1px solid rgba(255,255,255,0.05)",
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 800, fontFamily: FONT_DISPLAY, color: row.status === "sent" ? C.text : "#ff5572" }}>
-                    {row.status === "sent" ? `+${row.tokens_sent.toLocaleString()} $BLINK` : "Failed"}
-                  </div>
-                  <div style={{ fontSize: 10, color: C.textTertiary, marginTop: 2 }}>
-                    {new Date(row.created_at).toLocaleDateString()} ·{" "}
-                    {`${row.eth_address.slice(0, 6)}...${row.eth_address.slice(-4)}`}
-                  </div>
-                </div>
-                {row.tx_hash && (
-                  <a
-                    href={`https://etherscan.io/tx/${row.tx_hash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ ...capsLabel(9, C.primary), textDecoration: "none" }}
-                  >
-                    Tx
-                  </a>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div style={{ textAlign: "center" }}>
-        <button
-          onClick={() => {
-            const el = document.getElementById("code-claim-fallback");
-            if (el) el.style.display = el.style.display === "none" ? "block" : "none";
-          }}
-          style={{ background: "none", border: "none", color: C.textTertiary, fontSize: 11, cursor: "pointer", textDecoration: "underline", fontFamily: FONT_DISPLAY }}
-        >
-          Have a claim code from the BLINK app instead?
-        </button>
-        <div id="code-claim-fallback" style={{ display: "none", marginTop: 16, textAlign: "left" }}>
-          <CodeClaim embedded />
-        </div>
-      </div>
+        </svg>
+        <span style={{ fontSize: 30, position: "relative" }}>{progress >= 1 ? "✅" : "🔒"}</span>
+      </button>
+      <span
+        style={{
+          fontFamily: FONT,
+          fontWeight: 700,
+          fontSize: 12,
+          letterSpacing: "0.16em",
+          textTransform: "uppercase",
+          color: disabled ? C.textTertiary : C.primary,
+        }}
+      >
+        {disabled ? "Paste a valid address" : "Press & hold to lock in"}
+      </span>
     </div>
   );
 }
 
-function QuickStat({ label, value, sub }: { label: string; value: string; sub: string }) {
+// ── Shared bits ─────────────────────────────────────────────────────────────
+
+function ScamBanner() {
   return (
     <div
       style={{
-        flex: 1,
-        padding: "12px 10px",
+        display: "flex",
+        gap: 10,
+        alignItems: "flex-start",
+        padding: "12px 16px",
         borderRadius: 14,
-        background: "rgba(255,255,255,0.04)",
-        border: "1px solid rgba(255,255,255,0.07)",
-        textAlign: "center",
+        background: "rgba(255,107,128,0.08)",
+        border: "1px solid rgba(255,107,128,0.25)",
+        maxWidth: 560,
+        margin: "0 auto",
       }}
     >
-      <div style={capsLabel(9, C.textTertiary)}>{label}</div>
-      <div style={{ ...counterFont(20), color: C.primary, marginTop: 6 }}>{value}</div>
-      <div style={{ fontSize: 9, color: C.textTertiary, marginTop: 2 }}>{sub}</div>
+      <span style={{ fontSize: 16, lineHeight: "20px" }}>⚠️</span>
+      <p style={{ margin: 0, fontFamily: FONT, fontSize: 13, lineHeight: 1.5, color: C.textSecondary }}>
+        <strong style={{ color: "#FF8094" }}>Stay safe:</strong> BlinkWorld will <strong>never</strong> DM you
+        first, never ask for your seed phrase or private keys, and never ask you to send funds to
+        &ldquo;verify&rdquo; a claim. This page only records an address to <em>receive</em> tokens —
+        blinkworld.xyz/claim is the only official claim page.
+      </p>
     </div>
   );
 }
 
-/* ═══════════════════════ Logged-out: claim-code flow ═════════════════════ */
+const card: React.CSSProperties = {
+  background: "rgba(18,18,26,0.72)",
+  backdropFilter: "blur(22px)",
+  WebkitBackdropFilter: "blur(22px)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 24,
+  boxShadow: "0 12px 40px rgba(0,255,136,0.12)",
+  padding: "36px 28px",
+  width: "100%",
+  maxWidth: 480,
+  margin: "0 auto",
+  position: "relative",
+};
 
-function CodeClaim({ embedded }: { embedded?: boolean }) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+// Auto-format: uppercase, strip junk, dash after 4 chars.
+function formatCodeInput(raw: string): string {
+  const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+  return cleaned.length > 4 ? `${cleaned.slice(0, 4)}-${cleaned.slice(4)}` : cleaned;
+}
+
+const stageAnim = {
+  initial: { opacity: 0, y: 28, scale: 0.97 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  exit: { opacity: 0, y: -28, scale: 0.97 },
+  transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as const },
+};
+
+// ── Page ────────────────────────────────────────────────────────────────────
+
+export default function ClaimPage() {
+  const [stage, setStage] = useState<Stage>("code");
+  const [checkingSession, setCheckingSession] = useState(true);
+
   const [code, setCode] = useState("");
-  const [password, setPassword] = useState("");
-  const [lookup, setLookup] = useState<LookupResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [result, setResult] = useState<ClaimSuccess | null>(null);
+  const [shake, setShake] = useState(0);
 
-  const tokensToClaim = useMemo(
-    () => (lookup ? Math.floor(lookup.claimable_points / 1000) : 0),
-    [lookup],
-  );
+  const [displayName, setDisplayName] = useState("");
+  const [balance, setBalance] = useState(0);
+  const [registration, setRegistration] = useState<Registration | null>(null);
 
-  async function handleLookup(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    if (!code.trim() || !password) {
-      setError("Enter both code and password.");
-      return;
-    }
+  const [address, setAddress] = useState("");
+  const addressValid = /^0x[0-9a-fA-F]{40}$/.test(address.trim());
+
+  // Returning visitor with a live 20-min session skips code entry.
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/claim/status");
+        if (res.ok) {
+          const j = await res.json();
+          if (j?.ok) {
+            setDisplayName(j.display_name || "Explorer");
+            setBalance(j.blink_lifetime || 0);
+            if (j.registration) {
+              setRegistration(j.registration);
+              setAddress(j.registration.eth_address || "");
+              setStage("done");
+            } else {
+              setStage("reveal");
+            }
+          }
+        }
+      } catch {
+        /* no session — start at code entry */
+      } finally {
+        setCheckingSession(false);
+      }
+    })();
+  }, []);
+
+  const submitCode = useCallback(async () => {
+    if (busy || code.replace(/-/g, "").length < 8) return;
     setBusy(true);
+    setError("");
     try {
       const res = await fetch("/api/claim/lookup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ claim_code: code.trim(), password }),
+        body: JSON.stringify({ code }),
       });
-      const data = await res.json();
+      const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data?.error || "Lookup failed");
+        setError(j?.error || "Something went wrong. Try again.");
+        setShake((s) => s + 1);
         return;
       }
-      setLookup(data as LookupResult);
-      setStep(2);
+      setDisplayName(j.display_name || "Explorer");
+      setBalance(j.blink_lifetime || 0);
+      if (j.existing_claim) {
+        setRegistration(j.existing_claim);
+        setAddress(j.existing_claim.eth_address || "");
+        setStage("done");
+      } else {
+        setStage("reveal");
+      }
     } catch {
-      setError("Network error. Please try again.");
+      setError("Network hiccup — try again.");
+      setShake((s) => s + 1);
     } finally {
       setBusy(false);
     }
-  }
+  }, [busy, code]);
+
+  const submitAddress = useCallback(async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/claim/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eth_address: address.trim() }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 401) {
+          setError("Session expired — enter your Blink Code again.");
+          setStage("code");
+        } else {
+          setError(j?.error || "Something went wrong. Try again.");
+        }
+        return;
+      }
+      setRegistration({ eth_address: j.eth_address, status: j.status });
+      setAddress(j.eth_address);
+      setStage("done");
+    } catch {
+      setError("Network hiccup — try again.");
+    } finally {
+      setBusy(false);
+    }
+  }, [address]);
+
+  const status = registration ? STATUS_META[registration.status] ?? STATUS_META.pending : null;
 
   return (
-    <div style={{ width: "100%", maxWidth: 520, position: "relative", zIndex: 1 }}>
-      {!embedded && <StepIndicator current={step} />}
+    <main
+      style={{
+        minHeight: "100dvh",
+        background: C.bg,
+        color: C.text,
+        fontFamily: FONT,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        padding: "28px 18px 40px",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <style>{`
+        @keyframes bwFloat {
+          0% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(14px, -26px) scale(1.06); }
+          100% { transform: translate(-10px, 18px) scale(0.96); }
+        }
+        @keyframes bwShake {
+          0%, 100% { transform: translateX(0); }
+          20% { transform: translateX(-9px); }
+          40% { transform: translateX(8px); }
+          60% { transform: translateX(-6px); }
+          80% { transform: translateX(4px); }
+        }
+        .bw-code-input:focus { outline: none; border-color: ${C.primary} !important; box-shadow: 0 0 0 4px rgba(0,255,136,0.15); }
+        .bw-addr-input:focus { outline: none; border-color: ${C.primary} !important; box-shadow: 0 0 0 4px rgba(0,255,136,0.15); }
+      `}</style>
 
-      <div style={{ ...glassCard(24), marginTop: embedded ? 0 : 24, padding: "28px 20px" }}>
-        {step === 1 && (
-          <form onSubmit={handleLookup}>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, textAlign: "center", fontFamily: FONT_DISPLAY }}>
-              Claim Your $BLINK
-            </h1>
-            <p style={{ color: C.textSecondary, fontSize: 13, lineHeight: 1.6, textAlign: "center", margin: "10px 0 22px" }}>
-              Enter your Claim Code and Password from the BLINK app.
-            </p>
+      <BlinkBallsBackdrop />
 
-            <Label>Claim code</Label>
-            <Input
-              value={code}
-              onChange={(v) => setCode(v.toUpperCase().slice(0, 10))}
-              placeholder="BL-7K9X"
-              autoCapitalize="characters"
-              spellCheck={false}
-              maxLength={10}
-              uppercase
-            />
-            <div style={{ height: 14 }} />
-            <Label>Password</Label>
-            <Input value={password} onChange={setPassword} placeholder="••••••••" type="password" />
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22, position: "relative" }}>
+        <Image
+          src="/brand/logo-orb-glow.png"
+          alt="BlinkWorld"
+          width={46}
+          height={46}
+          style={{ objectFit: "contain" }}
+          priority
+        />
+        <div>
+          <div style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-0.01em" }}>BlinkWorld</div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.22em", color: C.primary }}>
+            TOKEN CLAIM
+          </div>
+        </div>
+      </div>
 
-            {error && <ErrorMsg>{error}</ErrorMsg>}
+      <div style={{ marginBottom: 26, position: "relative", width: "100%" }}>
+        <ScamBanner />
+      </div>
 
-            <button
-              type="submit"
-              disabled={busy}
-              style={{
-                ...primaryCta(),
-                width: "100%",
-                marginTop: 20,
-                padding: "16px 22px",
-                fontSize: 13,
-                letterSpacing: "0.16em",
-                textTransform: "uppercase",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                opacity: busy ? 0.6 : 1,
-              }}
-            >
-              {busy ? <Spinner dark /> : "Look Up My Rewards"}
-            </button>
-
-            {!embedded && (
-              <p style={{ color: C.textTertiary, fontSize: 12, textAlign: "center", marginTop: 16, lineHeight: 1.6 }}>
-                Playing on the web? <Link href="/" style={{ color: C.primary }}>Sign in</Link> to see your balance
-                instantly — no code needed.
-              </p>
-            )}
-          </form>
-        )}
-
-        {step === 2 && lookup && (
-          <div>
-            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 900, textAlign: "center", fontFamily: FONT_DISPLAY }}>
-              Welcome back, {lookup.display_name || lookup.username || "Trainer"}
-            </h1>
-
-            <div
-              style={{
-                marginTop: 18,
-                padding: "22px 16px",
-                borderRadius: 18,
-                background: "linear-gradient(160deg, rgba(0,255,136,0.10), rgba(0,255,136,0.02))",
-                border: "1px solid rgba(0,255,136,0.20)",
-                textAlign: "center",
-              }}
-            >
-              <div
-                style={{
-                  ...counterFont(60),
-                  background: `linear-gradient(135deg, ${C.primary}, ${C.primary2})`,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
-                {lookup.claimable_points.toLocaleString()}
-              </div>
-              <div style={{ ...capsLabel(11, C.textTertiary), marginTop: 4 }}>BLINK Points</div>
-              <div
-                style={{
-                  marginTop: 14,
-                  paddingTop: 14,
-                  borderTop: "1px dashed rgba(0,255,136,0.18)",
-                  fontSize: 16,
-                  fontWeight: 800,
-                  fontFamily: FONT_DISPLAY,
-                }}
-              >
-                = {tokensToClaim.toLocaleString()} $BLINK
-              </div>
-              <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>1,000 points = 1 $BLINK</div>
-            </div>
-
-            {lookup.claimable_points < 1000 ? (
-              <div
-                style={{
-                  marginTop: 18,
-                  padding: 14,
-                  borderRadius: 12,
-                  background: "rgba(255,209,102,0.06)",
-                  border: `1px solid ${RARITY_COLOR.legendary}40`,
-                  color: RARITY_COLOR.legendary,
-                  fontSize: 13,
-                  textAlign: "center",
-                  lineHeight: 1.5,
-                }}
-              >
-                Keep playing to earn more. Minimum 1,000 points to claim.
-              </div>
-            ) : (
-              <div style={{ marginTop: 20 }}>
-                <WalletClaim
-                  auth={{ mode: "code", code, password }}
-                  tokens={tokensToClaim}
-                  canClaim={lookup.claimable_points >= 1000}
-                  onSuccess={(r) => {
-                    setResult(r);
-                    setStep(3);
+      <div style={{ flex: 1, display: "flex", alignItems: "center", width: "100%", position: "relative" }}>
+        <div style={{ width: "100%" }}>
+          <AnimatePresence mode="wait">
+            {checkingSession ? (
+              <motion.div key="loading" {...stageAnim} style={{ ...card, textAlign: "center" }}>
+                <div style={{ fontSize: 28 }}>✨</div>
+                <p style={{ color: C.textSecondary, margin: "10px 0 0" }}>Waking the orbs…</p>
+              </motion.div>
+            ) : stage === "code" ? (
+              <motion.div key="code" {...stageAnim} style={{ ...card, textAlign: "center" }}>
+                <h1 style={{ fontSize: 26, fontWeight: 900, margin: "0 0 8px" }}>Enter your Blink Code</h1>
+                <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.55, margin: "0 0 26px" }}>
+                  Your <strong style={{ color: C.text }}>private</strong> 8-character code from the
+                  BlinkWorld app. Not your public BL- Buddy Code — never share this one.
+                </p>
+                <div key={shake} style={{ animation: shake ? "bwShake 0.45s ease" : undefined }}>
+                  <input
+                    className="bw-code-input"
+                    value={code}
+                    onChange={(e) => {
+                      setCode(formatCodeInput(e.target.value));
+                      setError("");
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && submitCode()}
+                    placeholder="XXXX-XXXX"
+                    autoFocus
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    inputMode="text"
+                    maxLength={9}
+                    aria-label="Blink Code"
+                    style={{
+                      width: "100%",
+                      maxWidth: 300,
+                      textAlign: "center",
+                      fontFamily: FONT,
+                      fontSize: 30,
+                      fontWeight: 800,
+                      letterSpacing: "0.18em",
+                      color: C.text,
+                      background: "rgba(255,255,255,0.05)",
+                      border: `2px solid ${error ? "rgba(255,107,128,0.6)" : "rgba(255,255,255,0.14)"}`,
+                      borderRadius: 16,
+                      padding: "16px 12px",
+                      transition: "border-color 0.2s, box-shadow 0.2s",
+                    }}
+                  />
+                </div>
+                {error && (
+                  <p role="alert" style={{ color: C.dangerText, fontSize: 13, lineHeight: 1.5, margin: "14px auto 0", maxWidth: 340 }}>
+                    {error}
+                  </p>
+                )}
+                <button
+                  onClick={submitCode}
+                  disabled={busy || code.replace(/-/g, "").length < 8}
+                  style={{
+                    marginTop: 24,
+                    width: "100%",
+                    maxWidth: 300,
+                    padding: "15px 0",
+                    fontFamily: FONT,
+                    fontSize: 16,
+                    fontWeight: 900,
+                    letterSpacing: "0.04em",
+                    color: "#0a0a0f",
+                    background:
+                      busy || code.replace(/-/g, "").length < 8
+                        ? "rgba(255,255,255,0.14)"
+                        : `linear-gradient(90deg, ${C.primary2}, ${C.primary})`,
+                    border: "none",
+                    borderRadius: 999,
+                    cursor: busy || code.replace(/-/g, "").length < 8 ? "not-allowed" : "pointer",
+                    boxShadow:
+                      code.replace(/-/g, "").length >= 8 && !busy ? "0 6px 22px rgba(0,255,136,0.4)" : "none",
+                    transition: "all 0.25s",
+                  }}
+                >
+                  {busy ? "Checking…" : "Reveal my balance"}
+                </button>
+              </motion.div>
+            ) : stage === "reveal" ? (
+              <motion.div key="reveal" {...stageAnim} style={{ ...card, textAlign: "center" }}>
+                <p style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.2em", color: C.textSecondary, textTransform: "uppercase", margin: 0 }}>
+                  Welcome back
+                </p>
+                <h1 style={{ fontSize: 28, fontWeight: 900, margin: "6px 0 24px", color: C.text }}>{displayName}</h1>
+                <motion.div
+                  initial={{ scale: 0.7, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 160, damping: 14 }}
+                  style={{
+                    fontSize: "clamp(52px, 15vw, 84px)",
+                    fontWeight: 900,
+                    lineHeight: 1,
+                    fontVariantNumeric: "tabular-nums",
+                    background: `linear-gradient(180deg, ${C.primary}, ${C.primary2})`,
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    filter: "drop-shadow(0 0 26px rgba(0,255,136,0.35))",
+                  }}
+                >
+                  <CountUp end={balance} duration={2.2} separator="," />
+                </motion.div>
+                <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.26em", color: C.textSecondary, textTransform: "uppercase", margin: "10px 0 30px" }}>
+                  Lifetime Blink Balls
+                </p>
+                <button
+                  onClick={() => setStage("address")}
+                  style={{
+                    width: "100%",
+                    maxWidth: 300,
+                    padding: "15px 0",
+                    fontFamily: FONT,
+                    fontSize: 16,
+                    fontWeight: 900,
+                    color: "#0a0a0f",
+                    background: `linear-gradient(90deg, ${C.primary2}, ${C.primary})`,
+                    border: "none",
+                    borderRadius: 999,
+                    cursor: "pointer",
+                    boxShadow: "0 6px 22px rgba(0,255,136,0.4)",
+                  }}
+                >
+                  Register for the airdrop →
+                </button>
+              </motion.div>
+            ) : stage === "address" ? (
+              <motion.div key="address" {...stageAnim} style={{ ...card, textAlign: "center" }}>
+                <h1 style={{ fontSize: 24, fontWeight: 900, margin: "0 0 8px" }}>Where should tokens go?</h1>
+                <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.55, margin: "0 0 24px" }}>
+                  Paste an <strong style={{ color: C.text }}>Ethereum address you control</strong> (not an
+                  exchange deposit address). You can change it any time while your claim is pending.
+                </p>
+                <input
+                  className="bw-addr-input"
+                  value={address}
+                  onChange={(e) => {
+                    setAddress(e.target.value.trim());
+                    setError("");
+                  }}
+                  placeholder="0x…"
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-label="Ethereum address"
+                  style={{
+                    width: "100%",
+                    fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: addressValid ? C.primary : C.text,
+                    background: "rgba(255,255,255,0.05)",
+                    border: `2px solid ${
+                      address && !addressValid ? "rgba(255,209,102,0.5)" : addressValid ? "rgba(0,255,136,0.5)" : "rgba(255,255,255,0.14)"
+                    }`,
+                    borderRadius: 14,
+                    padding: "15px 14px",
+                    textAlign: "center",
+                    transition: "border-color 0.2s, box-shadow 0.2s",
                   }}
                 />
-              </div>
+                <p style={{ fontSize: 12, color: address && !addressValid ? "#FFD166" : C.textTertiary, margin: "10px 0 24px", minHeight: 16 }}>
+                  {address && !addressValid
+                    ? "Keep going — an ETH address is 0x + 40 characters."
+                    : addressValid
+                      ? "Looks good ✓"
+                      : " "}
+                </p>
+                <HoldToLock disabled={!addressValid || busy} onComplete={submitAddress} />
+                {error && (
+                  <p role="alert" style={{ color: C.dangerText, fontSize: 13, margin: "16px auto 0", maxWidth: 340 }}>
+                    {error}
+                  </p>
+                )}
+                {busy && <p style={{ color: C.textSecondary, fontSize: 13, marginTop: 14 }}>Locking in…</p>}
+              </motion.div>
+            ) : (
+              <motion.div key="done" {...stageAnim} style={{ ...card, textAlign: "center" }}>
+                <motion.div
+                  initial={{ scale: 0, rotate: -20 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 200, damping: 12 }}
+                  style={{ fontSize: 48, marginBottom: 8 }}
+                >
+                  {registration?.status === "sent" ? "🚀" : registration?.status === "rejected" ? "🚫" : "🎟️"}
+                </motion.div>
+                <div
+                  style={{
+                    display: "inline-block",
+                    padding: "6px 16px",
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 900,
+                    letterSpacing: "0.18em",
+                    color: "#0a0a0f",
+                    background: status?.color ?? C.primary,
+                    marginBottom: 16,
+                  }}
+                >
+                  {status?.label ?? "PENDING"}
+                </div>
+                <h1 style={{ fontSize: 22, fontWeight: 900, margin: "0 0 6px" }}>
+                  {displayName ? `You're in, ${displayName}` : "You're in"}
+                </h1>
+                <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.55, margin: "0 0 20px" }}>
+                  {status?.blurb}
+                </p>
+                {balance > 0 && (
+                  <p style={{ fontSize: 13, color: C.textSecondary, margin: "0 0 18px" }}>
+                    Lifetime Blink Balls:{" "}
+                    <strong style={{ color: C.primary, fontVariantNumeric: "tabular-nums" }}>
+                      {balance.toLocaleString()}
+                    </strong>
+                  </p>
+                )}
+                <div
+                  style={{
+                    fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: C.text,
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: 12,
+                    padding: "12px 14px",
+                    wordBreak: "break-all",
+                    marginBottom: 18,
+                  }}
+                >
+                  {registration?.eth_address}
+                </div>
+                {registration?.status === "pending" && (
+                  <button
+                    onClick={() => {
+                      setError("");
+                      setStage("address");
+                    }}
+                    style={{
+                      background: "none",
+                      border: `1px solid rgba(0,255,136,0.4)`,
+                      color: C.primary,
+                      fontFamily: FONT,
+                      fontWeight: 700,
+                      fontSize: 14,
+                      borderRadius: 999,
+                      padding: "10px 24px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Edit address
+                  </button>
+                )}
+              </motion.div>
             )}
-
-            <button
-              type="button"
-              onClick={() => {
-                setStep(1);
-                setError("");
-              }}
-              style={{
-                display: "block",
-                margin: "16px auto 0",
-                padding: "12px 22px",
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: "transparent",
-                color: C.text,
-                ...capsLabel(11, C.text),
-                cursor: "pointer",
-              }}
-            >
-              Back
-            </button>
-          </div>
-        )}
-
-        {step === 3 && result && (
-          <div style={{ textAlign: "center" }}>
-            <SuccessCheck />
-            <h1 style={{ margin: "20px 0 8px", fontSize: 24, fontWeight: 900, fontFamily: FONT_DISPLAY }}>
-              Claimed
-            </h1>
-            <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.6, margin: 0 }}>
-              <span style={{ color: C.primary, fontWeight: 800 }}>
-                {result.tokens_sent.toLocaleString()} $BLINK
-              </span>{" "}
-              {result.onchain ? "claimed on-chain to" : "sent to"}
-              <br />
-              <span style={{ color: C.text, fontFamily: "ui-monospace, monospace", fontSize: 12 }}>
-                {`${result.eth_address.slice(0, 6)}...${result.eth_address.slice(-4)}`}
-              </span>
-            </p>
-            {result.tx_hash && (
-              <a
-                href={`https://etherscan.io/tx/${result.tx_hash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "inline-block",
-                  marginTop: 16,
-                  padding: "8px 14px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(0,255,136,0.25)",
-                  background: "rgba(0,255,136,0.05)",
-                  color: C.primary,
-                  textDecoration: "none",
-                  ...capsLabel(11, C.primary),
-                }}
-              >
-                View on Etherscan
-              </a>
-            )}
-            <p style={{ color: C.textTertiary, fontSize: 12, marginTop: 18, lineHeight: 1.5 }}>
-              Points balance reset to 0.
-            </p>
-            <Link
-              href="/"
-              style={{
-                ...primaryCta(),
-                display: "block",
-                marginTop: 24,
-                padding: "14px 20px",
-                textDecoration: "none",
-                fontSize: 13,
-                letterSpacing: "0.16em",
-                textTransform: "uppercase",
-                textAlign: "center",
-              }}
-            >
-              Back to BLINK World
-            </Link>
-          </div>
-        )}
+          </AnimatePresence>
+        </div>
       </div>
-    </div>
+
+      {/* Footer disclaimer */}
+      <footer style={{ maxWidth: 560, margin: "34px auto 0", position: "relative" }}>
+        <p style={{ fontSize: 11.5, lineHeight: 1.6, color: C.textTertiary, textAlign: "center", margin: 0 }}>
+          This page registers a receiving address only — no tokens move today, and registering never
+          requires a payment, gas fee, signature, or seed phrase. Token distribution is a separate batch
+          send after review. Blink Balls are in-game points; any future token allocation is determined at
+          distribution time and may differ from displayed balances. Availability subject to eligibility
+          and applicable law. Never share your private Blink Code.
+        </p>
+      </footer>
+    </main>
   );
 }
-
-/* ════════════════════════════════ Shared bits ════════════════════════════ */
-
-function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
-  const steps: Array<{ n: 1 | 2 | 3; label: string }> = [
-    { n: 1, label: "Verify" },
-    { n: 2, label: "Wallet" },
-    { n: 3, label: "Done" },
-  ];
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative", zIndex: 1, justifyContent: "center" }}>
-      {steps.map((s, i) => {
-        const active = current === s.n;
-        const done = current > s.n;
-        return (
-          <div key={s.n} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  border: `1px solid ${active || done ? C.primary : "rgba(255,255,255,0.12)"}`,
-                  background: done ? C.primary : active ? "rgba(0,255,136,0.12)" : "transparent",
-                  color: done ? C.bg : active ? C.primary : C.textTertiary,
-                  fontSize: 12,
-                  fontWeight: 900,
-                  transition: "all 240ms ease",
-                  boxShadow: active ? "0 0 14px rgba(0,255,136,0.45)" : "none",
-                }}
-              >
-                {done ? <CheckGlyph size={12} /> : s.n}
-              </div>
-              <div style={{ ...capsLabel(9, active || done ? C.text : C.textTertiary) }}>{s.label}</div>
-            </div>
-            {i < steps.length - 1 && (
-              <div
-                style={{
-                  width: 36,
-                  height: 1,
-                  background: current > s.n ? C.primary : "rgba(255,255,255,0.12)",
-                  marginBottom: 18,
-                  transition: "background 240ms ease",
-                }}
-              />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function Label({ children }: { children: React.ReactNode }) {
-  return <div style={{ ...capsLabel(10, C.textTertiary), marginBottom: 8 }}>{children}</div>;
-}
-
-function Input({
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-  maxLength,
-  autoCapitalize,
-  spellCheck,
-  uppercase,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  type?: string;
-  maxLength?: number;
-  autoCapitalize?: string;
-  spellCheck?: boolean;
-  uppercase?: boolean;
-}) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <input
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      type={type}
-      maxLength={maxLength}
-      autoCapitalize={autoCapitalize}
-      spellCheck={spellCheck}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      style={{
-        width: "100%",
-        padding: "15px 16px",
-        borderRadius: 16,
-        background: "rgba(255,255,255,0.05)",
-        border: focused ? `1.5px solid rgba(0,255,136,0.7)` : "1px solid rgba(255,255,255,0.12)",
-        color: C.text,
-        fontSize: 16,
-        fontWeight: 600,
-        letterSpacing: uppercase ? "0.08em" : "normal",
-        textTransform: uppercase ? "uppercase" : "none",
-        outline: "none",
-        boxSizing: "border-box",
-        fontFamily: "inherit",
-        transition: "border-color 160ms ease, box-shadow 160ms ease",
-        boxShadow: focused ? "0 0 0 3px rgba(0,255,136,0.12)" : "none",
-      }}
-    />
-  );
-}
-
-function ErrorMsg({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        marginTop: 14,
-        padding: "10px 14px",
-        borderRadius: 10,
-        background: "rgba(255,85,114,0.08)",
-        border: "1px solid rgba(255,85,114,0.3)",
-        color: "#ff5572",
-        fontSize: 13,
-        textAlign: "center",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function Spinner({ dark }: { dark?: boolean }) {
-  return (
-    <span
-      aria-label="loading"
-      style={{
-        width: 18,
-        height: 18,
-        borderRadius: "50%",
-        border: `2px solid ${dark ? "rgba(10,10,15,0.3)" : "rgba(255,255,255,0.25)"}`,
-        borderTopColor: dark ? C.bg : C.primary,
-        display: "inline-block",
-        animation: "blinkClaimSpin 0.8s linear infinite",
-      }}
-    />
-  );
-}
-
-function CheckGlyph({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M4 12.5l5 5L20 6" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function SuccessCheck() {
-  return (
-    <div
-      style={{
-        width: 86,
-        height: 86,
-        borderRadius: "50%",
-        background: "rgba(0,255,136,0.10)",
-        border: `2px solid ${C.primary}`,
-        margin: "0 auto",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        boxShadow: "0 0 40px rgba(0,255,136,0.45)",
-        animation: "blinkClaimPop 480ms cubic-bezier(.2,1.4,.4,1) both",
-      }}
-    >
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-        <path
-          d="M4 12.5l5 5L20 6"
-          stroke={C.primary}
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{
-            strokeDasharray: 30,
-            strokeDashoffset: 30,
-            animation: "blinkClaimDraw 600ms 200ms ease-out forwards",
-          }}
-        />
-      </svg>
-    </div>
-  );
-}
-
-const KEYFRAMES = `
-@keyframes blinkClaimSpin {
-  to { transform: rotate(360deg); }
-}
-@keyframes blinkClaimPop {
-  0% { transform: scale(0.4); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
-@keyframes blinkClaimDraw {
-  to { stroke-dashoffset: 0; }
-}
-@keyframes blinkShine {
-  0% { left: -30%; }
-  100% { left: 130%; }
-}
-@keyframes blinkClaimPulse {
-  from { box-shadow: 0 6px 18px rgba(0,255,136,0.35); transform: scale(1); }
-  to { box-shadow: 0 6px 28px rgba(0,255,136,0.65); transform: scale(1.015); }
-}
-`;

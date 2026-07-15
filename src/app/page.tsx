@@ -3,7 +3,7 @@ import LandingPage from "./landing-page";
 
 const TITLE = "BlinkWorld — Turn Every Walk Into an Adventure";
 const DESCRIPTION =
-  "Hunt glowing orbs, catch 60+ creatures in AR, open treasure chests, and battle friends — all powered by your real steps. Coming soon to the App Store.";
+  "Hunt glowing orbs, catch 60+ creatures in AR, open treasure chests, and battle friends — all powered by your real steps. Download now on the App Store.";
 
 export const metadata: Metadata = {
   title: TITLE,
