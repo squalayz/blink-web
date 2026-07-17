@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "validate:registry": "tsx scripts/validate-creature-registry.ts",
-    "test:catch-identity": "tsx scripts/test-catch-identity.ts"
+    "test:catch-identity": "tsx scripts/test-catch-identity.ts",
+    "test:blink-balance": "tsx scripts/test-blink-balance.ts"
   },
   "dependencies": {
     "@coinbase/wallet-sdk": "^4.3.7",

@@ -258,6 +258,41 @@ export default function ClaimPage() {
   const [address, setAddress] = useState("");
   const addressValid = /^0x[0-9a-fA-F]{40}$/.test(address.trim());
 
+  // Live $BLINK holder check on the entered address (debounced). Purely
+  // informational — a zero balance shows an unmissable warning but NEVER
+  // blocks registration (players can buy later; balance is re-checked at
+  // payout time). RPC failure → "unknown" → neutral note, fail open.
+  const [holder, setHolder] = useState<{ state: "idle" | "checking" | "holds" | "none" | "unknown"; balance?: string }>({ state: "idle" });
+  const holderSeq = useRef(0);
+  useEffect(() => {
+    if (stage !== "address" || !addressValid) {
+      holderSeq.current += 1;
+      setHolder({ state: "idle" });
+      return;
+    }
+    const seq = ++holderSeq.current;
+    setHolder({ state: "checking" });
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/claim/balance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address: address.trim() }),
+        });
+        const j = await res.json().catch(() => null);
+        if (holderSeq.current !== seq) return; // stale — address changed
+        if (res.ok && j?.ok && !j.unknown) {
+          setHolder(j.holds ? { state: "holds", balance: j.balance } : { state: "none" });
+        } else {
+          setHolder({ state: "unknown" });
+        }
+      } catch {
+        if (holderSeq.current === seq) setHolder({ state: "unknown" });
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [address, addressValid, stage]);
+
   // Returning visitor with a live 20-min session skips code entry.
   useEffect(() => {
     (async () => {
@@ -574,6 +609,47 @@ export default function ClaimPage() {
                       ? "Looks good ✓"
                       : " "}
                 </p>
+                {holder.state === "none" && (
+                  <div
+                    role="alert"
+                    style={{
+                      display: "flex",
+                      gap: 12,
+                      alignItems: "flex-start",
+                      textAlign: "left",
+                      padding: "14px 16px",
+                      borderRadius: 14,
+                      margin: "0 0 20px",
+                      background: "rgba(255,60,80,0.14)",
+                      border: "2px solid rgba(255,80,100,0.7)",
+                      boxShadow: "0 0 26px rgba(255,60,80,0.28)",
+                    }}
+                  >
+                    <span style={{ fontSize: 20, lineHeight: "22px" }}>⛔</span>
+                    <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: C.text }}>
+                      <strong style={{ color: C.dangerText }}>This wallet holds no $BLINK.</strong>{" "}
+                      You must own $BLINK in the wallet you register to be eligible to receive
+                      rewards. You can still register now and buy $BLINK to this address later —
+                      the balance is re-checked before every payout.
+                    </p>
+                  </div>
+                )}
+                {holder.state === "unknown" && (
+                  <p style={{ fontSize: 12, color: C.textTertiary, margin: "0 0 20px" }}>
+                    Couldn&apos;t verify this wallet&apos;s $BLINK balance right now — you can
+                    still register.
+                  </p>
+                )}
+                {holder.state === "holds" && (
+                  <p style={{ fontSize: 12, color: C.primary, fontWeight: 700, margin: "0 0 20px" }}>
+                    ✓ Holds {holder.balance} $BLINK
+                  </p>
+                )}
+                {holder.state === "checking" && (
+                  <p style={{ fontSize: 12, color: C.textTertiary, margin: "0 0 20px" }}>
+                    Checking $BLINK balance…
+                  </p>
+                )}
                 <HoldToLock disabled={!addressValid || busy} onComplete={submitAddress} />
                 {error && (
                   <p role="alert" style={{ color: C.dangerText, fontSize: 13, margin: "16px auto 0", maxWidth: 340 }}>

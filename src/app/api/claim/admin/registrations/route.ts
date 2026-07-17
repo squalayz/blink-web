@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { blinkworldAdmin } from "@/lib/blinkworld-admin";
 import { isAdminRequest } from "@/lib/claim-v3";
+import { getBlinkBalances } from "@/lib/blink-balance";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,10 +43,17 @@ export async function GET(req: NextRequest) {
       exportById = Object.fromEntries((exportRows ?? []).map((r) => [r.profile_id, r]));
     }
 
+    // Live $BLINK holder check per registered wallet (multicall, 60 s cache).
+    // null = couldn't verify (RPC hiccup) — the panel shows a neutral badge.
+    const balances = await getBlinkBalances((regs ?? []).map((r) => r.eth_address));
+
     const rows = (regs ?? []).map((r) => {
       const x = exportById[r.profile_id] ?? {};
+      const balanceWei = balances[r.eth_address.toLowerCase()] ?? null;
       return {
         ...r,
+        blink_balance_wei: balanceWei,
+        holds_blink: balanceWei == null ? null : BigInt(balanceWei) > 0n,
         display_name: x.display_name ?? null,
         username: x.username ?? null,
         trainer_code: r.trainer_code ?? x.trainer_code ?? null,

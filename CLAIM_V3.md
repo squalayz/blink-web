@@ -44,6 +44,7 @@ and can edit the address **only while pending**.
 | --- | --- | --- |
 | `POST /api/claim/lookup` | none (rate-limited) | code → balance + 20-min httpOnly HMAC session cookie bound to profile_id |
 | `POST /api/claim/submit` | session cookie | validate + upsert `airdrop_registrations` |
+| `POST /api/claim/balance` | none (rate-limited) | live $BLINK `balanceOf(address)` for the holder warning (public chain data) |
 | `GET /api/claim/status` | session cookie | registration + balance for returning visitors |
 | `POST/DELETE /api/claim/admin/login` | password | `CLAIM_ADMIN_PASSWORD` (fallback `ADMIN_PASSWORD`) → 12-h httpOnly cookie |
 | `GET /api/claim/admin/registrations` | admin cookie | list joined with fresh `airdrop_export` |
@@ -80,3 +81,21 @@ This page **only registers addresses**. No tokens move on registration.
    read at export time.
 4. A future batch send / claim contract distributes tokens; admin then marks
    rows `sent`.
+
+## $BLINK holder eligibility (live on-chain check)
+
+Players must already **hold $BLINK** (`0xf1D3…8cE0`, mainnet) in the wallet
+they register to receive payouts. `src/lib/blink-balance.ts` does live
+`balanceOf` reads (multicall3, 60-s in-memory cache, RPC =
+`CLAIM_PAYOUT_RPC_URL` → `ETH_RPC_URL` → publicnode; failures return `null`
+= "unknown", never blocking).
+
+- **/claim**: entering a valid address triggers a debounced check; a zero
+  balance shows a prominent red warning but registration still goes through
+  (they can buy later).
+- **/claim/admin**: every row gets a fresh green `HOLDS BLINK · <balance>` /
+  red `NO BLINK` badge (grey `BLINK ?` on RPC failure) plus holder filters.
+- **Payout guard**: `POST /api/claim/admin/payout` re-reads the balance
+  (uncached) right before sending and refuses zero-balance wallets unless the
+  body carries `overrideNoBalance: true` — the admin UI asks
+  "holds no $BLINK — send anyway?" and only then sets the flag.

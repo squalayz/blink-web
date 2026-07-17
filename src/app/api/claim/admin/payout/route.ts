@@ -25,6 +25,7 @@ import {
   sendPayout,
   waitForPayout,
 } from "@/lib/blink-payout";
+import { getBlinkBalance } from "@/lib/blink-balance";
 import { getAddress, type Address } from "viem";
 
 export const runtime = "nodejs";
@@ -51,6 +52,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const id = (body?.id || "").toString();
   if (!id) return NextResponse.json({ error: "Missing id." }, { status: 400 });
+  // Admin explicitly confirmed sending to a wallet that holds no $BLINK.
+  const overrideNoBalance = body?.overrideNoBalance === true;
 
   const db = blinkworldAdmin();
   const fail = async (message: string, status = 400, extra: Record<string, unknown> = {}) => {
@@ -118,6 +121,21 @@ export async function POST(req: NextRequest) {
       amountWei = computePayoutWei(basis, cfg.ratio, cfg.maxTokens);
     } catch (e) {
       return fail(payoutErrorMessage(e));
+    }
+
+    // Holder guard: the recipient must already hold $BLINK. Fresh (uncached)
+    // balanceOf right before sending; a confirmed zero refuses the payout
+    // unless the admin passed the explicit override. An RPC failure here
+    // fails OPEN (null ≠ zero) — the send below exercises the same RPC anyway.
+    if (!overrideNoBalance) {
+      const holderWei = await getBlinkBalance(to, { fresh: true });
+      if (holderWei === 0n) {
+        return fail(
+          "Wallet holds no $BLINK — payout refused. Send again and confirm the override to pay anyway.",
+          412,
+          { code: "no_blink" },
+        );
+      }
     }
 
     // Atomically claim the row: only one request can hold a fresh lock on an

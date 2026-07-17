@@ -34,6 +34,8 @@ type Row = {
   payout_amount_wei?: string | null;
   payout_basis?: number | null;
   payout_error?: string | null;
+  blink_balance_wei?: string | null;
+  holds_blink?: boolean | null; // null = couldn't verify (RPC hiccup)
 };
 
 function formatBlink(wei: string | null | undefined): string {
@@ -58,6 +60,7 @@ export default function ClaimAdminPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
+  const [holderFilter, setHolderFilter] = useState<"all" | "holds" | "none">("all");
   const [busyId, setBusyId] = useState("");
 
   const load = useCallback(async () => {
@@ -126,13 +129,13 @@ export default function ClaimAdminPage() {
   // Approve + auto-send: server sends BLINK via the payout vault, waits for
   // 1 confirmation, flips the row to sent with the tx hash. On failure the
   // row stays approved with payout_error set and the button becomes a retry.
-  const sendPayout = useCallback(async (id: string) => {
+  const sendPayout = useCallback(async (id: string, overrideNoBalance = false) => {
     setBusyId(id);
     try {
       const res = await fetch("/api/claim/admin/payout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id, overrideNoBalance }),
       });
       const j = await res.json().catch(() => null);
       if (j?.registration) {
@@ -140,7 +143,16 @@ export default function ClaimAdminPage() {
       } else if (j?.error) {
         setRows((rs) =>
           rs.map((r) =>
-            r.id === id ? { ...r, status: r.status === "pending" ? "approved" : r.status, payout_error: j.error } : r,
+            r.id === id
+              ? {
+                  ...r,
+                  status: r.status === "pending" ? "approved" : r.status,
+                  payout_error: j.error,
+                  // Server re-checked and refused: reflect the fresh zero
+                  // balance so the next Send asks for the override.
+                  ...(j.code === "no_blink" ? { holds_blink: false, blink_balance_wei: "0" } : {}),
+                }
+              : r,
           ),
         );
       }
@@ -151,9 +163,33 @@ export default function ClaimAdminPage() {
     }
   }, []);
 
-  const filtered = useMemo(
-    () => (filter === "all" ? rows : rows.filter((r) => r.status === filter)),
-    [rows, filter],
+  // NO BLINK rows require an explicit confirmation before sending.
+  const confirmAndSend = useCallback(
+    (r: Row) => {
+      if (r.holds_blink === false) {
+        const short = `${r.eth_address.slice(0, 8)}…${r.eth_address.slice(-6)}`;
+        if (!window.confirm(`${short} holds no $BLINK — send anyway?`)) return;
+        sendPayout(r.id, true);
+      } else {
+        sendPayout(r.id);
+      }
+    },
+    [sendPayout],
+  );
+
+  const filtered = useMemo(() => {
+    let out = filter === "all" ? rows : rows.filter((r) => r.status === filter);
+    if (holderFilter === "holds") out = out.filter((r) => r.holds_blink === true);
+    if (holderFilter === "none") out = out.filter((r) => r.holds_blink === false);
+    return out;
+  }, [rows, filter, holderFilter]);
+
+  const holderTotals = useMemo(
+    () => ({
+      holds: rows.filter((r) => r.holds_blink === true).length,
+      none: rows.filter((r) => r.holds_blink === false).length,
+    }),
+    [rows],
   );
 
   const totals = useMemo(() => {
@@ -239,12 +275,27 @@ export default function ClaimAdminPage() {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
           {FILTERS.map((f) => (
             <button key={f} onClick={() => setFilter(f)} style={btn(filter === f)}>
               {f} ({totals[f] ?? 0})
             </button>
           ))}
+          <span style={{ width: 1, height: 20, background: "rgba(255,255,255,0.12)", margin: "0 4px" }} />
+          <button onClick={() => setHolderFilter(holderFilter === "holds" ? "all" : "holds")} style={btn(holderFilter === "holds")}>
+            💰 holds blink ({holderTotals.holds})
+          </button>
+          <button
+            onClick={() => setHolderFilter(holderFilter === "none" ? "all" : "none")}
+            style={{
+              ...btn(holderFilter === "none"),
+              ...(holderFilter === "none"
+                ? { borderColor: C.danger, background: "rgba(255,107,128,0.12)", color: C.dangerText }
+                : {}),
+            }}
+          >
+            🚫 no blink ({holderTotals.none})
+          </button>
         </div>
 
         <div style={{ overflowX: "auto", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16 }}>
@@ -290,6 +341,27 @@ export default function ClaimAdminPage() {
                     <td style={{ padding: "12px 14px", color: C.textSecondary, whiteSpace: "nowrap" }}>{r.trainer_code || "—"}</td>
                     <td style={{ padding: "12px 14px", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12 }}>
                       <span title={r.eth_address}>{r.eth_address.slice(0, 8)}…{r.eth_address.slice(-6)}</span>
+                      <div style={{ marginTop: 5 }}>
+                        {r.holds_blink === true ? (
+                          <span
+                            title={r.blink_balance_wei ? `${formatBlink(r.blink_balance_wei)} BLINK on-chain` : undefined}
+                            style={{ fontFamily: FONT, fontSize: 10, fontWeight: 900, letterSpacing: "0.08em", color: "#0a0a0f", background: C.primary, borderRadius: 6, padding: "2px 7px", whiteSpace: "nowrap" }}
+                          >
+                            HOLDS BLINK · {formatBlink(r.blink_balance_wei)}
+                          </span>
+                        ) : r.holds_blink === false ? (
+                          <span style={{ fontFamily: FONT, fontSize: 10, fontWeight: 900, letterSpacing: "0.08em", color: "#0a0a0f", background: C.danger, borderRadius: 6, padding: "2px 7px", whiteSpace: "nowrap" }}>
+                            NO BLINK
+                          </span>
+                        ) : (
+                          <span
+                            title="Couldn't verify the on-chain $BLINK balance (RPC error) — refresh to retry"
+                            style={{ fontFamily: FONT, fontSize: 10, fontWeight: 900, letterSpacing: "0.08em", color: C.textTertiary, border: "1px solid rgba(255,255,255,0.16)", borderRadius: 6, padding: "1px 6px", whiteSpace: "nowrap", cursor: "help" }}
+                          >
+                            BLINK ?
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: "12px 14px", fontVariantNumeric: "tabular-nums" }}>{(r.blink_lifetime || 0).toLocaleString()}</td>
                     <td style={{ padding: "12px 14px", fontVariantNumeric: "tabular-nums", color: C.primary, fontWeight: 700 }}>{(r.airdrop_basis || 0).toLocaleString()}</td>
@@ -324,7 +396,7 @@ export default function ClaimAdminPage() {
                       <div style={{ display: "flex", gap: 6 }}>
                         {r.status === "pending" && (
                           <>
-                            <button disabled={busyId === r.id} onClick={() => sendPayout(r.id)} style={{ ...btn(true), padding: "5px 10px" }}>
+                            <button disabled={busyId === r.id} onClick={() => confirmAndSend(r)} style={{ ...btn(true), padding: "5px 10px" }}>
                               {busyId === r.id ? "Sending…" : "Approve + send"}
                             </button>
                             <button disabled={busyId === r.id} onClick={() => setStatus(r.id, "rejected")} style={{ ...btn(), padding: "5px 10px", color: C.dangerText, borderColor: "rgba(255,107,128,0.4)" }}>
@@ -334,7 +406,7 @@ export default function ClaimAdminPage() {
                         )}
                         {r.status === "approved" && (
                           <>
-                            <button disabled={busyId === r.id} onClick={() => sendPayout(r.id)} style={{ ...btn(true), padding: "5px 10px" }}>
+                            <button disabled={busyId === r.id} onClick={() => confirmAndSend(r)} style={{ ...btn(true), padding: "5px 10px" }}>
                               {busyId === r.id ? "Sending…" : r.payout_error ? "Retry send" : "Send tokens"}
                             </button>
                             <button disabled={busyId === r.id} onClick={() => setStatus(r.id, "sent")} style={{ ...btn(), padding: "5px 10px" }}>
@@ -366,6 +438,10 @@ export default function ClaimAdminPage() {
           to SENT with the Etherscan link. Failures keep the row APPROVED with the error shown —
           Retry send is always safe (the vault rejects double-payouts per registration, on-chain).
           Mark sent / Undo remain for manual bookkeeping. Flagged accounts show a REVIEW badge.
+          The <strong>HOLDS BLINK / NO BLINK</strong> badge is a live on-chain balance check of the
+          registered wallet (refreshed on load, ~60&nbsp;s cache) — players must already hold $BLINK
+          to receive rewards. Sending to a NO BLINK wallet asks for confirmation and the server
+          re-checks the balance right before every send.
         </p>
       </div>
     </main>

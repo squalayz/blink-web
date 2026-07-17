@@ -28,6 +28,7 @@ const MARKETING_ALLOWED_PREFIXES = [
   "/api/claim/lookup", // airdrop claim v3 APIs only (legacy claim APIs stay locked)
   "/api/claim/submit",
   "/api/claim/status",
+  "/api/claim/balance", // public $BLINK holder check (rate-limited in-route)
   "/api/claim/admin",
 ];
 
