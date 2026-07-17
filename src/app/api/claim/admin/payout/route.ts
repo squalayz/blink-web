@@ -27,6 +27,7 @@ import {
   basisFromWei,
   computePayoutWei,
   isRefPaid,
+  isTxKnown,
   payoutConfig,
   payoutErrorMessage,
   payoutRef,
@@ -274,7 +275,29 @@ export async function POST(req: NextRequest) {
     try {
       receipt = await waitForPayout(hash);
     } catch (e) {
-      // Timed out waiting — tx may still land. Keep hash, surface the state.
+      // Timed out waiting. If the network no longer knows the tx AND the ref is
+      // unpaid, it was dropped — nothing was sent, say so plainly and clear the
+      // stale hash so the row reads truthfully.
+      const known = await isTxKnown(hash);
+      const refPaid = known ? true : await isRefPaid(cfg.vault, ref).catch(() => true);
+      if (!known && !refPaid) {
+        const lastGood = payouts[payouts.length - 1] ?? null;
+        await db
+          .from("airdrop_registrations")
+          .update({
+            payout_tx_hash: lastGood?.tx_hash ?? null,
+            payout_amount_wei: lastGood?.amount_wei ?? null,
+            payout_error: "Transaction was dropped by the network — NOTHING was sent. Safe to retry.",
+            payout_locked_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", id);
+        return NextResponse.json(
+          { error: "Transaction dropped — nothing was sent. Safe to retry.", txHash: hash },
+          { status: 502 },
+        );
+      }
+      // Tx may still land — keep hash; a landed tx is auto-recovered on retry.
       return fail(
         `Confirmation timed out — check the tx on Etherscan, then retry (a landed tx is auto-recovered). ${payoutErrorMessage(e)}`,
         504,

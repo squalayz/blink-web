@@ -22,6 +22,7 @@ import {
   formatUnits,
   http,
   keccak256,
+  parseGwei,
   parseUnits,
   toBytes,
   type Address,
@@ -165,7 +166,30 @@ export async function sendPayout(
     functionName: "payout",
     args: [to, amountWei, ref],
   });
-  return wallet.writeContract(request);
+  // Fee headroom: 2× the current estimate (min 0.1 gwei priority) so the tx
+  // survives base-fee ticks instead of getting dropped from the mempool.
+  // At sub-gwei gas this costs fractions of a cent.
+  const fees = await pub.estimateFeesPerGas();
+  const floor = parseGwei("0.1");
+  const maxPriorityFeePerGas =
+    fees.maxPriorityFeePerGas && fees.maxPriorityFeePerGas * 2n > floor
+      ? fees.maxPriorityFeePerGas * 2n
+      : floor;
+  const maxFeePerGas =
+    fees.maxFeePerGas && fees.maxFeePerGas * 2n > maxPriorityFeePerGas
+      ? fees.maxFeePerGas * 2n
+      : maxPriorityFeePerGas * 2n;
+  return wallet.writeContract({ ...request, maxFeePerGas, maxPriorityFeePerGas });
+}
+
+/// True if the network still knows this tx (mempool or mined). False = dropped.
+export async function isTxKnown(hash: Hex): Promise<boolean> {
+  try {
+    const tx = await getPublicClient().getTransaction({ hash });
+    return tx !== null;
+  } catch {
+    return false;
+  }
 }
 
 export async function waitForPayout(hash: Hex) {
