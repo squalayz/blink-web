@@ -26,6 +26,13 @@ export function blinkworldAdmin(): SupabaseClient {
   }
   client = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
+    // CRITICAL: Next.js patches global fetch and CACHES server-side GETs in the
+    // Vercel Data Cache — without no-store the admin panel reads stale rows
+    // (payouts looked "pending" after they were sent). Never cache DB reads.
+    global: {
+      fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+        fetch(input, { ...init, cache: "no-store" }),
+    },
   });
   return client;
 }
