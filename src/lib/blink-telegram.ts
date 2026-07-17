@@ -35,8 +35,8 @@ export async function announcePayout(opts: {
   const who = opts.username ? `@${esc(opts.username)}` : "A BlinkWorld player";
   const amount = Math.round(opts.amountTokens).toLocaleString("en-US");
   const text =
-    `⚡️💚 <b>BLINK PAYOUT!</b> 💚⚡️\n\n` +
-    `${who} just got <b>${amount} $BLINK</b> sent straight to their wallet for playing BlinkWorld! 🎮🔥\n\n` +
+    `💼💸 <b>BLINK PAYOUT!</b> 💸💼\n\n` +
+    `${who} just got <b>${amount} $BLINK</b> sent straight to their wallet for playing BlinkWorld! 🎮💰\n\n` +
     `Catch creatures. Earn Blinks. Get real $BLINK. It pays to play. 😎\n\n` +
     `📲 <a href="${APP_LINK}">Download BlinkWorld on the App Store</a>\n` +
     `🔗 <a href="https://etherscan.io/tx/${esc(opts.txHash)}">Proof on-chain</a>`;
