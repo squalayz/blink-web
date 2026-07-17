@@ -35,7 +35,31 @@ import {
   waitForPayout,
 } from "@/lib/blink-payout";
 import { getBlinkBalance } from "@/lib/blink-balance";
-import { getAddress, type Address } from "viem";
+import { announcePayout } from "@/lib/blink-telegram";
+import { formatUnits, getAddress, type Address } from "viem";
+
+/// Group-chat hype for a confirmed payout — fire-and-forget, never blocks.
+async function announceConfirmedPayout(
+  db: ReturnType<typeof blinkworldAdmin>,
+  profileId: string,
+  amountWei: string,
+  txHash: string,
+) {
+  try {
+    const { data } = await db
+      .from("airdrop_export")
+      .select("username, display_name")
+      .eq("profile_id", profileId)
+      .maybeSingle();
+    await announcePayout({
+      username: data?.username || data?.display_name || null,
+      amountTokens: Number(formatUnits(BigInt(amountWei), 18)),
+      txHash,
+    });
+  } catch (e) {
+    console.error("[claim/admin/payout] announce failed:", e instanceof Error ? e.message : e);
+  }
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -175,6 +199,7 @@ export async function POST(req: NextRequest) {
         .eq("id", id)
         .select(REG_COLS)
         .maybeSingle();
+      await announceConfirmedPayout(db, reg.profile_id, reg.payout_amount_wei, unfinalizedHash);
       return NextResponse.json({ ok: true, recovered: true, registration: recovered ?? reg });
     }
 
@@ -358,6 +383,9 @@ export async function POST(req: NextRequest) {
       .select(REG_COLS)
       .maybeSingle();
     if (updErr) throw updErr;
+
+    // 🎉 Hype the group — confirmed on-chain, safe to announce.
+    await announceConfirmedPayout(db, reg.profile_id, amountWei.toString(), hash);
 
     return NextResponse.json({
       ok: true,
