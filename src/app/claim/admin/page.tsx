@@ -387,7 +387,13 @@ export default function ClaimAdminPage() {
                     </td>
                     <td style={{ padding: "12px 14px", color: C.textSecondary, whiteSpace: "nowrap" }}>{r.trainer_code || "—"}</td>
                     <td style={{ padding: "12px 14px", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12 }}>
-                      <span title={r.eth_address}>{r.eth_address.slice(0, 8)}…{r.eth_address.slice(-6)}</span>
+                      <span
+                        title="Click to copy"
+                        onClick={() => { try { navigator.clipboard.writeText(r.eth_address); } catch { /* noop */ } }}
+                        style={{ wordBreak: "break-all", cursor: "pointer", maxWidth: 340, display: "inline-block" }}
+                      >
+                        {r.eth_address}
+                      </span>
                       <div style={{ marginTop: 5 }}>
                         {r.holds_blink === true ? (
                           <span
