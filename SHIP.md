@@ -60,13 +60,35 @@ forge verify-contract <VAULT_ADDRESS> src/BlinkPayoutVault.sol:BlinkPayoutVault 
 
 Sanity check: `cast call <VAULT> "poolBalance()(uint256)" --rpc-url https://ethereum-rpc.publicnode.com`
 
-## 5. Run the DB migration (BlinkWorld game project)
+## 5. Run the DB migrations (BlinkWorld game project)
 
-Paste `supabase/migrations/20260716_airdrop_payout_columns.sql` into
-https://supabase.com/dashboard/project/lutlnwshbbhbwszpzxks/sql and run it.
-(Adds payout tx-hash/amount/error/lock columns to `airdrop_registrations`.
-The admin panel degrades gracefully if the site deploys first, but do the
-migration before the first real payout.)
+Paste into https://supabase.com/dashboard/project/lutlnwshbbhbwszpzxks/sql
+and run, in order:
+
+1. `supabase/migrations/20260716_airdrop_payout_columns.sql` — payout
+   tx-hash/amount/error/lock columns on `airdrop_registrations`. ✅ already
+   run in prod (the first live payout used it).
+2. `supabase/migrations/20260716_airdrop_payout_history.sql` — **REQUIRED
+   before the next payout.** Creates `airdrop_payouts` (one row per confirmed
+   on-chain send) and backfills it from every already-sent registration.
+   Payouts are refused with a clear error until this table exists — the
+   incremental accounting (only newly earned basis is ever paid) depends on
+   it. The backfill is idempotent (`on conflict do nothing`), safe to re-run.
+
+The admin panel shows a yellow banner if either migration is missing.
+
+### Incremental payouts (how Approve now works)
+
+- Every send pays only `owed = fresh airdrop_basis − cumulative basis paid`
+  (`airdrop_registrations.payout_basis` is the cumulative, reconciled against
+  `airdrop_payouts`). `owed ≤ 0` → "nothing new to pay", button hidden.
+- Players who keep earning show a **+N NEW** badge and a **Send +N new**
+  button on their SENT row; each confirmed send appends a history row
+  (expandable under the status, with Etherscan links).
+- Each payout gets its own on-chain vault ref (`keccak(blinkworld-airdrop:
+  <registration id>:<seq>)`, seq = payout count; seq 0 keeps the legacy
+  format so already-consumed refs stay recognized). The vault still rejects
+  any replay of the same payout — repeat payouts don't weaken that.
 
 ## 6. Set Vercel env vars (production)
 
@@ -111,3 +133,8 @@ Push / redeploy mishmesh on Vercel as usual.
 - **Raise/lower caps:** `setDailyCap` / `setMaxPerPayout` (owner, 18-dec wei).
 - **Drain/migrate:** `rescueToken(<BLINK>, <to>, <amount>)` (owner).
 - The deployer/owner key stays cold — it is never needed for day-to-day sends.
+- **Stale admin panel?** All `/api/claim/*` responses are now `no-store`
+  (middleware) and the admin/player pages fetch with `cache: "no-store"` —
+  statuses, tx hashes and paid amounts always render fresh from the DB.
+  If a status ever looks wrong, hit Refresh in the panel and trust the DB
+  (`airdrop_registrations` + `airdrop_payouts` on the game project).

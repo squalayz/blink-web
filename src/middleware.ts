@@ -196,6 +196,15 @@ export function middleware(req: NextRequest) {
     res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
   }
 
+  // ═══ 3b. CLAIM APIs ARE NEVER CACHEABLE ═══
+  // Vercel stamps dynamic responses "public, max-age=0, must-revalidate",
+  // which lets browsers (Safari especially) keep serving a stored copy of
+  // cookie-authenticated JSON — the admin panel then renders pre-payout
+  // statuses while the DB is correct. Real money UI: force no-store.
+  if (pathname.startsWith("/api/claim")) {
+    res.headers.set("Cache-Control", "private, no-cache, no-store, max-age=0, must-revalidate");
+  }
+
   // ═══ 4. REQUEST ID (for tracing) ═══
   const requestId = crypto.randomUUID();
   res.headers.set("X-Request-Id", requestId);

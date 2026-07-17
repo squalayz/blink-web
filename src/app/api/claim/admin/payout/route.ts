@@ -1,14 +1,21 @@
 // POST /api/claim/admin/payout — admin-only. Body: { id }.
 //
-// Approve-and-send: sends airdrop_basis × CLAIM_PAYOUT_RATIO BLINK to the
-// registration's address via BlinkPayoutVault, waits for 1 confirmation,
-// stores the tx hash and flips the row to 'sent'.
+// INCREMENTAL approve-and-send: players keep earning Blinks after being paid,
+// so each send covers only the DELTA of newly earned basis:
 //
-// Idempotency (three layers):
-//   1. row must be pending/approved with no tx hash and no fresh in-flight
-//      lock — claimed atomically via a conditional UPDATE (double-click safe)
-//   2. paidRefs on-chain check recovers rows whose confirmation was lost
-//   3. the vault itself rejects a second payout for the same ref, ever
+//   owed = fresh airdrop_export.airdrop_basis − cumulative basis already paid
+//
+// Cumulative paid lives in airdrop_registrations.payout_basis and is
+// reconciled against the airdrop_payouts history (one row per confirmed tx,
+// migration 20260716_airdrop_payout_history.sql — REQUIRED before any send).
+// owed <= 0 → refused with "nothing new to pay" (no DB writes).
+//
+// Idempotency (three layers, per PAYOUT not per registration):
+//   1. row must be pending/approved/sent with no fresh in-flight lock —
+//      claimed atomically via a conditional UPDATE (double-click safe)
+//   2. paidRefs on-chain check recovers payouts whose confirmation was lost
+//   3. the vault rejects a second payout for the same ref, ever; each payout
+//      uses a fresh ref = payoutRef(reg.id, seq) with seq = history count
 //
 // Failure: row stays 'approved' with payout_error visible in the admin table;
 // the Send button becomes a retry.
@@ -17,6 +24,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { blinkworldAdmin } from "@/lib/blinkworld-admin";
 import { isAdminRequest } from "@/lib/claim-v3";
 import {
+  basisFromWei,
   computePayoutWei,
   isRefPaid,
   payoutConfig,
@@ -73,9 +81,6 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (regErr) throw regErr;
     if (!reg) return NextResponse.json({ error: "Registration not found." }, { status: 404 });
-    if (reg.status === "sent") {
-      return NextResponse.json({ ok: true, alreadySent: true, registration: reg });
-    }
     if (reg.status === "rejected") {
       return NextResponse.json({ error: "Registration is rejected." }, { status: 400 });
     }
@@ -87,16 +92,81 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Registered ETH address is invalid." }, { status: 400 });
     }
 
-    const ref = payoutRef(reg.id);
+    // ── Payout history: REQUIRED for incremental accounting ──────────────────
+    const { data: history, error: histErr } = await db
+      .from("airdrop_payouts")
+      .select("tx_hash, amount_wei, basis_delta, basis_total_after, created_at")
+      .eq("profile_id", reg.profile_id)
+      .order("created_at", { ascending: true });
+    if (histErr) {
+      return NextResponse.json(
+        {
+          error:
+            "Payout history table missing — run supabase/migrations/20260716_airdrop_payout_history.sql " +
+            "on the BlinkWorld project before sending payouts.",
+        },
+        { status: 503 },
+      );
+    }
+    const payouts = history ?? [];
+    const historyHashes = new Set(payouts.map((h) => h.tx_hash));
+    const historyTotal = payouts.reduce((m, h) => Math.max(m, Number(h.basis_total_after || 0)), 0);
+    const regPaid = Number(reg.payout_basis ?? 0);
 
-    // On-chain recovery: paid before but the row never flipped (crash/timeout).
+    // A recorded tx that history doesn't know about, on a row whose cumulative
+    // ALREADY includes it (regPaid > historyTotal) = pre-history row whose
+    // backfill hasn't run. Finalizing it again would double-count — stop.
+    const unfinalizedHash =
+      reg.payout_tx_hash && !historyHashes.has(reg.payout_tx_hash) ? reg.payout_tx_hash : null;
+    if (unfinalizedHash && regPaid > historyTotal) {
+      return NextResponse.json(
+        {
+          error:
+            "This row was paid before the payout-history migration — run the backfill in " +
+            "20260716_airdrop_payout_history.sql, then retry.",
+        },
+        { status: 409 },
+      );
+    }
+
+    // Cumulative basis paid so far. payout_basis is authoritative; the history
+    // total heals a crash between the history insert and the row update.
+    const cumPaid = Math.max(regPaid, historyTotal);
+
+    // Each payout gets its own on-chain ref; seq = confirmed payouts so far.
+    const seq = payouts.length;
+    const ref = payoutRef(reg.id, seq);
+
+    // On-chain recovery: this seq was paid but never finalized (crash/timeout
+    // after send). Fold the recorded tx into history + cumulative, don't pay.
     if (await isRefPaid(cfg.vault, ref)) {
+      if (!unfinalizedHash || !reg.payout_amount_wei) {
+        return NextResponse.json(
+          {
+            error:
+              "On-chain ref for this payout is already consumed but no tx hash was recorded — " +
+              "check the operator address on Etherscan and reconcile airdrop_payouts manually.",
+          },
+          { status: 409 },
+        );
+      }
+      const delta = basisFromWei(reg.payout_amount_wei, cfg.ratio);
+      const totalAfter = cumPaid + delta;
+      const { error: histInsErr } = await db.from("airdrop_payouts").insert({
+        profile_id: reg.profile_id,
+        tx_hash: unfinalizedHash,
+        amount_wei: reg.payout_amount_wei,
+        basis_delta: delta,
+        basis_total_after: totalAfter,
+      });
+      if (histInsErr) throw histInsErr;
       const now = new Date().toISOString();
       const { data: recovered } = await db
         .from("airdrop_registrations")
         .update({
           status: "sent",
           sent_at: reg.sent_at ?? now,
+          payout_basis: totalAfter,
           payout_error: null,
           payout_locked_at: null,
           updated_at: now,
@@ -116,9 +186,23 @@ export async function POST(req: NextRequest) {
     if (expErr) throw expErr;
     const basis = Number(exp?.airdrop_basis ?? 0);
 
+    // ── The delta: only newly earned basis is ever paid ──────────────────────
+    const owed = basis - cumPaid;
+    if (owed <= 0) {
+      return NextResponse.json(
+        {
+          error: `Nothing new to pay — lifetime basis ${basis.toLocaleString()}, already paid ${cumPaid.toLocaleString()}.`,
+          code: "nothing_owed",
+          basis,
+          paid: cumPaid,
+        },
+        { status: 409 },
+      );
+    }
+
     let amountWei: bigint;
     try {
-      amountWei = computePayoutWei(basis, cfg.ratio, cfg.maxTokens);
+      amountWei = computePayoutWei(owed, cfg.ratio, cfg.maxTokens);
     } catch (e) {
       return fail(payoutErrorMessage(e));
     }
@@ -138,11 +222,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Atomically claim the row: only one request can hold a fresh lock on an
-    // unsent pending/approved row. Also stamps 'approved' before sending.
-    // A stale recorded hash is cleared here — we just proved the ref is unpaid
-    // on-chain, and even if that old tx later lands, the vault's ref guard
-    // makes the retry tx revert, so a double-send is impossible either way.
+    // Atomically claim the row: only one request can hold a fresh lock on a
+    // pending/approved/sent row ('sent' is claimable again — that's what an
+    // incremental payout is). The last confirmed tx hash/amount stay in place
+    // for display until the new send overwrites them.
     const now = new Date().toISOString();
     const staleCutoff = new Date(Date.now() - LOCK_TTL_MS).toISOString();
     const { data: claimed, error: claimErr } = await db
@@ -151,20 +234,18 @@ export async function POST(req: NextRequest) {
         status: "approved",
         approved_at: reg.approved_at ?? now,
         payout_locked_at: now,
-        payout_tx_hash: null,
-        payout_amount_wei: null,
         payout_error: null,
         updated_at: now,
       })
       .eq("id", id)
-      .in("status", ["pending", "approved"])
+      .in("status", ["pending", "approved", "sent"])
       .or(`payout_locked_at.is.null,payout_locked_at.lt.${staleCutoff}`)
       .select(REG_COLS)
       .maybeSingle();
     if (claimErr) throw claimErr;
     if (!claimed) {
       return NextResponse.json(
-        { error: "Payout already in progress (or already sent) for this registration." },
+        { error: "Payout already in progress for this registration." },
         { status: 409 },
       );
     }
@@ -178,13 +259,13 @@ export async function POST(req: NextRequest) {
       return fail(payoutErrorMessage(e), 502);
     }
 
-    // Record the hash immediately so a crash while waiting is recoverable.
+    // Record the hash immediately so a crash while waiting is recoverable
+    // (the recovery path above turns this recorded tx into a history row).
     await db
       .from("airdrop_registrations")
       .update({
         payout_tx_hash: hash,
         payout_amount_wei: amountWei.toString(),
-        payout_basis: basis,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
@@ -202,12 +283,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (receipt.status !== "success") {
-      // Reverted on-chain: ref not consumed, safe to retry.
+      // Reverted on-chain: ref not consumed, safe to retry. Restore the last
+      // CONFIRMED tx for display (the reverted hash means nothing).
+      const lastGood = payouts[payouts.length - 1] ?? null;
       const { data: reverted } = await db
         .from("airdrop_registrations")
         .update({
-          payout_tx_hash: null,
-          payout_amount_wei: null,
+          payout_tx_hash: lastGood?.tx_hash ?? null,
+          payout_amount_wei: lastGood?.amount_wei ?? null,
           payout_error: `Transaction reverted on-chain (${hash}). Safe to retry.`,
           payout_locked_at: null,
           updated_at: new Date().toISOString(),
@@ -221,12 +304,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Confirmed: history row first, then fold the delta into the cumulative.
+    // (A crash in between self-heals — cumPaid reconciles with historyTotal.)
+    const totalAfter = cumPaid + owed;
+    const { error: histInsErr } = await db.from("airdrop_payouts").insert({
+      profile_id: reg.profile_id,
+      tx_hash: hash,
+      amount_wei: amountWei.toString(),
+      basis_delta: owed,
+      basis_total_after: totalAfter,
+    });
+    if (histInsErr) {
+      // Never lose the cumulative update over a history hiccup — the row
+      // update below is what prevents double-pays.
+      console.error("[claim/admin/payout] history insert failed for", id, "-", histInsErr.message);
+    }
+
     const doneAt = new Date().toISOString();
     const { data: updated, error: updErr } = await db
       .from("airdrop_registrations")
       .update({
         status: "sent",
         sent_at: doneAt,
+        payout_basis: totalAfter,
         payout_error: null,
         payout_locked_at: null,
         updated_at: doneAt,
@@ -236,7 +336,13 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (updErr) throw updErr;
 
-    return NextResponse.json({ ok: true, txHash: hash, registration: updated });
+    return NextResponse.json({
+      ok: true,
+      txHash: hash,
+      paid_delta: owed,
+      paid_total: totalAfter,
+      registration: updated,
+    });
   } catch (e) {
     console.error("[claim/admin/payout] error:", e instanceof Error ? e.message : e);
     return fail("Payout failed — see server logs.", 500);

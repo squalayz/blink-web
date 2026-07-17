@@ -36,6 +36,17 @@ type Row = {
   payout_error?: string | null;
   blink_balance_wei?: string | null;
   holds_blink?: boolean | null; // null = couldn't verify (RPC hiccup)
+  paid_basis?: number; // cumulative basis paid (payout_basis ∪ history)
+  owed_basis?: number; // fresh airdrop_basis − paid_basis, clamped ≥ 0
+  payouts?: Payout[]; // confirmed sends, newest first
+};
+
+type Payout = {
+  tx_hash: string;
+  amount_wei: string;
+  basis_delta: number;
+  basis_total_after: number;
+  created_at: string;
 };
 
 function formatBlink(wei: string | null | undefined): string {
@@ -62,17 +73,27 @@ export default function ClaimAdminPage() {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [holderFilter, setHolderFilter] = useState<"all" | "holds" | "none">("all");
   const [busyId, setBusyId] = useState("");
+  const [dbWarning, setDbWarning] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/claim/admin/registrations");
+      // no-store: statuses/tx hashes must ALWAYS come from the DB, never from
+      // a browser-cached copy of this authenticated JSON.
+      const res = await fetch("/api/claim/admin/registrations", { cache: "no-store" });
       if (res.status === 401) {
         setAuthed(false);
         return;
       }
       const j = await res.json();
       setRows(j.registrations ?? []);
+      setDbWarning(
+        j.degraded
+          ? "Payout columns unreadable — run supabase/migrations/20260716_airdrop_payout_columns.sql. Statuses shown may be missing tx/paid data."
+          : j.history_available === false
+            ? "Payout history table missing — run supabase/migrations/20260716_airdrop_payout_history.sql before the next send (owed amounts below ignore it)."
+            : "",
+      );
       setAuthed(true);
     } catch {
       setAuthed(false);
@@ -140,6 +161,8 @@ export default function ClaimAdminPage() {
       const j = await res.json().catch(() => null);
       if (j?.registration) {
         setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...j.registration } : r)));
+        // Re-pull the whole list so paid/owed/history reflect the DB exactly.
+        await load();
       } else if (j?.error) {
         setRows((rs) =>
           rs.map((r) =>
@@ -161,7 +184,7 @@ export default function ClaimAdminPage() {
     } finally {
       setBusyId("");
     }
-  }, []);
+  }, [load]);
 
   // NO BLINK rows require an explicit confirmation before sending.
   const confirmAndSend = useCallback(
@@ -202,6 +225,9 @@ export default function ClaimAdminPage() {
     () => rows.filter((r) => r.status === "approved" || r.status === "sent").reduce((s, r) => s + (r.airdrop_basis || 0), 0),
     [rows],
   );
+
+  const totalPaid = useMemo(() => rows.reduce((s, r) => s + (r.paid_basis || 0), 0), [rows]);
+  const totalOwed = useMemo(() => rows.reduce((s, r) => s + (r.owed_basis || 0), 0), [rows]);
 
   const btn = (active = false): React.CSSProperties => ({
     fontFamily: FONT,
@@ -259,7 +285,9 @@ export default function ClaimAdminPage() {
             <p style={{ color: C.textSecondary, fontSize: 13, margin: "4px 0 0" }}>
               {totals.all} registered · {totals.pending} pending · {totals.approved} approved · {totals.sent} sent ·{" "}
               {totals.rejected} rejected · approved basis Σ{" "}
-              <strong style={{ color: C.primary }}>{totalBasis.toLocaleString()}</strong>
+              <strong style={{ color: C.primary }}>{totalBasis.toLocaleString()}</strong> · paid Σ{" "}
+              <strong style={{ color: C.primary2 }}>{totalPaid.toLocaleString()}</strong> · owed Σ{" "}
+              <strong style={{ color: "#FFD166" }}>{totalOwed.toLocaleString()}</strong>
             </p>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
@@ -274,6 +302,24 @@ export default function ClaimAdminPage() {
             </a>
           </div>
         </div>
+
+        {dbWarning && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: 16,
+              padding: "12px 16px",
+              borderRadius: 12,
+              fontSize: 13,
+              fontWeight: 700,
+              color: "#FFD166",
+              background: "rgba(255,209,102,0.1)",
+              border: "1px solid rgba(255,209,102,0.45)",
+            }}
+          >
+            ⚠️ {dbWarning}
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
           {FILTERS.map((f) => (
@@ -302,7 +348,7 @@ export default function ClaimAdminPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 980 }}>
             <thead>
               <tr style={{ background: "rgba(255,255,255,0.04)", textAlign: "left" }}>
-                {["Player", "Trainer code", "ETH address", "Lifetime", "Basis", "Registered", "Status", "Actions"].map((h) => (
+                {["Player", "Trainer code", "ETH address", "Lifetime", "Basis · paid · owed", "Registered", "Status", "Actions"].map((h) => (
                   <th key={h} style={{ padding: "12px 14px", fontWeight: 800, letterSpacing: "0.06em", fontSize: 11, textTransform: "uppercase", color: C.textSecondary, whiteSpace: "nowrap" }}>
                     {h}
                   </th>
@@ -319,6 +365,7 @@ export default function ClaimAdminPage() {
               )}
               {filtered.map((r) => {
                 const reasons = Array.isArray(r.flag_reasons) ? r.flag_reasons.join(", ") : r.flag_reasons || "";
+                const owed = r.owed_basis || 0;
                 return (
                   <tr key={r.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                     <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
@@ -364,7 +411,19 @@ export default function ClaimAdminPage() {
                       </div>
                     </td>
                     <td style={{ padding: "12px 14px", fontVariantNumeric: "tabular-nums" }}>{(r.blink_lifetime || 0).toLocaleString()}</td>
-                    <td style={{ padding: "12px 14px", fontVariantNumeric: "tabular-nums", color: C.primary, fontWeight: 700 }}>{(r.airdrop_basis || 0).toLocaleString()}</td>
+                    <td style={{ padding: "12px 14px", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                      <div style={{ color: C.primary, fontWeight: 700 }}>{(r.airdrop_basis || 0).toLocaleString()}</div>
+                      <div style={{ color: C.textTertiary, fontSize: 11, marginTop: 3 }}>
+                        paid {(r.paid_basis || 0).toLocaleString()}
+                      </div>
+                      {(r.owed_basis || 0) > 0 ? (
+                        <span style={{ display: "inline-block", marginTop: 4, fontSize: 10, fontWeight: 900, letterSpacing: "0.06em", color: "#0a0a0f", background: "#FFD166", borderRadius: 6, padding: "2px 7px" }}>
+                          +{(r.owed_basis || 0).toLocaleString()} NEW
+                        </span>
+                      ) : (r.paid_basis || 0) > 0 ? (
+                        <div style={{ color: C.primary2, fontSize: 11, marginTop: 4, fontWeight: 700 }}>fully paid</div>
+                      ) : null}
+                    </td>
                     <td style={{ padding: "12px 14px", color: C.textSecondary, whiteSpace: "nowrap", fontSize: 12 }}>
                       {new Date(r.created_at).toLocaleDateString()}
                     </td>
@@ -391,14 +450,40 @@ export default function ClaimAdminPage() {
                           {r.payout_error}
                         </div>
                       )}
+                      {(r.payouts?.length ?? 0) > 1 && (
+                        <details style={{ marginTop: 6 }}>
+                          <summary style={{ fontSize: 11, color: C.textSecondary, cursor: "pointer" }}>
+                            {r.payouts!.length} payouts
+                          </summary>
+                          <div style={{ marginTop: 4, display: "grid", gap: 3 }}>
+                            {r.payouts!.map((p) => (
+                              <a
+                                key={p.tx_hash}
+                                href={`https://etherscan.io/tx/${p.tx_hash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={p.tx_hash}
+                                style={{ fontSize: 11, color: C.primary2, fontFamily: "ui-monospace, Menlo, monospace", textDecoration: "none", whiteSpace: "nowrap" }}
+                              >
+                                {new Date(p.created_at).toLocaleDateString()} · +{Number(p.basis_delta).toLocaleString()} ·{" "}
+                                {formatBlink(p.amount_wei)} BLINK · {p.tx_hash.slice(0, 10)}…↗
+                              </a>
+                            ))}
+                          </div>
+                        </details>
+                      )}
                     </td>
                     <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
                       <div style={{ display: "flex", gap: 6 }}>
                         {r.status === "pending" && (
                           <>
-                            <button disabled={busyId === r.id} onClick={() => confirmAndSend(r)} style={{ ...btn(true), padding: "5px 10px" }}>
-                              {busyId === r.id ? "Sending…" : "Approve + send"}
-                            </button>
+                            {owed > 0 ? (
+                              <button disabled={busyId === r.id} onClick={() => confirmAndSend(r)} style={{ ...btn(true), padding: "5px 10px" }}>
+                                {busyId === r.id ? "Sending…" : "Approve + send"}
+                              </button>
+                            ) : (
+                              <span style={{ color: C.textTertiary, fontSize: 12, alignSelf: "center" }}>nothing owed</span>
+                            )}
                             <button disabled={busyId === r.id} onClick={() => setStatus(r.id, "rejected")} style={{ ...btn(), padding: "5px 10px", color: C.dangerText, borderColor: "rgba(255,107,128,0.4)" }}>
                               Reject
                             </button>
@@ -406,9 +491,13 @@ export default function ClaimAdminPage() {
                         )}
                         {r.status === "approved" && (
                           <>
-                            <button disabled={busyId === r.id} onClick={() => confirmAndSend(r)} style={{ ...btn(true), padding: "5px 10px" }}>
-                              {busyId === r.id ? "Sending…" : r.payout_error ? "Retry send" : "Send tokens"}
-                            </button>
+                            {owed > 0 ? (
+                              <button disabled={busyId === r.id} onClick={() => confirmAndSend(r)} style={{ ...btn(true), padding: "5px 10px" }}>
+                                {busyId === r.id ? "Sending…" : r.payout_error ? "Retry send" : "Send tokens"}
+                              </button>
+                            ) : (
+                              <span style={{ color: C.textTertiary, fontSize: 12, alignSelf: "center" }}>nothing owed</span>
+                            )}
                             <button disabled={busyId === r.id} onClick={() => setStatus(r.id, "sent")} style={{ ...btn(), padding: "5px 10px" }}>
                               Mark sent
                             </button>
@@ -422,7 +511,16 @@ export default function ClaimAdminPage() {
                             Reopen
                           </button>
                         )}
-                        {r.status === "sent" && <span style={{ color: C.textTertiary, fontSize: 12 }}>✓ done</span>}
+                        {r.status === "sent" &&
+                          (owed > 0 ? (
+                            <button disabled={busyId === r.id} onClick={() => confirmAndSend(r)} style={{ ...btn(true), padding: "5px 10px" }}>
+                              {busyId === r.id ? "Sending…" : `Send +${owed.toLocaleString()} new`}
+                            </button>
+                          ) : (
+                            <span style={{ color: C.textTertiary, fontSize: 12 }}>
+                              {(r.paid_basis || 0) > 0 ? "✓ fully paid" : "✓ done"}
+                            </span>
+                          ))}
                       </div>
                     </td>
                   </tr>
@@ -433,10 +531,12 @@ export default function ClaimAdminPage() {
         </div>
 
         <p style={{ color: C.textTertiary, fontSize: 12, marginTop: 16, lineHeight: 1.6 }}>
-          <strong>Approve + send</strong> pays the player on-chain automatically: fresh{" "}
-          <code>airdrop_basis</code> × payout ratio in $BLINK via the payout vault, then the row flips
-          to SENT with the Etherscan link. Failures keep the row APPROVED with the error shown —
-          Retry send is always safe (the vault rejects double-payouts per registration, on-chain).
+          <strong>Approve + send</strong> pays the player on-chain automatically — and INCREMENTALLY:
+          only the owed delta (fresh <code>airdrop_basis</code> − basis already paid) × payout ratio
+          is ever sent, so players who keep earning can be paid again with{" "}
+          <strong>Send +N new</strong>. Each confirmed send is recorded in the payout history
+          (expandable under the status). Failures keep the row APPROVED with the error shown —
+          Retry send is always safe (the vault rejects a replay of the same payout, on-chain).
           Mark sent / Undo remain for manual bookkeeping. Flagged accounts show a REVIEW badge.
           The <strong>HOLDS BLINK / NO BLINK</strong> badge is a live on-chain balance check of the
           registered wallet (refreshed on load, ~60&nbsp;s cache) — players must already hold $BLINK

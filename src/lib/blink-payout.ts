@@ -19,6 +19,7 @@ import "server-only";
 import {
   createPublicClient,
   createWalletClient,
+  formatUnits,
   http,
   keccak256,
   parseUnits,
@@ -87,9 +88,18 @@ export function payoutConfig() {
   return { configured, vault: vault as Address, ratio, maxTokens };
 }
 
-/// Deterministic on-chain idempotency key for a registration row.
-export function payoutRef(registrationId: string): Hex {
-  return keccak256(toBytes(`blinkworld-airdrop:${registrationId}`));
+/// Deterministic on-chain idempotency key for ONE payout of a registration.
+/// `seq` is the number of payouts already confirmed for the player (the
+/// airdrop_payouts history count): each incremental payout gets its own ref,
+/// so repeat payouts are possible while the vault still rejects any replay of
+/// the SAME payout. seq 0 keeps the legacy pre-history format — refs already
+/// consumed on-chain stay recognizable to the recovery check.
+export function payoutRef(registrationId: string, seq = 0): Hex {
+  const key =
+    seq === 0
+      ? `blinkworld-airdrop:${registrationId}`
+      : `blinkworld-airdrop:${registrationId}:${seq}`;
+  return keccak256(toBytes(key));
 }
 
 /// Blink points → BLINK wei (18 dec) at the configured ratio.
@@ -108,6 +118,13 @@ export function computePayoutWei(basis: number, ratio: number, maxTokens: number
   const wei = parseUnits(tokens.toFixed(6), 18);
   if (wei <= 0n) throw new Error("Computed payout amount is zero.");
   return wei;
+}
+
+/// Inverse of computePayoutWei: a recorded on-chain amount (wei) → the basis
+/// delta it covered at the given ratio. Used to finalize a payout whose
+/// confirmation was lost (crash between send and history insert).
+export function basisFromWei(amountWei: string, ratio: number): number {
+  return Number(formatUnits(BigInt(amountWei), 18)) / ratio;
 }
 
 export function getPublicClient() {

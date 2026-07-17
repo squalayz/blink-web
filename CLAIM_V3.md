@@ -22,11 +22,13 @@ dedicated server-only client (`src/lib/blinkworld-admin.ts`) uses
   balances, flags). Players only ever see `blink_lifetime`; `airdrop_basis`,
   `flagged`, `flag_reasons` are admin/CSV-only. The `email` column is never
   read.
-- **Writes**: only the two new tables from
-  `supabase/migrations/20260715_airdrop_v3_blinkworld.sql`:
+- **Writes**: only the three claim tables:
   `airdrop_registrations` (one row per profile) and `airdrop_lookup_attempts`
-  (hashed-IP rate-limit log). Both are RLS-enabled with **no policies**
-  (deny-all; service_role bypasses).
+  (hashed-IP rate-limit log) from
+  `supabase/migrations/20260715_airdrop_v3_blinkworld.sql`, plus
+  `airdrop_payouts` (one row per confirmed on-chain send — incremental payout
+  history) from `supabase/migrations/20260716_airdrop_payout_history.sql`.
+  All RLS-enabled with **no policies** (deny-all; service_role bypasses).
 
 ## Flow (one screen, three stages)
 
@@ -47,9 +49,14 @@ and can edit the address **only while pending**.
 | `POST /api/claim/balance` | none (rate-limited) | live $BLINK `balanceOf(address)` for the holder warning (public chain data) |
 | `GET /api/claim/status` | session cookie | registration + balance for returning visitors |
 | `POST/DELETE /api/claim/admin/login` | password | `CLAIM_ADMIN_PASSWORD` (fallback `ADMIN_PASSWORD`) → 12-h httpOnly cookie |
-| `GET /api/claim/admin/registrations` | admin cookie | list joined with fresh `airdrop_export` |
+| `GET /api/claim/admin/registrations` | admin cookie | list joined with fresh `airdrop_export` + payout history (paid/owed per row) |
 | `POST /api/claim/admin/update` | admin cookie | `pending / approved / rejected / sent` transitions |
+| `POST /api/claim/admin/payout` | admin cookie | send the OWED DELTA (fresh basis − cumulative paid) on-chain via BlinkPayoutVault; refuses when nothing is owed |
 | `GET /api/claim/admin/export` | admin cookie | CSV with fresh `airdrop_basis`, flags, timestamps |
+
+All `/api/claim/*` responses are `Cache-Control: no-store` (middleware): the
+admin panel and player status must always render fresh DB state, never a
+browser-cached copy — a stale cached list once made a paid row look unpaid.
 
 Rate limit: max **5 failed** and **30 total** lookups per hour per IP,
 tracked as `sha256(ip + CLAIM_SESSION_SECRET)` — raw IPs and full codes are

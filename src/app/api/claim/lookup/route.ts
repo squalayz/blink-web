@@ -110,12 +110,24 @@ export async function POST(req: NextRequest) {
       .eq("profile_id", codeRow.profile_id)
       .maybeSingle();
 
+    // Total $BLINK already received (incremental payout history); the table
+    // may not exist yet — degrade to null, the UI just omits the line.
+    const { data: paid, error: paidErr } = await db
+      .from("airdrop_payouts")
+      .select("amount_wei")
+      .eq("profile_id", codeRow.profile_id);
+    const blinkReceivedWei =
+      paidErr || !paid
+        ? null
+        : paid.reduce((s, p) => s + BigInt(p.amount_wei || "0"), 0n).toString();
+
     await logAttempt(true);
 
     const res = NextResponse.json({
       ok: true,
       display_name: exportRow.display_name || exportRow.username || "Explorer",
       blink_lifetime: Number(exportRow.blink_lifetime || 0),
+      blink_received_wei: blinkReceivedWei,
       existing_claim: reg
         ? { eth_address: reg.eth_address, status: reg.status, updated_at: reg.updated_at }
         : null,

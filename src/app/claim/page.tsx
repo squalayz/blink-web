@@ -253,6 +253,8 @@ export default function ClaimPage() {
 
   const [displayName, setDisplayName] = useState("");
   const [balance, setBalance] = useState(0);
+  // Total $BLINK already received across all payouts (wei string, null = unknown)
+  const [receivedWei, setReceivedWei] = useState<string | null>(null);
   const [registration, setRegistration] = useState<Registration | null>(null);
 
   const [address, setAddress] = useState("");
@@ -297,12 +299,13 @@ export default function ClaimPage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/claim/status");
+        const res = await fetch("/api/claim/status", { cache: "no-store" });
         if (res.ok) {
           const j = await res.json();
           if (j?.ok) {
             setDisplayName(j.display_name || "Explorer");
             setBalance(j.blink_lifetime || 0);
+            setReceivedWei(j.blink_received_wei ?? null);
             if (j.registration) {
               setRegistration(j.registration);
               setAddress(j.registration.eth_address || "");
@@ -338,6 +341,7 @@ export default function ClaimPage() {
       }
       setDisplayName(j.display_name || "Explorer");
       setBalance(j.blink_lifetime || 0);
+      setReceivedWei(j.blink_received_wei ?? null);
       if (j.existing_claim) {
         setRegistration(j.existing_claim);
         setAddress(j.existing_claim.eth_address || "");
@@ -694,6 +698,14 @@ export default function ClaimPage() {
                     Lifetime Blink Balls:{" "}
                     <strong style={{ color: C.primary, fontVariantNumeric: "tabular-nums" }}>
                       {balance.toLocaleString()}
+                    </strong>
+                  </p>
+                )}
+                {receivedWei && receivedWei !== "0" && (
+                  <p style={{ fontSize: 13, color: C.textSecondary, margin: "-8px 0 18px" }}>
+                    $BLINK received so far:{" "}
+                    <strong style={{ color: C.primary, fontVariantNumeric: "tabular-nums" }}>
+                      {(parseFloat(receivedWei) / 1e18).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </strong>
                   </p>
                 )}

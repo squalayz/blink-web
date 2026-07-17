@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     }
 
     const db = blinkworldAdmin();
-    const [{ data: reg }, { data: exportRow }] = await Promise.all([
+    const [{ data: reg }, { data: exportRow }, { data: paid, error: paidErr }] = await Promise.all([
       db
         .from("airdrop_registrations")
         .select("eth_address, status, created_at, updated_at")
@@ -32,12 +32,21 @@ export async function GET(req: NextRequest) {
         .select("display_name, username, blink_lifetime")
         .eq("profile_id", profileId)
         .maybeSingle(),
+      // total $BLINK received across all incremental payouts; table may not
+      // exist yet (migration 20260716_airdrop_payout_history) — degrade to null
+      db.from("airdrop_payouts").select("amount_wei").eq("profile_id", profileId),
     ]);
+
+    const blinkReceivedWei =
+      paidErr || !paid
+        ? null
+        : paid.reduce((s, p) => s + BigInt(p.amount_wei || "0"), 0n).toString();
 
     return NextResponse.json({
       ok: true,
       display_name: exportRow?.display_name || exportRow?.username || "Explorer",
       blink_lifetime: Number(exportRow?.blink_lifetime || 0),
+      blink_received_wei: blinkReceivedWei,
       registration: reg
         ? { eth_address: reg.eth_address, status: reg.status, updated_at: reg.updated_at }
         : null,
