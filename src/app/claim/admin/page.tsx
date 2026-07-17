@@ -30,7 +30,17 @@ type Row = {
   created_at: string;
   approved_at: string | null;
   sent_at: string | null;
+  payout_tx_hash?: string | null;
+  payout_amount_wei?: string | null;
+  payout_basis?: number | null;
+  payout_error?: string | null;
 };
+
+function formatBlink(wei: string | null | undefined): string {
+  if (!wei) return "";
+  const n = parseFloat(wei) / 1e18;
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
 
 const STATUS_COLOR: Record<string, string> = {
   pending: "#FFD166",
@@ -101,7 +111,7 @@ export default function ClaimAdminPage() {
           setRows((rs) =>
             rs.map((r) =>
               r.id === id
-                ? { ...r, status: j.registration.status, approved_at: j.registration.approved_at, sent_at: j.registration.sent_at }
+                ? { ...r, status: j.registration.status, approved_at: j.registration.approved_at, sent_at: j.registration.sent_at, payout_error: null }
                 : r,
             ),
           );
@@ -112,6 +122,34 @@ export default function ClaimAdminPage() {
     },
     [],
   );
+
+  // Approve + auto-send: server sends BLINK via the payout vault, waits for
+  // 1 confirmation, flips the row to sent with the tx hash. On failure the
+  // row stays approved with payout_error set and the button becomes a retry.
+  const sendPayout = useCallback(async (id: string) => {
+    setBusyId(id);
+    try {
+      const res = await fetch("/api/claim/admin/payout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const j = await res.json().catch(() => null);
+      if (j?.registration) {
+        setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...j.registration } : r)));
+      } else if (j?.error) {
+        setRows((rs) =>
+          rs.map((r) =>
+            r.id === id ? { ...r, status: r.status === "pending" ? "approved" : r.status, payout_error: j.error } : r,
+          ),
+        );
+      }
+    } catch {
+      setRows((rs) => rs.map((r) => (r.id === id ? { ...r, payout_error: "Network error — retry." } : r)));
+    } finally {
+      setBusyId("");
+    }
+  }, []);
 
   const filtered = useMemo(
     () => (filter === "all" ? rows : rows.filter((r) => r.status === filter)),
@@ -260,15 +298,34 @@ export default function ClaimAdminPage() {
                     </td>
                     <td style={{ padding: "12px 14px" }}>
                       <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.1em", color: "#0a0a0f", background: STATUS_COLOR[r.status] ?? "#999", borderRadius: 6, padding: "3px 9px", whiteSpace: "nowrap" }}>
-                        {r.status.toUpperCase()}
+                        {busyId === r.id ? "SENDING…" : r.status.toUpperCase()}
                       </span>
+                      {r.payout_tx_hash && (
+                        <div style={{ marginTop: 5, fontSize: 11 }}>
+                          <a
+                            href={`https://etherscan.io/tx/${r.payout_tx_hash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={r.payout_amount_wei ? `${formatBlink(r.payout_amount_wei)} BLINK — ${r.payout_tx_hash}` : r.payout_tx_hash}
+                            style={{ color: C.primary2, fontFamily: "ui-monospace, Menlo, monospace", textDecoration: "none" }}
+                          >
+                            {r.payout_amount_wei ? `${formatBlink(r.payout_amount_wei)} BLINK · ` : ""}
+                            {r.payout_tx_hash.slice(0, 10)}…↗
+                          </a>
+                        </div>
+                      )}
+                      {r.payout_error && busyId !== r.id && (
+                        <div style={{ marginTop: 5, fontSize: 11, color: C.dangerText, maxWidth: 240, whiteSpace: "normal" }}>
+                          {r.payout_error}
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
                       <div style={{ display: "flex", gap: 6 }}>
                         {r.status === "pending" && (
                           <>
-                            <button disabled={busyId === r.id} onClick={() => setStatus(r.id, "approved")} style={{ ...btn(true), padding: "5px 10px" }}>
-                              Approve
+                            <button disabled={busyId === r.id} onClick={() => sendPayout(r.id)} style={{ ...btn(true), padding: "5px 10px" }}>
+                              {busyId === r.id ? "Sending…" : "Approve + send"}
                             </button>
                             <button disabled={busyId === r.id} onClick={() => setStatus(r.id, "rejected")} style={{ ...btn(), padding: "5px 10px", color: C.dangerText, borderColor: "rgba(255,107,128,0.4)" }}>
                               Reject
@@ -277,7 +334,10 @@ export default function ClaimAdminPage() {
                         )}
                         {r.status === "approved" && (
                           <>
-                            <button disabled={busyId === r.id} onClick={() => setStatus(r.id, "sent")} style={{ ...btn(true), padding: "5px 10px" }}>
+                            <button disabled={busyId === r.id} onClick={() => sendPayout(r.id)} style={{ ...btn(true), padding: "5px 10px" }}>
+                              {busyId === r.id ? "Sending…" : r.payout_error ? "Retry send" : "Send tokens"}
+                            </button>
+                            <button disabled={busyId === r.id} onClick={() => setStatus(r.id, "sent")} style={{ ...btn(), padding: "5px 10px" }}>
                               Mark sent
                             </button>
                             <button disabled={busyId === r.id} onClick={() => setStatus(r.id, "pending")} style={{ ...btn(), padding: "5px 10px" }}>
@@ -301,9 +361,11 @@ export default function ClaimAdminPage() {
         </div>
 
         <p style={{ color: C.textTertiary, fontSize: 12, marginTop: 16, lineHeight: 1.6 }}>
-          Distribution model: this console only marks statuses. Approve claims, export the CSV (uses
-          fresh <code>airdrop_basis</code> per player), run the batch distribution separately, then mark
-          rows as sent. Flagged accounts show a REVIEW badge with the flag reasons.
+          <strong>Approve + send</strong> pays the player on-chain automatically: fresh{" "}
+          <code>airdrop_basis</code> × payout ratio in $BLINK via the payout vault, then the row flips
+          to SENT with the Etherscan link. Failures keep the row APPROVED with the error shown —
+          Retry send is always safe (the vault rejects double-payouts per registration, on-chain).
+          Mark sent / Undo remain for manual bookkeeping. Flagged accounts show a REVIEW badge.
         </p>
       </div>
     </main>

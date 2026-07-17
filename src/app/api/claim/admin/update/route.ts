@@ -33,14 +33,28 @@ export async function POST(req: NextRequest) {
       patch.approved_at = null;
       patch.sent_at = null;
     }
+    // manual transitions always clear payout error state and unstick the lock
+    patch.payout_error = null;
+    patch.payout_locked_at = null;
 
     const db = blinkworldAdmin();
-    const { data, error } = await db
+    let { data, error } = await db
       .from("airdrop_registrations")
       .update(patch)
       .eq("id", id)
       .select("id, status, approved_at, sent_at")
       .maybeSingle();
+    if (error) {
+      // payout columns migration (20260716) not applied yet — retry without them
+      delete patch.payout_error;
+      delete patch.payout_locked_at;
+      ({ data, error } = await db
+        .from("airdrop_registrations")
+        .update(patch)
+        .eq("id", id)
+        .select("id, status, approved_at, sent_at")
+        .maybeSingle());
+    }
     if (error) throw error;
     if (!data) return NextResponse.json({ error: "Registration not found." }, { status: 404 });
 

@@ -16,10 +16,19 @@ export async function GET(req: NextRequest) {
 
   try {
     const db = blinkworldAdmin();
-    const { data: regs, error } = await db
+    const BASE_COLS =
+      "id, profile_id, trainer_code, eth_address, status, created_at, updated_at, approved_at, sent_at";
+    let { data: regs, error } = await db
       .from("airdrop_registrations")
-      .select("id, profile_id, trainer_code, eth_address, status, created_at, updated_at, approved_at, sent_at")
+      .select(`${BASE_COLS}, payout_tx_hash, payout_amount_wei, payout_basis, payout_error`)
       .order("created_at", { ascending: false });
+    if (error) {
+      // payout columns migration (20260716) not applied yet — degrade gracefully
+      ({ data: regs, error } = await db
+        .from("airdrop_registrations")
+        .select(BASE_COLS)
+        .order("created_at", { ascending: false }));
+    }
     if (error) throw error;
 
     const ids = (regs ?? []).map((r) => r.profile_id);
