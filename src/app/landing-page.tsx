@@ -22,23 +22,23 @@ const HeroBackdrop = dynamic(() => import("@/components/marketing/HeroBackdrop")
   ssr: false,
 });
 
-const APP_STORE_URL = "https://apps.apple.com/app/id6774225621";
+export const APP_STORE_URL = "https://apps.apple.com/app/id6774225621";
 
-const GREEN = "#00FF88";
-const GREEN_LIME = "#88FF00";
-const GREEN_SOFT = "rgba(0,255,136,0.12)";
-const BG = "#05060C";
-const WHITE = "#FFFFFF";
-const TEXT70 = "rgba(255,255,255,0.72)";
-const TEXT50 = "rgba(255,255,255,0.5)";
-const CARD_BORDER = "1px solid rgba(255,255,255,0.1)";
-const GLASS_BG = "linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015))";
-const GLASS_SHADOW = "inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 50px rgba(0,0,0,0.35)";
+export const GREEN = "#00FF88";
+export const GREEN_LIME = "#88FF00";
+export const GREEN_SOFT = "rgba(0,255,136,0.12)";
+export const BG = "#05060C";
+export const WHITE = "#FFFFFF";
+export const TEXT70 = "rgba(255,255,255,0.72)";
+export const TEXT50 = "rgba(255,255,255,0.5)";
+export const CARD_BORDER = "1px solid rgba(255,255,255,0.1)";
+export const GLASS_BG = "linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015))";
+export const GLASS_SHADOW = "inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 50px rgba(0,0,0,0.35)";
 
-const FONT_DISPLAY = "'Space Grotesk', 'Inter', -apple-system, sans-serif";
-const FONT_BODY = "'Inter', -apple-system, system-ui, sans-serif";
+export const FONT_DISPLAY = "'Space Grotesk', 'Inter', -apple-system, sans-serif";
+export const FONT_BODY = "'Inter', -apple-system, system-ui, sans-serif";
 
-const ART = "/brand/marketing";
+export const ART = "/brand/marketing";
 const EXPLORERS = "/explorers";
 
 export default function LandingPage() {
@@ -80,7 +80,7 @@ export default function LandingPage() {
 /* ─────────────────────────── Global chrome ─────────────────────────── */
 
 // Thin green progress line pinned to the very top of the viewport.
-function ScrollProgress() {
+export function ScrollProgress() {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -128,12 +128,12 @@ function ScrollProgress() {
 
 // 2.5%-opacity SVG noise over everything — kills gradient banding and adds
 // filmic texture. Pointer-events none, so it's invisible to interaction.
-function NoiseOverlay() {
+export function NoiseOverlay() {
   return <div aria-hidden className="bwNoise" />;
 }
 
 // Soft glowing hairline between major sections.
-function SectionDivider() {
+export function SectionDivider() {
   return (
     <div aria-hidden style={{ maxWidth: 1180, margin: "0 auto", padding: "0 20px" }}>
       <div
@@ -156,7 +156,11 @@ const NAV_SECTIONS = [
   { id: "privacy-first", label: "Privacy" },
 ];
 
-function Nav() {
+export function Nav({
+  sections = NAV_SECTIONS,
+}: {
+  sections?: { id: string; label: string }[];
+}) {
   const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState("");
 
@@ -178,12 +182,12 @@ function Nav() {
       },
       { rootMargin: "-40% 0px -55% 0px" },
     );
-    for (const s of NAV_SECTIONS) {
+    for (const s of sections) {
       const el = document.getElementById(s.id);
       if (el) io.observe(el);
     }
     return () => io.disconnect();
-  }, []);
+  }, [sections]);
 
   return (
     <header
@@ -231,7 +235,7 @@ function Nav() {
           </span>
         </a>
         <div className="bwNavLinks" style={{ display: "flex", alignItems: "center", gap: 26 }}>
-          {NAV_SECTIONS.map((l) => (
+          {sections.map((l) => (
             <a
               key={l.id}
               href={`#${l.id}`}
@@ -258,7 +262,7 @@ function Nav() {
 
 // The logo art lives on a pure-black square — clip it to a circle and
 // overscan slightly so no square edge ever shows.
-function LogoOrb({ size }: { size: number }) {
+export function LogoOrb({ size }: { size: number }) {
   return (
     <span
       aria-hidden
@@ -549,7 +553,7 @@ function Hero() {
 }
 
 // One word of the kinetic headline — staggered rise + blur-out entrance.
-function KineticWord({ text, delay }: { text: string; delay: number }) {
+export function KineticWord({ text, delay }: { text: string; delay: number }) {
   return (
     <span className="bwWord" style={{ animationDelay: `${delay}s` }}>
       {text}
@@ -558,7 +562,7 @@ function KineticWord({ text, delay }: { text: string; delay: number }) {
 }
 
 // Floating glass-orb particles drifting behind the hero.
-function FloatingOrbs() {
+export function FloatingOrbs() {
   const orbs = [
     { size: 88, left: "58%", top: "2%", delay: 0, dur: 9 },
     { size: 44, left: "38%", top: "70%", delay: 1.6, dur: 11 },
@@ -636,7 +640,7 @@ const HERO_EXPLORERS = [
   },
 ];
 
-function HeroExplorers() {
+export function HeroExplorers() {
   return (
     <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
       {HERO_EXPLORERS.map((e) => (
@@ -697,7 +701,7 @@ const EXPLORER_CARDS = [
 ];
 
 // Compact strip of glass pedestal cards — one per explorer preset.
-function ExplorerStrip() {
+export function ExplorerStrip() {
   return (
     <section
       id="explorers"
@@ -733,7 +737,7 @@ function ExplorerStrip() {
 }
 
 // Official-style black App Store badge — links straight to the store listing.
-function AppStoreBadge() {
+export function AppStoreBadge() {
   return (
     <a
       href={APP_STORE_URL}
@@ -976,7 +980,7 @@ const FEATURES: Feature[] = [
   },
 ];
 
-function Features() {
+export function Features() {
   return (
     <section
       id="features"
@@ -1201,7 +1205,7 @@ const SCREENS: { src: string; caption: string; kind: "app" | "world" }[] = [
 // Every slide reserves this height so mixed aspect ratios never shift the layout.
 const SLIDE_MEDIA_H = 512;
 
-function ScreenshotCarousel() {
+export function ScreenshotCarousel() {
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
 
@@ -1426,7 +1430,7 @@ function ChevronIcon({ flip }: { flip?: boolean }) {
   );
 }
 
-function PhoneFrame({
+export function PhoneFrame({
   src,
   alt,
   width,
@@ -1513,7 +1517,7 @@ const PRIVACY_POINTS = [
   },
 ];
 
-function PrivacyFirst() {
+export function PrivacyFirst() {
   return (
     <section
       id="privacy-first"
@@ -1637,7 +1641,7 @@ function ShieldIcon() {
 
 /* ────────────────────────────────── Footer ──────────────────────────────── */
 
-function Footer() {
+export function Footer() {
   return (
     <footer
       style={{
@@ -1770,7 +1774,7 @@ function Footer() {
 
 /* ─────────────────────────────── Utilities ──────────────────────────────── */
 
-function SectionHeader({
+export function SectionHeader({
   kicker,
   title,
   sub,
@@ -1815,7 +1819,7 @@ function SectionHeader({
 // Rise + de-blur on first scroll into view, with optional stagger delay.
 // Renders visible when IntersectionObserver is unavailable or motion is
 // reduced.
-function Reveal({
+export function Reveal({
   children,
   delay = 0,
   className,
@@ -1857,7 +1861,7 @@ function Reveal({
 
 /* ──────────────────────────────── Styles ────────────────────────────────── */
 
-const STYLE = `
+export const STYLE = `
 .bwRoot { -webkit-font-smoothing: antialiased; }
 
 @media (prefers-reduced-motion: no-preference) {
