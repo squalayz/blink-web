@@ -62,6 +62,7 @@ const PHANTOM_BUY_URL =
 
 const CLAIM_NAV = [
   { id: "claim", label: "Claim" },
+  { id: "how-to-buy", label: "How to Buy" },
   { id: "contract", label: "Contract" },
   { id: "racing", label: "Racing" },
   { id: "styles", label: "Styles" },
@@ -94,6 +95,7 @@ export default function ClaimLandingPage() {
         <ClaimHero />
         <ClaimSection />
         <ContractSection />
+        <HowToBuySection />
         <CreatureMarquee />
         <StatsStrip />
         <SectionDivider />
@@ -307,7 +309,25 @@ function ClaimHero() {
             <AppStoreBadge />
           </div>
 
-          <div className="bwRise" style={{ animationDelay: "0.75s" }}>
+          {/* New-to-crypto path — red/green animated ring, scrolls to the guide */}
+          <div className="bwRise" style={{ marginTop: 16, animationDelay: "0.72s" }}>
+            <a
+              href="#how-to-buy"
+              className="bwHowBtn"
+              aria-label="How to buy $BLINK — step-by-step guide"
+            >
+              <span className="bwHowBtnIcon" aria-hidden>
+                <IconCompass />
+              </span>
+              <span className="bwHowBtnLabel">How to Buy</span>
+              <span className="bwHowBtnSub">2-min guide</span>
+              <span className="bwHowBtnArrow" aria-hidden>
+                ↓
+              </span>
+            </a>
+          </div>
+
+          <div className="bwRise" style={{ animationDelay: "0.8s" }}>
             <ContractChip />
           </div>
         </div>
@@ -590,6 +610,358 @@ function ContractSection() {
             <PhantomGhostIcon />
             <span>Buy $BLINK on Phantom</span>
           </a>
+        </div>
+      </Reveal>
+    </section>
+  );
+}
+
+/* ─────────────────────────── How to Buy guide ───────────────────────────── */
+
+// Stroke icons for the how-to-buy steps — currentColor, same language as the
+// claim-step icons.
+function IconCompass() {
+  return (
+    <svg width={17} height={17} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx={12} cy={12} r={9} stroke="currentColor" strokeWidth={1.9} />
+      <path
+        d="M15.5 8.5l-2.2 5-4.8 2 2.2-5 4.8-2z"
+        stroke="currentColor"
+        strokeWidth={1.7}
+        strokeLinejoin="round"
+        fill="rgba(255,255,255,0.08)"
+      />
+    </svg>
+  );
+}
+
+function IconDownload() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M12 3.5v10.5m0 0l-4-4m4 4l4-4" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4.5 16.5v2A2.5 2.5 0 007 21h10a2.5 2.5 0 002.5-2.5v-2" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconCard() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x={3} y={5.5} width={18} height={13} rx={2.8} stroke="currentColor" strokeWidth={1.9} />
+      <path d="M3 10h18" stroke="currentColor" strokeWidth={1.9} />
+      <path d="M6.5 14.5h5" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconSearch() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx={10.5} cy={10.5} r={6.5} stroke="currentColor" strokeWidth={2} />
+      <path d="M15.5 15.5L20.5 20.5" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
+      <path d="M8 10.5h5M10.5 8v5" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconSwap() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M7 4.5L3.5 8L7 11.5M3.5 8h13" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M17 12.5L20.5 16L17 19.5M20.5 16h-13" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconCheckBadge() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 2.5l2.4 2 3.1-.3 1 3 2.8 1.4-1 3 1 3-2.8 1.4-1 3-3.1-.3-2.4 2-2.4-2-3.1.3-1-3L2.7 14.6l1-3-1-3L5.5 7.2l1-3 3.1.3 2.4-2z"
+        stroke="currentColor"
+        strokeWidth={1.7}
+        strokeLinejoin="round"
+        fill="rgba(255,255,255,0.06)"
+      />
+      <path d="M8.8 12.2l2.2 2.2 4.2-4.6" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// Phantom's official download page — the only place to get the wallet.
+const PHANTOM_DOWNLOAD_URL = "https://phantom.com/download";
+
+const BUY_FAQ = [
+  {
+    q: "Do I need Solana or Ethereum?",
+    a: (
+      <>
+        $BLINK lives on <strong>Ethereum</strong>. The good news: Phantom is a multi-chain
+        wallet that handles Ethereum and Solana in one place — and its built-in cross-chain
+        swapper can even turn SOL into $BLINK directly. If you&rsquo;re starting from zero,
+        just buy ETH inside Phantom and swap.
+      </>
+    ),
+  },
+  {
+    q: "Why did my swap fail?",
+    a: (
+      <>
+        Almost always one of two things: <strong>slippage</strong> — the price moved more than
+        your setting allows, so open the swap settings and nudge slippage up slightly — or{" "}
+        <strong>gas</strong> — you swapped your entire ETH balance and had nothing left for the
+        network fee. Keep a little ETH aside and retry.
+      </>
+    ),
+  },
+  {
+    q: "Is there a minimum purchase?",
+    a: (
+      <>
+        No minimum. Buy $5 or $5,000 worth — the swap works the same. Just remember Ethereum
+        network fees apply per transaction, so very small swaps spend a bigger share on gas.
+      </>
+    ),
+  },
+  {
+    q: "How does buying connect to my in-game rewards?",
+    a: (
+      <>
+        Register your wallet in the claim section above and it&rsquo;s <strong>tracked</strong>.
+        The more $BLINK you buy and hold in that registered wallet, the bigger your reward
+        share grows as BlinkWorld grows — buying isn&rsquo;t separate from playing, it boosts
+        it.
+      </>
+    ),
+  },
+];
+
+// Five-step vertical walkthrough with a glowing progress rail, scroll-staggered
+// step cards, and an FAQ accordion. Pure CSS animation, inert on reduced motion.
+function HowToBuySection() {
+  const { copied, copy } = useCopyContract();
+  return (
+    <section
+      id="how-to-buy"
+      style={{ maxWidth: 1180, margin: "0 auto", padding: "clamp(40px, 6vw, 80px) 20px" }}
+    >
+      <div className="bwShimmerTitle">
+        <SectionHeader
+          kicker="New to crypto? Start here"
+          title="How to buy $BLINK"
+          sub="Five steps, about five minutes, no experience needed. You'll set up a wallet, add funds, and swap into $BLINK — safely, using only official links."
+        />
+      </div>
+
+      <div className="bwHtbRail">
+        {/* Step 1 — Get Phantom */}
+        <Reveal className="bwHtbStep">
+          <div className="bwHtbNode" aria-hidden>
+            <span className="bwHtbNum">1</span>
+          </div>
+          <div className="bwHtbCard">
+            <div className="bwHtbHead">
+              <span className="bwHtbIcon" aria-hidden>
+                <IconDownload />
+              </span>
+              <h3 className="bwHtbTitle">Get Phantom Wallet</h3>
+            </div>
+            <p className="bwHtbBody">
+              Phantom is your crypto wallet — the app that holds your $BLINK. Download it free
+              from <strong>phantom.com</strong>; setup takes about two minutes.
+            </p>
+            <div className="bwHtbChips" aria-label="Phantom is available on iOS, Android, and as a browser extension">
+              <span className="bwHtbChip">iOS</span>
+              <span className="bwHtbChip">Android</span>
+              <span className="bwHtbChip">Browser extension</span>
+            </div>
+            <p className="bwHtbBody">
+              During setup Phantom shows you a <strong>recovery phrase</strong>. Write it down
+              and keep it somewhere safe — it&rsquo;s the master key to your wallet.{" "}
+              <strong>Never share it with anyone</strong>; no legit person or site will ever ask
+              for it.
+            </p>
+            <a
+              href={PHANTOM_DOWNLOAD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bwGhostBtn bwGhostBtnSm"
+              aria-label="Download Phantom from phantom.com (opens in a new tab)"
+            >
+              <PhantomGhostIcon />
+              Download Phantom ↗
+            </a>
+          </div>
+        </Reveal>
+
+        {/* Step 2 — Add funds */}
+        <Reveal className="bwHtbStep" delay={90}>
+          <div className="bwHtbNode" aria-hidden>
+            <span className="bwHtbNum">2</span>
+          </div>
+          <div className="bwHtbCard">
+            <div className="bwHtbHead">
+              <span className="bwHtbIcon" aria-hidden>
+                <IconCard />
+              </span>
+              <h3 className="bwHtbTitle">Add funds</h3>
+            </div>
+            <p className="bwHtbBody">Two ways to fund your wallet — pick whichever fits you:</p>
+            <div className="bwHtbSplit">
+              <div className="bwHtbMini">
+                <span className="bwHtbMiniTag">Easiest</span>
+                <h4 className="bwHtbMiniTitle">Buy ETH inside Phantom</h4>
+                <p className="bwHtbMiniBody">
+                  Tap <strong>Buy</strong> in Phantom and purchase ETH (Ethereum) directly with
+                  your card or Apple&nbsp;Pay. Done in a minute — no exchange account needed.
+                </p>
+              </div>
+              <div className="bwHtbMini">
+                <span className="bwHtbMiniTag bwHtbMiniTagAlt">Already have crypto?</span>
+                <h4 className="bwHtbMiniTitle">Transfer or cross-chain swap</h4>
+                <p className="bwHtbMiniBody">
+                  Send ETH from an exchange (Coinbase, Binance) to your Phantom{" "}
+                  <strong>Ethereum address</strong> — or if you hold SOL, use Phantom&rsquo;s
+                  built-in cross-chain swapper to go <strong>SOL&nbsp;→&nbsp;$BLINK</strong>{" "}
+                  directly.
+                </p>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+
+        {/* Step 3 — Open $BLINK in Phantom */}
+        <Reveal className="bwHtbStep" delay={90}>
+          <div className="bwHtbNode" aria-hidden>
+            <span className="bwHtbNum">3</span>
+          </div>
+          <div className="bwHtbCard">
+            <div className="bwHtbHead">
+              <span className="bwHtbIcon" aria-hidden>
+                <IconSearch />
+              </span>
+              <h3 className="bwHtbTitle">Open $BLINK in Phantom</h3>
+            </div>
+            <p className="bwHtbBody">
+              Tap the official buy link below — it opens the real $BLINK token page right inside
+              Phantom — or paste the contract address into Phantom&rsquo;s search.
+            </p>
+            <div className="bwHtbActions">
+              <a
+                href={PHANTOM_BUY_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bwBuyBtn bwBuyBtnSm"
+                aria-label="Open $BLINK in Phantom (opens in a new tab)"
+              >
+                <PhantomGhostIcon />
+                <span>Open $BLINK in Phantom</span>
+              </a>
+              <button
+                type="button"
+                className="bwCopyBtn"
+                onClick={copy}
+                aria-label="Copy the official $BLINK contract address"
+              >
+                <CopyIcon />
+                {copied ? "Copied ✓" : "Copy contract"}
+              </button>
+            </div>
+            <div className="bwHtbContract">{BLINK_CONTRACT}</div>
+            <div className="bwHtbWarn" role="note">
+              <span aria-hidden>⚠️</span>
+              <p>
+                <strong>Only trust this contract address.</strong> Scam tokens copy the $BLINK
+                name — always verify the contract matches, character for character.
+              </p>
+            </div>
+          </div>
+        </Reveal>
+
+        {/* Step 4 — Swap */}
+        <Reveal className="bwHtbStep" delay={90}>
+          <div className="bwHtbNode" aria-hidden>
+            <span className="bwHtbNum">4</span>
+          </div>
+          <div className="bwHtbCard">
+            <div className="bwHtbHead">
+              <span className="bwHtbIcon" aria-hidden>
+                <IconSwap />
+              </span>
+              <h3 className="bwHtbTitle">Swap to $BLINK</h3>
+            </div>
+            <p className="bwHtbBody">
+              In Phantom hit <strong>Swap</strong>, choose <strong>ETH → $BLINK</strong> (or SOL
+              via cross-chain), enter your amount, review the quote, and confirm. Your swap
+              settles in moments.
+            </p>
+            <div className="bwHtbTip" role="note">
+              <span aria-hidden>💡</span>
+              <p>
+                <strong>If the swap fails:</strong> open the swap settings and increase slippage
+                slightly, then retry — and always keep a little ETH unswapped to cover network
+                fees.
+              </p>
+            </div>
+          </div>
+        </Reveal>
+
+        {/* Step 5 — You're in */}
+        <Reveal className="bwHtbStep" delay={90}>
+          <div className="bwHtbNode bwHtbNodeEnd" aria-hidden>
+            <span className="bwHtbNum">5</span>
+          </div>
+          <div className="bwHtbCard">
+            <div className="bwHtbHead">
+              <span className="bwHtbIcon" aria-hidden>
+                <IconCheckBadge />
+              </span>
+              <h3 className="bwHtbTitle">You&rsquo;re in 🎉</h3>
+            </div>
+            <p className="bwHtbBody">
+              That&rsquo;s it — $BLINK now appears in your Phantom wallet. Welcome aboard.
+            </p>
+            <a href="#claim" className="bwHtbBoost">
+              <span className="bwHtbBoostIcon" aria-hidden>
+                <IconChartUp />
+              </span>
+              <span>
+                <strong>Now register your wallet above</strong> — buying &amp; holding $BLINK
+                boosts your in-game rewards as BlinkWorld grows. ↑
+              </span>
+            </a>
+            <a
+              href={PHANTOM_BUY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bwBuyBtn bwBuyBtnSm"
+              style={{ alignSelf: "flex-start" }}
+              aria-label="Buy $BLINK on Phantom (opens in a new tab)"
+            >
+              <PhantomGhostIcon />
+              <span>Buy $BLINK</span>
+            </a>
+          </div>
+        </Reveal>
+      </div>
+
+      {/* FAQ */}
+      <Reveal>
+        <div className="bwFaq">
+          <p className="bwStepsKicker" style={{ marginTop: 0 }}>
+            Quick answers
+          </p>
+          {BUY_FAQ.map((f) => (
+            <details key={f.q} className="bwFaqItem">
+              <summary className="bwFaqQ">
+                {f.q}
+                <span className="bwFaqChevron" aria-hidden>
+                  ▾
+                </span>
+              </summary>
+              <p className="bwFaqA">{f.a}</p>
+            </details>
+          ))}
         </div>
       </Reveal>
     </section>
@@ -1864,12 +2236,385 @@ const CLAIM_STYLE = `
   text-shadow: 0 0 12px rgba(0,255,136,0.4);
 }
 
+/* ── "How to Buy" hero button — red↔green animated ring + alternating glow ── */
+.bwHowBtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  height: 54px;
+  padding: 0 26px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  overflow: hidden;
+  background:
+    linear-gradient(#070A10, #070A10) padding-box,
+    linear-gradient(120deg, #FF3B3B, rgba(255,255,255,0.4) 16%, ${GREEN} 36%, #7CFFB8 50%, ${GREEN} 64%, rgba(255,255,255,0.4) 84%, #FF3B3B) border-box;
+  background-size: auto, 300% 100%;
+  color: #fff;
+  font-family: ${FONT_DISPLAY};
+  font-size: 15.5px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  animation: bwPanelFlow 4.5s linear infinite, bwRedGreenPulse 3.2s ease-in-out infinite;
+  transition: transform 0.15s ease;
+}
+@keyframes bwRedGreenPulse {
+  0%, 100% { box-shadow: 0 0 16px rgba(255,59,59,0.38), 0 0 46px rgba(255,59,59,0.15); }
+  50% { box-shadow: 0 0 22px rgba(0,255,136,0.5), 0 0 56px rgba(0,255,136,0.2); }
+}
+.bwHowBtn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: linear-gradient(115deg, transparent 32%, rgba(255,255,255,0.2) 50%, transparent 68%);
+  transform: translateX(-130%);
+  transition: transform 0.65s ease;
+  pointer-events: none;
+}
+.bwHowBtn:hover { transform: translateY(-1px) scale(1.02); }
+.bwHowBtn:hover::after { transform: translateX(130%); }
+.bwHowBtnIcon {
+  display: inline-flex;
+  color: ${GREEN};
+  filter: drop-shadow(0 0 8px rgba(0,255,136,0.6));
+}
+.bwHowBtnLabel {
+  background: linear-gradient(90deg, #FF6B5C, #FFFFFF 45%, ${GREEN});
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.bwHowBtnSub {
+  padding-left: 11px;
+  border-left: 1px solid rgba(255,255,255,0.16);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255,255,255,0.55);
+}
+.bwHowBtnArrow {
+  color: ${GREEN};
+  font-size: 15px;
+  text-shadow: 0 0 10px rgba(0,255,136,0.7);
+  animation: bwArrowNudge 1.8s ease-in-out infinite;
+}
+@keyframes bwArrowNudge {
+  0%, 100% { transform: translateY(-1px); }
+  50% { transform: translateY(3px); }
+}
+
+/* ── How-to-buy walkthrough — vertical progress rail + glowing step cards ── */
+.bwHtbRail {
+  position: relative;
+  max-width: 800px;
+  margin: 48px auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.bwHtbRail::before {
+  content: "";
+  position: absolute;
+  top: 26px;
+  bottom: 26px;
+  left: 27px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(0,255,136,0.55), rgba(0,255,136,0.12) 28%, rgba(0,255,136,0.42) 52%, rgba(0,255,136,0.12) 78%, rgba(0,255,136,0.5));
+}
+.bwHtbRail::after {
+  content: "";
+  position: absolute;
+  left: 24px;
+  width: 8px;
+  height: 52px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, transparent, ${GREEN}, transparent);
+  filter: blur(1px);
+  box-shadow: 0 0 16px rgba(0,255,136,0.8);
+  pointer-events: none;
+  animation: bwRailRun 7s ease-in-out infinite;
+}
+@keyframes bwRailRun {
+  0% { top: 2%; opacity: 0; }
+  10% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { top: 90%; opacity: 0; }
+}
+.bwHtbStep {
+  position: relative;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.bwHtbNode {
+  display: flex;
+  justify-content: center;
+  padding-top: 6px;
+}
+.bwHtbNum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0,255,136,0.5);
+  background: radial-gradient(120% 120% at 50% 0%, rgba(0,255,136,0.18), rgba(5,6,12,0.2) 70%), #070A10;
+  color: ${GREEN};
+  font-family: ${FONT_DISPLAY};
+  font-size: 18px;
+  font-weight: 700;
+  text-shadow: 0 0 12px rgba(0,255,136,0.6);
+  animation: bwNodePulse 3.6s ease-in-out infinite;
+}
+@keyframes bwNodePulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(0,255,136,0.18); }
+  50% { box-shadow: 0 0 28px rgba(0,255,136,0.5); }
+}
+.bwHtbCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  padding: 24px 24px 26px;
+  border-radius: 24px;
+  overflow: hidden;
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(#090B12, #090B12) padding-box,
+    linear-gradient(150deg, rgba(0,255,136,0.5), rgba(255,255,255,0.1) 45%, rgba(0,255,136,0.3)) border-box;
+  box-shadow: 0 0 34px rgba(0,255,136,0.06), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+.bwHtbCard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 70% at 50% 0%, rgba(0,255,136,0.07), transparent 60%);
+}
+.bwHtbCard > * { position: relative; }
+.bwHtbCard > .bwGhostBtn, .bwHtbCard > .bwBuyBtn { align-self: flex-start; }
+.bwHtbHead { display: flex; align-items: center; gap: 12px; }
+.bwHtbIcon {
+  display: inline-flex;
+  color: ${GREEN};
+  filter: drop-shadow(0 0 10px rgba(0,255,136,0.55));
+}
+.bwHtbTitle {
+  margin: 0;
+  font-family: ${FONT_DISPLAY};
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+.bwHtbBody { margin: 0; font-size: 14.5px; line-height: 1.65; color: ${TEXT70}; }
+.bwHtbBody strong { color: #fff; font-weight: 600; }
+.bwHtbChips { display: flex; flex-wrap: wrap; gap: 8px; }
+.bwHtbChip {
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,255,136,0.28);
+  background: rgba(0,255,136,0.06);
+  color: rgba(255,255,255,0.85);
+  font-family: ${FONT_DISPLAY};
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.bwHtbSplit {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.bwHtbMini {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 18px 18px 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(0,255,136,0.22);
+  background: rgba(0,255,136,0.045);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.bwHtbMini:hover {
+  transform: translateY(-4px);
+  border-color: rgba(0,255,136,0.55);
+  box-shadow: 0 0 26px rgba(0,255,136,0.16);
+}
+.bwHtbMiniTag {
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,255,136,0.4);
+  background: ${GREEN_SOFT};
+  color: ${GREEN};
+  font-family: ${FONT_DISPLAY};
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-shadow: 0 0 10px rgba(0,255,136,0.4);
+}
+.bwHtbMiniTagAlt {
+  border-color: rgba(255,255,255,0.22);
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.75);
+  text-shadow: none;
+}
+.bwHtbMiniTitle { margin: 0; font-family: ${FONT_DISPLAY}; font-size: 15.5px; font-weight: 700; color: #fff; }
+.bwHtbMiniBody { margin: 0; font-size: 13.5px; line-height: 1.6; color: ${TEXT70}; }
+.bwHtbMiniBody strong { color: #fff; font-weight: 600; }
+.bwHtbActions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.bwHtbContract {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: ${GREEN};
+  word-break: break-all;
+  line-height: 1.5;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(0,255,136,0.25);
+  background: rgba(0,0,0,0.35);
+  text-shadow: 0 0 14px rgba(0,255,136,0.3);
+  user-select: all;
+  -webkit-user-select: all;
+}
+.bwHtbWarn, .bwHtbTip {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 18px;
+  border-radius: 16px;
+}
+.bwHtbWarn p, .bwHtbTip p { margin: 0; font-size: 13.5px; line-height: 1.6; color: rgba(255,255,255,0.85); }
+.bwHtbWarn {
+  border: 1.5px solid rgba(255,77,77,0.4);
+  background: rgba(255,59,59,0.07);
+  animation: bwWarnPulse 3s ease-in-out infinite;
+}
+.bwHtbWarn strong { color: #FF8577; }
+@keyframes bwWarnPulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(255,59,59,0.1); border-color: rgba(255,77,77,0.35); }
+  50% { box-shadow: 0 0 28px rgba(255,59,59,0.28); border-color: rgba(255,110,110,0.65); }
+}
+.bwHtbTip {
+  border: 1px solid rgba(0,255,136,0.3);
+  background: rgba(0,255,136,0.06);
+}
+.bwHtbTip strong { color: ${GREEN}; }
+.bwHtbBoost {
+  --acc: 255,194,77;
+  position: relative;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 18px 20px;
+  border-radius: 18px;
+  border: 1.5px solid transparent;
+  overflow: hidden;
+  background:
+    linear-gradient(#0B0A07, #0B0A07) padding-box,
+    linear-gradient(120deg, rgba(255,194,77,0.8), rgba(255,255,255,0.2) 35%, rgba(255,150,50,0.6) 65%, rgba(255,194,77,0.8)) border-box;
+  background-size: auto, 300% 100%;
+  color: rgba(255,255,255,0.88);
+  font-size: 14px;
+  line-height: 1.6;
+  text-decoration: none;
+  animation: bwPanelFlow 8s linear infinite, bwCalloutPulse 3.6s ease-in-out infinite;
+  transition: transform 0.2s ease;
+}
+.bwHtbBoost:hover { transform: translateY(-2px); }
+.bwHtbBoost strong { color: #FFD166; }
+.bwHtbBoostIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: #FFC24D;
+  filter: drop-shadow(0 0 12px rgba(255,194,77,0.6));
+}
+
+/* ── FAQ accordion ── */
+.bwFaq {
+  max-width: 800px;
+  margin: 54px auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bwFaq > .bwStepsKicker { margin-bottom: 6px; }
+.bwFaqItem {
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.03);
+  overflow: hidden;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.bwFaqItem:hover { border-color: rgba(0,255,136,0.35); }
+.bwFaqItem[open] {
+  border-color: rgba(0,255,136,0.45);
+  box-shadow: 0 0 26px rgba(0,255,136,0.1);
+}
+.bwFaqQ {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 20px;
+  cursor: pointer;
+  list-style: none;
+  font-family: ${FONT_DISPLAY};
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+.bwFaqQ::-webkit-details-marker { display: none; }
+.bwFaqChevron {
+  flex-shrink: 0;
+  color: ${GREEN};
+  text-shadow: 0 0 10px rgba(0,255,136,0.5);
+  transition: transform 0.3s ease;
+}
+.bwFaqItem[open] .bwFaqChevron { transform: rotate(180deg); }
+.bwFaqA {
+  margin: 0;
+  padding: 0 20px 18px;
+  font-size: 14px;
+  line-height: 1.65;
+  color: ${TEXT70};
+  animation: bwFaqIn 0.35s ease;
+}
+.bwFaqA strong { color: #fff; font-weight: 600; }
+@keyframes bwFaqIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 620px) {
+  .bwHtbSplit { grid-template-columns: 1fr; }
+  .bwHtbStep { grid-template-columns: 40px minmax(0, 1fr); gap: 12px; }
+  .bwHtbNum { width: 34px; height: 34px; font-size: 15px; }
+  .bwHtbRail::before { left: 19px; }
+  .bwHtbRail::after { left: 16px; }
+  .bwHtbCard { padding: 20px 16px 22px; }
+}
+
 @media (max-width: 480px) {
   .bwContractChip { flex-direction: column; align-items: stretch; border-radius: 20px; padding: 12px; gap: 10px; }
   .bwContractAddr { text-align: center; white-space: normal; word-break: break-all; font-size: 12px; }
   .bwGhostBtn { width: 100%; }
   .bwDownloadBtn { width: 100%; }
   .bwBuyBtn { width: 100%; }
+  .bwHowBtn { width: 100%; justify-content: center; }
+  .bwHowBtnSub { display: none; }
   .bwStyleArt { height: 150px; }
 }
 
@@ -1878,15 +2623,25 @@ const CLAIM_STYLE = `
   .bwBuyBtn, .bwNeonPanel, .bwCircuitLine, .bwKartArt, .bwRacerArt, .bwFishArt,
   .bwTrackTrack, .bwSpark, .bwNewPill::before, .bwStyleHalo,
   .bwStepCard, .bwCallout, .bwBoostCard,
+  .bwHowBtn, .bwHowBtnArrow, .bwHtbRail::after, .bwHtbNum, .bwHtbWarn,
+  .bwHtbBoost, .bwFaqA,
   .bwShimmerTitle h2 {
     animation: none !important;
   }
   .bwStepCard { box-shadow: 0 0 24px rgba(var(--acc), 0.12); }
   .bwCallout, .bwBoostCard { box-shadow: 0 0 24px rgba(var(--acc), 0.16); }
   .bwSpark { display: none; }
+  .bwHtbRail::after { display: none; }
+  .bwHowBtn { box-shadow: 0 0 20px rgba(0,255,136,0.28); }
+  .bwHtbNum { box-shadow: 0 0 16px rgba(0,255,136,0.3); }
+  .bwHtbWarn { box-shadow: 0 0 16px rgba(255,59,59,0.16); }
+  .bwHtbBoost { box-shadow: 0 0 20px rgba(255,194,77,0.18); }
   .bwShimmerTitle h2 { background-position: 50% 0; }
-  .bwBuyBtn:hover, .bwItemChip:hover, .bwBaitCard:hover, .bwStyleCard:hover { transform: none; }
+  .bwBuyBtn:hover, .bwItemChip:hover, .bwBaitCard:hover, .bwStyleCard:hover,
+  .bwHowBtn:hover, .bwHtbMini:hover, .bwHtbBoost:hover { transform: none; }
+  .bwHowBtn:hover::after { transform: translateX(-130%); }
   .bwStyleCard:hover .bwStyleArt { transform: none; }
-  .bwItemChip, .bwBaitCard, .bwStyleCard, .bwStyleArt { transition: none !important; }
+  .bwItemChip, .bwBaitCard, .bwStyleCard, .bwStyleArt,
+  .bwHowBtn, .bwHowBtn::after, .bwHtbMini, .bwHtbBoost, .bwFaqChevron { transition: none !important; }
 }
 `;
