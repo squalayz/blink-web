@@ -144,23 +144,16 @@ function HoldToLock({ disabled, onComplete }: { disabled: boolean; onComplete: (
 // ── Shared bits ─────────────────────────────────────────────────────────────
 
 function ScamBanner() {
+  // Restyled to match the claim page's glow language: animated gradient
+  // border + soft pulsing red glow (inert under prefers-reduced-motion).
   return (
-    <div
-      style={{
-        display: "flex",
-        gap: 10,
-        alignItems: "flex-start",
-        padding: "12px 16px",
-        borderRadius: 14,
-        background: "rgba(255,107,128,0.08)",
-        border: "1px solid rgba(255,107,128,0.25)",
-        maxWidth: 560,
-        margin: "0 auto",
-      }}
-    >
-      <span style={{ fontSize: 16, lineHeight: "20px" }}>⚠️</span>
-      <p style={{ margin: 0, fontFamily: FONT, fontSize: 13, lineHeight: 1.5, color: C.textSecondary }}>
-        <strong style={{ color: "#FF8094" }}>Stay safe:</strong> BlinkWorld will <strong>never</strong> DM you
+    <div className="bwSafeBox">
+      <span style={{ position: "relative", fontSize: 16, lineHeight: "20px", filter: "drop-shadow(0 0 8px rgba(255,107,128,0.6))" }}>
+        ⚠️
+      </span>
+      <p style={{ position: "relative", margin: 0, fontFamily: FONT, fontSize: 13, lineHeight: 1.55, color: C.textSecondary }}>
+        <strong style={{ color: "#FF8094", textShadow: "0 0 12px rgba(255,107,128,0.4)" }}>Stay safe:</strong>{" "}
+        BlinkWorld will <strong>never</strong> DM you
         first, never ask for your seed phrase or private keys, and never ask you to send funds to
         &ldquo;verify&rdquo; a claim. This page only records an address to <em>receive</em> tokens —
         blinkworld.xyz/claim is the only official claim page.
@@ -358,6 +351,41 @@ export default function ClaimFlow() {
         }
         .bw-code-input:focus { outline: none; border-color: ${C.primary} !important; box-shadow: 0 0 0 4px rgba(0,255,136,0.15); }
         .bw-addr-input:focus { outline: none; border-color: ${C.primary} !important; box-shadow: 0 0 0 4px rgba(0,255,136,0.15); }
+        .bwSafeBox {
+          position: relative;
+          display: flex;
+          gap: 12px;
+          align-items: flex-start;
+          max-width: 560px;
+          margin: 0 auto;
+          padding: 14px 18px;
+          border-radius: 18px;
+          border: 1.5px solid transparent;
+          overflow: hidden;
+          background:
+            linear-gradient(#0D080A, #0D080A) padding-box,
+            linear-gradient(120deg, rgba(255,107,128,0.65), rgba(255,255,255,0.14) 35%, rgba(255,107,128,0.45) 70%, rgba(255,255,255,0.12) 85%, rgba(255,107,128,0.65)) border-box;
+          background-size: auto, 300% 100%;
+          animation: bwSafeFlow 9s linear infinite, bwSafePulse 4s ease-in-out infinite;
+        }
+        .bwSafeBox::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background: radial-gradient(120% 100% at 50% 0%, rgba(255,107,128,0.09), transparent 65%);
+        }
+        @keyframes bwSafeFlow {
+          from { background-position: 0 0, 0% 0; }
+          to { background-position: 0 0, 300% 0; }
+        }
+        @keyframes bwSafePulse {
+          0%, 100% { box-shadow: 0 0 16px rgba(255,107,128,0.12); }
+          50% { box-shadow: 0 0 36px rgba(255,107,128,0.26); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .bwSafeBox { animation: none; box-shadow: 0 0 20px rgba(255,107,128,0.16); }
+        }
       `}</style>
 
       <div style={{ marginBottom: 26, position: "relative", width: "100%" }}>

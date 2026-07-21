@@ -563,11 +563,155 @@ function ContractSection() {
           </p>
         </div>
       </Reveal>
+
+      {/* Buy & Boost — gold-glow highlight reinforcing that purchases grow rewards */}
+      <Reveal delay={120}>
+        <div className="bwBoostCard">
+          <Sparks count={6} />
+          <div className="bwBoostHead">
+            <span className="bwBoostIcon" aria-hidden>
+              <IconChartUp />
+            </span>
+            <span className="bwBoostPill">Hold more · Earn more</span>
+          </div>
+          <h3 className="bwBoostTitle">Buy &amp; boost your rewards</h3>
+          <p className="bwBoostBody">
+            Your purchases don&rsquo;t just sit there — they&rsquo;re tracked. The more $BLINK
+            you buy and hold in your registered wallet, the bigger your reward share grows as
+            BlinkWorld grows. Early believers earn the most.
+          </p>
+          <a
+            href={PHANTOM_BUY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bwBuyBtn bwBuyBtnSm"
+            aria-label="Buy $BLINK on Phantom (opens in a new tab)"
+          >
+            <PhantomGhostIcon />
+            <span>Buy $BLINK on Phantom</span>
+          </a>
+        </div>
+      </Reveal>
     </section>
   );
 }
 
 /* ───────────────────────────── Claim section ────────────────────────────── */
+
+// Minimal stroke icons for the how-it-works steps — currentColor so each
+// card's accent tints them.
+function IconWallet() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x={3} y={6} width={18} height={14} rx={3.5} stroke="currentColor" strokeWidth={1.9} />
+      <path d="M3 9.5h18" stroke="currentColor" strokeWidth={1.9} />
+      <circle cx={16.6} cy={14.8} r={1.5} fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconBolt() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M13 2.5L4.8 13.4h6L9.6 21.5l8.6-11.1h-6L13 2.5z"
+        stroke="currentColor"
+        strokeWidth={1.9}
+        strokeLinejoin="round"
+        fill="rgba(255,255,255,0.06)"
+      />
+    </svg>
+  );
+}
+
+function IconChartUp() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M3 17.5l5.6-5.6 3.6 3.6L20 7.8"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M15.2 7.5H20v4.8" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// The three key messages, as numbered step cards. Accents are rgb triplets so
+// the CSS can derive borders/glows/text from one custom property per card.
+const CLAIM_STEPS = [
+  {
+    num: "1",
+    kicker: "One-time setup",
+    title: "Register once",
+    acc: "0,255,136",
+    icon: <IconWallet />,
+    body: (
+      <>
+        Enter your private Blink Code and lock in the wallet where your $BLINK should
+        arrive. <strong>This is the only claim you&rsquo;ll ever make</strong> — one code,
+        one wallet, set forever.
+      </>
+    ),
+  },
+  {
+    num: "2",
+    kicker: "Automatic rewards",
+    title: "Play & earn on autopilot",
+    acc: "77,216,255",
+    icon: <IconBolt />,
+    body: (
+      <>
+        From then on, <strong>$BLINK is sent straight to your wallet</strong> as you play
+        and earn in the app. No coming back, no re-claiming — rewards simply arrive.
+      </>
+    ),
+  },
+  {
+    num: "3",
+    kicker: "Hold more · Earn more",
+    title: "Buy & boost",
+    acc: "255,194,77",
+    icon: <IconChartUp />,
+    body: (
+      <>
+        Purchases are tracked. <strong>The more $BLINK you buy and hold</strong> in your
+        registered wallet, the bigger your rewards grow as BlinkWorld grows.
+      </>
+    ),
+  },
+];
+
+// Glowing, gently pulsing "important message" banner. Accent-tinted animated
+// gradient border; inert under prefers-reduced-motion via CLAIM_STYLE.
+function GlowCallout({
+  acc,
+  color,
+  icon,
+  title,
+  children,
+  style,
+}: {
+  acc: string;
+  color: string;
+  icon: string;
+  title: string;
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div className="bwCallout" style={{ ["--acc" as string]: acc, ...style }}>
+      <span className="bwCalloutIcon" aria-hidden>
+        {icon}
+      </span>
+      <p>
+        <strong style={{ color }}>{title}</strong> {children}
+      </p>
+    </div>
+  );
+}
 
 function ClaimSection() {
   return (
@@ -578,10 +722,44 @@ function ClaimSection() {
       <SectionHeader
         kicker="Airdrop"
         title="Claim your $BLINK"
-        sub="Enter the private Blink Code from your app, reveal your lifetime Blink Balls, and register the wallet where your $BLINK should land."
+        sub="Enter the private Blink Code from your app, reveal your lifetime Blink Balls, and register the wallet where your $BLINK should land. It's a one-time setup — after that, rewards come to you."
       />
+
+      {/* How claiming works — the three key messages as numbered step cards */}
       <Reveal>
-        <div style={{ marginTop: 42 }}>
+        <p className="bwStepsKicker">How claiming works</p>
+      </Reveal>
+      <div className="bwStepsGrid">
+        {CLAIM_STEPS.map((s, i) => (
+          <Reveal key={s.num} delay={i * 120} className="bwStepCell">
+            <div className="bwStepCard" style={{ ["--acc" as string]: s.acc }}>
+              <div className="bwStepTop">
+                <span className="bwStepNum">{s.num}</span>
+                <span className="bwStepIcon">{s.icon}</span>
+              </div>
+              <span className="bwStepKicker">{s.kicker}</span>
+              <h3 className="bwStepTitle">{s.title}</h3>
+              <p className="bwStepBody">{s.body}</p>
+            </div>
+          </Reveal>
+        ))}
+      </div>
+
+      <Reveal delay={120}>
+        <GlowCallout
+          acc="0,255,136"
+          color={GREEN}
+          icon="⚡"
+          title="One-time setup —"
+          style={{ marginTop: 30 }}
+        >
+          claim once and you&rsquo;re set forever. $BLINK rewards are sent to your wallet
+          automatically as you play — you never need to claim again.
+        </GlowCallout>
+      </Reveal>
+
+      <Reveal>
+        <div style={{ marginTop: 38 }}>
           <ClaimFlow />
         </div>
       </Reveal>
@@ -1064,6 +1242,231 @@ const CLAIM_STYLE = `
   -webkit-user-select: all;
 }
 
+/* ── How claiming works — numbered step cards (accent via --acc rgb triplet) ── */
+.bwStepsKicker {
+  margin: 44px 0 0;
+  text-align: center;
+  font-family: ${FONT_DISPLAY};
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: ${TEXT50};
+}
+.bwStepsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 20px;
+}
+.bwStepCell { min-width: 0; }
+.bwStepCell > .bwStepCard { height: 100%; }
+.bwStepCard {
+  --acc: 0,255,136;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 26px 24px 24px;
+  border-radius: 24px;
+  overflow: hidden;
+  background:
+    linear-gradient(#090B12, #090B12) padding-box,
+    linear-gradient(150deg, rgba(var(--acc), 0.65), rgba(255,255,255,0.12) 45%, rgba(var(--acc), 0.4)) border-box;
+  border: 1.5px solid transparent;
+  animation: bwStepGlow 5.5s ease-in-out infinite;
+}
+.bwStepCard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 80% at 50% 0%, rgba(var(--acc), 0.1), transparent 60%);
+}
+@keyframes bwStepGlow {
+  0%, 100% { box-shadow: 0 0 24px rgba(var(--acc), 0.1), inset 0 1px 0 rgba(255,255,255,0.06); }
+  50% { box-shadow: 0 0 52px rgba(var(--acc), 0.24), inset 0 1px 0 rgba(255,255,255,0.06); }
+}
+.bwStepTop {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.bwStepNum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--acc), 0.45);
+  background: rgba(var(--acc), 0.1);
+  color: rgb(var(--acc));
+  font-family: ${FONT_DISPLAY};
+  font-size: 19px;
+  font-weight: 700;
+  box-shadow: 0 0 18px rgba(var(--acc), 0.25), inset 0 1px 0 rgba(255,255,255,0.1);
+  text-shadow: 0 0 12px rgba(var(--acc), 0.6);
+}
+.bwStepIcon {
+  display: inline-flex;
+  color: rgb(var(--acc));
+  filter: drop-shadow(0 0 10px rgba(var(--acc), 0.55));
+}
+.bwStepKicker {
+  position: relative;
+  margin-top: 6px;
+  font-family: ${FONT_DISPLAY};
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgb(var(--acc));
+  text-shadow: 0 0 14px rgba(var(--acc), 0.4);
+}
+.bwStepTitle {
+  position: relative;
+  margin: 0;
+  font-family: ${FONT_DISPLAY};
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+.bwStepBody {
+  position: relative;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: ${TEXT70};
+}
+.bwStepBody strong { color: #fff; font-weight: 600; }
+@media (max-width: 860px) {
+  .bwStepsGrid { grid-template-columns: 1fr; gap: 14px; }
+}
+
+/* ── glowing "important message" callout banner ── */
+.bwCallout {
+  --acc: 0,255,136;
+  position: relative;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 17px 22px;
+  border-radius: 20px;
+  border: 1.5px solid transparent;
+  overflow: hidden;
+  background:
+    linear-gradient(#07090F, #07090F) padding-box,
+    linear-gradient(120deg, rgba(var(--acc), 0.8), rgba(255,255,255,0.2) 30%, rgba(var(--acc), 0.55) 60%, rgba(255,255,255,0.16) 82%, rgba(var(--acc), 0.8)) border-box;
+  background-size: auto, 300% 100%;
+  animation: bwPanelFlow 8s linear infinite, bwCalloutPulse 3.4s ease-in-out infinite;
+}
+.bwCallout::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 100% at 50% 0%, rgba(var(--acc), 0.12), transparent 65%);
+}
+@keyframes bwCalloutPulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(var(--acc), 0.14); }
+  50% { box-shadow: 0 0 44px rgba(var(--acc), 0.3); }
+}
+.bwCalloutIcon {
+  position: relative;
+  font-size: 20px;
+  line-height: 24px;
+  filter: drop-shadow(0 0 10px rgba(var(--acc), 0.7));
+}
+.bwCallout p {
+  position: relative;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.88);
+}
+.bwCallout strong { font-weight: 700; }
+
+/* ── Buy & Boost — gold-glow highlight card ── */
+.bwBoostCard {
+  --acc: 255,194,77;
+  position: relative;
+  max-width: 720px;
+  margin: 26px auto 0;
+  padding: clamp(24px, 4vw, 36px);
+  border-radius: 26px;
+  border: 1.5px solid transparent;
+  overflow: hidden;
+  text-align: center;
+  background:
+    linear-gradient(#0B0A07, #0B0A07) padding-box,
+    linear-gradient(120deg, rgba(255,194,77,0.75), rgba(255,255,255,0.18) 30%, rgba(255,150,50,0.55) 60%, rgba(255,255,255,0.16) 82%, rgba(255,194,77,0.75)) border-box;
+  background-size: auto, 300% 100%;
+  animation: bwPanelFlow 9s linear infinite, bwCalloutPulse 3.8s ease-in-out infinite;
+}
+.bwBoostCard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(110% 90% at 50% 0%, rgba(255,194,77,0.12), transparent 62%);
+}
+.bwBoostCard .bwSpark {
+  background: #FFC24D;
+  box-shadow: 0 0 8px rgba(255,194,77,0.9), 0 0 20px rgba(255,194,77,0.45);
+}
+.bwBoostHead {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.bwBoostIcon {
+  display: inline-flex;
+  color: #FFC24D;
+  filter: drop-shadow(0 0 12px rgba(255,194,77,0.6));
+}
+.bwBoostPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,194,77,0.45);
+  background: rgba(255,194,77,0.08);
+  color: #FFD166;
+  font-family: ${FONT_DISPLAY};
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(255,194,77,0.5);
+}
+.bwBoostTitle {
+  position: relative;
+  margin: 16px 0 0;
+  font-family: ${FONT_DISPLAY};
+  font-size: clamp(21px, 2.8vw, 26px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+.bwBoostBody {
+  position: relative;
+  margin: 12px auto 0;
+  max-width: 520px;
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: ${TEXT70};
+}
+.bwBoostCard .bwBuyBtn { position: relative; margin-top: 22px; }
+
 /* ── shimmering section titles ── */
 .bwShimmerTitle h2 {
   background: linear-gradient(110deg, #FFFFFF 30%, ${GREEN} 42%, #EAFFF4 50%, ${GREEN} 58%, #FFFFFF 70%);
@@ -1474,9 +1877,12 @@ const CLAIM_STYLE = `
 @media (prefers-reduced-motion: reduce) {
   .bwBuyBtn, .bwNeonPanel, .bwCircuitLine, .bwKartArt, .bwRacerArt, .bwFishArt,
   .bwTrackTrack, .bwSpark, .bwNewPill::before, .bwStyleHalo,
+  .bwStepCard, .bwCallout, .bwBoostCard,
   .bwShimmerTitle h2 {
     animation: none !important;
   }
+  .bwStepCard { box-shadow: 0 0 24px rgba(var(--acc), 0.12); }
+  .bwCallout, .bwBoostCard { box-shadow: 0 0 24px rgba(var(--acc), 0.16); }
   .bwSpark { display: none; }
   .bwShimmerTitle h2 { background-position: 50% 0; }
   .bwBuyBtn:hover, .bwItemChip:hover, .bwBaitCard:hover, .bwStyleCard:hover { transform: none; }
