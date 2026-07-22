@@ -474,6 +474,7 @@ function Hero() {
               Download Now
             </a>
             <AppStoreBadge />
+            <XFollowButton />
           </div>
 
           <div className="bwRise" style={{ animationDelay: "0.75s" }}>
@@ -770,6 +771,36 @@ export function AppStoreBadge() {
           App Store
         </text>
       </svg>
+    </a>
+  );
+}
+
+// Official X (Twitter) account — shared by the homepage and /claim heroes.
+export const X_URL = "https://x.com/blinkworldeth";
+
+export function XFollowButton() {
+  return (
+    <a
+      href={X_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="bwXBtn"
+      aria-label="Follow @blinkworldeth on X (opens in a new tab)"
+    >
+      <svg
+        className="bwXBtnLogo"
+        viewBox="0 0 24 24"
+        width={17}
+        height={17}
+        fill="currentColor"
+        aria-hidden
+        focusable="false"
+      >
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117Z" />
+      </svg>
+      <span>
+        Follow <span className="bwXBtnHandle">@blinkworldeth</span>
+      </span>
     </a>
   );
 }
@@ -1968,6 +1999,46 @@ export const STYLE = `
 }
 .bwDownloadBtn:hover { transform: translateY(-1px); box-shadow: 0 6px 36px rgba(0,255,136,0.6), inset 0 1px 0 rgba(255,255,255,0.45); }
 .bwDownloadBtn:hover::after { left: 130%; }
+
+/* glowy X (Twitter) follow button */
+.bwXBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 54px;
+  padding: 0 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,255,136,0.45);
+  background:
+    radial-gradient(120% 160% at 50% 0%, rgba(0,255,136,0.14), rgba(5,6,12,0) 60%),
+    rgba(5,6,12,0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #fff;
+  font-family: ${FONT_DISPLAY};
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 18px rgba(0,255,136,0.28), 0 0 46px rgba(0,255,136,0.12);
+  transition: transform 0.15s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.bwXBtnLogo {
+  flex-shrink: 0;
+  color: ${GREEN};
+  filter: drop-shadow(0 0 8px rgba(0,255,136,0.7));
+  transition: transform 0.2s ease;
+}
+.bwXBtnHandle { color: ${GREEN}; text-shadow: 0 0 14px rgba(0,255,136,0.55); }
+.bwXBtn:hover {
+  transform: translateY(-1px) scale(1.02);
+  border-color: rgba(0,255,136,0.85);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 0 26px rgba(0,255,136,0.55), 0 0 70px rgba(0,255,136,0.22);
+}
+.bwXBtn:hover .bwXBtnLogo { transform: rotate(-6deg) scale(1.12); }
+@media (max-width: 480px) {
+  .bwXBtn { height: 48px; padding: 0 20px; font-size: 14px; }
+}
 
 .bwHeroGrid {
   display: grid;

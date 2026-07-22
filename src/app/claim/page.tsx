@@ -22,6 +22,7 @@ import {
   FloatingOrbs,
   HeroExplorers,
   AppStoreBadge,
+  XFollowButton,
   Features,
   ScreenshotCarousel,
   PrivacyFirst,
@@ -307,6 +308,7 @@ function ClaimHero() {
               Download the App
             </a>
             <AppStoreBadge />
+            <XFollowButton />
           </div>
 
           {/* New-to-crypto path — red/green animated ring, scrolls to the guide */}
