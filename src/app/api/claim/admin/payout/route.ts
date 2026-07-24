@@ -26,12 +26,14 @@ import { isAdminRequest } from "@/lib/claim-v3";
 import {
   basisFromWei,
   computePayoutWei,
+  getPublicClient,
   isRefPaid,
   isTxKnown,
   payoutConfig,
   payoutErrorMessage,
   payoutRef,
   sendPayout,
+  VAULT_ABI,
   waitForPayout,
 } from "@/lib/blink-payout";
 import { getBlinkBalance } from "@/lib/blink-balance";
@@ -231,6 +233,38 @@ export async function POST(req: NextRequest) {
       amountWei = computePayoutWei(owed, cfg.ratio, cfg.maxTokens);
     } catch (e) {
       return fail(payoutErrorMessage(e));
+    }
+
+    // Pre-flight: vault must hold enough BLINK (ERC20InsufficientBalance = underfunded vault)
+    try {
+      const pub = getPublicClient();
+      const [poolWei, remainingToday] = await Promise.all([
+        pub.readContract({ address: cfg.vault, abi: VAULT_ABI, functionName: "poolBalance" }),
+        pub.readContract({ address: cfg.vault, abi: VAULT_ABI, functionName: "remainingToday" }),
+      ]);
+      if (poolWei < amountWei) {
+        const need = formatUnits(amountWei, 18);
+        const have = formatUnits(poolWei, 18);
+        return fail(
+          `Vault only has ${Number(have).toLocaleString(undefined, { maximumFractionDigits: 4 })} $BLINK but this payout needs ${Number(need).toLocaleString(undefined, { maximumFractionDigits: 4 })}. ` +
+            `Transfer more $BLINK to ${cfg.vault}, then Retry send.`,
+          412,
+          { code: "vault_empty", need, have, vault: cfg.vault },
+        );
+      }
+      if (remainingToday < amountWei) {
+        const need = formatUnits(amountWei, 18);
+        const rem = formatUnits(remainingToday, 18);
+        return fail(
+          `Daily vault cap: only ${Number(rem).toLocaleString(undefined, { maximumFractionDigits: 4 })} $BLINK left today, need ${Number(need).toLocaleString(undefined, { maximumFractionDigits: 4 })}. ` +
+            `Raise dailyCap or wait until next UTC day.`,
+          412,
+          { code: "daily_cap", need, remaining: rem },
+        );
+      }
+    } catch (e) {
+      // Non-fatal if view calls flake — simulateContract will still catch empty vault
+      console.warn("[claim/admin/payout] vault preflight:", payoutErrorMessage(e));
     }
 
     // Holder guard: the recipient must already hold $BLINK. Fresh (uncached)

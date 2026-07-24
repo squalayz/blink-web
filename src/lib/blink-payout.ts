@@ -204,5 +204,35 @@ export async function waitForPayout(hash: Hex) {
 export function payoutErrorMessage(e: unknown): string {
   const raw =
     (e as any)?.shortMessage || (e as any)?.message || (typeof e === "string" ? e : "Unknown error");
-  return String(raw).replace(/0x[0-9a-fA-F]{64,}/g, "0x…").slice(0, 300);
+  const s = String(raw);
+
+  // Decode common vault / ERC-20 reverts into admin-friendly copy
+  // 0xe450d38c = ERC20InsufficientBalance(address,uint256,uint256) — vault out of BLINK
+  if (
+    /0xe450d38c|0xe450558c|ERC20InsufficientBalance|transfer amount exceeds balance|insufficient balance/i.test(
+      s,
+    )
+  ) {
+    return (
+      "Vault does not hold enough $BLINK for this payout. " +
+      "Transfer more BLINK into the BlinkPayoutVault, then Retry send."
+    );
+  }
+  if (/0xd98ff382|RefAlreadyPaid/i.test(s)) {
+    return "This payout was already recorded on-chain (ref already paid). Refresh the admin list.";
+  }
+  if (/0x97d3a5c0|ExceedsDailyCap/i.test(s)) {
+    return "Daily payout cap reached on the vault. Raise dailyCap or wait until next UTC day.";
+  }
+  if (/0x84ade258|ExceedsMaxPerPayout/i.test(s)) {
+    return "Payout exceeds maxPerPayout on the vault. Raise the per-tx cap or split the amount.";
+  }
+  if (/0x9e87fac8|Paused\(\)|execution reverted: Paused/i.test(s)) {
+    return "Payout vault is paused. Owner must unpause before sending.";
+  }
+  if (/0x7c214f04|NotOperator/i.test(s)) {
+    return "Operator key is not authorized on the vault. Check CLAIM_PAYOUT_OPERATOR_KEY matches vault.operator().";
+  }
+
+  return s.replace(/0x[0-9a-fA-F]{64,}/g, "0x…").slice(0, 300);
 }
