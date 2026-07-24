@@ -112,6 +112,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Registration is rejected." }, { status: 400 });
     }
 
+    // Ignored guard — separate tolerant read so the route still works before
+    // migration 20260723_airdrop_ignored_column is applied (no column → no guard).
+    const { data: ignRow } = await db
+      .from("airdrop_registrations")
+      .select("ignored")
+      .eq("id", id)
+      .maybeSingle();
+    if (ignRow?.ignored) {
+      return NextResponse.json(
+        { error: "User is ignored — payout refused. Unignore them first.", code: "ignored" },
+        { status: 403 },
+      );
+    }
+
     let to: Address;
     try {
       to = getAddress(reg.eth_address);

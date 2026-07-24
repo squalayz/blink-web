@@ -25,6 +25,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid id or status." }, { status: 400 });
     }
 
+    const db = blinkworldAdmin();
+
+    // Ignored users can be rejected but never approved — tolerant read so this
+    // still works before migration 20260723_airdrop_ignored_column is applied.
+    if (status === "approved") {
+      const { data: ignRow } = await db
+        .from("airdrop_registrations")
+        .select("ignored")
+        .eq("id", id)
+        .maybeSingle();
+      if (ignRow?.ignored) {
+        return NextResponse.json(
+          { error: "User is ignored — unignore them before approving." },
+          { status: 403 },
+        );
+      }
+    }
+
     const now = new Date().toISOString();
     const patch: Record<string, string | null> = { status, updated_at: now };
     if (status === "approved") patch.approved_at = now;
@@ -37,7 +55,6 @@ export async function POST(req: NextRequest) {
     patch.payout_error = null;
     patch.payout_locked_at = null;
 
-    const db = blinkworldAdmin();
     let { data, error } = await db
       .from("airdrop_registrations")
       .update(patch)

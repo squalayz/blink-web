@@ -22,11 +22,20 @@ export async function GET(req: NextRequest) {
       "id, profile_id, trainer_code, eth_address, status, created_at, updated_at, approved_at, sent_at";
     // degraded = payout columns unreadable (migration 20260716_airdrop_payout_columns
     // not applied) — surfaced to the UI instead of silently hiding payout state.
+    // ignoredAvailable = ignored column readable (migration 20260723_airdrop_ignored_column).
     let degraded = false;
+    let ignoredAvailable = true;
     let { data: regs, error }: { data: any[] | null; error: any } = await db
       .from("airdrop_registrations")
-      .select(`${BASE_COLS}, payout_tx_hash, payout_amount_wei, payout_basis, payout_error`)
+      .select(`${BASE_COLS}, payout_tx_hash, payout_amount_wei, payout_basis, payout_error, ignored`)
       .order("created_at", { ascending: false });
+    if (error) {
+      ignoredAvailable = false;
+      ({ data: regs, error } = await db
+        .from("airdrop_registrations")
+        .select(`${BASE_COLS}, payout_tx_hash, payout_amount_wei, payout_basis, payout_error`)
+        .order("created_at", { ascending: false }));
+    }
     if (error) {
       degraded = true;
       ({ data: regs, error } = await db
@@ -90,6 +99,7 @@ export async function GET(req: NextRequest) {
         blink_lifetime: Number(x.blink_lifetime ?? 0),
         received_transfers: Number(x.received_transfers ?? 0),
         airdrop_basis: airdropBasis,
+        ignored: Boolean(r.ignored),
         flagged: Boolean(x.flagged),
         flag_reasons: x.flag_reasons ?? null,
         paid_basis: paidBasis,
@@ -99,7 +109,7 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json(
-      { ok: true, registrations: rows, degraded, history_available: historyAvailable },
+      { ok: true, registrations: rows, degraded, history_available: historyAvailable, ignored_available: ignoredAvailable },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (e) {

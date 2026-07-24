@@ -25,6 +25,7 @@ type Row = {
   received_transfers: number;
   airdrop_basis: number;
   flagged: boolean;
+  ignored?: boolean; // admin marked: never send tokens (payout API refuses)
   flag_reasons: string[] | string | null;
   account_created: string | null;
   created_at: string;
@@ -92,7 +93,9 @@ export default function ClaimAdminPage() {
           ? "Payout columns unreadable — run supabase/migrations/20260716_airdrop_payout_columns.sql. Statuses shown may be missing tx/paid data."
           : j.history_available === false
             ? "Payout history table missing — run supabase/migrations/20260716_airdrop_payout_history.sql before the next send (owed amounts below ignore it)."
-            : "",
+            : j.ignored_available === false
+              ? "Ignored column missing — run supabase/migrations/20260723_airdrop_ignored_column.sql to enable ignore/unignore."
+              : "",
       );
       setAuthed(true);
     } catch {
@@ -146,6 +149,26 @@ export default function ClaimAdminPage() {
     },
     [],
   );
+
+  // Ignore/unignore: optimistic flip (instant fade/restore), reverted if the
+  // server rejects (e.g. ignored column migration not applied yet).
+  const toggleIgnore = useCallback(async (id: string, ignored: boolean) => {
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ignored } : r)));
+    try {
+      const res = await fetch("/api/claim/admin/ignore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ignored }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ignored: !ignored } : r)));
+        if (j?.error) window.alert(j.error);
+      }
+    } catch {
+      setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ignored: !ignored } : r)));
+    }
+  }, []);
 
   // Approve + auto-send: server sends BLINK via the payout vault, waits for
   // 1 confirmation, flips the row to sent with the tx hash. On failure the
@@ -366,11 +389,20 @@ export default function ClaimAdminPage() {
               {filtered.map((r) => {
                 const reasons = Array.isArray(r.flag_reasons) ? r.flag_reasons.join(", ") : r.flag_reasons || "";
                 const owed = r.owed_basis || 0;
+                const ignored = Boolean(r.ignored);
                 return (
-                  <tr key={r.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <tr key={r.id} style={{ borderTop: "1px solid rgba(255,255,255,0.06)", opacity: ignored ? 0.4 : 1, transition: "opacity 0.15s ease" }}>
                     <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
-                      <div style={{ fontWeight: 700 }}>
+                      <div style={{ fontWeight: 700, textDecoration: ignored ? "line-through" : "none" }}>
                         {r.display_name || r.username || "—"}
+                        {ignored && (
+                          <span
+                            title="Ignored — this user will never be sent tokens"
+                            style={{ marginLeft: 8, fontSize: 10, fontWeight: 900, letterSpacing: "0.1em", color: C.textSecondary, border: "1px solid rgba(255,255,255,0.25)", borderRadius: 6, padding: "2px 7px", verticalAlign: "middle", textDecoration: "none", display: "inline-block" }}
+                          >
+                            IGNORED
+                          </span>
+                        )}
                         {r.flagged && (
                           <span
                             title={reasons || "Flagged account"}
@@ -483,7 +515,9 @@ export default function ClaimAdminPage() {
                       <div style={{ display: "flex", gap: 6 }}>
                         {r.status === "pending" && (
                           <>
-                            {owed > 0 ? (
+                            {ignored ? (
+                              <span style={{ color: C.textTertiary, fontSize: 12, alignSelf: "center" }}>ignored — no send</span>
+                            ) : owed > 0 ? (
                               <button disabled={busyId === r.id} onClick={() => confirmAndSend(r)} style={{ ...btn(true), padding: "5px 10px" }}>
                                 {busyId === r.id ? "Sending…" : "Approve + send"}
                               </button>
@@ -497,16 +531,20 @@ export default function ClaimAdminPage() {
                         )}
                         {r.status === "approved" && (
                           <>
-                            {owed > 0 ? (
+                            {ignored ? (
+                              <span style={{ color: C.textTertiary, fontSize: 12, alignSelf: "center" }}>ignored — no send</span>
+                            ) : owed > 0 ? (
                               <button disabled={busyId === r.id} onClick={() => confirmAndSend(r)} style={{ ...btn(true), padding: "5px 10px" }}>
                                 {busyId === r.id ? "Sending…" : r.payout_error ? "Retry send" : "Send tokens"}
                               </button>
                             ) : (
                               <span style={{ color: C.textTertiary, fontSize: 12, alignSelf: "center" }}>nothing owed</span>
                             )}
-                            <button disabled={busyId === r.id} onClick={() => setStatus(r.id, "sent")} style={{ ...btn(), padding: "5px 10px" }}>
-                              Mark sent
-                            </button>
+                            {!ignored && (
+                              <button disabled={busyId === r.id} onClick={() => setStatus(r.id, "sent")} style={{ ...btn(), padding: "5px 10px" }}>
+                                Mark sent
+                              </button>
+                            )}
                             <button disabled={busyId === r.id} onClick={() => setStatus(r.id, "pending")} style={{ ...btn(), padding: "5px 10px" }}>
                               Undo
                             </button>
@@ -518,7 +556,9 @@ export default function ClaimAdminPage() {
                           </button>
                         )}
                         {r.status === "sent" &&
-                          (owed > 0 ? (
+                          (ignored ? (
+                            <span style={{ color: C.textTertiary, fontSize: 12 }}>ignored — no send</span>
+                          ) : owed > 0 ? (
                             <button disabled={busyId === r.id} onClick={() => confirmAndSend(r)} style={{ ...btn(true), padding: "5px 10px" }}>
                               {busyId === r.id ? "Sending…" : `Send +${owed.toLocaleString()} new`}
                             </button>
@@ -527,6 +567,14 @@ export default function ClaimAdminPage() {
                               {(r.paid_basis || 0) > 0 ? "✓ fully paid" : "✓ done"}
                             </span>
                           ))}
+                        <button
+                          disabled={busyId === r.id}
+                          onClick={() => toggleIgnore(r.id, !ignored)}
+                          title={ignored ? "Unignore — allow sending tokens again" : "Ignore — never send tokens to this user"}
+                          style={{ ...btn(), padding: "5px 10px", ...(ignored ? { borderColor: C.primary, color: C.primary } : { color: C.textTertiary }) }}
+                        >
+                          {ignored ? "Unignore" : "🚫 Ignore"}
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -544,6 +592,9 @@ export default function ClaimAdminPage() {
           (expandable under the status). Failures keep the row APPROVED with the error shown —
           Retry send is always safe (the vault rejects a replay of the same payout, on-chain).
           Mark sent / Undo remain for manual bookkeeping. Flagged accounts show a REVIEW badge.
+          <strong> 🚫 Ignore</strong> fades the row and blocks approve + send (enforced
+          server-side too — the payout API refuses ignored users); Reject stays possible and
+          Unignore restores the row instantly.
           The <strong>HOLDS BLINK / NO BLINK</strong> badge is a live on-chain balance check of the
           registered wallet (refreshed on load, ~60&nbsp;s cache) — players must already hold $BLINK
           to receive rewards. Sending to a NO BLINK wallet asks for confirmation and the server
